@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ArrowTopRightOnSquareIcon, ArrowsPointingInIcon, ArrowsPointingOutIcon, RectangleGroupIcon } from '@heroicons/react/16/solid'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { ArrowsPointingOutIcon, RectangleGroupIcon, ViewColumnsIcon } from '@heroicons/react/16/solid'
 import type { DbRecord } from '@biu/type-file-system'
 import type { CollectionViewType, FsContentProps, FsViewProps } from '@biu/type-file-system/ui'
 import { PageBlockMissing } from './page-block-view.tsx'
@@ -50,6 +50,16 @@ export function openSourcePage(pageId: string) {
   window.dispatchEvent(
     new CustomEvent(PAGE_REVEAL_EVENT, {
       detail: { collection: '/pages', recordId: id, unique: true },
+    }),
+  )
+}
+
+export function openBlockInInspector(blockId: string) {
+  const id = blockId.trim()
+  if (!id) return
+  window.dispatchEvent(
+    new CustomEvent(PAGE_REVEAL_EVENT, {
+      detail: { collection: '/page-blocks', recordId: id, unique: true },
     }),
   )
 }
@@ -175,14 +185,12 @@ export function PageBlockContent({ record, value, writable, onChange }: FsConten
 
 function BlockCard({
   row,
-  zoomed,
   pageName,
-  onZoom,
+  onOpen,
 }: {
   row: DbRecord
-  zoomed: boolean
   pageName: string
-  onZoom: (row: DbRecord | null) => void
+  onOpen: (row: DbRecord) => void
 }) {
   usePageEditorVersion()
   const kind = String(row.blockKind ?? row.kind ?? '').trim()
@@ -196,18 +204,6 @@ function BlockCard({
   const pageLabel = pageLabelOf(row, pageName)
   const kindLabel = spec?.label || kind
 
-  useEffect(() => {
-    if (!zoomed) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      onZoom(null)
-    }
-    window.addEventListener('keydown', onKey, true)
-    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')))
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [zoomed, onZoom])
-
   const commitTitle = () => {
     const next = draft.trim()
     if (next === title) return
@@ -216,10 +212,7 @@ function BlockCard({
   }
 
   return (
-    <article
-      className={`page-blocks-view-card${zoomed ? ' is-zoomed' : ''}`}
-      data-testid="page-blocks-view-card"
-    >
+    <article className="page-blocks-view-card" data-testid="page-blocks-view-card">
       <div className="page-blocks-view-head">
         <input
           className="page-blocks-view-title"
@@ -237,32 +230,36 @@ function BlockCard({
             <span className="page-blocks-view-kind">{kindLabel}</span>
           ) : null}
           {pageId ? (
-            <span className="page-blocks-view-page" data-testid="page-blocks-view-page" title="来源页面">
+            <button
+              type="button"
+              className="page-blocks-view-page"
+              data-testid="page-blocks-view-page"
+              title={pageLabel ? `打开来源页面 ${pageLabel}` : '打开来源页面'}
+              onClick={() => openSourcePage(pageId)}
+            >
               {pageLabel || '…'}
-            </span>
+            </button>
           ) : null}
+          <button
+            type="button"
+            className="page-blocks-view-open"
+            data-testid="page-blocks-view-inspector"
+            aria-label="在右侧打开"
+            title="在右侧打开"
+            onClick={() => openBlockInInspector(String(row.id))}
+          >
+            <ViewColumnsIcon />
+          </button>
           <button
             type="button"
             className="page-blocks-view-zoom"
             data-testid="page-blocks-view-zoom"
-            aria-label={zoomed ? '退出放大' : '放大'}
-            title={zoomed ? '退出放大' : '放大'}
-            onClick={() => onZoom(zoomed ? null : row)}
+            aria-label="查看详情"
+            title="查看详情"
+            onClick={() => onOpen(row)}
           >
-            {zoomed ? <ArrowsPointingInIcon /> : <ArrowsPointingOutIcon />}
+            <ArrowsPointingOutIcon />
           </button>
-          {pageId ? (
-            <button
-              type="button"
-              className="page-blocks-view-open"
-              data-testid="page-blocks-view-open"
-              aria-label={pageLabel ? `在右侧打开 ${pageLabel}` : '在右侧打开来源页面'}
-              title={pageLabel ? `在右侧打开 ${pageLabel}` : '在右侧打开来源页面'}
-              onClick={() => openSourcePage(pageId)}
-            >
-              <ArrowTopRightOnSquareIcon />
-            </button>
-          ) : null}
         </div>
       </div>
       <PageBlockStage row={row} />
@@ -270,31 +267,19 @@ function BlockCard({
   )
 }
 
-export function PageBlocksView({ rows }: FsViewProps) {
+export function PageBlocksView({ rows, onOpen }: FsViewProps) {
   usePageEditorVersion()
-  const [zoomId, setZoomId] = useState<string | null>(null)
-  const onZoom = useCallback((next: DbRecord | null) => setZoomId(next?.id ?? null), [])
   const pageIds = rows.map((row) => String(row.pageId ?? '').trim())
   const pageNames = usePageNames(pageIds)
   if (!rows.length) return <p className="fsdb-empty">暂无组件</p>
-  const zoomed = zoomId ? rows.find((row) => row.id === zoomId) : undefined
   return (
-    <div className={`page-editor page-blocks-view${zoomed ? ' is-zooming' : ''}`} data-testid="page-blocks-view">
-      {zoomed ? (
-        <button
-          type="button"
-          className="page-blocks-view-scrim"
-          aria-label="退出放大"
-          onClick={() => setZoomId(null)}
-        />
-      ) : null}
+    <div className="page-editor page-blocks-view" data-testid="page-blocks-view">
       {rows.map((row) => (
         <BlockCard
           key={row.id}
           row={row}
-          zoomed={row.id === zoomId}
           pageName={pageNames[String(row.pageId ?? '').trim()] ?? ''}
-          onZoom={onZoom}
+          onOpen={onOpen}
         />
       ))}
     </div>
