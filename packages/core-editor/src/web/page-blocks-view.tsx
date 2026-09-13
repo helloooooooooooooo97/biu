@@ -231,11 +231,10 @@ function BlockCard({
   const pageLabel = pageLabelOf(row, pageName)
   const kindLabel = spec?.label || kind
 
-  const commitTitle = () => {
-    const next = draft.trim()
-    if (next === title) return
-    setDraft(next || title)
-    if (next && next !== title) void writeBlockTitle(String(row.id), next)
+  const commitTitle = (raw: string) => {
+    const next = raw.trim()
+    if (!next || next === title) return
+    void writeBlockTitle(String(row.id), next)
   }
 
   return (
@@ -246,8 +245,14 @@ function BlockCard({
           data-testid="page-blocks-view-title"
           value={draft}
           aria-label="组件标题"
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commitTitle}
+          onChange={(event) => {
+            const next = event.target.value
+            setDraft(next)
+            if (event.nativeEvent.isComposing) return
+            commitTitle(next)
+          }}
+          onCompositionEnd={(event) => commitTitle((event.target as HTMLInputElement).value)}
+          onBlur={() => commitTitle(draft)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') (event.target as HTMLInputElement).blur()
           }}

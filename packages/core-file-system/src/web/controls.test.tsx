@@ -94,3 +94,11 @@ test('LocalText keeps keystrokes inside the field and only commits on blur', () 
   fireEvent.blur(box)
   assert.equal(committed, '新正文一二三')
 })
+
+test('LocalText live commits while typing, not only on blur', () => {
+  let committed = ''
+  render(<LocalText value="旧" live onCommit={(next) => { committed = next }} />)
+  const box = screen.getByDisplayValue('旧') as HTMLInputElement
+  fireEvent.change(box, { target: { value: '新名' } })
+  assert.equal(committed, '新名')
+})
