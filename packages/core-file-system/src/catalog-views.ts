@@ -168,6 +168,23 @@ export function stubBuiltinBlockKindView(id: string): SavedView | null {
   return builtinBlockKindView({ kind, label: kind })
 }
 
+export function stubAnyBuiltinView(id: string): SavedView | null {
+  return stubBuiltinBlockKindView(id) ?? stubBuiltinCatalogView(id) ?? stubBuiltinTagView(id) ?? stubBuiltinAllView(id)
+}
+
+/** 内置视图按 id 带锁定筛选。组件类型视图一定带 blockKind，不依赖列表里有没有这条。 */
+export function catalogLockFilters(
+  viewId: string | null | undefined,
+  listed: Array<{ id: string; builtin?: boolean; filters?: Record<string, string> }> = [],
+): Record<string, string> {
+  const key = String(viewId ?? '').trim()
+  if (!key) return {}
+  const stub = stubAnyBuiltinView(key)
+  if (stub) return { ...(stub.filters ?? {}) }
+  const current = listed.find((view) => view.id === key)
+  return current?.builtin ? { ...(current.filters ?? {}) } : {}
+}
+
 /** /page-blocks：全部组件 + 每种已登记块一条只读视图。 */
 export function mergePageBlockViews(table: TableRef | undefined, kinds: BlockKindRef[], user: SavedView[]): SavedView[] {
   const extra = userViews(user)
