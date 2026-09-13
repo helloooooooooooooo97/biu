@@ -7,6 +7,7 @@ import {
   parsePageBlockRecordId,
   patchPageBlockMarkdown,
   uniquifyPageBlockMarkdown,
+  defaultPageBlockTitle,
 } from './page-block-fence.ts'
 
 const doc = `前言
@@ -96,4 +97,10 @@ test('pageBlock record id is page::block', () => {
   assert.equal(pageBlockRecordId('p001', 'ab12cd34'), 'p001::ab12cd34')
   assert.deepEqual(parsePageBlockRecordId('p001::ab12cd34'), { pageId: 'p001', blockId: 'ab12cd34' })
   assert.equal(parsePageBlockRecordId('p001'), null)
+})
+
+test('default page block title is page name plus kind label', () => {
+  assert.equal(defaultPageBlockTitle('海报', 'HTML'), '海报 HTML')
+  assert.equal(defaultPageBlockTitle('', '画板'), '画板')
+  assert.equal(defaultPageBlockTitle('海报', ''), '海报')
 })

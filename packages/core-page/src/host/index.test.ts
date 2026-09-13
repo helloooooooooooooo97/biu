@@ -70,6 +70,8 @@ test('page plugin stores pages in SQLite under .page', async () => {
   assert.notEqual(registered[1]?.view?.moduleId, registered[0]?.view?.moduleId)
   assert.deepEqual(registered[1]?.records, { update: true })
   assert.equal(registered[1]?.schema.contentField, 'data')
+  assert.equal(registered[1]?.schema.fields.title?.writable, true)
+  assert.deepEqual(registered[1]?.schema.columns, ['title', 'blockKind', 'plugin', 'pageId'])
 
   const spec = registered[0]!
   assert.equal((await spec.list()).length, 0)
@@ -156,14 +158,19 @@ test('page-blocks collection updates one fence by page::block id', async () => {
   assert.equal(listed[0]?.id, `${pageId}::ab12cd34`)
   assert.equal(listed[0]?.blockKind, 'html')
   assert.equal(listed[0]?.pageTitle, '海报')
+  assert.equal(listed[0]?.title, '海报 html')
+  const renamed = await blocks.update!(`${pageId}::ab12cd34`, { title: '刊头' })
+  assert.equal(renamed.title, '刊头')
   const updated = await blocks.update!(`${pageId}::ab12cd34`, {
     data: { html: '<div>新</div>', deck: false },
   })
+  assert.equal(updated.title, '刊头')
   assert.match(String(updated.data), /新/)
   assert.match(String(updated.data), /"deck":false/)
   const md = await readFile(join(root, `.page/${pageId}.md`), 'utf8')
-  assert.match(md, /id=ab12cd34 deck=false/)
+  assert.match(md, /id=ab12cd34 title="刊头" deck=false/)
   assert.match(md, /<div>新<\/div>/)
+  assert.match(md, /刊头/)
   assert.equal(blocks.create, undefined)
   assert.equal(blocks.remove, undefined)
 })

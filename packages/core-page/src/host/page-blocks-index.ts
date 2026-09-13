@@ -1,6 +1,6 @@
 import type { DbRecord } from '@biu/type-file-system'
 import { recordBuiltinValues } from '@biu/type-file-system'
-import { listPageBlockFences, pageBlockData, pageBlockRecordId, parsePageBlockRecordId, uniquifyPageBlockMarkdown } from '@biu/core-editor/host'
+import { listPageBlockFences, pageBlockData, pageBlockRecordId, parsePageBlockRecordId, uniquifyPageBlockMarkdown, defaultPageBlockTitle } from '@biu/core-editor/host'
 import type { PagesStore, PageRow } from './store.ts'
 
 export const PAGE_BLOCK_HOT_WINDOW_MS = 5 * 60 * 1000
@@ -21,14 +21,14 @@ type IndexRow = {
   page_updated_at: number
 }
 
-function blockTitle(kind: string, data: Record<string, unknown>) {
+function blockTitle(pageName: string, kindName: string, data: Record<string, unknown>) {
   if (typeof data.title === 'string' && data.title.trim()) return data.title.trim()
-  if (typeof data.html === 'string' && data.html.trim()) {
-    const text = data.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 48)
-    if (text) return text
-  }
-  if (typeof data.file === 'string' && data.file.trim()) return data.file.replace(/^assets\//, '')
-  return kind
+  return defaultPageBlockTitle(pageName, kindName)
+}
+
+function pageNameFromRecord(rec: { data?: unknown } | null): string {
+  const data = rec?.data && typeof rec.data === 'object' && !Array.isArray(rec.data) ? (rec.data as Record<string, unknown>) : {}
+  return String(data.title ?? data.name ?? data.label ?? '').trim()
 }
 
 function toRecord(row: IndexRow): DbRecord {
@@ -142,7 +142,7 @@ export class PageBlocksIndex {
           fence.id,
           fence.kind,
           fence.plugin,
-          blockTitle(fence.kind, data),
+          blockTitle(pageTitle, fence.kind, data),
           pageTitle,
           JSON.stringify(data),
           row.createdAt,

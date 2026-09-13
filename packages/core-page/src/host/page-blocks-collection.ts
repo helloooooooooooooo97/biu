@@ -37,7 +37,7 @@ export function pageBlocksCollection(store: PagesStore, index: PageBlocksIndex):
       title: '组件',
       inspector: true,
       blurb:
-        '页面里嵌的 html、画板、算法题等。记录 id 为 <pageId>::<blockId>。索引记 last_run_at，每拍只扫最近改过的页（热窗口优先，再少量补旧），不会一次重建全部。改属性用 db_update：data 为 JSON 对象（默认合并）。不能从本表新建或删除。',
+        '页面里嵌的 html、画板、算法题等。记录 id 为 <pageId>::<blockId>。每块都有 title：有就用自己的，没有则默认「页面名 + 类型名」。可在本表直接改标题。改标题也可用 db_update 的 title 或 data.title。索引记 last_run_at，每拍只扫最近改过的页（热窗口优先，再少量补旧），不会一次重建全部。改属性用 db_update：data 为 JSON 对象（默认合并）。不能从本表新建或删除。',
       order: 26,
       icon: 'rectangle-group',
     },
@@ -47,7 +47,7 @@ export function pageBlocksCollection(store: PagesStore, index: PageBlocksIndex):
       columns: ['title', 'blockKind', 'plugin', 'pageId'],
       fields: {
         ...REQUIRED_RECORD_FIELDS,
-        title: { type: 'string', label: '标题' },
+        title: { type: 'string', label: '标题', writable: true },
         pageId: { type: 'ref', label: '页面', collection: '/pages' },
         blockId: { type: 'string', label: '块 id' },
         blockKind: { type: 'string', label: '类型' },
@@ -84,6 +84,7 @@ export function pageBlocksCollection(store: PagesStore, index: PageBlocksIndex):
       if (!page) throw new Error(`unknown page: ${parsed.pageId}`)
       const data = asDataObject(patch.data)
       const extras: Record<string, unknown> = { ...(data ?? {}) }
+      if (typeof patch.title === 'string') extras.title = patch.title
       if ('deck' in patch) extras.deck = patch.deck
       if ('width' in patch) extras.width = patch.width
       if ('height' in patch) extras.height = patch.height

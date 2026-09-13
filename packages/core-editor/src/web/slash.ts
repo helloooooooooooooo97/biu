@@ -6,6 +6,7 @@ import { SlashList } from './slash-list.tsx'
 import { placeSlashInWindow } from './slash-place.ts'
 import { slashMayOpen } from './editor-live.ts'
 import { createPageBlockId } from './page-block.ts'
+import { defaultPageBlockTitle } from '../page-block-fence.ts'
 import { BASIC_BLOCK_TYPE, getPageEditor, type SlashInsert } from './service.ts'
 
 export type SlashItem = {
@@ -16,6 +17,11 @@ export type SlashItem = {
   blockType: string
   blockTypeLabel: string
   command: (props: { editor: Editor; range: Range }) => void
+}
+
+function editorPageTitle(editor: Editor) {
+  const root = editor.view.dom.closest('.page-editor')
+  return root instanceof HTMLElement ? String(root.dataset.liveTitle ?? '').trim() : ''
 }
 
 const BASIC_GROUP = { blockType: BASIC_BLOCK_TYPE, blockTypeLabel: '基础模块' } as const
@@ -224,6 +230,10 @@ export function slashCatalog(): SlashItem[] {
       blockType,
       blockTypeLabel: block.blockTypeLabel ?? (blockType === BASIC_BLOCK_TYPE ? '基础模块' : block.label),
       command: ({ editor, range }) => {
+        const id = createPageBlockId()
+        const defaults = typeof block.defaults === 'function' ? block.defaults() : { ...(block.defaults ?? {}) }
+        const pageName = editorPageTitle(editor)
+        const title = String(defaults.title ?? '').trim() || defaultPageBlockTitle(pageName, block.label || block.kind)
         editor
           .chain()
           .focus()
@@ -233,8 +243,8 @@ export function slashCatalog(): SlashItem[] {
             attrs: {
               kind: block.kind,
               plugin: block.plugin,
-              id: createPageBlockId(),
-              data: typeof block.defaults === 'function' ? block.defaults() : { ...(block.defaults ?? {}) },
+              id,
+              data: { ...defaults, title },
             },
           })
           .run()
