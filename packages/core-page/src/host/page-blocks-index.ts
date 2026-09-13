@@ -15,6 +15,7 @@ type IndexRow = {
   kind: string
   plugin: string
   title: string
+  page_title: string
   data_json: string
   page_created_at: number
   page_updated_at: number
@@ -35,6 +36,7 @@ function toRecord(row: IndexRow): DbRecord {
     id: pageBlockRecordId(row.page_id, row.block_id),
     title: row.title,
     pageId: row.page_id,
+    pageTitle: row.page_title || undefined,
     blockId: row.block_id,
     blockKind: row.kind,
     plugin: row.plugin,
@@ -77,6 +79,7 @@ export class PageBlocksIndex {
         kind TEXT NOT NULL,
         plugin TEXT NOT NULL DEFAULT '',
         title TEXT NOT NULL,
+        page_title TEXT NOT NULL DEFAULT '',
         data_json TEXT NOT NULL,
         page_created_at INTEGER NOT NULL DEFAULT 0,
         page_updated_at INTEGER NOT NULL DEFAULT 0,
@@ -92,6 +95,11 @@ export class PageBlocksIndex {
         value TEXT NOT NULL
       );
     `)
+    try {
+      sqlite.exec('ALTER TABLE page_block_index ADD COLUMN page_title TEXT NOT NULL DEFAULT ""')
+    } catch {
+      /* 列已在 */
+    }
     return sqlite
   }
 
@@ -120,10 +128,11 @@ export class PageBlocksIndex {
       db.prepare('DELETE FROM page_block_index WHERE page_id = ?').run(row.id)
       const insert = db.prepare(`
         INSERT INTO page_block_index(
-          page_id, block_id, kind, plugin, title, data_json, page_created_at, page_updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          page_id, block_id, kind, plugin, title, page_title, data_json, page_created_at, page_updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       const seen = new Set<string>()
+      const pageTitle = String(row.title ?? '').trim()
       for (const fence of fences) {
         if (seen.has(fence.id)) continue
         seen.add(fence.id)
@@ -134,6 +143,7 @@ export class PageBlocksIndex {
           fence.kind,
           fence.plugin,
           blockTitle(fence.kind, data),
+          pageTitle,
           JSON.stringify(data),
           row.createdAt,
           row.updatedAt,

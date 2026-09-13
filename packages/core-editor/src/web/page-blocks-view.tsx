@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { RectangleGroupIcon } from '@heroicons/react/16/solid'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { ArrowsPointingInIcon, ArrowsPointingOutIcon, RectangleGroupIcon } from '@heroicons/react/16/solid'
 import type { DbRecord } from '@biu/type-file-system'
 import type { CollectionViewType, FsContentProps, FsViewProps } from '@biu/type-file-system/ui'
 import { PageBlockMissing } from './page-block-view.tsx'
@@ -7,6 +7,7 @@ import { bindPageBlockPlugin } from './page-block-plugin-host.ts'
 import { getPageEditor, usePageEditorVersion } from './service.ts'
 
 export const PAGE_BLOCKS_VIEW_ID = 'blocks'
+export const PAGE_REVEAL_EVENT = 'biu:inspector-reveal'
 
 export function parsePageBlockRowData(raw: unknown): Record<string, unknown> {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) return { ...(raw as Record<string, unknown>) }
@@ -30,6 +31,23 @@ async function writeBlockData(id: string, data: Record<string, unknown>) {
   const body = (await res.json()) as { error?: string }
   if (!res.ok) throw new Error(body.error || res.statusText)
   window.dispatchEvent(new Event('fsdb:change'))
+}
+
+export function openSourcePage(pageId: string) {
+  const id = pageId.trim()
+  if (!id) return
+  window.dispatchEvent(
+    new CustomEvent(PAGE_REVEAL_EVENT, {
+      detail: { collection: '/pages', recordId: id, unique: true },
+    }),
+  )
+}
+
+export function pageLabelOf(row: DbRecord) {
+  const title = String(row.pageTitle ?? '').trim()
+  if (title) return title
+  const id = String(row.pageId ?? '').trim()
+  return id
 }
 
 export function PageBlockStage({
@@ -99,20 +117,71 @@ export function PageBlockContent({ record, value, writable, onChange }: FsConten
 
 function BlockCard({
   row,
+  zoomed,
   onOpen,
+  onZoom,
 }: {
   row: DbRecord
+  zoomed: boolean
   onOpen: (row: DbRecord) => void
+  onZoom: (row: DbRecord | null) => void
 }) {
   usePageEditorVersion()
   const kind = String(row.blockKind ?? row.kind ?? '').trim()
   const spec = getPageEditor()?.block(kind)
   const title = String(row.title ?? spec?.label ?? kind)
+  const pageId = String(row.pageId ?? '').trim()
+  const pageLabel = pageLabelOf(row)
+  const kindLabel = spec?.label || kind
+
+  useEffect(() => {
+    if (!zoomed) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      onZoom(null)
+    }
+    window.addEventListener('keydown', onKey, true)
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')))
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [zoomed, onZoom])
+
   return (
-    <article className="page-blocks-view-card" data-testid="page-blocks-view-card">
-      <button type="button" className="page-blocks-view-title" onClick={() => onOpen(row)}>
-        {title}
-      </button>
+    <article
+      className={`page-blocks-view-card${zoomed ? ' is-zoomed' : ''}`}
+      data-testid="page-blocks-view-card"
+    >
+      <div className="page-blocks-view-head">
+        <button type="button" className="page-blocks-view-title" onClick={() => onOpen(row)} title="打开组件">
+          {title}
+        </button>
+        <div className="page-blocks-view-meta">
+          {kindLabel && kindLabel !== title ? (
+            <span className="page-blocks-view-kind">{kindLabel}</span>
+          ) : null}
+          {pageId ? (
+            <button
+              type="button"
+              className="page-blocks-view-page"
+              data-testid="page-blocks-view-page"
+              title="打开来源页面"
+              onClick={() => openSourcePage(pageId)}
+            >
+              {pageLabel}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="page-blocks-view-zoom"
+            data-testid="page-blocks-view-zoom"
+            aria-label={zoomed ? '退出放大' : '放大'}
+            title={zoomed ? '退出放大' : '放大'}
+            onClick={() => onZoom(zoomed ? null : row)}
+          >
+            {zoomed ? <ArrowsPointingInIcon /> : <ArrowsPointingOutIcon />}
+          </button>
+        </div>
+      </div>
       <PageBlockStage row={row} />
     </article>
   )
@@ -120,11 +189,28 @@ function BlockCard({
 
 export function PageBlocksView({ rows, onOpen }: FsViewProps) {
   usePageEditorVersion()
+  const [zoomId, setZoomId] = useState<string | null>(null)
+  const onZoom = useCallback((next: DbRecord | null) => setZoomId(next?.id ?? null), [])
   if (!rows.length) return <p className="fsdb-empty">暂无组件</p>
+  const zoomed = zoomId ? rows.find((row) => row.id === zoomId) : undefined
   return (
-    <div className="page-editor page-blocks-view" data-testid="page-blocks-view">
+    <div className={`page-editor page-blocks-view${zoomed ? ' is-zooming' : ''}`} data-testid="page-blocks-view">
+      {zoomed ? (
+        <button
+          type="button"
+          className="page-blocks-view-scrim"
+          aria-label="退出放大"
+          onClick={() => setZoomId(null)}
+        />
+      ) : null}
       {rows.map((row) => (
-        <BlockCard key={row.id} row={row} onOpen={onOpen} />
+        <BlockCard
+          key={row.id}
+          row={row}
+          zoomed={row.id === zoomId}
+          onOpen={onOpen}
+          onZoom={onZoom}
+        />
       ))}
     </div>
   )
