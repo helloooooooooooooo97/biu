@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Context } from 'cordis'
 import { PageEditorService } from './service.ts'
-import { parsePageBlockRowData, PageBlocksView, PageBlockContent, openSourcePage, openBlockInInspector, pageLabelOf, pageNameFromRecord } from './page-blocks-view.tsx'
+import { parsePageBlockRowData, PageBlocksView, PageBlockContent, openSourcePage, openBlockInInspector, pageLabelOf, pageNameFromRecord, mergeLiveBlockData, persistBlockDataPatch } from './page-blocks-view.tsx'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -15,6 +15,13 @@ test('parsePageBlockRowData reads json string or object', () => {
   assert.deepEqual(parsePageBlockRowData('{"html":"<p>a</p>"}'), { html: '<p>a</p>' })
   assert.deepEqual(parsePageBlockRowData({ html: '<p>b</p>' }), { html: '<p>b</p>' })
   assert.deepEqual(parsePageBlockRowData(''), {})
+})
+
+test('live block data keeps the record title and does not persist a stale one', () => {
+  const live = mergeLiveBlockData({ title: '旧名', sid: 's1' }, { history: [] }, { title: '新名' })
+  assert.equal(live.title, '新名')
+  assert.deepEqual(live.history, [])
+  assert.deepEqual(persistBlockDataPatch(live, { history: [] }), { sid: 's1', history: [] })
 })
 
 test('page-blocks view paints the registered block View', async () => {

@@ -33,6 +33,25 @@ async function writeBlockData(id: string, data: Record<string, unknown>) {
   window.dispatchEvent(new Event('fsdb:change'))
 }
 
+export function mergeLiveBlockData(
+  current: Record<string, unknown>,
+  patch: Record<string, unknown>,
+  opts?: { replace?: boolean; title?: string },
+) {
+  const next = opts?.replace ? { ...patch } : { ...current, ...patch }
+  const title = typeof opts?.title === 'string' ? opts.title.trim() : ''
+  if (Object.prototype.hasOwnProperty.call(patch, 'title')) return next
+  if (title) next.title = title
+  else delete next.title
+  return next
+}
+
+export function persistBlockDataPatch(data: Record<string, unknown>, patch: Record<string, unknown>) {
+  const out = { ...data }
+  if (!Object.prototype.hasOwnProperty.call(patch, 'title')) delete out.title
+  return out
+}
+
 async function writeBlockTitle(id: string, title: string) {
   const res = await fetch('/api/db/update', {
     method: 'POST',
@@ -136,15 +155,23 @@ export function PageBlockStage({
   const View = spec?.View
   const source = raw ?? row.data
   const packed = typeof source === 'string' ? source : JSON.stringify(source ?? {})
-  const [data, setData] = useState(() => parsePageBlockRowData(source))
+  const recordTitle = String(row.title ?? '').trim()
+  const [data, setData] = useState(() => {
+    const parsed = parsePageBlockRowData(source)
+    if (recordTitle) parsed.title = recordTitle
+    return parsed
+  })
   useEffect(() => {
-    setData(parsePageBlockRowData(source))
-  }, [packed])
+    const parsed = parsePageBlockRowData(source)
+    if (recordTitle) parsed.title = recordTitle
+    setData(parsed)
+  }, [packed, recordTitle])
   const update = (patch: Record<string, unknown>, opts?: { replace?: boolean }) => {
-    const next = opts?.replace ? patch : { ...data, ...patch }
+    const next = mergeLiveBlockData(data, patch, { replace: opts?.replace, title: recordTitle })
     setData(next)
-    if (onChange) onChange(next)
-    else void writeBlockData(String(row.id), next)
+    const toWrite = persistBlockDataPatch(next, patch)
+    if (onChange) onChange(toWrite)
+    else void writeBlockData(String(row.id), toWrite)
   }
   const hostRef = useRef<HTMLDivElement | null>(null)
   useLayoutEffect(() => bindPageBlockPlugin(hostRef.current, plugin), [plugin, kind, View, packed])

@@ -165,6 +165,10 @@ test('page-blocks collection updates one fence by page::block id', async () => {
     data: { html: '<div>新</div>', deck: false },
   })
   assert.equal(updated.title, '刊头')
+  const clobbered = await blocks.update!(`${pageId}::ab12cd34`, {
+    data: { html: '<div>新</div>', title: '旧名', deck: false },
+  })
+  assert.equal(clobbered.title, '刊头')
   assert.match(String(updated.data), /新/)
   assert.match(String(updated.data), /"deck":false/)
   const md = await readFile(join(root, `.page/${pageId}.md`), 'utf8')
