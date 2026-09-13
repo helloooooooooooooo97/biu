@@ -12,6 +12,7 @@ export {
   parsePageBlockRecordId,
   patchPageBlockMarkdown,
   uniquifyPageBlockMarkdown,
+  defaultPageBlockTitle,
 } from '../page-block-fence.ts'
 export type { PageBlockAttrsPatch, PageBlockFence } from '../page-block-fence.ts'
 
