@@ -162,7 +162,7 @@ export function AppDialog({
   return createPortal(dialog, document.body)
 }
 
-/** 详情正文/文本列：输入只更新自己，失焦才回传，避免整张表跟着每个按键重绘。标题列可 live 立刻回传。 */
+/** 详情正文/文本列：输入只更新自己，失焦才回传，避免整张表跟着每个按键重绘。 */
 export function LocalText({
   as = 'input',
   className,
@@ -170,7 +170,6 @@ export function LocalText({
   rows,
   placeholder,
   title,
-  live = false,
   onCommit,
   onKeyDown,
 }: {
@@ -180,24 +179,21 @@ export function LocalText({
   rows?: number
   placeholder?: string
   title?: string
-  live?: boolean
   onCommit: (next: string) => void
   onKeyDown?: (event: ReactKeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => void
 }) {
   const [draft, setDraft] = useState(value)
   const draftRef = useRef(draft)
   draftRef.current = draft
-  const focused = useRef(false)
-  const composing = useRef(false)
   useEffect(() => {
-    if (!focused.current) setDraft(value)
+    setDraft(value)
   }, [value])
   const valueRef = useRef(value)
   valueRef.current = value
   const onCommitRef = useRef(onCommit)
   onCommitRef.current = onCommit
-  const commit = (next = draftRef.current) => {
-    if (next !== valueRef.current) onCommitRef.current(next)
+  const commit = () => {
+    if (draftRef.current !== valueRef.current) onCommitRef.current(draftRef.current)
   }
   useEffect(() => () => commit(), [])
   const shared = {
@@ -205,29 +201,8 @@ export function LocalText({
     value: draft,
     title,
     placeholder,
-    onChange: (event: { target: { value: string }; nativeEvent?: { isComposing?: boolean } }) => {
-      const next = event.target.value
-      setDraft(next)
-      draftRef.current = next
-      if (live && !composing.current && !event.nativeEvent?.isComposing) commit(next)
-    },
-    onCompositionStart: () => {
-      composing.current = true
-    },
-    onCompositionEnd: (event: { currentTarget: { value: string } }) => {
-      composing.current = false
-      const next = event.currentTarget.value
-      setDraft(next)
-      draftRef.current = next
-      if (live) commit(next)
-    },
-    onFocus: () => {
-      focused.current = true
-    },
-    onBlur: () => {
-      focused.current = false
-      commit()
-    },
+    onChange: (event: { target: { value: string } }) => setDraft(event.target.value),
+    onBlur: commit,
     onKeyDown,
   }
   if (as === 'textarea') return <textarea {...shared} rows={rows} />
