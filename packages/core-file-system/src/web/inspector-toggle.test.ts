@@ -326,7 +326,7 @@ test('deletable tables can pick rows and bulk-act over the table header', () => 
   assert.doesNotMatch(popDraft, /提交/)
   assert.doesNotMatch(popDraft, /取消/)
   assert.match(popDraft, /fsdb-cell-pop-tags/)
-  assert.match(popDraft, /fsdb-cell-pop-text/)
+  assert.match(popDraft, /fieldKey === labelField/)
   assert.match(popDraft, /fsdb-cell-pop-url/)
   assert.match(popDraft, /rawRef\.current = next\.trim\(\)/)
   assert.doesNotMatch(popDraft, /kind === 'datetime' \|\| kind === 'image' \|\| kind === 'attachment' \|\| kind === 'url'/)
