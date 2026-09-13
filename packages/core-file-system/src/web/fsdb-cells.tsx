@@ -494,7 +494,7 @@ export function FieldEditor({
       />
     )
   }
-  return <LocalText className="fsdb-plain-input" value={value} title={value} placeholder="" live={fieldKey === 'title'} onCommit={onChange} />
+  return <LocalText className="fsdb-plain-input" value={value} title={value} placeholder="" onCommit={onChange} />
 }
 
 export function placedActions(schema: CollectionSchema | undefined, place: 'row' | 'detail') {

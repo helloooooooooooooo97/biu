@@ -254,7 +254,6 @@ export function RecordDetail({
                     <LocalText
                       as="textarea"
                       className="fsdb-detail-title-input"
-                      live
                       value={draft[schema.labelField] ?? ''}
                       rows={(draft[schema.labelField] ?? '').length > 48 ? 2 : 1}
                       onKeyDown={(event) => {

@@ -184,7 +184,6 @@ export function CellPopDraft({
   const onSubmitRef = useRef(onSubmit)
   onSubmitRef.current = onSubmit
   const live =
-    fieldKey === labelField ||
     kind === 'select' ||
     kind === 'multi-select' ||
     kind === 'datetime' ||
@@ -304,14 +303,6 @@ export function CellPopDraft({
         const next = event.target.value
         setText(next)
         rawRef.current = next
-        if (event.nativeEvent.isComposing) return
-        if (live) put(next)
-      }}
-      onCompositionEnd={(event) => {
-        const next = (event.target as HTMLTextAreaElement).value
-        setText(next)
-        rawRef.current = next
-        if (live) put(next)
       }}
       onKeyDown={(event) => {
         if (event.key === 'Enter' && !event.shiftKey) {
