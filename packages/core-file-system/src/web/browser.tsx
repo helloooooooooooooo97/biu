@@ -1010,9 +1010,12 @@ export function CollectionBrowser({
     const timer = nested
       ? 0
       : window.setInterval(() => {
-          if (detailIdRef.current) return
+          if (detailIdRef.current) {
+            pullDetailBody()
+            return
+          }
           void reloadRef.current()
-        }, 20000)
+        }, 800)
     return () => {
       window.clearTimeout(debounce)
       window.clearInterval(timer)

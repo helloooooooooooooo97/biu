@@ -133,10 +133,11 @@ export function apply(ctx: Context) {
   })
 
   ctx.http.route('POST', '/api/collab/presence', async (route) => {
-    const body = (await route.json<{ pageId?: string; guestId?: string; color?: string }>()) ?? {}
+    const body = (await route.json<{ pageId?: string; guestId?: string; color?: string; from?: number }>()) ?? {}
     const pageId = String(body.pageId ?? '')
     const guestId = String(body.guestId ?? '')
-    const viewers = presence.touch(pageId, guestId, body.color)
+    const from = Number.isFinite(Number(body.from)) ? Number(body.from) : undefined
+    const viewers = presence.touch(pageId, guestId, body.color, from)
     bumpPresence(pageId)
     route.send(200, { viewers })
   })

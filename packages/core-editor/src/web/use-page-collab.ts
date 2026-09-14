@@ -27,7 +27,6 @@ export function usePageCollab(pageId: string): PageCollab {
 
   useEffect(() => {
     let cancelled = false
-    let wait = 0
     void (async () => {
       const caret = collabCaretUser(guest)
       try {
@@ -65,20 +64,11 @@ export function usePageCollab(pageId: string): PageCollab {
         token,
       })
       next.setAwarenessField('user', collabCaretUser(guest))
-      let done = false
-      const finish = () => {
-        if (cancelled || done) return
-        done = true
-        setProvider(next)
-        setReady(true)
-      }
-      next.on('synced', finish)
-      next.on('authenticationFailed', finish)
-      wait = window.setTimeout(finish, 4000)
+      setProvider(next)
+      setReady(true)
     })
     return () => {
       cancelled = true
-      if (wait) window.clearTimeout(wait)
     }
   }, [pageId, ydoc, guest])
 

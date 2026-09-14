@@ -87,7 +87,8 @@ export default defineConfig({
     },
     proxy: {
       '/api': 'http://127.0.0.1:3141',
-      '/collaboration': { target: 'ws://127.0.0.1:3141', ws: true },
+      '/ws': { target: 'http://127.0.0.1:3141', ws: true, changeOrigin: true },
+      '/collaboration': { target: 'http://127.0.0.1:3141', ws: true, changeOrigin: true },
     },
   },
   test: {

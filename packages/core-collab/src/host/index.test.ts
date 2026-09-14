@@ -90,7 +90,8 @@ test('collab hooks persist yjs and mark viewers read-only', async () => {
 test('presence lists distinct guests on one page', () => {
   const room = new PresenceStore()
   assert.equal(room.touch('p1', 'g_aaaaaaaaaaaa').length, 1)
-  assert.equal(room.touch('p1', 'g_bbbbbbbbbbbb').length, 2)
+  assert.equal(room.touch('p1', 'g_bbbbbbbbbbbb', undefined, 12).length, 2)
+  assert.equal(room.list('p1').find((row) => row.id === 'g_bbbbbbbbbbbb')?.from, 12)
   assert.equal(room.list('p2').length, 0)
 })
 

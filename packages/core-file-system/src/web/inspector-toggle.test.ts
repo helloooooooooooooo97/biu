@@ -646,9 +646,9 @@ test('database extras sit after the record detail, not in the inspector', () => 
   assert.doesNotMatch(browser, /setRecordFocus/)
 })
 
-test('inspector embed does not poll the collection every 20s', () => {
+test('inspector embed does not poll the collection on an interval', () => {
   assert.match(browser, /const timer = nested/)
-  assert.match(browser, /}, 20000\)/)
+  assert.match(browser, /\? 0/)
 })
 
 test('switching tables does not remount the whole browser', () => {
@@ -657,8 +657,9 @@ test('switching tables does not remount the whole browser', () => {
 })
 
 test('list polling pauses while a record is open', () => {
-  assert.match(browser, /if \(detailIdRef\.current\) return/)
-  assert.match(browser, /}, 20000\)/)
+  assert.match(browser, /if \(detailIdRef\.current\) \{/)
+  assert.match(browser, /pullDetailBody\(\)/)
+  assert.match(browser, /}, 800\)/)
 })
 
 test('open detail still reloads body when the collection changes', () => {

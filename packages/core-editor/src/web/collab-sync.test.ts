@@ -1,5 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { Editor } from '@tiptap/core'
 import * as Y from 'yjs'
 import { pageEditorExtensions } from './kit.ts'
@@ -36,8 +38,16 @@ test('two editors on one ydoc show each others edits', async () => {
   b.destroy()
 })
 
+test('page editor overlays remote carets and stacks avatars', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './page-editor.tsx'), 'utf8')
+  assert.match(src, /PresenceCarets/)
+  assert.match(src, /usePagePresence\(record\.id, collab\.guest, caretFrom\)/)
+  assert.match(src, /setCaretFrom\(current\.state\.selection\.head\)/)
+})
+
 test('presence stack styles are circular', () => {
   assert.match(PAGE_EDITOR_STYLE, /page-presence-dot\{[^}]*border-radius:50%/)
+  assert.match(PAGE_EDITOR_STYLE, /page-presence-caret\{[^}]*width:2px/)
 })
 
 test('remote caret is a line with the label on the right, not a box', () => {

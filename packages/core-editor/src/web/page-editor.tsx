@@ -12,7 +12,7 @@ import { pageEditorExtensions } from './kit.ts'
 import { usePageCollab } from './use-page-collab.ts'
 import { collabCaretUser } from './collab-user.ts'
 import { usePagePresence } from './use-page-presence.ts'
-import { PresenceAvatars } from './presence-avatars.tsx'
+import { PresenceAvatars, PresenceCarets } from './presence-avatars.tsx'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { PageBlockHandle } from './page-block-handle.tsx'
 import { editorHostIsLive } from './editor-live.ts'
@@ -295,7 +295,8 @@ function TableBar({ editor }: { editor: Editor }) {
 
 export function PageEditor({ record, value, writable, onChange, path }: FsContentProps) {
   const collab = usePageCollab(record.id)
-  const viewers = usePagePresence(record.id, collab.guest)
+  const [caretFrom, setCaretFrom] = useState(1)
+  const viewers = usePagePresence(record.id, collab.guest, caretFrom)
   const source = usePageSourceMode(record.id)
   const saved = useRef(asMarkdown(value))
   const sourceMode = useRef(source)
@@ -322,12 +323,12 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
       immediatelyRender: false,
       shouldRerenderOnTransaction: false,
       editable: writable !== false && collab.member?.role !== 'viewer',
-      extensions: pageEditorExtensions(
-        liveCollab
-          ? { ydoc: collab.ydoc, provider: collab.provider, user: collabCaretUser(collab.guest) }
-          : undefined,
-      ),
-      content: liveCollab ? undefined : asMarkdown(value),
+      extensions: pageEditorExtensions({
+        ydoc: collab.ydoc,
+        provider: collab.provider,
+        user: collabCaretUser(collab.guest),
+      }),
+      content: undefined,
       contentType: 'markdown',
       editorProps: {
         attributes: {
@@ -355,6 +356,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
         },
       },
       onSelectionUpdate: ({ editor: current }) => {
+        setCaretFrom(current.state.selection.head)
         const host = current.view.dom.closest('.page-editor')
         if (host instanceof HTMLElement) {
           const locus = markdownLocusFromSelection(current)
@@ -418,45 +420,14 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
         jumpToPending(editor, md, record.id, true)
         return
       }
-      if (md === saved.current || md === editor.getMarkdown()) {
-        jumpToPending(editor, md, record.id)
-        return
-      }
-      const paintRemote = (next: string) => {
-        saved.current = next
-        editor.commands.setContent(next, { contentType: 'markdown' })
-        jumpToPending(editor, next, record.id, true)
-      }
-      const canPaint = () =>
-        shouldApplyRemoteMarkdown({
-          focused: editor.isFocused,
-          live: editorHostIsLive(editor),
-          hasJump: Boolean(contentJumpForRecord(record.id)),
-          recentlyLocal: recentlyLocalEdit(typedAt.current),
-        })
-      if (!canPaint()) {
-        if (remoteTimer.current) clearTimeout(remoteTimer.current)
-        const wait = () => {
-          if (editor.isDestroyed) return
-          const next = asMarkdown(valueRef.current)
-          if (next === saved.current) return
-          if (!canPaint()) {
-            remoteTimer.current = setTimeout(wait, LOCAL_EDIT_MS)
-            return
-          }
-          paintRemote(next)
-        }
-        remoteTimer.current = setTimeout(wait, LOCAL_EDIT_MS)
-        return
-      }
-      paintRemote(md)
+      jumpToPending(editor, md, record.id)
       return
     }
     if (hydratedId.current !== record.id) {
       if (value == null) return
       saved.current = md
       hydratedId.current = record.id
-      editor.commands.setContent(md, { contentType: 'markdown', emitUpdate: false })
+      editor.commands.setContent(md, { contentType: 'markdown' })
       jumpToPending(editor, md, record.id, true)
       return
     }
@@ -466,7 +437,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
     }
     const paint = (next: string) => {
       saved.current = next
-      editor.commands.setContent(next, { contentType: 'markdown', emitUpdate: false })
+      editor.commands.setContent(next, { contentType: 'markdown' })
       jumpToPending(editor, next, record.id, true)
     }
     const canPaint = () =>
@@ -684,6 +655,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
       <PresenceAvatars viewers={viewers} selfId={collab.guest.id} />
       {findBar}
       <EditorContent editor={editor} />
+      <PresenceCarets editor={editor} viewers={viewers} selfId={collab.guest.id} />
       {writable !== false ? <PageBlockHandle editor={editor} /> : null}
       {writable !== false ? <Bubble editor={editor} onSendChat={sendToChat} /> : null}
       {writable !== false ? <TableBar editor={editor} /> : null}
