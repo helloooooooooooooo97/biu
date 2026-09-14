@@ -1,4 +1,7 @@
 import { spawn } from 'node:child_process'
+import { mkdir, readFile, unlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { combineSignals, fetchHeaders } from './html.ts'
 
 function curlAvailable() {
@@ -95,10 +98,13 @@ export async function loadJson(url: string, signal?: AbortSignal) {
   return JSON.parse(text) as unknown
 }
 
-async function fetchBytes(url: string, signal?: AbortSignal) {
+async function fetchRaw(
+  url: string,
+  init: { signal?: AbortSignal; headers?: Record<string, string> } = {},
+) {
   const res = await fetch(url, {
-    headers: fetchHeaders({ Accept: 'image/*,*/*;q=0.8' }),
-    signal: combineSignals(signal),
+    headers: fetchHeaders(init.headers),
+    signal: combineSignals(init.signal),
     redirect: 'follow',
   })
   const bytes = Buffer.from(await res.arrayBuffer())
@@ -110,36 +116,6 @@ async function fetchBytes(url: string, signal?: AbortSignal) {
   }
 }
 
-function runCurlBytes(argv: string[], signal?: AbortSignal) {
-  return new Promise<Buffer>((resolve, reject) => {
-    const child = spawn('curl', argv, { stdio: ['ignore', 'pipe', 'pipe'] })
-    const chunks: Buffer[] = []
-    const err: Buffer[] = []
-    const onAbort = () => {
-      child.kill('SIGTERM')
-      reject(new Error('curl aborted'))
-    }
-    if (signal) {
-      if (signal.aborted) {
-        onAbort()
-        return
-      }
-      signal.addEventListener('abort', onAbort, { once: true })
-    }
-    child.stdout.on('data', (chunk) => chunks.push(chunk as Buffer))
-    child.stderr.on('data', (chunk) => err.push(chunk as Buffer))
-    child.on('error', reject)
-    child.on('exit', (code) => {
-      signal?.removeEventListener('abort', onAbort)
-      if (code !== 0) {
-        reject(new Error(`curl exited ${code}: ${Buffer.concat(err).toString('utf8').slice(0, 200)}`))
-        return
-      }
-      resolve(Buffer.concat(chunks))
-    })
-  })
-}
-
 function sniffImageType(bytes: Buffer, url: string) {
   if (bytes[0] === 0x89 && bytes[1] === 0x50) return 'image/png'
   if (bytes[0] === 0xff && bytes[1] === 0xd8) return 'image/jpeg'
@@ -149,15 +125,40 @@ function sniffImageType(bytes: Buffer, url: string) {
   return url
 }
 
-export async function loadBytes(url: string, signal?: AbortSignal) {
-  if (process.env.VITEST === 'true') return fetchBytes(url, signal)
+export async function loadRaw(
+  url: string,
+  init: { signal?: AbortSignal; headers?: Record<string, string> } = {},
+) {
+  if (process.env.VITEST === 'true') return fetchRaw(url, init)
   if (await hasCurl()) {
-    const bytes = await runCurlBytes(
-      ['-sS', '-L', '--max-time', '15', '-A', UA, '-H', 'Accept: image/*,*/*;q=0.8', url],
-      signal,
-    )
-    const sniffed = sniffImageType(bytes, '')
-    return { status: 200, url, type: sniffed.startsWith('image/') ? sniffed : '', bytes }
+    const dir = join(tmpdir(), 'biu-web')
+    await mkdir(dir, { recursive: true })
+    const dest = join(dir, `page-${Date.now()}-${Math.random().toString(16).slice(2)}`)
+    try {
+      const argv = ['-sS', '-L', '--max-time', '20', '-A', UA, '-o', dest, '-w', '%{http_code}\n%{content_type}\n%{url_effective}']
+      for (const [key, value] of Object.entries(init.headers ?? {})) {
+        argv.push('-H', `${key}: ${value}`)
+      }
+      argv.push(url)
+      const meta = (await runCurl(argv, init.signal)).trim().split('\n')
+      const bytes = await readFile(dest)
+      const status = Number(meta[0] || 0) || 200
+      const type = (meta[1] || '').trim()
+      const finalUrl = (meta[2] || url).trim() || url
+      const sniffed = sniffImageType(bytes, '')
+      return {
+        status,
+        url: finalUrl,
+        type: type || (sniffed.startsWith('image/') ? sniffed : ''),
+        bytes,
+      }
+    } finally {
+      await unlink(dest).catch(() => undefined)
+    }
   }
-  return fetchBytes(url, signal)
+  return fetchRaw(url, init)
+}
+
+export async function loadBytes(url: string, signal?: AbortSignal) {
+  return loadRaw(url, { signal, headers: { Accept: 'image/*,*/*;q=0.8' } })
 }
