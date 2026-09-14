@@ -96,7 +96,7 @@ export function buildInspectorTools(
 export function registerChatInspectorRoutes(ctx: Context) {
   ctx.http.route('GET', '/api/sessions/:id/inspector', async (route) => {
     const id = route.params.id
-    const record = await ctx.sessions.get(id)
+    const record = await ctx.sessions.getVisible(id)
     if (!record) return route.send(404, { error: 'unknown session' })
     const resolved = ctx.chat.resolveEffective(id)
     const mode: AgentToolMode = normalizeAgentMode(resolved.effective.agentMode)
@@ -134,7 +134,7 @@ export function registerChatInspectorRoutes(ctx: Context) {
 
   ctx.http.route('GET', '/api/sessions/:id/dispatched-usage', async (route) => {
     const id = route.params.id
-    const record = await ctx.sessions.get(id)
+    const record = await ctx.sessions.getVisible(id)
     if (!record) return route.send(404, { error: 'unknown session' })
     const dispatched = await loadDispatchedUsage(ctx, id, record.events)
     const { titles, mascots, projects } = await sessionDecorations(ctx)

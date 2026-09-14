@@ -540,6 +540,21 @@ export class DatabaseService extends Service implements Database {
     this.pageAccess = access
   }
 
+  async canSeeRecord(input: {
+    collection: string
+    recordId: string
+    ownerMemberId?: string
+    pageId?: string
+  }) {
+    const vis = this.pageAccess
+    if (!vis) return true
+    if (vis.canSeeRecord) return vis.canSeeRecord(input)
+    if (vis.canSeePage && (input.pageId || input.collection === '/pages')) {
+      return vis.canSeePage(input.pageId || input.recordId, input.ownerMemberId)
+    }
+    return true
+  }
+
   register(spec: CollectionSpec) {
     const path = normalizeCollectionPath(spec.path || `/${spec.id}`)
     if (path === '/') throw new Error('collection path cannot be /')
@@ -575,10 +590,6 @@ export class DatabaseService extends Service implements Database {
     return [...this.collections.values()].sort((a, b) => a.path.localeCompare(b.path))
   }
 
-  private visibility() {
-    return this.pageAccess
-  }
-
   private ownership() {
     return this.pageAccess
   }
@@ -609,18 +620,9 @@ export class DatabaseService extends Service implements Database {
   }
 
   private async allowRecord(spec: CollectionSpec, record: { id: string } & Record<string, unknown>) {
-    const vis = this.visibility()
-    if (!vis) return true
     const pageId = this.pageIdOf(spec, record)
     const ownerMemberId = this.ownerMemberIdOf(spec, record)
-    if (vis.canSeeRecord) {
-      return vis.canSeeRecord({ collection: spec.path, recordId: String(record.id), ownerMemberId, pageId })
-    }
-    if (vis.canSeePage) {
-      if (!pageId) return true
-      return vis.canSeePage(pageId, ownerMemberId)
-    }
-    return true
+    return this.canSeeRecord({ collection: spec.path, recordId: String(record.id), ownerMemberId, pageId })
   }
 
   private async assertVisible(spec: CollectionSpec, record: { id: string } & Record<string, unknown>) {

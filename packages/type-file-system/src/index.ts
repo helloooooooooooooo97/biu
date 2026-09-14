@@ -702,6 +702,7 @@ export interface Database {
   content(path: string): Promise<unknown>
   writeContent(path: string, value: unknown): Promise<unknown>
   setPageAccess?(access: PageAccess): void
+  canSeeRecord?(input: RecordAccessInput): Promise<boolean>
 }
 
 declare module 'cordis' {

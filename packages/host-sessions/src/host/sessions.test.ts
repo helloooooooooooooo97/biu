@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { Context } from 'cordis'
+import { Context, Service } from 'cordis'
 import * as sessionStore from '@biu/host-session-store'
 import * as sessions from './index.ts'
 import { SESSION_FORMAT_VERSION, deriveMessages, applyContextBudget, estimateTokens, statInputComposition } from './index.ts'
@@ -145,6 +145,30 @@ test('reload heals orphan tool_calls so next LLM round is valid', async () => {
   const tool = history.find((item) => item.role === 'tool' && item.tool_call_id === 'call_1')
   assert.ok(assistant)
   assert.ok(tool)
+})
+
+test('session sidebar list hides sessions that belong to someone else', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  class AccessDb extends Service {
+    constructor(inner: Context) {
+      super(inner, 'database')
+    }
+    async canSeeRecord(input: { ownerMemberId?: string }) {
+      return input.ownerMemberId === 'm_mine'
+    }
+  }
+  new AccessDb(ctx)
+  await ctx.plugin(sessions)
+  ctx.identity = { currentMemberId: () => 'm_mine' }
+  const mine = await ctx.sessions.create()
+  ctx.identity = { currentMemberId: () => 'm_theirs' }
+  const theirs = await ctx.sessions.create()
+  const listed = await ctx.sessions.listSummaries()
+  assert.equal(listed.some((item) => item.id === mine.id), true)
+  assert.equal(listed.some((item) => item.id === theirs.id), false)
+  assert.equal(Boolean(await ctx.sessions.getVisible(theirs.id)), false)
+  assert.equal((await ctx.sessions.get(theirs.id))?.id, theirs.id)
 })
 
 test('nested sessions inherit the workspace member who started the root agent', async () => {

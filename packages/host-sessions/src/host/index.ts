@@ -367,6 +367,13 @@ export class SessionsService extends Service {
     return healed
   }
 
+  async getVisible(id: string) {
+    const record = await this.get(id)
+    if (!record) return undefined
+    if (!(await this.sessionVisible(id, record.config?.ownerMemberId))) return undefined
+    return record
+  }
+
   /**
    * 从磁盘拉起时：强行闭合未结束的 step/turn。
    * 重启后进程内 agent 已空，但日志若仍开着 turn，UI/Live 会一直显示 running，再发消息也会叠 turn。
@@ -587,9 +594,19 @@ export class SessionsService extends Service {
       if (next.mascot && next.title === item.id.slice(0, 8)) {
         next = { ...next, title: nameFromSessionMascot(next.mascot) }
       }
-      out.push(next)
+      if (await this.sessionVisible(next.id, next.config?.ownerMemberId)) out.push(next)
     }
     return out
+  }
+
+  private async sessionVisible(id: string, ownerMemberId?: string) {
+    try {
+      const fn = this.ctx.database.canSeeRecord
+      if (!fn) return true
+      return await fn({ collection: '/sessions', recordId: id, ownerMemberId })
+    } catch {
+      return true
+    }
   }
 
   private async collectUsedMascots(): Promise<AssignedMascot[]> {
