@@ -766,14 +766,17 @@ test('inspector no longer listens for add/copy view actions', () => {
   assert.doesNotMatch(browser, /detail === 'copy-view'/)
 })
 
-test('database inspector tab has a close control beside crumb expand', () => {
+test('database inspector tab expands crumbs when selected, without a toggle', () => {
   const tab = readFileSync(resolve(import.meta.dirname, './inspector-database.tsx'), 'utf8')
   assert.match(tab, /onClose\?: \(\) => void/)
   assert.match(tab, /data-testid="inspector-tab-close"/)
   assert.match(tab, /inspector-crumb-close/)
   assert.match(tab, /XMarkIcon/)
   assert.match(tab, /inspector-crumb-actions/)
-  assert.match(tab, /data-testid="inspector-crumb-toggle"/)
+  assert.match(tab, /allowMenu=\{Boolean\(active\)\}/)
+  assert.doesNotMatch(tab, /inspector-crumb-toggle/)
+  assert.doesNotMatch(tab, /trailOpen/)
+  assert.doesNotMatch(tab, /is-crumb-open/)
   assert.match(tab, /is-agent-working/)
   assert.match(tab, /fsdb-agent-follow/)
   assert.match(tab, /isInspectorPaneAbandoned/)
