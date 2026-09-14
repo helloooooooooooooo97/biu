@@ -1037,7 +1037,6 @@ export function apply(ctx: Context) {
       route.send(500, { ok: false, detail: String(error) })
     }
   })
-  })
   ctx.http.route('PATCH', '/api/sessions/:id/config', async (route) => {
     try {
       if (await unknownSession(route.params.id, route)) return
