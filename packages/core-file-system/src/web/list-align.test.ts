@@ -15,6 +15,8 @@ test('list and detail share the chat column max width with side padding', () => 
   assert.match(css, /\.fsdb-detail-main > :not\(\.fsdb-page-banner\)\{[^}]*max-width:var\(--dsw-chat-max-width\)/)
   assert.match(css, /\.fsdb-detail-main > :not\(\.fsdb-page-banner\)\{[^}]*margin-inline:auto/)
   assert.match(css, /\.fsdb-detail-main > :not\(\.fsdb-page-banner\)\{[^}]*padding-left:80px/)
+  assert.match(css, /\.fsdb-detail-main > :not\(\.fsdb-page-banner\)\{[^}]*padding-right:0/)
+  assert.doesNotMatch(css, /\.fsdb-detail-main > :not\(\.fsdb-page-banner\)\{[^}]*padding-right:80px/)
   assert.match(css, /\.fsdb-page-banner\{[^}]*width:100%/)
   assert.match(css, /\.fsdb-page\.is-full-width \.fsdb-main > :not\(\.fsdb-page-banner\),\.fsdb-page\.is-full-width \.fsdb-detail-main > :not\(\.fsdb-page-banner\)\{[^}]*max-width:none/)
   assert.doesNotMatch(css, /\.fsdb-page\.is-full-width[^{]*\{[^}]*padding:[^}]*24px/)
