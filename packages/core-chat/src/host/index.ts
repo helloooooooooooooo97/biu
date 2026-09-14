@@ -1037,20 +1037,6 @@ export function apply(ctx: Context) {
       route.send(500, { ok: false, detail: String(error) })
     }
   })
-  ctx.http.route('POST', '/api/sessions', async (route) => {
-    const payload = ((await route.json().catch(() => null)) ?? {}) as {
-      title?: string
-    }
-    const record = await ctx.sessions.create(undefined, {
-      ...(typeof payload.title === 'string' ? { title: payload.title } : {}),
-    })
-    route.send(201, {
-      id: record.id,
-      version: record.version,
-      title: record.config?.title,
-      ...(record.mascot ? { mascot: record.mascot } : {}),
-      ...(record.config ? { config: record.config } : {}),
-    })
   })
   ctx.http.route('PATCH', '/api/sessions/:id/config', async (route) => {
     try {
@@ -1098,23 +1084,6 @@ export function apply(ctx: Context) {
       route.send(400, { error: String(error) })
     }
   })
-  ctx.http.route('GET', '/api/sessions', async (route) => {
-    const items = await ctx.sessions.listSummaries()
-    route.send(200, {
-      sessions: items.map((item) => ({
-        id: item.id,
-        version: item.version,
-        eventCount: item.eventCount,
-        title: item.title,
-        updatedAt: item.updatedAt,
-        busy: ctx.agents.isBusy(item.id),
-        ...(item.project ? { project: item.project } : {}),
-        ...(item.mascot ? { mascot: item.mascot } : {}),
-        tags: item.config?.tags ?? [],
-        pinned: Boolean(item.config?.pinned),
-        ...(item.config?.inspector ? { inspector: item.config.inspector } : {}),
-      })),
-    })
   })
   ctx.http.route('GET', '/api/sessions/:id', async (route) => {
     const record = await ctx.sessions.getVisible(route.params.id)

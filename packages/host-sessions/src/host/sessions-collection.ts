@@ -29,7 +29,7 @@ type SessionsLike = {
   inboxPending?: (id: string) => number
 }
 
-function asRecord(row: SessionSummary): DbRecord {
+function asRecord(row: SessionSummary, isBusy?: (id: string) => boolean): DbRecord {
   const mascot =
     row.mascot && isSessionMascot(row.mascot) ? ensureSessionMascot(row.id, row.mascot) : mascotFromSessionId(row.id)
   return {
@@ -51,6 +51,8 @@ function asRecord(row: SessionSummary): DbRecord {
     mascotEye: mascot.eye,
     ownerMemberId: String(row.config?.ownerMemberId ?? ''),
     parentSessionId: String(row.config?.parentSessionId ?? ''),
+    busy: Boolean(isBusy?.(row.id)),
+    inspector: row.config?.inspector ?? null,
     ...recordBuiltinValues({
       createdAt: row.config?.createdAt,
       updatedAt: row.updatedAt,
@@ -125,7 +127,7 @@ function sessionProgress(record: SessionRecordLike, opts: { afterSeq?: number; t
 }
 
 export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
-  const list = async () => (await sessions.listSummaries()).map(asRecord)
+  const list = async () => (await sessions.listSummaries()).map((row) => asRecord(row, sessions.isBusy))
   return {
     id: 'sessions',
     path: '/sessions',
@@ -161,6 +163,7 @@ export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
         mascotShape: { type: 'select', label: '外形', enum: [...GROK_SHAPES], computed: true },
         mascotColor: { type: 'select', label: '颜色', enum: [...GROK_COLORS], computed: true },
         mascotEye: { type: 'number', label: '眼睛', computed: true },
+        busy: { type: 'boolean', label: '忙碌', computed: true },
       },
     },
     list,

@@ -242,6 +242,37 @@ type SessionCacheEntry = {
 
 const SESSION_CACHE_MAX = 16
 
+function sessionFromDbRow(row: Record<string, unknown>): SessionListItem {
+  const projectObj =
+    row.project && typeof row.project === 'object' && !Array.isArray(row.project)
+      ? (row.project as { name?: string; path?: string; boundAt?: number })
+      : null
+  const projectName = projectObj?.name ?? (typeof row.project === 'string' ? row.project : '')
+  const projectPath = String(projectObj?.path ?? row.projectPath ?? '').trim()
+  return {
+    id: String(row.id ?? ''),
+    title: String(row.title ?? ''),
+    eventCount: Number(row.eventCount ?? 0),
+    updatedAt: Number(row.updatedAt ?? 0),
+    busy: Boolean(row.busy),
+    tags: Array.isArray(row.tags) ? row.tags.map((item) => String(item)) : [],
+    pinned: Boolean(row.pinned),
+    ...(row.mascot && typeof row.mascot === 'object' ? { mascot: row.mascot as SessionListItem['mascot'] } : {}),
+    ...(row.inspector && typeof row.inspector === 'object'
+      ? { inspector: row.inspector as SessionListItem['inspector'] }
+      : {}),
+    ...(projectName || projectPath
+      ? {
+          project: {
+            name: projectName || projectPath,
+            ...(projectPath ? { path: projectPath } : {}),
+            boundAt: Number(projectObj?.boundAt ?? row.updatedAt ?? 0),
+          },
+        }
+      : {}),
+  }
+}
+
 function sessionsEqual(a: SessionListItem[], b: SessionListItem[]): boolean {
   if (a === b) return true
   if (a.length !== b.length) return false
@@ -652,10 +683,11 @@ export class SessionViewService extends Service {
 
   async refreshSessions() {
     try {
-      const res = await fetch('/api/sessions')
+      const params = new URLSearchParams({ path: '/sessions', limit: '200', sort: 'updatedAt', dir: 'desc' })
+      const res = await fetch(`/api/db/list?${params}`)
       if (!res.ok) return
-      const body = (await res.json()) as { sessions?: SessionListItem[] }
-      const next = Array.isArray(body.sessions) ? body.sessions : []
+      const body = (await res.json()) as { items?: Array<Record<string, unknown>> }
+      const next = Array.isArray(body.items) ? body.items.map(sessionFromDbRow).filter((item) => item.id) : []
       const busySessions = this.syncBusyFromSessions(next)
       const sessionsChanged = !sessionsEqual(this.value.sessions, next)
       if (!sessionsChanged && !busySessions) return
@@ -711,16 +743,17 @@ export class SessionViewService extends Service {
   }
 
   async newSession(opts: { projectPath?: string } = {}) {
-    const res = await fetch('/api/sessions', {
+    const res = await fetch('/api/db/create', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ path: '/sessions', records: [{}] }),
     })
-    const body = (await res.json()) as { id?: string }
-    if (!body.id) throw new Error('无法创建 session')
+    const body = (await res.json()) as { items?: Array<{ value?: { id?: string } }>; error?: string }
+    const id = body.items?.[0]?.value?.id
+    if (!res.ok || !id) throw new Error(body.error || '无法创建 session')
     const projectPath = opts.projectPath?.trim()
     if (projectPath) {
-      const bind = await fetch(`/api/sessions/${body.id}/project`, {
+      const bind = await fetch(`/api/sessions/${id}/project`, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ path: projectPath }),
@@ -730,10 +763,10 @@ export class SessionViewService extends Service {
         throw new Error(err.error || `绑定项目失败：${bind.status}`)
       }
     }
-    markSidebarMascotFresh(body.id)
-    await this.load(body.id, { view: 'chat' })
+    markSidebarMascotFresh(id)
+    await this.load(id, { view: 'chat' })
     await this.refreshSessions()
-    return body.id
+    return id
   }
 
   async ensureSession() {
