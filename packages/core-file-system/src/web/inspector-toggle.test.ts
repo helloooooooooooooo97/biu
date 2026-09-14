@@ -19,6 +19,7 @@ test('data sidebar brand sits left with a collapse control on the right', () => 
   const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
   assert.match(sidebar, /app-side-bar-head-brand/)
   assert.match(sidebar, /SidebarBrandLockup/)
+  assert.match(sidebar, /data-testid="sidebar-brand-account"/)
   assert.match(sidebar, /data-testid="sidebar-collapse"/)
   assert.doesNotMatch(sidebar, /SidebarBrandMascot/)
   assert.match(browser, /onCollapse=\{toggleViewsOpen\}/)

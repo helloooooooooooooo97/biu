@@ -34,6 +34,7 @@ test('two editors on one ydoc show each others edits', async () => {
 
 test('page editor stacks avatars and uses one official caret label', () => {
   const src = readFileSync(resolve(import.meta.dirname, './page-editor.tsx'), 'utf8')
+  assert.match(src, /PageShareButton/)
   assert.match(src, /PresenceAvatars/)
   assert.doesNotMatch(src, /PresenceCarets/)
   assert.match(src, /usePagePresence\(record\.id, collab\.guest\)/)

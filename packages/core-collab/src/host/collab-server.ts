@@ -1,18 +1,33 @@
 import type { IncomingMessage } from 'node:http'
 import { Hocuspocus } from '@hocuspocus/server'
 import * as Y from 'yjs'
-import { canEdit } from './session.ts'
+import { canEdit, type ShareAccess } from './session.ts'
 import type { MembersStore } from './members-store.ts'
+import type { SharesStore } from './shares-store.ts'
 import { pageIdFromDoc, type YjsStore } from './yjs-store.ts'
 
-export function createCollabServer(members: MembersStore, yjs: YjsStore, readSession: (token: string) => string) {
+export function createCollabServer(
+  members: MembersStore,
+  yjs: YjsStore,
+  readSession: (token: string) => string,
+  shares?: SharesStore,
+  readShare?: (token: string) => ShareAccess | null,
+) {
   return new Hocuspocus({
     debounce: 2000,
     async onAuthenticate({ token, documentName, connectionConfig }) {
-      const member = members.get(readSession(token))
-      if (!member) throw new Error('Authentication required')
       const pageId = pageIdFromDoc(documentName)
       if (!pageId) throw new Error('unknown document')
+      const share = readShare?.(token)
+      if (share) {
+        const row = shares?.getByToken(share.token)
+        if (!row || row.pageId !== pageId || share.pageId !== pageId) throw new Error('share mismatch')
+        if (!canEdit(row.role) || !canEdit(share.role)) connectionConfig.readOnly = true
+        return { user: { id: share.guestId, name: share.name, color: colorFor(share.guestId) } }
+      }
+      const member = members.get(readSession(token))
+      if (!member) throw new Error('Authentication required')
+      if (member.role !== 'owner' && shares && !shares.isShared(pageId)) throw new Error('page is not shared')
       if (!canEdit(member.role)) connectionConfig.readOnly = true
       return { user: { id: member.id, name: member.name, color: colorFor(member.id) } }
     },

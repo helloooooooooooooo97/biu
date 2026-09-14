@@ -879,6 +879,13 @@ body {
   gap: 8px;
 }
 
+.sidebar-brand-account {
+  display: inline-flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+}
+
 .sidebar-brand-mascot {
   flex-shrink: 0;
   display: block;

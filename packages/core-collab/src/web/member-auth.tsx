@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { ShareAccountHost } from './share-shell.tsx'
+import { shareTokenFromPath } from './share-path.ts'
 
 type Member = { id: string; name: string; role: string }
 
@@ -7,6 +9,11 @@ function inviteToken() {
   const params = new URLSearchParams(location.search)
   if (location.pathname === '/join' || params.has('invite')) return params.get('token') ?? ''
   return ''
+}
+
+function onShareRoute() {
+  if (typeof location === 'undefined') return false
+  return Boolean(shareTokenFromPath(location.pathname))
 }
 
 export function AuthGate() {
@@ -19,8 +26,13 @@ export function AuthGate() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const token = inviteToken()
+  const share = onShareRoute()
 
   useEffect(() => {
+    if (share) {
+      setReady(true)
+      return
+    }
     void fetch('/api/members/me')
       .then((res) => res.json())
       .then((body: { member?: Member | null; empty?: boolean }) => {
@@ -29,10 +41,10 @@ export function AuthGate() {
         if (!body.member) setMode(token ? 'join' : body.empty ? 'register' : 'login')
       })
       .finally(() => setReady(true))
-  }, [token])
+  }, [token, share])
 
   if (!ready) return <div className="member-auth" data-testid="member-auth-pending" />
-  if (member) return null
+  if (share || member) return null
 
   const submit = () => {
     if (busy) return
@@ -96,23 +108,39 @@ export function AuthGate() {
 
 export function AccountChip() {
   const [member, setMember] = useState<Member | null>(null)
+  const [open, setOpen] = useState(false)
   useEffect(() => {
     void fetch('/api/members/me')
       .then((res) => res.json())
       .then((body: { member?: Member | null }) => setMember(body.member ?? null))
   }, [])
   if (!member) return null
-  return (
+  const chip = (
     <div className="member-account" data-testid="member-account">
-      <span title={member.role}>{member.name}</span>
       <button
         type="button"
-        onClick={() => {
-          void fetch('/api/members/logout', { method: 'POST' }).finally(() => location.reload())
-        }}
+        className="member-account-name"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
       >
-        退出
+        {member.name}
       </button>
+      {open ? (
+        <div className="member-account-menu" role="menu">
+          <span className="member-account-role">{member.role === 'owner' ? '创建人' : member.role === 'viewer' ? '只读' : '编辑人'}</span>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              void fetch('/api/members/logout', { method: 'POST' }).finally(() => location.reload())
+            }}
+          >
+            退出登录
+          </button>
+        </div>
+      ) : null}
     </div>
   )
+  return <ShareAccountHost>{chip}</ShareAccountHost>
 }
