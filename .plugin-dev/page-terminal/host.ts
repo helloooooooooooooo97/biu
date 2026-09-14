@@ -65,13 +65,36 @@ type PooledSession = {
   lastSeen: number
 }
 
-function loginShell() {
+/** 默认跟 macOS 的 zsh，提示符才是 user@host 目录 %。不要用 -l：登录脚本在 GUI PATH 不全时会把 ls 弄丢。 */
+function interactiveShell() {
   const configured = String(process.env.SHELL ?? '').trim()
-  if (configured && existsSync(configured)) return configured
-  for (const candidate of ['/bin/zsh', '/bin/bash', '/bin/sh']) {
-    if (existsSync(candidate)) return candidate
+  const ordered = [configured, '/bin/zsh', '/bin/bash', '/opt/homebrew/bin/bash', '/usr/local/bin/bash', '/bin/sh']
+  for (const candidate of ordered) {
+    if (candidate && existsSync(candidate)) return candidate
   }
   return '/bin/sh'
+}
+
+const UNIX_PATH = ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']
+
+function ptyEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const seen = new Set<string>()
+  const parts: string[] = []
+  for (const part of [...UNIX_PATH, ...String(base.PATH ?? '').split(':')]) {
+    if (!part || seen.has(part)) continue
+    seen.add(part)
+    parts.push(part)
+  }
+  return {
+    ...base,
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    LANG: base.LANG || process.env.LANG || 'en_US.UTF-8',
+    PATH: parts.join(':'),
+    // 没读到用户 rc 时也保证「用户@主机 当前目录名」提示符（zsh % / bash $）。
+    PROMPT: '%n@%m %1~ %# ',
+    PS1: '\\u@\\h \\W \\$ ',
+  }
 }
 
 function text(raw: unknown) {
@@ -174,21 +197,15 @@ export function apply(ctx: Ctx) {
         // 会话可能刚好退出。
       }
     } else {
-      const shell = loginShell()
+      const shell = interactiveShell()
       const sandbox = ctx.sandbox.wrap({ argv: [shell] })
       try {
-        const child = pty.spawn(shell, ['-il'], {
+        const child = pty.spawn(shell, ['-i'], {
           name: 'xterm-256color',
           cols,
           rows,
-          cwd: sandbox.cwd,
-          env: {
-            ...process.env,
-            ...sandbox.env,
-            TERM: 'xterm-256color',
-            COLORTERM: 'truecolor',
-            LANG: process.env.LANG ?? 'en_US.UTF-8',
-          },
+          cwd: process.cwd(),
+          env: ptyEnv({ ...process.env, ...sandbox.env }),
         })
         session = { key, pty: child, buffer: '', socket: null, lastSeen: Date.now() }
         pool.set(key, session)

@@ -25,6 +25,33 @@ describe('terminal store plugins', () => {
     assert.ok((global.shell?.width ?? 0) >= 560)
   })
 
+  it('node-pty spawn-helper is executable so posix_spawnp can start a shell', async () => {
+    if (process.platform === 'win32') return
+    const { chmodSync, existsSync, statSync } = await import('node:fs')
+    const helper = resolve(root, 'node_modules/node-pty/prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
+    if (!existsSync(helper)) return
+    if ((statSync(helper).mode & 0o111) === 0) chmodSync(helper, 0o755)
+    assert.ok(statSync(helper).mode & 0o111, 'spawn-helper must be executable')
+    const pty = await import('node-pty')
+    const child = pty.spawn('/bin/sh', ['-c', 'echo pty-ok'], {
+      name: 'xterm',
+      cols: 80,
+      rows: 24,
+      cwd: root,
+      env: process.env,
+    })
+    let buf = ''
+    child.onData((chunk) => {
+      buf += chunk
+    })
+    const deadline = Date.now() + 2000
+    while (Date.now() < deadline && !buf.includes('pty-ok')) {
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    }
+    child.kill()
+    assert.match(buf, /pty-ok/)
+  })
+
   it('bundles both host and web entries as standalone store plugins', async () => {
     for (const id of ['page-terminal', 'global-terminal']) {
       const host = await bundleStoreEntry(pluginFile(id, 'host.ts'), 'host')
@@ -83,6 +110,9 @@ describe('terminal store plugins', () => {
     assert.match(host, /pool/)
     assert.match(host, /maxSessions/)
     assert.match(host, /session/)
+    assert.match(host, /\/bin\/zsh/)
+    assert.match(host, /\['-i'\]/)
+    assert.doesNotMatch(host, /\['-il'\]/)
   })
 
   it('global terminal persists command history in localStorage with a stable session', async () => {

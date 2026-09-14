@@ -9,7 +9,7 @@
 
 ## 结构
 
-- `host.ts`：注册 WebSocket 端点 `/ws/global-terminal`，用 node-pty 拉起登录 shell（macOS 默认 zsh），
+- `host.ts`：注册 WebSocket 端点 `/ws/global-terminal`，用 node-pty 拉起交互 zsh（补齐 Unix PATH），
 转发输入输出与尺寸。
 - `web.tsx`：xterm 渲染 + FitAddon 自适应 + 辅助节点压制 + 底部留白。
 

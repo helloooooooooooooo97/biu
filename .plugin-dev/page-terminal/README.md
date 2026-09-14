@@ -21,7 +21,7 @@
 
 ## 结构
 
-- `host.ts`：注册 WebSocket 端点 `/ws/page-terminal`，用 node-pty 拉起登录 shell；
+- `host.ts`：注册 WebSocket 端点 `/ws/page-terminal`，用 node-pty 拉起交互 zsh（补齐 Unix PATH，不用登录壳）；
 维护**会话池**（见下）；转发输入输出与尺寸。
 - `web.tsx`：`pageEditor.registerBlock({ kind: 'terminal' })` 注册块；
 xterm + FitAddon 渲染 + 历史采集 + 历史面板。

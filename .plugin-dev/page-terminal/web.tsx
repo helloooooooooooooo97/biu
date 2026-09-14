@@ -240,6 +240,11 @@ function TerminalSurface({
             recordOutput(chunk)
           })
         })
+        socket.addEventListener('close', (event) => {
+          if (event.code === 1000) return
+          const why = event.reason?.trim() || `code ${event.code}`
+          term.write(`\r\n\x1b[31m终端未能启动：${why}\x1b[0m\r\n`)
+        })
       })
     })
 
