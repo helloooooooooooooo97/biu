@@ -1,7 +1,19 @@
 import type { CollectionSchema, DbRecord } from '@biu/type-file-system'
-import { collectAssetNames } from './host/assets-store.ts'
+import { collectAssetNames } from './asset-refs.ts'
 import type { SavedView } from './web/saved-view.ts'
-import type { ShareKind, ShareRecord } from './host/shares-store.ts'
+
+export type ShareKind = 'view' | 'record'
+
+export type ShareRecord = {
+  token: string
+  kind: ShareKind
+  collection: string
+  viewId: string
+  recordId: string
+  hasPassword: boolean
+  createdAt: number
+  updatedAt: number
+}
 
 export type ShareSnapshot = {
   kind: ShareKind

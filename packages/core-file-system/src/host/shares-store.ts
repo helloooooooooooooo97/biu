@@ -3,6 +3,9 @@ import { dirname } from 'node:path'
 import { createRequire } from 'node:module'
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { normalizeCollectionPath } from '../paths.ts'
+import type { ShareKind, ShareRecord } from '../share-snapshot.ts'
+
+export type { ShareKind, ShareRecord } from '../share-snapshot.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 
