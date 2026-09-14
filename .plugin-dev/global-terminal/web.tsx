@@ -78,8 +78,8 @@ const HELPER_TEXTAREA = '.xterm-helper-textarea'
 // 它默认靠 left:-119988px 藏到屏幕外，但在带 transform/backdrop-filter 的容器里
 // 可能因包含块变化而重新进入可视区 —— 那串占位字符就会显示成"顶部多一行乱码"。
 //
-// 处理：用 clip-path 裁成 0 面积。元素仍在布局树里（量宽度正常），但渲染时什么都不画。
-// 不能用 display:none（破坏测量），也不必依赖 left 偏移。
+// 处理：用 opacity:0 藏起来。不要 clip-path:inset(100%) —— Chrome 里
+// getBoundingClientRect 会变成 0，字格宽度为 0，提示符全叠在最左边。
 const MEASURE_SELECTORS = ['.xterm-char-measure-element', '.xterm-width-cache-measure-container'].join(',')
 
 const BURIED_SELECTORS = [
@@ -89,6 +89,24 @@ const BURIED_SELECTORS = [
   '.live-region',
   '.composition-view',
 ].join(',')
+
+function decodePtyChunk(data: unknown, onText: (text: string) => void) {
+  if (typeof data === 'string') {
+    onText(data)
+    return
+  }
+  if (data instanceof ArrayBuffer) {
+    onText(new TextDecoder().decode(data))
+    return
+  }
+  if (ArrayBuffer.isView(data)) {
+    onText(new TextDecoder().decode(data))
+    return
+  }
+  if (typeof Blob !== 'undefined' && data instanceof Blob) {
+    void data.text().then(onText)
+  }
+}
 
 function styleHelperTextarea(el: HTMLElement) {
   const s = el.style
@@ -116,13 +134,10 @@ function buryAuxiliaryNodes(root: HTMLElement) {
   for (const node of root.querySelectorAll(MEASURE_SELECTORS)) {
     const el = node as HTMLElement
     const s = el.style
-    s.setProperty('position', 'absolute', 'important')
-    s.setProperty('left', '0', 'important')
-    s.setProperty('top', '0', 'important')
-    s.setProperty('visibility', 'hidden', 'important')
-    s.setProperty('clip-path', 'inset(100%)', 'important')
+    s.setProperty('opacity', '0', 'important')
     s.setProperty('pointer-events', 'none', 'important')
     s.removeProperty('display')
+    s.removeProperty('clip-path')
   }
   for (const node of root.querySelectorAll(HELPER_TEXTAREA)) {
     styleHelperTextarea(node as HTMLElement)
@@ -388,7 +403,7 @@ function TerminalPane({
     // 关键：打开后立刻把辅助节点压掉，并持续盯着（xterm 会重设它们的样式）。
     buryAuxiliaryNodes(element)
     const observer = new MutationObserver(() => buryAuxiliaryNodes(element))
-    observer.observe(element, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] })
+    observer.observe(element, { childList: true, subtree: true })
 
     // 先量尺寸：容器布局稳定前 fit 出来的是错的，会导致 PTY 按错误列数启动。
     let raf = 0
@@ -411,6 +426,7 @@ function TerminalPane({
         socket = new WebSocket(
           `${protocol}//${location.host}/ws/global-terminal?cols=${term.cols}&rows=${term.rows}&session=${encodeURIComponent(sessionKey)}`,
         )
+        socket.binaryType = 'arraybuffer'
         wireSocket(socket)
       })
     })
@@ -427,9 +443,16 @@ function TerminalPane({
       })
       // 纯直通：PTY 字节交给 xterm 解析，不做任何清屏/干预。
       ws.addEventListener('message', (event) => {
-        const chunk = typeof event.data === 'string' ? event.data : ''
-        term.write(chunk)
-        recordOutput(chunk)
+        decodePtyChunk(event.data, (chunk) => {
+          if (!chunk) return
+          term.write(chunk)
+          recordOutput(chunk)
+        })
+      })
+      ws.addEventListener('close', (event) => {
+        if (event.code === 1000) return
+        const why = event.reason?.trim() || `code ${event.code}`
+        term.write(`\r\n\x1b[31m终端未能启动：${why}\x1b[0m\r\n`)
       })
     }
 

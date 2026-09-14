@@ -9,7 +9,7 @@
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "node scripts/link-cordis-plugins.mjs",
+    "postinstall": "node scripts/link-cordis-plugins.mjs && node scripts/chmod-node-pty-helper.mjs",
     "predev": "node scripts/link-cordis-plugins.mjs",
     "prestart": "node scripts/link-cordis-plugins.mjs",
     "dev": "concurrently -k \"npm:dev:host\" \"npm:dev:web\"",

@@ -9,7 +9,7 @@
 
 ## 结构
 
-- `host.ts`：注册 WebSocket 端点 `/ws/global-terminal`，用 node-pty 拉起登录 shell（macOS 默认 zsh），
+- `host.ts`：注册 WebSocket 端点 `/ws/global-terminal`，用 node-pty 拉起交互 zsh（补齐 Unix PATH），
 转发输入输出与尺寸。
 - `web.tsx`：xterm 渲染 + FitAddon 自适应 + 辅助节点压制 + 底部留白。
 
@@ -45,13 +45,12 @@ xterm 用 `.xterm-char-measure-element`（在 `.xterm-width-cache-measure-contai
 - **错误做法 B**：压它的父容器 `.xterm-helpers`。
 → 测量元素是 `.xterm-helpers` 的**子节点**，父容器被 `display:none`，子节点同样量不出宽度。
 
-### 正确做法：`clip-path: inset(100%)`
+### 正确做法：`opacity: 0`
 
 ```js
-position: absolute; left: 0; top: 0;
-visibility: hidden;
-clip-path: inset(100%);   // 裁成 0 面积：仍在布局树（能测量），但不绘制
+opacity: 0;
 pointer-events: none;
+// 不要 clip-path: inset(100%) —— Chrome 里 getBoundingClientRect 宽高为 0
 ```
 
 
@@ -59,7 +58,8 @@ pointer-events: none;
 | ---------------------------- | ------- | -------- | ------------ |
 | xterm 默认（`left:-119988px`）   | 231     | 7.22     | 在普通容器里正常     |
 | `display:none`               | **0**   | —        | ❌ 字间距错乱、无光标  |
-| **`clip-path: inset(100%)`** | **231** | **7.22** | ✅ 测量正常且绝对不可见 |
+| `clip-path: inset(100%)`     | **0（Chrome）** | 0 | ❌ 提示符叠在最左边 |
+| **`opacity: 0`**             | **231** | **7.22** | ✅ 测量正常且不可见 |
 
 
 ## 3. 顶部多出一行乱码 → 测量元素在宿主容器里显形了
@@ -81,7 +81,7 @@ el.textContent            // 会打印 "%%%%%%%%%%%%%%%%..." —— 和屏幕顶
 el.getBoundingClientRect()
 ```
 
-**修法**：见上面第 2 条，用 `clip-path: inset(100%)`。
+**修法**：见上面第 2 条，用 `opacity: 0`，不要 `clip-path`。
 
 ## 4. PTY 列数必须始终等于 xterm 列数
 

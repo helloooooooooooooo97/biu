@@ -25,6 +25,33 @@ describe('terminal store plugins', () => {
     assert.ok((global.shell?.width ?? 0) >= 560)
   })
 
+  it('node-pty spawn-helper is executable so posix_spawnp can start a shell', async () => {
+    if (process.platform === 'win32') return
+    const { chmodSync, existsSync, statSync } = await import('node:fs')
+    const helper = resolve(root, 'node_modules/node-pty/prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
+    if (!existsSync(helper)) return
+    if ((statSync(helper).mode & 0o111) === 0) chmodSync(helper, 0o755)
+    assert.ok(statSync(helper).mode & 0o111, 'spawn-helper must be executable')
+    const pty = await import('node-pty')
+    const child = pty.spawn('/bin/sh', ['-c', 'echo pty-ok'], {
+      name: 'xterm',
+      cols: 80,
+      rows: 24,
+      cwd: root,
+      env: process.env,
+    })
+    let buf = ''
+    child.onData((chunk) => {
+      buf += chunk
+    })
+    const deadline = Date.now() + 2000
+    while (Date.now() < deadline && !buf.includes('pty-ok')) {
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    }
+    child.kill()
+    assert.match(buf, /pty-ok/)
+  })
+
   it('bundles both host and web entries as standalone store plugins', async () => {
     for (const id of ['page-terminal', 'global-terminal']) {
       const host = await bundleStoreEntry(pluginFile(id, 'host.ts'), 'host')
@@ -62,13 +89,15 @@ describe('terminal store plugins', () => {
   })
 
   it('page terminal keeps the helper textarea focusable and hides the measurement nodes', async () => {
-    const web = await readFile(pluginFile('page-terminal', 'web.tsx'), 'utf8')
-    // helper-textarea 不能 display:none（会失去焦点、打不了字）
-    assert.match(web, /HELPER_TEXTAREA/)
-    assert.match(web, /removeProperty\('display'\)/)
-    // 测量元素用 clip-path 隐藏（不能 display:none，否则字间距错乱、光标消失）
-    assert.match(web, /clip-path/)
-    assert.match(web, /xterm-char-measure-element/)
+    for (const id of ['page-terminal', 'global-terminal'] as const) {
+      const web = await readFile(pluginFile(id, 'web.tsx'), 'utf8')
+      assert.match(web, /HELPER_TEXTAREA/)
+      assert.match(web, /removeProperty\('display'\)/)
+      assert.match(web, /setProperty\('opacity', '0'/)
+      assert.match(web, /decodePtyChunk/)
+      assert.match(web, /binaryType = 'arraybuffer'/)
+      assert.doesNotMatch(web, /setProperty\('clip-path'/)
+    }
   })
 
   it('page terminal persists history into block data and keeps sessions alive', async () => {
@@ -81,6 +110,9 @@ describe('terminal store plugins', () => {
     assert.match(host, /pool/)
     assert.match(host, /maxSessions/)
     assert.match(host, /session/)
+    assert.match(host, /\/bin\/zsh/)
+    assert.match(host, /\['-i'\]/)
+    assert.doesNotMatch(host, /\['-il'\]/)
   })
 
   it('global terminal persists command history in localStorage with a stable session', async () => {

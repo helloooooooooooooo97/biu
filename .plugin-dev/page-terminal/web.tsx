@@ -26,8 +26,9 @@ type HistoryEntry = { cmd: string; at: number; out?: string }
 //  2. .xterm-helpers 里住着字符测量元素，**不能整块压掉**，
 //     否则它量不出字符宽度 → 字间距错乱、光标消失。
 //  3. 字符测量元素会因祖先 transform/backdrop-filter 改变包含块而显形，
-//     表现为"顶部多出一行会自己变的乱码"。用 clip-path 裁成 0 面积：
-//     仍在布局树里（能测量），但不绘制。
+//     表现为"顶部多出一行会自己变的乱码"。用 opacity:0 藏，不要 clip-path：
+//     Chrome 里 clip-path:inset(100%) 会让 getBoundingClientRect 宽高为 0，
+//     字格宽度变成 0，提示符和输出全叠在最左边（历史记录仍能记到按键）。
 // ---------------------------------------------------------------------------
 const HELPER_TEXTAREA = '.xterm-helper-textarea'
 const MEASURE_SELECTORS = ['.xterm-char-measure-element', '.xterm-width-cache-measure-container'].join(',')
@@ -38,6 +39,24 @@ const BURIED_SELECTORS = [
   '.live-region',
   '.composition-view',
 ].join(',')
+
+function decodePtyChunk(data: unknown, onText: (text: string) => void) {
+  if (typeof data === 'string') {
+    onText(data)
+    return
+  }
+  if (data instanceof ArrayBuffer) {
+    onText(new TextDecoder().decode(data))
+    return
+  }
+  if (ArrayBuffer.isView(data)) {
+    onText(new TextDecoder().decode(data))
+    return
+  }
+  if (typeof Blob !== 'undefined' && data instanceof Blob) {
+    void data.text().then(onText)
+  }
+}
 
 function styleHelperTextarea(el: HTMLElement) {
   const s = el.style
@@ -63,13 +82,10 @@ function styleHelperTextarea(el: HTMLElement) {
 function buryAuxiliaryNodes(root: HTMLElement) {
   for (const node of root.querySelectorAll(MEASURE_SELECTORS)) {
     const s = (node as HTMLElement).style
-    s.setProperty('position', 'absolute', 'important')
-    s.setProperty('left', '0', 'important')
-    s.setProperty('top', '0', 'important')
-    s.setProperty('visibility', 'hidden', 'important')
-    s.setProperty('clip-path', 'inset(100%)', 'important')
+    s.setProperty('opacity', '0', 'important')
     s.setProperty('pointer-events', 'none', 'important')
     s.removeProperty('display')
+    s.removeProperty('clip-path')
   }
   for (const node of root.querySelectorAll(HELPER_TEXTAREA)) {
     styleHelperTextarea(node as HTMLElement)
@@ -184,7 +200,7 @@ function TerminalSurface({
 
     buryAuxiliaryNodes(element)
     const observer = new MutationObserver(() => buryAuxiliaryNodes(element))
-    observer.observe(element, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] })
+    observer.observe(element, { childList: true, subtree: true })
 
     const fitted = () => {
       try {
@@ -207,6 +223,7 @@ function TerminalSurface({
           `${protocol}//${location.host}/ws/page-terminal` +
             `?cols=${term.cols}&rows=${term.rows}&session=${encodeURIComponent(sessionKey)}`,
         )
+        socket.binaryType = 'arraybuffer'
         socket.addEventListener('open', () => {
           const sync = () =>
             socket?.readyState === WebSocket.OPEN &&
@@ -215,11 +232,18 @@ function TerminalSurface({
           window.setTimeout(sync, 60)
           window.setTimeout(sync, 220)
         })
-        // 纯直通：不做任何清屏 / 干预。同时把输出喂给历史缓冲。
+        // 纯直通：文本或二进制帧都解码后再交给 xterm。Chrome 上 PTY 常走 binary。
         socket.addEventListener('message', (event) => {
-          const chunk = typeof event.data === 'string' ? event.data : ''
-          term.write(chunk)
-          recordOutput(chunk)
+          decodePtyChunk(event.data, (chunk) => {
+            if (!chunk) return
+            term.write(chunk)
+            recordOutput(chunk)
+          })
+        })
+        socket.addEventListener('close', (event) => {
+          if (event.code === 1000) return
+          const why = event.reason?.trim() || `code ${event.code}`
+          term.write(`\r\n\x1b[31m终端未能启动：${why}\x1b[0m\r\n`)
         })
       })
     })
