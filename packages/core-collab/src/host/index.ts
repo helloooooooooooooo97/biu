@@ -109,6 +109,8 @@ export function apply(ctx: Context) {
       route.send(400, { error: String(error) })
     }
   })
+
+  ctx.http.route('GET', '/api/members', (route) => {
     const actor = memberFromReq(route.req.headers.cookie)
     if (!actor) {
       route.send(401, { error: 'sign in' })
