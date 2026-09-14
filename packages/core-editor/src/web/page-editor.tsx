@@ -11,6 +11,8 @@ import type { FsContentProps } from '@biu/type-file-system/ui'
 import { pageEditorExtensions } from './kit.ts'
 import { usePageCollab } from './use-page-collab.ts'
 import { collabCaretUser } from './collab-user.ts'
+import { usePagePresence } from './use-page-presence.ts'
+import { PresenceAvatars } from './presence-avatars.tsx'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { PageBlockHandle } from './page-block-handle.tsx'
 import { editorHostIsLive } from './editor-live.ts'
@@ -293,6 +295,7 @@ function TableBar({ editor }: { editor: Editor }) {
 
 export function PageEditor({ record, value, writable, onChange, path }: FsContentProps) {
   const collab = usePageCollab(record.id)
+  const viewers = usePagePresence(record.id, collab.guest)
   const source = usePageSourceMode(record.id)
   const saved = useRef(asMarkdown(value))
   const sourceMode = useRef(source)
@@ -660,6 +663,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
   if (source) {
     return (
       <div className="page-editor is-source" onKeyDownCapture={onEditorHotkey}>
+        <PresenceAvatars viewers={viewers} selfId={collab.guest.id} />
         {findBar}
         <SourceEditor
           ref={sourceFind}
@@ -677,6 +681,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
 
   return (
     <div className="page-editor" onKeyDownCapture={onEditorHotkey}>
+      <PresenceAvatars viewers={viewers} selfId={collab.guest.id} />
       {findBar}
       <EditorContent editor={editor} />
       {writable !== false ? <PageBlockHandle editor={editor} /> : null}

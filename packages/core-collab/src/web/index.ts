@@ -26,4 +26,11 @@ export function apply(ctx: Context) {
   consumeInviteFromLocation()
   const ui = ctx.get('databaseUi') as DatabaseUi
   ctx.effect(() => ui.decorate('/members', { Actions: MemberShare, DetailTools: MemberShare }).dispose)
+  const snapshot = ctx.get('snapshot') as { onMessage?: (type: string, handler: (payload: unknown) => void) => () => void } | undefined
+  ctx.effect(() => {
+    if (!snapshot?.onMessage) return () => undefined
+    return snapshot.onMessage('presence', (payload) => {
+      window.dispatchEvent(new CustomEvent('biu:presence', { detail: payload }))
+    })
+  })
 }

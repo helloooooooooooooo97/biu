@@ -8,6 +8,7 @@ import { membersCollection } from './members-collection.ts'
 import { cookieValue, isRole, readSession, setCookieHeader, signSession } from './session.ts'
 import { createCollabServer, incomingToRequest } from './collab-server.ts'
 import { YjsStore } from './yjs-store.ts'
+import { PRESENCE_CHANNEL, PresenceStore } from './presence.ts'
 
 export const name = 'core-collab'
 export const inject = ['http', 'database']
@@ -33,6 +34,7 @@ export function apply(ctx: Context) {
   const secret = workspaceSecret(root)
   const members = new MembersStore(join(dataPath(root, 'collab'), 'members.sqlite'))
   const yjs = new YjsStore(join(dataPath(root, 'collab'), 'yjs'))
+  const presence = new PresenceStore()
   const sessionOf = (token: string) => readSession(secret, token)
   const collab = createCollabServer(members, yjs, sessionOf)
   const publicOrigin = (host?: string) => String(process.env.PUBLIC_ORIGIN ?? `http://${host ?? '127.0.0.1:5173'}`).replace(/\/$/, '')
@@ -119,11 +121,36 @@ export function apply(ctx: Context) {
     route.send(200, { members: members.list() })
   })
 
+  const bumpPresence = (pageId: string) => {
+    const viewers = presence.list(pageId)
+    ctx.http.broadcast(PRESENCE_CHANNEL, { pageId, viewers })
+    return viewers
+  }
+
+  ctx.http.route('GET', '/api/collab/presence', (route) => {
+    const pageId = String(route.query.get('pageId') ?? '')
+    route.send(200, { viewers: presence.list(pageId) })
+  })
+
+  ctx.http.route('POST', '/api/collab/presence', async (route) => {
+    const body = (await route.json<{ pageId?: string; guestId?: string; color?: string }>()) ?? {}
+    const pageId = String(body.pageId ?? '')
+    const guestId = String(body.guestId ?? '')
+    const viewers = presence.touch(pageId, guestId, body.color)
+    bumpPresence(pageId)
+    route.send(200, { viewers })
+  })
+
   ctx.http.ws('/collaboration', (socket, req) => {
     const request = incomingToRequest(req)
     const connection = collab.handleConnection(socket as unknown as WebSocket, request)
     socket.on('message', (data) => {
-      const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data as Buffer)
+      const bytes =
+        data instanceof Uint8Array
+          ? data
+          : Array.isArray(data)
+            ? new Uint8Array(Buffer.concat(data as Buffer[]))
+            : new Uint8Array(data as ArrayBuffer)
       connection.handleMessage(bytes)
     })
     socket.on('close', (code, reason) => {

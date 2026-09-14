@@ -36,6 +36,10 @@ test('two editors on one ydoc show each others edits', async () => {
   b.destroy()
 })
 
+test('presence stack styles are circular', () => {
+  assert.match(PAGE_EDITOR_STYLE, /page-presence-dot\{[^}]*border-radius:50%/)
+})
+
 test('remote caret is a line with the label on the right, not a box', () => {
   assert.match(PAGE_EDITOR_STYLE, /collaboration-carets__caret\{[^}]*border-right:0/)
   assert.match(PAGE_EDITOR_STYLE, /collaboration-carets__label\{[^}]*left:6px/)

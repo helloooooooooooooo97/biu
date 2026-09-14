@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import * as Y from 'yjs'
 import { createCollabServer } from './collab-server.ts'
 import { membersCollection } from './members-collection.ts'
+import { PresenceStore } from './presence.ts'
 import { MembersStore } from './members-store.ts'
 import { YjsStore } from './yjs-store.ts'
 import { readSession, signSession } from './session.ts'
@@ -84,6 +85,13 @@ test('collab hooks persist yjs and mark viewers read-only', async () => {
   const loaded = new Y.Doc()
   await hp.configuration.onLoadDocument?.({ documentName: 'page.p1', document: loaded } as never)
   assert.equal(loaded.getMap('meta').get('k'), 1)
+})
+
+test('presence lists distinct guests on one page', () => {
+  const room = new PresenceStore()
+  assert.equal(room.touch('p1', 'g_aaaaaaaaaaaa').length, 1)
+  assert.equal(room.touch('p1', 'g_bbbbbbbbbbbb').length, 2)
+  assert.equal(room.list('p2').length, 0)
 })
 
 test('guest id is reused as an editor member', () => {
