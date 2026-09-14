@@ -22,8 +22,67 @@ export type BannerPreset = {
 const box = (css: string, inner: string) =>
   `<div style="box-sizing:border-box;height:100%;max-height:100%;width:100%;overflow:hidden;position:relative;${css}">${inner}</div>`
 
-const copy = (kicker: string, name: string, thought: string, extra = '') =>
-  `<div style="position:relative;z-index:1;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-end;height:100%;max-height:100%;min-height:0;overflow:hidden;padding:18px 28px 16px;${extra}"><div style="flex:none;font-size:10px;font-weight:700;letter-spacing:.28em;opacity:.7">${kicker}</div><div style="flex:none;margin-top:6px;font-size:22px;font-weight:800;letter-spacing:.03em;line-height:1.15">${name}</div><div style="flex:none;max-width:34rem;margin-top:6px;font-size:12px;font-weight:500;line-height:1.4;opacity:.9;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${thought}</div></div>`
+type JpLayout = 'ma' | 'woodblock' | 'pattern' | 'craft' | 'symbol' | 'geometry' | 'cosmos' | 'collage' | 'vertical'
+
+/** 日式不是一套“和风皮肤”：余白、木版、纹样、民艺、战后海报各用自己的构成。 */
+function jpCopy(kicker: string, name: string, thought: string, extra = '', layout: JpLayout = 'ma') {
+  const shell = 'position:relative;z-index:1;box-sizing:border-box;height:100%;max-height:100%;overflow:hidden;'
+  if (layout === 'woodblock') return `<div style="${shell}${extra}"><div style="position:absolute;right:28px;top:18px;writing-mode:vertical-rl;background:#f2dfb8;color:#1a120e;padding:8px 6px;font:700 24px/1 'Yu Mincho','Songti SC',serif;letter-spacing:.16em">${name}</div><div style="position:absolute;left:26px;bottom:20px;max-width:38%;border-left:4px solid currentColor;padding-left:9px;font:700 10px/1.55 ui-sans-serif,sans-serif">${thought}</div><div style="position:absolute;left:26px;top:20px;font:800 9px/1 ui-sans-serif,sans-serif;letter-spacing:.28em">${kicker}</div></div>`
+  if (layout === 'pattern') return `<div style="${shell}display:grid;place-items:center;${extra}"><div style="width:120px;height:120px;border-radius:50%;display:grid;place-items:center;background:rgba(8,20,24,.72);border:1px solid currentColor;text-align:center"><div><div style="font:600 25px/1 'Yu Mincho','Songti SC',serif;letter-spacing:.16em">${name}</div><div style="margin-top:8px;font:700 8px/1 ui-sans-serif,sans-serif;letter-spacing:.24em">${kicker}</div></div></div><div style="position:absolute;right:22px;bottom:18px;width:31%;font:500 9px/1.55 ui-sans-serif,sans-serif;text-align:right">${thought}</div></div>`
+  if (layout === 'craft') return `<div style="${shell}display:flex;align-items:stretch;padding:18px 24px;${extra}"><div style="width:34%;border-right:1px solid currentColor;display:flex;align-items:flex-end;padding:0 18px 3px 0;font:600 28px/1 'Yu Mincho','Songti SC',serif">${name}</div><div style="display:flex;flex:1;flex-direction:column;justify-content:space-between;padding-left:18px"><div style="font:700 9px/1 ui-monospace,monospace;letter-spacing:.2em">${kicker}</div><div style="max-width:260px;font:500 11px/1.65 'Yu Mincho','Songti SC',serif">${thought}</div></div></div>`
+  if (layout === 'symbol') return `<div style="${shell}${extra}"><div style="position:absolute;left:24px;top:18px;font:700 9px/1 Helvetica,Arial,sans-serif;letter-spacing:.3em">${kicker}</div><div style="position:absolute;right:25px;bottom:18px;text-align:right"><div style="font:800 31px/.9 Helvetica,Arial,sans-serif;letter-spacing:-.06em">${name}</div><div style="width:180px;margin-top:7px;font:500 9px/1.45 Helvetica,Arial,sans-serif">${thought}</div></div></div>`
+  if (layout === 'geometry') return `<div style="${shell}display:grid;grid-template-columns:1fr 1fr;${extra}"><div style="align-self:end;padding:16px 20px;color:#fff;mix-blend-mode:difference"><div style="font:800 9px/1 Helvetica,Arial,sans-serif;letter-spacing:.24em">${kicker}</div><div style="margin-top:4px;font:700 27px/.95 'Yu Gothic',sans-serif">${name}</div></div><div style="align-self:start;padding:18px 20px;font:600 10px/1.5 'Yu Gothic',sans-serif">${thought}</div></div>`
+  if (layout === 'cosmos') return `<div style="${shell}display:grid;place-items:center;${extra}"><div style="text-align:center;text-shadow:0 1px 14px #000"><div style="font:500 9px/1 ui-sans-serif,sans-serif;letter-spacing:.42em">${kicker}</div><div style="margin-top:7px;font:600 24px/1 'Yu Mincho','Songti SC',serif;letter-spacing:.2em">${name}</div><div style="max-width:270px;margin-top:9px;font:500 9px/1.6 ui-sans-serif,sans-serif">${thought}</div></div></div>`
+  if (layout === 'collage') return `<div style="${shell}${extra}"><div style="position:absolute;left:6%;top:13%;font:900 clamp(38px,7vw,76px)/.8 Impact,sans-serif;transform:rotate(-7deg);text-shadow:4px 4px 0 #111">${name}</div><div style="position:absolute;right:6%;top:18px;background:#ffe48a;color:#2a0830;padding:4px 8px;font:900 9px/1 sans-serif;letter-spacing:.2em;transform:rotate(3deg)">${kicker}</div><div style="position:absolute;right:7%;bottom:16px;width:34%;background:#111;color:#fff;padding:7px 9px;font:700 9px/1.4 sans-serif;transform:rotate(-2deg)">${thought}</div></div>`
+  if (layout === 'vertical') return `<div style="${shell}${extra}"><div style="position:absolute;right:42px;top:18px;bottom:18px;writing-mode:vertical-rl;font:600 28px/1 'Yu Mincho','Songti SC',serif;letter-spacing:.18em">${name}</div><div style="position:absolute;right:92px;top:20px;max-height:150px;writing-mode:vertical-rl;font:500 10px/1.7 'Yu Mincho','Songti SC',serif;letter-spacing:.08em">${thought}</div><div style="position:absolute;left:24px;bottom:18px;font:700 9px/1 sans-serif;letter-spacing:.3em">${kicker}</div></div>`
+  return `<div style="${shell}padding:18px 26px;${extra}"><div style="font:700 9px/1.2 ui-sans-serif,sans-serif;letter-spacing:.34em;opacity:.65">${kicker}</div><div style="position:absolute;left:26px;bottom:18px;width:min(40%,26rem);border-top:1px solid currentColor;padding-top:8px"><div style="font:600 24px/1.05 'Yu Mincho','Songti SC',serif;letter-spacing:.12em">${name}</div><div style="margin-top:7px;font:500 10px/1.55 ui-sans-serif,sans-serif;opacity:.72">${thought}</div></div></div>`
+}
+
+type UsLayout = 'idea' | 'cut' | 'ligature' | 'system' | 'street' | 'digital' | 'deconstruct' | 'punk' | 'lab'
+
+/** 美式从企业现代主义到街头、数字新浪潮、朋克，每一支的尺度与阅读秩序都不同。 */
+function usCopy(kicker: string, name: string, thought: string, extra = '', layout: UsLayout = 'idea') {
+  const shell = 'position:relative;z-index:1;box-sizing:border-box;height:100%;max-height:100%;overflow:hidden;font-family:Helvetica,Arial,sans-serif;'
+  if (layout === 'cut') return `<div style="${shell}${extra}"><div style="position:absolute;right:18px;top:14px;font:900 9px/1 sans-serif;letter-spacing:.25em">${kicker}</div><div style="position:absolute;left:30%;bottom:12px;font:900 clamp(38px,6vw,72px)/.72 Impact,'Arial Narrow',sans-serif;text-transform:uppercase;transform:rotate(-7deg)">${name}</div><div style="position:absolute;right:18px;bottom:16px;width:24%;font:700 9px/1.35 sans-serif">${thought}</div></div>`
+  if (layout === 'ligature') return `<div style="${shell}display:grid;place-items:center;${extra}"><div style="font:900 clamp(42px,8vw,94px)/.68 'Arial Narrow',Helvetica,sans-serif;letter-spacing:-.105em;text-align:center">${name}</div><div style="position:absolute;left:18px;top:14px;font:800 9px/1 sans-serif;letter-spacing:.18em">${kicker}</div><div style="position:absolute;left:18px;bottom:14px;max-width:270px;font:600 10px/1.35 sans-serif">${thought}</div></div>`
+  if (layout === 'system') return `<div style="${shell}display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(4,1fr);padding:14px 18px;gap:7px;${extra}"><div style="grid-column:1/3;font:800 8px/1 sans-serif;letter-spacing:.15em">${kicker}</div><div style="grid-column:5/9;grid-row:2/4;font:800 29px/.9 sans-serif;letter-spacing:-.05em">${name}</div><div style="grid-column:5/8;grid-row:4;font:600 9px/1.45 sans-serif">${thought}</div></div>`
+  if (layout === 'street') return `<div style="${shell}${extra}"><div style="position:absolute;left:12px;top:15px;font:900 clamp(42px,8vw,92px)/.62 Impact,'Arial Narrow',sans-serif;letter-spacing:-.03em;text-transform:uppercase;transform:scaleX(.72);transform-origin:left top">${name}<br>${name}</div><div style="position:absolute;right:14px;top:14px;writing-mode:vertical-rl;font:900 9px/1 sans-serif;letter-spacing:.18em">${kicker}</div><div style="position:absolute;right:20px;bottom:15px;width:30%;font:800 10px/1.25 sans-serif;text-align:right">${thought}</div></div>`
+  if (layout === 'digital') return `<div style="${shell}${extra}"><div style="position:absolute;left:7%;top:13%;font:300 clamp(36px,7vw,80px)/.82 Helvetica,sans-serif;letter-spacing:-.08em;transform:rotate(-5deg)">${name}</div><div style="position:absolute;right:5%;top:18%;font:700 9px/1 ui-monospace,monospace;letter-spacing:.26em;color:#ff5ccb">${kicker}</div><div style="position:absolute;left:44%;bottom:16px;width:40%;border:1px solid currentColor;padding:8px;font:500 9px/1.5 ui-monospace,monospace">${thought}</div></div>`
+  if (layout === 'deconstruct') return `<div style="${shell}${extra}"><div style="position:absolute;left:8%;top:18%;font:900 31px/.85 sans-serif;letter-spacing:.2em;transform:rotate(-10deg)">${name}</div><div style="position:absolute;right:9%;top:19%;font:700 9px/1 sans-serif;letter-spacing:.5em;transform:rotate(90deg)">${kicker}</div><div style="position:absolute;left:37%;bottom:16px;width:42%;font:600 10px/1.25 serif;transform:rotate(3deg)">${thought}</div></div>`
+  if (layout === 'punk') return `<div style="${shell}${extra}"><div style="position:absolute;left:-1%;top:13%;font:900 clamp(48px,9vw,104px)/.65 Impact,sans-serif;letter-spacing:-.09em;transform:skewX(-18deg) rotate(-4deg);text-transform:uppercase">${name}</div><div style="position:absolute;left:5%;bottom:15px;background:#eee;color:#111;padding:3px 7px;font:800 9px/1 ui-monospace,monospace;transform:rotate(2deg)">${kicker}</div><div style="position:absolute;right:5%;bottom:14px;width:26%;font:700 9px/1.25 sans-serif">${thought}</div></div>`
+  if (layout === 'lab') return `<div style="${shell}display:grid;grid-template-columns:1fr 2fr;${extra}"><div style="border-right:9px solid currentColor;padding:16px 10px;writing-mode:vertical-rl;font:900 9px/1 ui-monospace,monospace;letter-spacing:.22em">${kicker}</div><div style="display:flex;flex-direction:column;justify-content:space-between;padding:14px 18px"><div style="font:900 clamp(34px,6vw,68px)/.78 ui-monospace,monospace;letter-spacing:-.08em">${name}</div><div style="max-width:280px;font:600 10px/1.4 ui-monospace,monospace">${thought}</div></div></div>`
+  return `<div style="${shell}display:grid;grid-template-columns:1.25fr .75fr;grid-template-rows:auto 1fr auto;padding:14px 18px;${extra}"><div style="grid-column:1/-1;border-top:5px solid currentColor;padding-top:5px;font:900 9px/1 sans-serif;letter-spacing:.16em">${kicker}</div><div style="align-self:end;font:900 clamp(32px,6vw,70px)/.74 Impact,'Arial Narrow',sans-serif;letter-spacing:-.05em;text-transform:uppercase">${name}</div><div style="grid-column:2;align-self:end;border-left:2px solid currentColor;padding-left:10px;font:700 10px/1.35 sans-serif">${thought}</div></div>`
+}
+
+type EuLayout = 'newtype' | 'swiss' | 'construct' | 'deco' | 'newwave' | 'memphis' | 'futurism' | 'editorial'
+
+/** 欧式各运动不是“统一瑞士网格”：秩序、力场、装饰、反网格分别建模。 */
+function euCopy(kicker: string, name: string, thought: string, extra = '', layout: EuLayout = 'newtype') {
+  const shell = 'position:relative;z-index:1;box-sizing:border-box;height:100%;max-height:100%;overflow:hidden;font-family:Helvetica,Arial,sans-serif;'
+  if (layout === 'swiss') return `<div style="${shell}display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(5,1fr);gap:8px;padding:15px 20px;${extra}"><div style="grid-column:1/4;border-top:2px solid;padding-top:4px;font:700 8px/1 sans-serif">01—04</div><div style="grid-column:5/12;border-top:2px solid;padding-top:4px;font:700 9px/1 sans-serif;letter-spacing:.14em">${kicker}</div><div style="grid-column:5/13;grid-row:3/5;font:700 clamp(30px,5vw,58px)/.82 sans-serif;letter-spacing:-.055em">${name}</div><div style="grid-column:5/9;grid-row:5;font:500 9px/1.45 sans-serif">${thought}</div></div>`
+  if (layout === 'construct') return `<div style="${shell}${extra}"><div style="position:absolute;left:26%;top:7%;font:900 clamp(35px,6vw,70px)/.8 sans-serif;text-transform:uppercase;transform:rotate(-18deg);transform-origin:left center">${name}</div><div style="position:absolute;right:10%;bottom:12px;width:36%;border-top:5px solid;padding-top:5px;font:700 10px/1.25 sans-serif;transform:rotate(-3deg)">${thought}</div><div style="position:absolute;left:18px;bottom:14px;font:800 9px/1 sans-serif;letter-spacing:.22em">${kicker}</div></div>`
+  if (layout === 'deco') return `<div style="${shell}display:grid;place-items:center;text-align:center;${extra}"><div style="border:1px solid currentColor;padding:12px 30px;clip-path:polygon(8% 0,92% 0,100% 50%,92% 100%,8% 100%,0 50%)"><div style="font:500 9px/1 Georgia,serif;letter-spacing:.38em">${kicker}</div><div style="margin-top:5px;font:500 30px/.95 'Times New Roman',serif;letter-spacing:.14em;text-transform:uppercase">${name}</div><div style="max-width:260px;margin-top:8px;font:500 9px/1.35 Georgia,serif">${thought}</div></div></div>`
+  if (layout === 'newwave') return `<div style="${shell}${extra}"><div style="position:absolute;left:7%;top:24%;font:800 clamp(30px,5vw,58px)/.8 sans-serif;letter-spacing:.34em;transform:rotate(-11deg) scaleY(1.4)">${name}</div><div style="position:absolute;right:5%;top:15px;font:700 8px/1 ui-monospace,monospace;letter-spacing:.6em">${kicker}</div><div style="position:absolute;left:48%;bottom:14px;width:38%;font:500 9px/1.5 ui-monospace,monospace;transform:rotate(4deg)">${thought}</div></div>`
+  if (layout === 'memphis') return `<div style="${shell}${extra}"><div style="position:absolute;left:7%;top:18%;font:900 clamp(33px,6vw,66px)/.8 sans-serif;letter-spacing:-.06em;transform:rotate(-5deg)">${name}</div><div style="position:absolute;right:7%;top:15px;border:3px solid;padding:4px 7px;font:900 8px/1 sans-serif;letter-spacing:.2em;transform:rotate(7deg)">${kicker}</div><div style="position:absolute;right:7%;bottom:15px;width:31%;font:700 10px/1.3 sans-serif">${thought}</div></div>`
+  if (layout === 'futurism') return `<div style="${shell}${extra}"><div style="position:absolute;left:5%;top:12%;font:900 clamp(42px,8vw,90px)/.65 Impact,sans-serif;letter-spacing:-.04em;transform:skewX(-23deg);text-transform:uppercase">${name}!</div><div style="position:absolute;left:42%;top:18px;font:900 9px/1 sans-serif;letter-spacing:.3em;transform:rotate(-8deg)">${kicker}</div><div style="position:absolute;right:5%;bottom:12px;width:36%;font:700 10px/1.15 sans-serif;transform:rotate(-6deg)">${thought}</div></div>`
+  if (layout === 'editorial') return `<div style="${shell}display:grid;grid-template-columns:2fr 1fr;grid-template-rows:auto 1fr;${extra}"><div style="grid-row:1/3;background:#c4122e;padding:14px 18px;display:flex;flex-direction:column;justify-content:space-between"><div style="font:800 9px/1 sans-serif;letter-spacing:.2em">${kicker}</div><div style="font:900 clamp(35px,6vw,70px)/.72 'Arial Narrow',sans-serif;text-transform:uppercase">${name}</div></div><div style="padding:16px;font:700 10px/1.4 sans-serif">${thought}</div></div>`
+  return `<div style="${shell}display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:auto 1fr auto;gap:8px;padding:16px 22px;${extra}"><div style="grid-column:1/4;border-top:2px solid;padding-top:5px;font:700 8px/1 sans-serif">1928</div><div style="grid-column:5/13;border-top:2px solid;padding-top:5px;font:700 9px/1 sans-serif;letter-spacing:.16em">${kicker}</div><div style="grid-column:5/13;align-self:end;font:700 clamp(26px,4vw,50px)/.9 sans-serif;letter-spacing:-.04em">${name}</div><div style="grid-column:5/9;font:500 10px/1.45 sans-serif">${thought}</div></div>`
+}
+
+type CnLayout = 'book' | 'void' | 'calendar' | 'propaganda' | 'seal' | 'ink' | 'retail' | 'lattice'
+
+/** 中式依据印本、月份牌、宣传画、文人水墨和香港现代设计分别构成。 */
+function cnCopy(kicker: string, name: string, thought: string, extra = '', layout: CnLayout = 'book') {
+  const shell = `position:relative;z-index:1;box-sizing:border-box;height:100%;max-height:100%;overflow:hidden;font-family:'Songti SC','STSong','Noto Serif CJK SC',serif;`
+  if (layout === 'void') return `<div style="${shell}${extra}"><div style="position:absolute;left:11%;top:18%;writing-mode:vertical-rl;font:600 28px/1 serif;letter-spacing:.2em">${name}</div><div style="position:absolute;left:calc(11% + 48px);top:20%;max-height:120px;writing-mode:vertical-rl;font:500 10px/1.8 serif;letter-spacing:.08em">${thought}</div><div style="position:absolute;right:24px;bottom:18px;font:600 9px/1 serif;letter-spacing:.3em">${kicker}</div></div>`
+  if (layout === 'calendar') return `<div style="${shell}display:grid;grid-template-columns:1fr 1.6fr 1fr;grid-template-rows:auto 1fr auto;padding:22px 32px;${extra}"><div style="grid-column:1/-1;text-align:center;font:700 9px/1 serif;letter-spacing:.36em">${kicker}</div><div style="grid-column:2;align-self:end;text-align:center;font:700 30px/1 serif;letter-spacing:.2em">${name}</div><div style="grid-column:1/-1;border-top:3px double currentColor;padding-top:5px;text-align:center;font:500 10px/1.35 serif">${thought}</div></div>`
+  if (layout === 'propaganda') return `<div style="${shell}${extra}"><div style="position:absolute;left:4%;top:10%;font:900 clamp(46px,9vw,100px)/.68 'Heiti SC','Microsoft YaHei',sans-serif;letter-spacing:-.08em;transform:skewX(-9deg)">${name}</div><div style="position:absolute;right:5%;top:18px;font:900 10px/1 sans-serif;letter-spacing:.2em">${kicker}</div><div style="position:absolute;right:5%;bottom:12px;width:38%;font:800 11px/1.3 'Heiti SC',sans-serif;text-align:right">${thought}</div></div>`
+  if (layout === 'seal') return `<div style="${shell}display:grid;grid-template-columns:1fr 1fr;${extra}"><div style="display:grid;place-items:center"><div style="width:96px;height:96px;border:4px double currentColor;display:grid;place-items:center;font:800 35px/1 serif">${name}</div></div><div style="display:flex;flex-direction:row-reverse;justify-content:center;gap:15px;padding:20px"><div style="writing-mode:vertical-rl;font:700 10px/1.6 serif;letter-spacing:.15em">${kicker}</div><div style="writing-mode:vertical-rl;font:500 10px/1.7 serif;letter-spacing:.08em">${thought}</div></div></div>`
+  if (layout === 'ink') return `<div style="${shell}${extra}"><div style="position:absolute;right:8%;top:17%;writing-mode:vertical-rl;font:500 31px/1 'STKaiti','KaiTi',serif;letter-spacing:.2em">${name}</div><div style="position:absolute;right:calc(8% + 54px);top:19%;max-height:122px;writing-mode:vertical-rl;font:500 10px/1.8 serif">${thought}</div><div style="position:absolute;left:24px;bottom:17px;font:600 8px/1 Helvetica,sans-serif;letter-spacing:.28em">${kicker}</div></div>`
+  if (layout === 'retail') return `<div style="${shell}display:grid;grid-template-columns:1.3fr .7fr;${extra}"><div style="padding:16px 22px;display:flex;flex-direction:column;justify-content:space-between"><div style="font:800 9px/1 Helvetica,sans-serif;letter-spacing:.25em">${kicker}</div><div style="font:700 clamp(34px,6vw,70px)/.8 serif;letter-spacing:.12em">${name}</div></div><div style="padding:16px;display:flex;align-items:flex-end;font:600 10px/1.5 serif">${thought}</div></div>`
+  if (layout === 'lattice') return `<div style="${shell}display:grid;place-items:center;${extra}"><div style="width:46%;background:rgba(20,10,7,.72);border:1px solid currentColor;padding:12px 18px;text-align:center"><div style="font:600 9px/1 serif;letter-spacing:.32em">${kicker}</div><div style="margin-top:7px;font:700 27px/1 serif;letter-spacing:.18em">${name}</div><div style="margin-top:8px;font:500 9px/1.55 serif">${thought}</div></div></div>`
+  return `<div style="${shell}${extra}"><div style="position:absolute;right:26px;top:18px;bottom:18px;border-right:1px solid;padding-right:9px;writing-mode:vertical-rl;font-size:9px;font-weight:600;letter-spacing:.22em">${kicker}</div><div style="position:absolute;left:28px;top:20px;bottom:20px;display:flex;flex-direction:row-reverse;gap:13px"><div style="writing-mode:vertical-rl;font-size:27px;font-weight:700;letter-spacing:.14em">${name}</div><div style="max-height:138px;writing-mode:vertical-rl;font-size:10px;line-height:1.7;letter-spacing:.08em">${thought}</div></div><div style="position:absolute;left:16px;bottom:14px;width:17px;height:17px;display:grid;place-items:center;background:#a52218;color:#f6ead3;font:700 9px/1 serif">印</div></div>`
+}
 
 function html(
   id: string,
@@ -47,7 +106,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '琳派',
     '金银地、没骨与非对称。光琳之后，平面把花卉当成纹样，把空当成水。',
     'background:#1a140c;color:#f4e6c4',
-    `<div style="position:absolute;right:-4%;bottom:-18%;width:42%;height:90%;background:radial-gradient(circle at 40% 30%,#c4a24a 0 18%,transparent 19%),radial-gradient(circle at 62% 48%,#2f5a8a 0 22%,transparent 23%),radial-gradient(circle at 48% 62%,#c4a24a 0 14%,transparent 15%);opacity:.95"></div>${copy('RIMPA · 尾形光琳', '琳派', '金银地、没骨与非对称。光琳之后，平面把花卉当成纹样，把空当成水。')}`,
+    `<div style="position:absolute;right:-4%;bottom:-18%;width:42%;height:90%;background:radial-gradient(circle at 40% 30%,#c4a24a 0 18%,transparent 19%),radial-gradient(circle at 62% 48%,#2f5a8a 0 22%,transparent 23%),radial-gradient(circle at 48% 62%,#c4a24a 0 14%,transparent 15%);opacity:.95"></div>${jpCopy('RIMPA · 尾形光琳', '琳派', '金银地、没骨与非对称。光琳之后，平面把花卉当成纹样，把空当成水。', '', 'ma')}`,
   ),
   html(
     'jp-ukiyo',
@@ -55,7 +114,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '浮世绘',
     '平涂、墨线、大色面。画面是舞台，不是透视窗口。',
     'background:#8c1c16;color:#f6ead0',
-    `<div style="position:absolute;inset:18px 22px;border:2px solid #1a120e"></div><div style="position:absolute;top:18px;right:22px;width:88px;height:calc(100% - 36px);background:#1a120e"></div>${copy('UKIYO-E', '浮世绘', '平涂、墨线、大色面。画面是舞台，不是透视窗口。', 'color:#f6ead0')}`,
+    `<div style="position:absolute;inset:18px 22px;border:2px solid #1a120e"></div><div style="position:absolute;top:18px;right:22px;width:88px;height:calc(100% - 36px);background:#1a120e"></div>${jpCopy('UKIYO-E', '浮世绘', '平涂、墨线、大色面。画面是舞台，不是透视窗口。', 'color:#f6ead0', 'woodblock')}`,
   ),
   html(
     'jp-seigaiha',
@@ -63,7 +122,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '青海波',
     '同一弧线无穷反复。秩序来自纹样，平静来自重复。',
     'background:#12303a;color:#d7efe8;background-image:radial-gradient(circle at 50% 120%,transparent 22px,#1e4a58 23px 25px,transparent 26px);background-size:48px 28px',
-    copy('SEIGAIHA', '青海波', '同一弧线无穷反复。秩序来自纹样，平静来自重复。'),
+    jpCopy('SEIGAIHA', '青海波', '同一弧线无穷反复。秩序来自纹样，平静来自重复。', '', 'pattern'),
   ),
   html(
     'jp-mingei',
@@ -71,7 +130,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '民艺',
     '柳宗悦：无名工匠的用之美。手感重于签名，朴素重于装饰。',
     'background:#cbb79a;color:#2a2218',
-    `<div style="position:absolute;left:0;top:0;bottom:0;width:18px;background:#6a3a28"></div>${copy('MINGEI · 柳宗悦', '民艺', '无名工匠的用之美。手感重于签名，朴素重于装饰。')}`,
+    `<div style="position:absolute;left:0;top:0;bottom:0;width:18px;background:#6a3a28"></div>${jpCopy('MINGEI · 柳宗悦', '民艺', '无名工匠的用之美。手感重于签名，朴素重于装饰。', '', 'craft')}`,
   ),
   html(
     'jp-kamekura',
@@ -79,7 +138,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '龟仓红日',
     '1964：把国旗收成一个圆。现代主义最硬的一刀，也是最日本的一刀。',
     'background:#111;color:#f4f0ea',
-    `<div style="position:absolute;right:12%;top:18%;width:120px;height:120px;border-radius:50%;background:#c4122e"></div>${copy('KAMEKURA · 1964', '红日', '把国旗收成一个圆。现代主义最硬的一刀，也是最日本的一刀。')}`,
+    `<div style="position:absolute;right:12%;top:18%;width:120px;height:120px;border-radius:50%;background:#c4122e"></div>${jpCopy('KAMEKURA · 1964', '红日', '把国旗收成一个圆。现代主义最硬的一刀，也是最日本的一刀。', '', 'symbol')}`,
   ),
   html(
     'jp-ikko',
@@ -87,7 +146,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '田中一光',
     '能乐脸谱切成色块。传统不是临摹，是几何以后的再认。',
     'background:#f3efe4;color:#171717',
-    `<div style="position:absolute;inset:0;display:grid;grid-template-columns:1.6fr 1fr 1fr;grid-template-rows:1fr 1fr"><div style="background:#171717"></div><div style="background:#c43c1c"></div><div style="background:#e8c84a"></div><div style="background:#f3efe4"></div><div style="background:#2a5a9e"></div><div style="background:#171717"></div></div>${copy('IKKO TANAKA', '色面能乐', '能乐脸谱切成色块。传统不是临摹，是几何以后的再认。')}`,
+    `<div style="position:absolute;inset:0;display:grid;grid-template-columns:1.6fr 1fr 1fr;grid-template-rows:1fr 1fr"><div style="background:#171717"></div><div style="background:#c43c1c"></div><div style="background:#e8c84a"></div><div style="background:#f3efe4"></div><div style="background:#2a5a9e"></div><div style="background:#171717"></div></div>${jpCopy('IKKO TANAKA', '色面能乐', '能乐脸谱切成色块。传统不是临摹，是几何以后的再认。', '', 'geometry')}`,
   ),
   html(
     'jp-sugiura',
@@ -95,7 +154,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '杉浦康平',
     '《银花》式密铺：亚洲书籍把信息当成曼荼罗，阅读是进入结构。',
     'background:#16120e;color:#f0d9b0;background-image:repeating-conic-gradient(from 0deg at 78% 50%,#2a1c14 0 8deg,#16120e 8deg 16deg)',
-    copy('SUGIURA · 银花', '曼荼罗编辑', '亚洲书籍把信息当成曼荼罗，阅读是进入结构。'),
+    jpCopy('SUGIURA · 银花', '曼荼罗编辑', '亚洲书籍把信息当成曼荼罗，阅读是进入结构。', '', 'cosmos'),
   ),
   html(
     'jp-yokoo',
@@ -103,7 +162,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '横尾忠则',
     '浮世绘撞上波普。拼贴、荧光、剧场：现代不是干净，是冲突。',
     'background:#2a0830;color:#ffe48a',
-    `<div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,#c4126a 0 16px,#2a0830 16px 32px,#1c7cff 32px 36px);opacity:.55"></div>${copy('YOKOO', '横尾', '浮世绘撞上波普。拼贴、荧光、剧场：现代不是干净，是冲突。')}`,
+    `<div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,#c4126a 0 16px,#2a0830 16px 32px,#1c7cff 32px 36px);opacity:.55"></div>${jpCopy('YOKOO', '横尾', '浮世绘撞上波普。拼贴、荧光、剧场：现代不是干净，是冲突。', '', 'collage')}`,
   ),
   html(
     'jp-hara',
@@ -111,7 +170,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '白',
     '原研哉《白》：空不是没有，是感受力被打开以后的场。',
     'background:#f6f4ef;color:#2a2a28',
-    copy('HARA · WHITE', '白', '空不是没有，是感受力被打开以后的场。', 'padding:40px 48px'),
+    jpCopy('HARA · WHITE', '白', '空不是没有，是感受力被打开以后的场。', 'padding:40px 48px'),
   ),
   html(
     'jp-tate',
@@ -119,7 +178,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '和本',
     '纵组、界线、版心。书写方向本身就是世界观。',
     'background:#efe6d4;color:#1c1610',
-    `<div style="position:absolute;right:18px;top:16px;bottom:16px;writing-mode:vertical-rl;letter-spacing:.2em;font:700 22px/1.4 'Songti SC',serif">和本</div>${copy('和本', '纵组', '纵组、界线、版心。书写方向本身就是世界观。')}`,
+    `<div style="position:absolute;right:18px;top:16px;bottom:16px;writing-mode:vertical-rl;letter-spacing:.2em;font:700 22px/1.4 'Songti SC',serif">和本</div>${jpCopy('和本', '纵组', '纵组、界线、版心。书写方向本身就是世界观。', '', 'vertical')}`,
   ),
 
   html(
@@ -128,7 +187,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     'Paul Rand',
     'Thoughts on Design：观念先于装饰。标志是一个想法，被画成最简的形。',
     'background:#111;color:#f4f1ea',
-    `<div style="position:absolute;left:8%;top:22%;width:90px;height:90px;background:#e23b2a"></div>${copy('THOUGHTS ON DESIGN', 'Paul Rand', '观念先于装饰。标志是一个想法，被画成最简的形。')}`,
+    `<div style="position:absolute;left:8%;top:22%;width:90px;height:90px;background:#e23b2a"></div>${usCopy('THOUGHTS ON DESIGN', 'Paul Rand', '观念先于装饰。标志是一个想法，被画成最简的形。', '', 'idea')}`,
   ),
   html(
     'us-bass',
@@ -136,7 +195,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     'Saul Bass',
     '电影海报的一刀切。象征物被剪到只剩力量，标题成为剪影。',
     'background:#0e0e0e;color:#f2f0ea',
-    `<div style="position:absolute;left:0;top:0;width:38%;height:100%;background:#c4122e;clip-path:polygon(0 0,100% 0,62% 100%,0 100%)"></div>${copy('SAUL BASS', '一刀', '象征物被剪到只剩力量，标题成为剪影。')}`,
+    `<div style="position:absolute;left:0;top:0;width:38%;height:100%;background:#c4122e;clip-path:polygon(0 0,100% 0,62% 100%,0 100%)"></div>${usCopy('SAUL BASS', '一刀', '象征物被剪到只剩力量，标题成为剪影。', '', 'cut')}`,
   ),
   html(
     'us-lubalin',
@@ -144,7 +203,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     'Lubalin',
     '字母拥抱字母。Herb Lubalin 让刊头成为雕塑，亲密替代间距。',
     'background:#f3efe6;color:#111',
-    `<div style="position:absolute;right:6%;top:18%;font:900 72px/0.85 Helvetica,Arial,sans-serif;letter-spacing:-.12em;opacity:.12">AV</div>${copy('AVANT GARDE', 'Lubalin', '字母拥抱字母。刊头成为雕塑，亲密替代间距。')}`,
+    `<div style="position:absolute;right:6%;top:18%;font:900 72px/0.85 Helvetica,Arial,sans-serif;letter-spacing:-.12em;opacity:.12">AV</div>${usCopy('AVANT GARDE', 'Lubalin', '字母拥抱字母。刊头成为雕塑，亲密替代间距。', '', 'ligature')}`,
   ),
   html(
     'us-vignelli',
@@ -152,7 +211,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     'Unigrid',
     'Vignelli：信息必须可被网格收留。美国国家公园地图的冷静，是对混乱的礼貌。',
     'background:#f2efe8;color:#111;background-image:linear-gradient(#c8c4ba 1px,transparent 1px),linear-gradient(90deg,#c8c4ba 1px,transparent 1px);background-size:40px 40px',
-    copy('VIGNELLI · UNIGRID', '网格即国家', '信息必须可被网格收留。地图的冷静，是对混乱的礼貌。'),
+    usCopy('VIGNELLI · UNIGRID', '网格即国家', '信息必须可被网格收留。地图的冷静，是对混乱的礼貌。', '', 'system'),
   ),
   html(
     'us-scher',
@@ -160,7 +219,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     'Public Theater',
     'Paula Scher：字体铺满城市。字不是说明，是街道上的噪音与节奏。',
     'background:#d21c12;color:#111',
-    `<div style="position:absolute;inset:0;font:900 42px/0.9 Helvetica,Arial,sans-serif;letter-spacing:-.04em;padding:8px 10px;opacity:.22">NEW YORK NEW YORK NEW YORK NEW YORK</div>${copy('PAULA SCHER', '公共剧场', '字体铺满城市。字不是说明，是街道上的噪音与节奏。', 'color:#fff')}`,
+    `<div style="position:absolute;inset:0;font:900 42px/0.9 Helvetica,Arial,sans-serif;letter-spacing:-.04em;padding:8px 10px;opacity:.22">NEW YORK NEW YORK NEW YORK NEW YORK</div>${usCopy('PAULA SCHER', '公共剧场', '字体铺满城市。字不是说明，是街道上的噪音与节奏。', 'color:#fff', 'street')}`,
   ),
   html(
     'us-warhol',
@@ -176,7 +235,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '新浪潮加州',
     'April Greiman：屏幕刚出现时，层就是空间。数字不是工具，是新的空气。',
     'background:#0b0b12;color:#e8ff6a',
-    `<div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 40%,rgba(80,120,255,.35),transparent 70%),repeating-linear-gradient(0deg,transparent 0 7px,rgba(255,255,255,.06) 7px 8px)"></div>${copy('GREIMAN · NEW WAVE', '加州新浪潮', '屏幕刚出现时，层就是空间。数字不是工具，是新的空气。')}`,
+    `<div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 40%,rgba(80,120,255,.35),transparent 70%),repeating-linear-gradient(0deg,transparent 0 7px,rgba(255,255,255,.06) 7px 8px)"></div>${usCopy('GREIMAN · NEW WAVE', '加州新浪潮', '屏幕刚出现时，层就是空间。数字不是工具，是新的空气。', '', 'digital')}`,
   ),
   html(
     'us-cranbrook',
@@ -184,7 +243,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '解构',
     'Cranbrook / McCoy：意义在读者与版面之间生成。拆开网格，是为了看见权力。',
     'background:#ece7dc;color:#111',
-    `<div style="position:absolute;left:8%;top:18%;font:800 54px Helvetica,Arial,sans-serif;transform:rotate(-12deg);opacity:.22">TEXT</div><div style="position:absolute;right:10%;bottom:22%;font:800 40px Helvetica,Arial,sans-serif;transform:rotate(8deg);letter-spacing:.4em;opacity:.35">IMAGE</div>${copy('CRANBROOK', '解构主义', '意义在读者与版面之间生成。拆开网格，是为了看见权力。')}`,
+    `<div style="position:absolute;left:8%;top:18%;font:800 54px Helvetica,Arial,sans-serif;transform:rotate(-12deg);opacity:.22">TEXT</div><div style="position:absolute;right:10%;bottom:22%;font:800 40px Helvetica,Arial,sans-serif;transform:rotate(8deg);letter-spacing:.4em;opacity:.35">IMAGE</div>${usCopy('CRANBROOK', '解构主义', '意义在读者与版面之间生成。拆开网格，是为了看见权力。', '', 'deconstruct')}`,
   ),
   html(
     'us-carson',
@@ -192,7 +251,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     'Ray Gun',
     'David Carson：可读性不是唯一伦理。感觉先到，字可以迟到。',
     'background:#151515;color:#f0efed',
-    `<div style="position:absolute;left:2%;top:18%;font:900 72px/0.85 Helvetica,Arial,sans-serif;letter-spacing:-.08em;opacity:.14;transform:skewX(-18deg)">RAY</div>${copy('CARSON · RAY GUN', '直觉排版', '可读性不是唯一伦理。感觉先到，字可以迟到。')}`,
+    `<div style="position:absolute;left:2%;top:18%;font:900 72px/0.85 Helvetica,Arial,sans-serif;letter-spacing:-.08em;opacity:.14;transform:skewX(-18deg)">RAY</div>${usCopy('CARSON · RAY GUN', '直觉排版', '可读性不是唯一伦理。感觉先到，字可以迟到。', '', 'punk')}`,
   ),
   html(
     'us-emigre',
@@ -200,7 +259,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     'Emigre',
     'Rudy VanderLans / Zuzana Licko：字体是文化软件。杂志是实验室。',
     'background:#f4f0e6;color:#111;border-top:14px solid #111',
-    copy('EMIGRE', '实验室', '字体是文化软件。杂志是实验室。'),
+    usCopy('EMIGRE', '实验室', '字体是文化软件。杂志是实验室。', '', 'lab'),
   ),
 
   html(
@@ -217,7 +276,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '新字体排印',
     'Tschichold《Die neue Typographie》：不对称、无衬线、摄影。书籍要像机器一样清醒。',
     'background:#f2efe8;color:#111',
-    `<div style="position:absolute;left:0;top:0;bottom:0;width:10px;background:#c4122e"></div>${copy('TSCHICHOLD · 1928', '新字体排印', '不对称、无衬线、摄影。书籍要像机器一样清醒。')}`,
+    `<div style="position:absolute;left:0;top:0;bottom:0;width:10px;background:#c4122e"></div>${euCopy('TSCHICHOLD · 1928', '新字体排印', '不对称、无衬线、摄影。书籍要像机器一样清醒。', '', 'newtype')}`,
   ),
   html(
     'eu-swiss',
@@ -225,7 +284,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '瑞士国际主义',
     'Hollis / Müller-Brockmann：网格是伦理。客观、摄影、Helvetica——少，是为了所有人都能读。',
     'background:#efefef;color:#111;background-image:linear-gradient(#bbb 1px,transparent 1px),linear-gradient(90deg,#bbb 1px,transparent 1px);background-size:32px 32px',
-    copy('INTERNATIONAL STYLE', '瑞士网格', '网格是伦理。客观、摄影、无衬线——少，是为了所有人都能读。'),
+    euCopy('INTERNATIONAL STYLE', '瑞士网格', '网格是伦理。客观、摄影、无衬线——少，是为了所有人都能读。', '', 'swiss'),
   ),
   html(
     'eu-destijl',
@@ -241,7 +300,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '构成主义',
     'El Lissitzky：版面是力场。斜线前进，文字是构件，不是装饰。',
     'background:#d6c9b4;color:#111',
-    `<div style="position:absolute;left:12%;top:10%;width:54%;height:8px;background:#c4122e;transform:rotate(-18deg)"></div><div style="position:absolute;left:18%;top:38%;width:40%;height:8px;background:#111;transform:rotate(-18deg)"></div>${copy('LISSITZKY', '构成', '版面是力场。斜线前进，文字是构件，不是装饰。')}`,
+    `<div style="position:absolute;left:12%;top:10%;width:54%;height:8px;background:#c4122e;transform:rotate(-18deg)"></div><div style="position:absolute;left:18%;top:38%;width:40%;height:8px;background:#111;transform:rotate(-18deg)"></div>${euCopy('LISSITZKY', '构成', '版面是力场。斜线前进，文字是构件，不是装饰。', '', 'construct')}`,
   ),
   html(
     'eu-deco',
@@ -249,7 +308,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '装饰艺术',
     'Cassandre 式阳光放射。奢侈被几何化，速度被镀金。',
     'background:#1a1420;color:#f0d9a0;background-image:repeating-conic-gradient(from 0deg at 100% 0%,#c4a24a 0 6deg,#1a1420 6deg 12deg)',
-    copy('ART DECO', '装饰艺术', '阳光放射、阶梯与金属。奢侈被几何化，速度被镀金。'),
+    euCopy('ART DECO', '装饰艺术', '阳光放射、阶梯与金属。奢侈被几何化，速度被镀金。', '', 'deco'),
   ),
   html(
     'eu-weingart',
@@ -257,7 +316,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     'Weingart',
     '从巴塞尔内部拆瑞士。字距拉断、网屏叠印：规则存在，是为了被加热。',
     'background:#111;color:#f4f0ea',
-    `<div style="position:absolute;inset:0;font:800 18px/1.2 Helvetica,Arial,sans-serif;letter-spacing:.6em;opacity:.18;padding:16px">TYPOGRAPHY TYPOGRAPHY TYPOGRAPHY</div>${copy('WEINGART · NEW WAVE', '新浪潮', '从巴塞尔内部拆瑞士。字距拉断、网屏叠印：规则存在，是为了被加热。')}`,
+    `<div style="position:absolute;inset:0;font:800 18px/1.2 Helvetica,Arial,sans-serif;letter-spacing:.6em;opacity:.18;padding:16px">TYPOGRAPHY TYPOGRAPHY TYPOGRAPHY</div>${euCopy('WEINGART · NEW WAVE', '新浪潮', '从巴塞尔内部拆瑞士。字距拉断、网屏叠印：规则存在，是为了被加热。', '', 'newwave')}`,
   ),
   html(
     'eu-memphis',
@@ -265,7 +324,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '孟菲斯',
     'Sottsass：后现代把趣味当武器。几何可以俏皮，严肃可以戴耳环。',
     'background:#f2d64a;color:#111',
-    `<div style="position:absolute;right:8%;top:16%;width:70px;height:70px;border-radius:50%;background:#e23b8a"></div><div style="position:absolute;right:22%;bottom:12%;width:90px;height:18px;background:#1c7cff;transform:rotate(-12deg)"></div>${copy('MEMPHIS MILANO', '孟菲斯', '后现代把趣味当武器。几何可以俏皮，严肃可以戴耳环。')}`,
+    `<div style="position:absolute;right:8%;top:16%;width:70px;height:70px;border-radius:50%;background:#e23b8a"></div><div style="position:absolute;right:22%;bottom:12%;width:90px;height:18px;background:#1c7cff;transform:rotate(-12deg)"></div>${euCopy('MEMPHIS MILANO', '孟菲斯', '后现代把趣味当武器。几何可以俏皮，严肃可以戴耳环。', '', 'memphis')}`,
   ),
   html(
     'eu-futurism',
@@ -273,7 +332,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '未来主义',
     'Marinetti：文字要在纸上奔跑。诗歌炸开中轴线，速度就是语法。',
     'background:#1a120e;color:#f6ead0',
-    `<div style="position:absolute;left:6%;top:20%;font:900 64px Helvetica,Arial,sans-serif;transform:skewX(-24deg);opacity:.2">PAROLE</div>${copy('FUTURISMO', '未来主义', '文字要在纸上奔跑。诗歌炸开中轴线，速度就是语法。')}`,
+    `<div style="position:absolute;left:6%;top:20%;font:900 64px Helvetica,Arial,sans-serif;transform:skewX(-24deg);opacity:.2">PAROLE</div>${euCopy('FUTURISMO', '未来主义', '文字要在纸上奔跑。诗歌炸开中轴线，速度就是语法。', '', 'futurism')}`,
   ),
   html(
     'eu-brody',
@@ -281,7 +340,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     'The Face',
     'Neville Brody：杂志是亚文化的建筑。字体有态度，栏宽有立场。',
     'background:#0a0a0a;color:#fff',
-    `<div style="position:absolute;left:0;bottom:0;height:46%;width:100%;background:#c4122e"></div>${copy('THE FACE · BRODY', '面孔', '杂志是亚文化的建筑。字体有态度，栏宽有立场。')}`,
+    `<div style="position:absolute;left:0;bottom:0;height:46%;width:100%;background:#c4122e"></div>${euCopy('THE FACE · BRODY', '面孔', '杂志是亚文化的建筑。字体有态度，栏宽有立场。', '', 'editorial')}`,
   ),
 
   html(
@@ -290,7 +349,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '宋版',
     '版心、鱼尾、界栏。印本把阅读收进格子，敬字如敬人。',
     'background:#f0e2c4;color:#2a1c12;background-image:linear-gradient(#c4a070 1px,transparent 1px);background-size:100% 28px;background-position:0 18px',
-    `<div style="position:absolute;left:50%;top:12px;bottom:12px;width:2px;background:#8a5a32;transform:translateX(-1px)"></div>${copy('宋刻本', '版心', '版心、鱼尾、界栏。印本把阅读收进格子，敬字如敬人。')}`,
+    `<div style="position:absolute;left:50%;top:12px;bottom:12px;width:2px;background:#8a5a32;transform:translateX(-1px)"></div>${cnCopy('宋刻本', '版心', '版心、鱼尾、界栏。印本把阅读收进格子，敬字如敬人。', '', 'book')}`,
   ),
   html(
     'cn-bai',
@@ -298,7 +357,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '计白当黑',
     '书法与印章：白不是底，是笔。留白的密度，就是精神的密度。',
     'background:#f7f1e4;color:#1a120e',
-    `<div style="position:absolute;right:10%;top:16%;width:54px;height:54px;border:3px solid #c4122e"></div>${copy('计白当黑', '白即笔', '白不是底，是笔。留白的密度，就是精神的密度。')}`,
+    `<div style="position:absolute;right:10%;top:16%;width:54px;height:54px;border:3px solid #c4122e"></div>${cnCopy('计白当黑', '白即笔', '白不是底，是笔。留白的密度，就是精神的密度。', '', 'void')}`,
   ),
   html(
     'cn-yue',
@@ -306,7 +365,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '月份牌',
     '上海摩登：擦笔水彩、年历边框、商品与仕女同框。商业第一次成为大众美术。',
     'background:#f3d9c4;color:#4a1c28',
-    `<div style="position:absolute;inset:14px;border:8px solid #c45a6a;outline:1px solid #f6ead0;outline-offset:6px"></div>${copy('YUEFENPAI', '月份牌', '擦笔水彩、年历边框。商业第一次成为大众美术。')}`,
+    `<div style="position:absolute;inset:14px;border:8px solid #c45a6a;outline:1px solid #f6ead0;outline-offset:6px"></div>${cnCopy('YUEFENPAI', '月份牌', '擦笔水彩、年历边框。商业第一次成为大众美术。', '', 'calendar')}`,
   ),
   html(
     'cn-liangyou',
@@ -322,7 +381,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '宣传画',
     '平涂、口号、前进。政治要求可读，色彩要求必胜。',
     'background:#c4122e;color:#f6e27a',
-    `<div style="position:absolute;left:0;bottom:0;width:100%;height:22%;background:#f6e27a"></div>${copy('宣传画', '前进', '平涂、口号、前进。政治要求可读，色彩要求必胜。')}`,
+    `<div style="position:absolute;left:0;bottom:0;width:100%;height:22%;background:#f6e27a"></div>${cnCopy('宣传画', '前进', '平涂、口号、前进。政治要求可读，色彩要求必胜。', '', 'propaganda')}`,
   ),
   html(
     'cn-seal',
@@ -330,7 +389,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '印学',
     '朱文白文：方寸里的建筑。一枚印，是身份被压进朱红。',
     'background:#1a120e;color:#f6e6c8',
-    `<div style="position:absolute;right:12%;top:18%;width:86px;height:86px;background:#c4122e;display:grid;place-items:center;font:800 28px/1 'Songti SC',serif;color:#f6e6c8">印</div>${copy('篆刻', '朱砂', '朱文白文：方寸里的建筑。一枚印，是身份被压进朱红。')}`,
+    `<div style="position:absolute;right:12%;top:18%;width:86px;height:86px;background:#c4122e;display:grid;place-items:center;font:800 28px/1 'Songti SC',serif;color:#f6e6c8">印</div>${cnCopy('篆刻', '朱砂', '朱文白文：方寸里的建筑。一枚印，是身份被压进朱红。', '', 'seal')}`,
   ),
   html(
     'cn-steiner',
@@ -346,7 +405,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '靳埭强',
     '水墨入现代。红点、宣纸、包豪斯骨架——东方的笔落在国际网格上。',
     'background:#f6f1e6;color:#1a120e',
-    `<div style="position:absolute;left:12%;top:28%;width:72px;height:18px;background:#111;transform:rotate(-28deg);border-radius:40px"></div><div style="position:absolute;left:22%;top:22%;width:18px;height:18px;border-radius:50%;background:#c4122e"></div>${copy('KAN TAI-KEUNG', '水墨现代', '红点、宣纸、包豪斯骨架。东方的笔落在国际网格上。')}`,
+    `<div style="position:absolute;left:12%;top:28%;width:72px;height:18px;background:#111;transform:rotate(-28deg);border-radius:40px"></div><div style="position:absolute;left:22%;top:22%;width:18px;height:18px;border-radius:50%;background:#c4122e"></div>${cnCopy('KAN TAI-KEUNG', '水墨现代', '红点、宣纸、包豪斯骨架。东方的笔落在国际网格上。', '', 'ink')}`,
   ),
   html(
     'cn-chan',
@@ -354,7 +413,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '陈幼坚',
     '东方情、西方理。传统纹样被抽成标志，茶与都市共用一条中线。',
     'background:#f4ece0;color:#2a1a12',
-    `<div style="position:absolute;right:0;top:0;bottom:0;width:28%;background:#c4122e"></div>${copy('ALAN CHAN', '新中式', '东方情、西方理。传统纹样被抽成标志，茶与都市共用一条中线。')}`,
+    `<div style="position:absolute;right:0;top:0;bottom:0;width:28%;background:#c4122e"></div>${cnCopy('ALAN CHAN', '新中式', '东方情、西方理。传统纹样被抽成标志，茶与都市共用一条中线。', '', 'retail')}`,
   ),
   html(
     'cn-window',
@@ -362,7 +421,7 @@ export const BANNER_PRESETS: BannerPreset[] = [
     '冰裂纹',
     '园林漏窗：景被框，框也是景。破裂的秩序，比完整更像自然。',
     'background:#1b1410;color:#f0d9a8;background-image:linear-gradient(28deg,#7a2a1a 1px,transparent 1px),linear-gradient(-18deg,#7a2a1a 1px,transparent 1px),linear-gradient(72deg,#7a2a1a 1px,transparent 1px);background-size:46px 46px,52px 52px,38px 38px',
-    copy('漏窗', '冰裂纹', '景被框，框也是景。破裂的秩序，比完整更像自然。'),
+    cnCopy('漏窗', '冰裂纹', '景被框，框也是景。破裂的秩序，比完整更像自然。', '', 'lattice'),
   ),
 
   live(
