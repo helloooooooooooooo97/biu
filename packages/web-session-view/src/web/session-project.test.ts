@@ -215,6 +215,8 @@ test('partial tool/result marks the tool part as streaming', () => {
     false,
   )
 })
+
+test('tool/call after tool/result keeps a single completed tool part', () => {
   const nodes = projectNodes([
     { type: 'tool/result', id: 'c1', name: 'bash', ok: true, detail: 'ok', seq: 1, ts: 1 },
     { type: 'tool/call', id: 'c1', name: 'bash', arguments: '{}', seq: 2, ts: 2 },
