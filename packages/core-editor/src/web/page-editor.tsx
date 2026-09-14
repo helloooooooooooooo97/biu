@@ -13,7 +13,6 @@ import { usePageCollab } from './use-page-collab.ts'
 import { collabCaretUser } from './collab-user.ts'
 import { usePagePresence } from './use-page-presence.ts'
 import { PresenceAvatars } from './presence-avatars.tsx'
-import { PageShareButton } from './page-share.tsx'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { PageBlockHandle } from './page-block-handle.tsx'
 import { editorHostIsLive } from './editor-live.ts'
@@ -633,10 +632,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
   if (source) {
     return (
       <div className="page-editor is-source" onKeyDownCapture={onEditorHotkey}>
-        <div className="page-share-bar">
-          <PageShareButton pageId={record.id} owner={collab.member?.role === 'owner'} />
-          <PresenceAvatars viewers={viewers} selfId={collab.member?.id ?? collab.guest.id} />
-        </div>
+        <PresenceAvatars viewers={viewers} selfId={collab.member?.id ?? collab.guest.id} />
         {findBar}
         <SourceEditor
           ref={sourceFind}
@@ -654,10 +650,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
 
   return (
     <div className="page-editor" onKeyDownCapture={onEditorHotkey}>
-      <div className="page-share-bar">
-        <PageShareButton pageId={record.id} owner={collab.member?.role === 'owner'} />
-        <PresenceAvatars viewers={viewers} selfId={collab.member?.id ?? collab.guest.id} />
-      </div>
+      <PresenceAvatars viewers={viewers} selfId={collab.member?.id ?? collab.guest.id} />
       {findBar}
       <EditorContent editor={editor} />
       {writable !== false ? <PageBlockHandle editor={editor} /> : null}

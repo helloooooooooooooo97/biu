@@ -550,6 +550,8 @@ test('database extras sit after the record detail, not in the inspector', () => 
   assert.match(style, /\.fsdb-detail-float-btn svg\{[^}]*width:16px/)
   assert.doesNotMatch(style, /border-radius:999px/)
   assert.match(detail, /<h1 className="fsdb-detail-title">/)
+  assert.match(detail, /data-testid="fsdb-detail-header"/)
+  assert.match(detail, /chrome\?\.DetailHeader/)
   assert.match(detail, /data-testid="fsdb-detail-delete"/)
   assert.match(browser, /onDelete=\{canDelete/)
   assert.match(detail, /<HeadingOutline enabled=\{headingOutline\} \/>/)

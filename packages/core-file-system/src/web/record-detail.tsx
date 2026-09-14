@@ -277,6 +277,11 @@ export function RecordDetail({
                   <h1 className="fsdb-detail-title">{labelOf(selected)}</h1>
                 )}
                 </div>
+                {chrome?.DetailHeader ? (
+                  <div className="fsdb-detail-header" data-testid="fsdb-detail-header">
+                    <chrome.DetailHeader record={selected} />
+                  </div>
+                ) : null}
                 </div>
                 <div className="fsdb-detail-aside">
                   <div className="fsdb-prop">

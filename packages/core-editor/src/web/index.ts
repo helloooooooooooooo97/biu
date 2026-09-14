@@ -6,6 +6,7 @@ import { PageEditor } from './page-editor.tsx'
 import { PageEditorService } from './service.ts'
 import { PAGE_EDITOR_STYLE } from './style.ts'
 import { SourceToggle, PagesDetailTools } from './source-toggle.tsx'
+import { PageShareHeader } from './page-share.tsx'
 import { pageBlocksCollectionView, PageBlockContent } from './page-blocks-view.tsx'
 
 export { PageEditor, PageEditor as RecordEditor } from './page-editor.tsx'
@@ -25,7 +26,13 @@ export function apply(ctx: Context) {
   new PageEditorService(ctx)
   const ui = ctx.get('databaseUi') as DatabaseUi
   for (const path of EDITOR_COLLECTIONS) {
-    ctx.effect(() => ui.decorate(path, { Content: PageEditor, DetailTools: path === '/pages' ? PagesDetailTools : SourceToggle }).dispose)
+    ctx.effect(() =>
+      ui.decorate(path, {
+        Content: PageEditor,
+        DetailTools: path === '/pages' ? PagesDetailTools : SourceToggle,
+        ...(path === '/pages' ? { DetailHeader: PageShareHeader } : {}),
+      }).dispose,
+    )
   }
   ctx.effect(() => ui.decorate('/page-blocks', { Content: PageBlockContent }).dispose)
   ctx.effect(() => ui.registerView('/page-blocks', pageBlocksCollectionView).dispose)

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { DbRecord } from '@biu/type-file-system'
 import { HeadlessPopover } from '@biu/public-ui'
 import { LockClosedIcon, ShareIcon } from '@heroicons/react/16/solid'
 
@@ -8,7 +9,11 @@ function onShareRoute() {
   return typeof location !== 'undefined' && /^\/share\//.test(location.pathname)
 }
 
-export function PageShareButton({ pageId, owner }: { pageId: string; owner: boolean }) {
+export function PageShareHeader({ record }: { record: DbRecord }) {
+  return <PageShareButton pageId={record.id} />
+}
+
+export function PageShareButton({ pageId }: { pageId: string }) {
   const [open, setOpen] = useState(false)
   const [role, setRole] = useState<'editor' | 'viewer'>('editor')
   const [current, setCurrent] = useState<ShareRow | null>(null)
@@ -17,7 +22,7 @@ export function PageShareButton({ pageId, owner }: { pageId: string; owner: bool
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!owner || !open) return
+    if (!open) return
     void fetch(`/api/shares?pageId=${encodeURIComponent(pageId)}`)
       .then((res) => res.json())
       .then((body: { shares?: ShareRow[] }) => {
@@ -26,9 +31,9 @@ export function PageShareButton({ pageId, owner }: { pageId: string; owner: bool
         if (row?.role === 'viewer' || row?.role === 'editor') setRole(row.role)
       })
       .catch(() => undefined)
-  }, [open, owner, pageId])
+  }, [open, pageId])
 
-  if (!owner || onShareRoute()) return null
+  if (onShareRoute()) return null
 
   const copy = (next = role) => {
     setBusy(true)
@@ -40,7 +45,7 @@ export function PageShareButton({ pageId, owner }: { pageId: string; owner: bool
     })
       .then(async (res) => {
         const body = (await res.json()) as ShareRow & { error?: string }
-        if (!res.ok || !body.url) throw new Error(body.error || '无法分享')
+        if (!res.ok || !body.url) throw new Error(body.error || '只有创建人可以分享')
         await navigator.clipboard.writeText(body.url)
         setCurrent({ role: next, url: body.url, locked: next === 'viewer' })
         setCopied(true)
@@ -70,6 +75,8 @@ export function PageShareButton({ pageId, owner }: { pageId: string; owner: bool
           type="button"
           className={`page-share-btn${current ? ' is-on' : ''}`}
           data-testid="page-share"
+          title="分享这一页"
+          aria-label="分享这一页"
           aria-expanded={open}
         >
           {current?.role === 'viewer' ? <LockClosedIcon aria-hidden className="size-4" /> : <ShareIcon aria-hidden className="size-4" />}
