@@ -93,15 +93,70 @@ export function resolvePickFromNode(
         route,
       },
       highlight,
+      start,
     ),
   }
 }
 
+const HTML_BLOCK_SEL = '[data-page-block="html"], [data-page-block="htmlframe"]'
+const ELEMENT_HTML_CAP = 2000
+
+function stripPickMarks(root: HTMLElement) {
+  const nodes = [root, ...root.querySelectorAll('[data-html-pick], [data-biu-kind], [data-biu-id]')]
+  for (const node of nodes) {
+    if (!(node instanceof HTMLElement)) continue
+    node.removeAttribute('data-html-pick')
+    node.removeAttribute('data-biu-kind')
+    node.removeAttribute('data-biu-id')
+    node.removeAttribute('data-biu-label')
+    node.removeAttribute('data-biu-plugin')
+  }
+}
+
+/** 被点中的内部节点 HTML，去掉 pick 戳，方便 agent 在围栏里对这一段做替换。 */
+export function serializeHtmlPickElement(el: HTMLElement) {
+  const clone = el.cloneNode(true)
+  if (!(clone instanceof HTMLElement)) return ''
+  stripPickMarks(clone)
+  const html = clone.outerHTML.replace(/\s+/g, ' ').trim()
+  if (!html) return ''
+  return html.length > ELEMENT_HTML_CAP ? `${html.slice(0, ELEMENT_HTML_CAP)}…` : html
+}
+
+function htmlBlockFrom(node: Element | null) {
+  return node?.closest(HTML_BLOCK_SEL) ?? null
+}
+
+function innermostHtmlTarget(start: Element, highlight: HTMLElement) {
+  const block = htmlBlockFrom(start) || htmlBlockFrom(highlight)
+  let stamped: HTMLElement | null = null
+  let node: Element | null = start
+  const stop = block ?? highlight
+  while (node && node !== stop && stop.contains(node)) {
+    if (node instanceof HTMLElement && (node.getAttribute('data-biu-kind') === 'html' || node.hasAttribute('data-html-pick'))) {
+      stamped = node
+      break
+    }
+    node = node.parentElement
+  }
+  if (stamped) return stamped
+  if (highlight.getAttribute('data-biu-kind') === 'html' || highlight.hasAttribute('data-html-pick')) return highlight
+  if (block && start instanceof HTMLElement && block.contains(start) && start !== block) return start
+  return null
+}
+
+function withHtmlElement(ref: PickRef, start: Element, highlight: HTMLElement): PickRef {
+  const target = innermostHtmlTarget(start, highlight)
+  if (!target) return ref
+  const element = serializeHtmlPickElement(target)
+  return element ? { ...ref, element } : ref
+}
+
 /** 带 data-biu 的命中也挂上页面 path / markdown 行，和点选 block 一样；id 仍用节点自己的。 */
-function withEditorPickContext(ref: PickRef, el: HTMLElement): PickRef {
-  const sourced = withHostSource(ref, el)
+function withEditorPickContext(ref: PickRef, el: HTMLElement, start: Element = el): PickRef {
+  const sourced = withHtmlElement(withHostSource(ref, el), start, el)
   const locus = editorLocusFromNode(el)
-  const next = locus ? { ...withPickLocus(sourced, locus), id: ref.id } : sourced
+  const next = locus ? { ...withPickLocus(sourced, locus), id: ref.id, ...(sourced.element ? { element: sourced.element } : {}) } : sourced
   if (ref.kind !== 'html' || next.selection) return next
   const snippet = pickPreview(el.textContent ?? '', 120)
   return snippet ? { ...next, selection: snippet } : next
@@ -152,19 +207,17 @@ function editorBlockPick(
   if (taggedKind && taggedId) {
     return {
       el,
-      ref: withPickLocus(
-        withHostSource(
-          {
-            kind: taggedKind,
-            id: taggedId,
-            ...(read(el, ACTION) ? { action: read(el, ACTION) } : {}),
-            ...(taggedPlugin ? { plugin: taggedPlugin } : {}),
-            label: read(el, LABEL) || taggedId,
-            route,
-          },
-          el,
-        ),
-        editorHostFromNode(el)?.locusFromElement(el) ?? null,
+      ref: withEditorPickContext(
+        {
+          kind: taggedKind,
+          id: taggedId,
+          ...(read(el, ACTION) ? { action: read(el, ACTION) } : {}),
+          ...(taggedPlugin ? { plugin: taggedPlugin } : {}),
+          label: read(el, LABEL) || taggedId,
+          route,
+        },
+        el,
+        start instanceof Element ? start : el,
       ),
     }
   }

@@ -28,4 +28,5 @@ test('registers pick instructions on the system prompt', async () => {
   assert.match(text, /db_content \/plugins/)
   assert.match(text, /\/api\/db\/file\//)
   assert.match(text, /db_asset/)
+  assert.match(text, /element/)
 })

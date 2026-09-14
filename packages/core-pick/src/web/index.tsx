@@ -8,7 +8,7 @@ export { PickService, getPick, usePickState } from './service.ts'
 export { formatPicks, formatPick, parsePicks, splitPickStream, dedupePicks, chipLabel, chipCaption, pickKey, pickPreview, pickIdFromText, textPickFromSelection, textPickFromPlain, pickDomAttrs, pickChipAttrs, pickRefFromAttrs, withPickLocus, withHostSource, lineSpanLabel, chipSpanLabel, type PickRef } from './types.ts'
 export { bindEditorTextHost, editorHostFromNode } from './editor-host.ts'
 export { PickChip, PickChipLabel, PickKindGlyph, pickKindIcon, pickKindTone, canonicalPickKind } from './chip.tsx'
-export { resolvePickFromNode, resolvePickAtPoint, resolvePicksInRect, visiblePickBox, pickSurfaceFromNode, pickSurfaceAtPoint } from './resolve.ts'
+export { resolvePickFromNode, resolvePickAtPoint, resolvePicksInRect, visiblePickBox, pickSurfaceFromNode, pickSurfaceAtPoint, serializeHtmlPickElement } from './resolve.ts'
 
 export const name = 'pick-ui'
 export const inject = ['slots']
