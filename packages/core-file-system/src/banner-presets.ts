@@ -7,7 +7,7 @@ export const BANNER_STYLE_LABEL: Record<BannerStyleId, string> = {
   jp: '日式',
   us: '美式',
   eu: '欧式',
-  cn: '中式',
+  cn: '新中式',
 }
 
 export type BannerPreset = {
