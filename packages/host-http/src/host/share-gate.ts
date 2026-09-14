@@ -9,7 +9,7 @@ export function isSharePublicPath(pathname: string) {
   if (pathname === '/share' || pathname.startsWith('/share/')) return true
   if (pathname.startsWith('/assets/')) return true
   if (pathname.startsWith('/@')) return true
-  if (pathname.startsWith('/src/') || pathname.startsWith('/packages/') || pathname.startsWith('/node_modules/')) return true
+  if (pathname.startsWith('/src/') || pathname.startsWith('/packages/') || pathname.startsWith('/node_modules/') || pathname.startsWith('/web/')) return true
   if (pathname.startsWith('/.plugin')) return true
   return [
     '/favicon.ico',

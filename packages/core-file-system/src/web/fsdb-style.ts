@@ -647,7 +647,7 @@ button.fsdb-detail-title-icon:hover{background:var(--dsw-hover);color:var(--dsw-
 .fsdb-share-password button{border:0;border-radius:8px;padding:6px 10px;background:var(--dsw-hover);color:var(--dsw-label);font:inherit;font-size:13px;font-weight:650;cursor:pointer}
 .fsdb-share-stop{align-self:flex-start;background:transparent;color:var(--dsw-danger)}
 .fsdb-share-error{margin:0;color:var(--dsw-danger);font-size:12px}
-.fsdb-share-page{position:fixed;inset:0;z-index:220;display:flex;flex-direction:column;background:var(--dsw-bg);color:var(--dsw-label)}
+.fsdb-share-page{position:fixed;inset:0;z-index:220;display:flex;flex-direction:column;background:var(--dsw-bg,#191919);color:var(--dsw-label,#f0efed)}
 .fsdb-share-page .chat-view-header{flex:none}
 .fsdb-share-badge{margin-left:8px;border-radius:8px;padding:2px 8px;background:var(--dsw-hover);color:var(--dsw-label-2);font-size:11px;font-weight:700}
 .fsdb-share-page .fsdb-dlg{margin:auto}

@@ -15,15 +15,25 @@ function passwordKey(token: string) {
 async function loadSnapshot(token: string, password = ''): Promise<ShareSnapshot | { needsPassword: true } | { error: string }> {
   const headers: Record<string, string> = { 'content-type': 'application/json' }
   if (password) headers['x-share-password'] = password
-  const res = await fetch(`/api/share/${encodeURIComponent(token)}`, {
-    method: password ? 'POST' : 'GET',
-    headers,
-    body: password ? JSON.stringify({ password }) : undefined,
-  })
-  const body = (await res.json()) as ShareSnapshot & { needsPassword?: boolean; error?: string }
-  if (res.status === 401 || body.needsPassword) return { needsPassword: true }
-  if (!res.ok) return { error: body.error || res.statusText }
-  return body
+  try {
+    const res = await fetch(`/api/share/${encodeURIComponent(token)}`, {
+      method: password ? 'POST' : 'GET',
+      headers,
+      body: password ? JSON.stringify({ password }) : undefined,
+    })
+    const text = await res.text()
+    let body: ShareSnapshot & { needsPassword?: boolean; error?: string }
+    try {
+      body = JSON.parse(text) as ShareSnapshot & { needsPassword?: boolean; error?: string }
+    } catch {
+      return { error: res.ok ? '分享页读不到数据' : `${res.status} ${res.statusText}` }
+    }
+    if (res.status === 401 || body.needsPassword) return { needsPassword: true }
+    if (!res.ok) return { error: body.error || res.statusText }
+    return body
+  } catch (error) {
+    return { error: String(error) }
+  }
 }
 
 function rewriteAssetUrls(value: unknown, token: string, password: string): unknown {
