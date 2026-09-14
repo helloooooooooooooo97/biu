@@ -8,6 +8,8 @@ export function parsePageBlockMeta(raw: string) {
   const plugin = raw.match(/\bplugin=["']?([a-z][a-z0-9-]*)/i)?.[1] ?? ''
   const id = raw.match(/\bid=["']?([a-z0-9]{6,32})/i)?.[1] ?? ''
   const extras: Record<string, unknown> = {}
+  const title = raw.match(/\btitle=(?:"([^"]*)"|'([^']*)'|([^\s}]+))/i)
+  if (title) extras.title = String(title[1] ?? title[2] ?? title[3] ?? '').trim()
   const deck = raw.match(/\bdeck=(true|false|1|0)\b/i)?.[1]
   if (deck) extras.deck = /^(true|1)$/i.test(deck)
   const width = raw.match(/\bwidth=([^\s}]+)/i)?.[1]
@@ -67,6 +69,8 @@ function formatMeta(kind: string, plugin: string, extras: string[], id = '') {
 
 function htmlFenceExtras(data: Record<string, unknown>) {
   const extras: string[] = []
+  const title = typeof data.title === 'string' ? data.title.trim() : ''
+  if (title) extras.push(`title=${JSON.stringify(title)}`)
   if (typeof data.deck === 'boolean') extras.push(`deck=${data.deck}`)
   const width = formatFenceSize(data.width)
   if (width) extras.push(`width=${width}`)

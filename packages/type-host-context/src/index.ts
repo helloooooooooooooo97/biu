@@ -19,6 +19,7 @@ import type { McpService } from '@biu/host-mcp'
 import type { SkillsService } from '@biu/host-skills'
 import type { TerminalService } from '@biu/host-terminal'
 import type { LspService } from '@biu/host-lsp'
+import type { WebService } from '@biu/host-web'
 import type { SubagentsService } from '@biu/host-subagents'
 import type { SnapshotService } from '@biu/web-snapshot'
 import type { SessionViewService } from '@biu/web-session-view'
@@ -49,6 +50,7 @@ declare module 'cordis' {
     skills: SkillsService
     terminals: TerminalService
     lsp: LspService
+    web: WebService
     subagents: SubagentsService
     slots: SlotsService
     snapshot: SnapshotService

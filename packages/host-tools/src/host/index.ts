@@ -56,6 +56,13 @@ export const FILE_TOOL_NAMES = [
 /** 本回合 slash 选中的额外工具（极简模式下临时放开）。 */
 const extraToolsStorage = new AsyncLocalStorage<ReadonlySet<string>>()
 
+/** 当前 invoke 的增量汇报（agent-loop 写成 partial tool/result）。 */
+const toolProgressStorage = new AsyncLocalStorage<(detail: string) => void>()
+
+export function runWithToolProgress<T>(onProgress: (detail: string) => void, fn: () => T): T {
+  return toolProgressStorage.run(onProgress, fn)
+}
+
 /** 回合级工具策略（会话 config 覆盖全局 mode/extras）。 */
 const toolPolicyStorage = new AsyncLocalStorage<{
   mode: AgentToolMode
@@ -193,6 +200,11 @@ export class ToolsService extends Service {
 
   names() {
     return [...this.tools.keys()].filter((name) => this.visible(name))
+  }
+
+  /** 工具执行中把当前结果推到 UI；无 listener 时为空操作。 */
+  report(detail: unknown) {
+    toolProgressStorage.getStore()?.(stringify(detail))
   }
 
   async invoke(name: string, args: Record<string, unknown> = {}, signal: AbortSignal = new AbortController().signal) {

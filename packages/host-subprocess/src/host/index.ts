@@ -2,12 +2,19 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { Service, type Context } from 'cordis'
 export { posixShellArgv, posixShellBin, hostShellKind, describeHostRuntime } from './posix-shell.ts'
 
+export interface SpawnProgress {
+  stdout: string
+  stderr: string
+}
+
 export interface SpawnRequest {
   argv: string[]
   cwd?: string
   env?: NodeJS.ProcessEnv
   stdin?: string
   timeoutMs?: number
+  onStdout?: (chunk: string, acc: SpawnProgress) => void
+  onStderr?: (chunk: string, acc: SpawnProgress) => void
 }
 
 export interface SpawnResult {
@@ -41,10 +48,14 @@ export class SubprocessService extends Service {
       let killTimer: ReturnType<typeof setTimeout> | undefined
       let forceTimer: ReturnType<typeof setTimeout> | undefined
       child.stdout?.on('data', (chunk) => {
-        stdout += String(chunk)
+        const text = String(chunk)
+        stdout += text
+        wrapped.onStdout?.(text, { stdout, stderr })
       })
       child.stderr?.on('data', (chunk) => {
-        stderr += String(chunk)
+        const text = String(chunk)
+        stderr += text
+        wrapped.onStderr?.(text, { stdout, stderr })
       })
 
       const cleanup = () => {

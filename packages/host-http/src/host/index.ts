@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { extname, join } from 'node:path'
 import { readFile } from 'node:fs/promises'
+import type { Duplex } from 'node:stream'
 import { Service, type Context } from 'cordis'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { HUB_CHANGE } from '@biu/type-http'
@@ -66,9 +67,20 @@ function resolveListenConfig(config?: HttpListenConfig) {
   }
 }
 
+function upgradePath(req: IncomingMessage) {
+  try {
+    return new URL(req.url ?? '/', 'http://localhost').pathname
+  } catch {
+    return '/'
+  }
+}
+
 export class HttpService extends Service {
   private routes: Route[] = []
   private sockets = new Set<WebSocket>()
+  private server: Server | null = null
+  /** 同一 HTTP server 上只能有一条 upgrade 路由；多挂几个 `ws.Server({ server })` 会互相 abort 握手。 */
+  private wsServers = new Map<string, WebSocketServer>()
 
   constructor(ctx: Context, public config: { port: number; host: string; publicDir: string }) {
     super(ctx, 'http')
@@ -76,12 +88,25 @@ export class HttpService extends Service {
       const server = createServer((req, res) => {
         void this.dispatch(req, res)
       })
-      const wss = new WebSocketServer({ server, path: '/ws' })
-      wss.on('connection', (socket) => {
+      this.server = server
+      const hub = new WebSocketServer({ noServer: true })
+      this.wsServers.set('/ws', hub)
+      hub.on('connection', (socket) => {
         this.sockets.add(socket)
         socket.send(JSON.stringify({ type: 'hello', payload: { ok: true } }))
         socket.on('close', () => this.sockets.delete(socket))
       })
+      const onUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+        const wss = this.wsServers.get(upgradePath(req))
+        if (!wss) {
+          socket.destroy()
+          return
+        }
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          wss.emit('connection', ws, req)
+        })
+      }
+      server.on('upgrade', onUpgrade)
       ctx.on('session/event', (payload) => this.broadcast('session', payload))
       ctx.on('agent/status', (payload) => this.broadcast('agent', payload))
       ctx.on('agent/inbox', (payload) => this.broadcast('inbox', payload))
@@ -103,7 +128,10 @@ export class HttpService extends Service {
       return () =>
         new Promise<void>((resolve) => {
           for (const socket of this.sockets) socket.close()
-          wss.close()
+          server.off('upgrade', onUpgrade)
+          hub.close()
+          this.wsServers.delete('/ws')
+          this.server = null
           server.close(() => resolve())
         })
     }, 'http.listen')
@@ -121,6 +149,19 @@ export class HttpService extends Service {
         this.ctx.emit(HUB_CHANGE)
       }
     }, `http.route ${method} ${pattern}`)
+  }
+
+  /** 在已有 HTTP 服务上再挂一条 WebSocket 路径（和 /ws 共用一条 upgrade 分发，互不 abort）。 */
+  ws(path: string, handler: (socket: WebSocket, request: IncomingMessage) => void) {
+    return this.ctx.effect(() => {
+      const wss = new WebSocketServer({ noServer: true })
+      wss.on('connection', handler)
+      this.wsServers.set(path, wss)
+      return () => {
+        if (this.wsServers.get(path) === wss) this.wsServers.delete(path)
+        wss.close()
+      }
+    }, `http.ws ${path}`)
   }
 
   broadcast(type: string, payload: unknown) {

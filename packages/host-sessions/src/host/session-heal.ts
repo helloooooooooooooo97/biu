@@ -50,7 +50,7 @@ export function findOrphanToolCalls(
       for (const call of event.tool_calls) {
         pending.set(call.id, call.name)
       }
-    } else if (event.type === 'tool/result') {
+    } else if (event.type === 'tool/result' && !event.partial) {
       pending.delete(event.id)
     }
   }
@@ -108,6 +108,10 @@ export function rebuildHealedEvents(
 
   for (const event of events) {
     if (event.type === 'tool/result') {
+      if (event.partial) {
+        changed = true
+        continue
+      }
       if (!pending.has(event.id)) {
         changed = true
         continue

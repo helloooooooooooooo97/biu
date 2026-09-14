@@ -76,6 +76,15 @@ test('html pageBlock fence stores raw html and deck on the header', () => {
   })
 })
 
+test('html pageBlock fence keeps title on the header', () => {
+  const src = formatPageBlockFence('html', 'page-html-blocks', {
+    html: '<div>旧</div>',
+    title: '海报 HTML',
+  }, 'ab12cd34')
+  assert.match(src, /title="海报 HTML"/)
+  assert.equal(parsePageBlockMeta(src.match(/\{([^}]*)\}/)?.[1] ?? '').extras.title, '海报 HTML')
+})
+
 test('enable button only dispatches the stored plugin id', () => {
   const seen: string[] = []
   const onEnable = (event: Event) => {

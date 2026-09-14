@@ -6,6 +6,7 @@ import { SlashList } from './slash-list.tsx'
 import { placeSlashInWindow } from './slash-place.ts'
 import { slashMayOpen } from './editor-live.ts'
 import { createPageBlockId } from './page-block.ts'
+import { defaultPageBlockTitle } from '../page-block-fence.ts'
 import { BASIC_BLOCK_TYPE, getPageEditor, type SlashInsert } from './service.ts'
 
 export type SlashItem = {
@@ -16,6 +17,11 @@ export type SlashItem = {
   blockType: string
   blockTypeLabel: string
   command: (props: { editor: Editor; range: Range }) => void
+}
+
+function editorPageTitle(editor: Editor) {
+  const root = editor.view.dom.closest('.page-editor')
+  return root instanceof HTMLElement ? String(root.dataset.liveTitle ?? '').trim() : ''
 }
 
 const BASIC_GROUP = { blockType: BASIC_BLOCK_TYPE, blockTypeLabel: '基础模块' } as const
@@ -120,7 +126,7 @@ export const SLASH_ITEMS: SlashItem[] = [
       editor.chain().focus().deleteRange(range).run()
       pickLocalImageSrc().then((src) => {
         if (!src || editor.isDestroyed) return
-        editor.chain().focus().setImage({ src }).run()
+        editor.chain().focus().setImage({ src, alt: '' }).run()
       })
     },
     ...BASIC_GROUP,
@@ -157,6 +163,23 @@ export const SLASH_ITEMS: SlashItem[] = [
   },
 ]
 
+function safeAssetFileName(name: string) {
+  const base = name.replace(/^.*[/\\]/, '').replace(/[^\p{L}\p{N}._-]+/gu, '-')
+  return base || `image-${Date.now()}.png`
+}
+
+async function uploadPageImage(file: File) {
+  const name = `${Date.now()}-${safeAssetFileName(file.name)}`
+  const res = await fetch(`/api/db/file/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    headers: { 'content-type': file.type || 'application/octet-stream' },
+    body: file,
+  })
+  const body = (await res.json().catch(() => ({}))) as { error?: string; href?: string; name?: string }
+  if (!res.ok) throw new Error(body.error || res.statusText)
+  return body.href || `/api/db/file/${encodeURIComponent(body.name || name)}`
+}
+
 function pickLocalImageSrc() {
   return new Promise<string>((resolve) => {
     const input = document.createElement('input')
@@ -168,10 +191,9 @@ function pickLocalImageSrc() {
         resolve('')
         return
       }
-      const reader = new FileReader()
-      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
-      reader.onerror = () => resolve('')
-      reader.readAsDataURL(file)
+      void uploadPageImage(file)
+        .then(resolve)
+        .catch(() => resolve(''))
     })
     input.addEventListener('cancel', () => resolve(''))
     input.click()
@@ -224,6 +246,10 @@ export function slashCatalog(): SlashItem[] {
       blockType,
       blockTypeLabel: block.blockTypeLabel ?? (blockType === BASIC_BLOCK_TYPE ? '基础模块' : block.label),
       command: ({ editor, range }) => {
+        const id = createPageBlockId()
+        const defaults = typeof block.defaults === 'function' ? block.defaults() : { ...(block.defaults ?? {}) }
+        const pageName = editorPageTitle(editor)
+        const title = String(defaults.title ?? '').trim() || defaultPageBlockTitle(pageName, block.label || block.kind)
         editor
           .chain()
           .focus()
@@ -233,8 +259,8 @@ export function slashCatalog(): SlashItem[] {
             attrs: {
               kind: block.kind,
               plugin: block.plugin,
-              id: createPageBlockId(),
-              data: typeof block.defaults === 'function' ? block.defaults() : { ...(block.defaults ?? {}) },
+              id,
+              data: { ...defaults, title },
             },
           })
           .run()

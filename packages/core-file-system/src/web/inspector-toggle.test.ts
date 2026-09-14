@@ -6,6 +6,15 @@ import assert from 'node:assert/strict'
 const browser = readFileSync(resolve(import.meta.dirname, './browser.tsx'), 'utf8')
 const detail = readFileSync(resolve(import.meta.dirname, './record-detail.tsx'), 'utf8')
 
+test('hydrating page-blocks prefers the route view over local 全部', () => {
+  assert.match(browser, /pickViewForRoute\(listed, collectionPath, routeViewId\)/)
+  assert.match(browser, /pickViewForRoute\(listed, collectionPath, routeViewId \?\? activeId/)
+  assert.doesNotMatch(
+    browser,
+    /listed.find\(\(item\) => item.id === routeViewId\) \?\?\s*listed.find\(\(item\) => item.id === loadActiveViewId/,
+  )
+})
+
 test('data sidebar brand sits left with a collapse control on the right', () => {
   const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
   assert.match(sidebar, /app-side-bar-head-brand/)
@@ -177,7 +186,7 @@ test('table title opens record from the title-side button', () => {
   assert.doesNotMatch(nav, /stampRowOpenTarget/)
   assert.doesNotMatch(browser, /onAddField/)
   assert.doesNotMatch(browser, /<AddProperty/)
-  assert.match(browser, /const lockedSource = catalogLocks.tablePath/)
+  assert.match(browser, /const lockedKind = String\(catalogLocks.blockKind/)
   assert.doesNotMatch(browser, /recordPick\(row\)\} onClick=\{\(\) => setDetailId\(row\.id\)\}/)
 })
 
@@ -523,9 +532,13 @@ test('database extras sit after the record detail, not in the inspector', () => 
   assert.match(browser, /stepViewRecord/)
   assert.match(style, /\.fsdb-detail-float-nav\{[^}]*background:var\(--dsw-sidebar\)/)
   assert.match(style, /\.fsdb-detail-float-nav\{[^}]*width:24px/)
-  assert.match(style, /\.fsdb-detail-float-nav\{[^}]*translate\(-52px,-50%\)/)
+  assert.match(style, /\.fsdb-detail-float-nav\{[^}]*position:sticky/)
+  assert.match(style, /\.fsdb-detail-float-nav\{[^}]*top:50%/)
+  assert.match(style, /\.fsdb-detail-float-nav\{[^}]*margin:0 0 0 -24px/)
+  assert.match(style, /\.fsdb-detail-float-nav\{[^}]*translate\(-28px,-50%\)/)
   assert.match(style, /\.fsdb-detail-float-nav\{[^}]*opacity:0/)
-  assert.match(style, /\.fsdb-detail-float-nav::before\{[^}]*left:-80px/)
+  assert.match(style, /\.fsdb-detail-float-nav::before\{[^}]*left:0/)
+  assert.doesNotMatch(style, /\.fsdb-detail-float-nav\{[^}]*position:absolute/)
   assert.match(style, /\.fsdb-detail-float-btn\{[^}]*z-index:1/)
   assert.match(style, /\.heading-outline-host\{[^}]*width:120px/)
   assert.match(style, /\.fsdb-detail-float-nav:hover,\.fsdb-detail-float-nav:focus-within,\.fsdb-detail-float-nav:has\(\[aria-expanded=true\]\)\{[^}]*opacity:1/)
@@ -762,14 +775,17 @@ test('inspector no longer listens for add/copy view actions', () => {
   assert.doesNotMatch(browser, /detail === 'copy-view'/)
 })
 
-test('database inspector tab has a close control beside crumb expand', () => {
+test('database inspector tab expands crumbs when selected, without a toggle', () => {
   const tab = readFileSync(resolve(import.meta.dirname, './inspector-database.tsx'), 'utf8')
   assert.match(tab, /onClose\?: \(\) => void/)
   assert.match(tab, /data-testid="inspector-tab-close"/)
   assert.match(tab, /inspector-crumb-close/)
   assert.match(tab, /XMarkIcon/)
   assert.match(tab, /inspector-crumb-actions/)
-  assert.match(tab, /data-testid="inspector-crumb-toggle"/)
+  assert.match(tab, /allowMenu=\{Boolean\(active\)\}/)
+  assert.doesNotMatch(tab, /inspector-crumb-toggle/)
+  assert.doesNotMatch(tab, /trailOpen/)
+  assert.doesNotMatch(tab, /is-crumb-open/)
   assert.match(tab, /is-agent-working/)
   assert.match(tab, /fsdb-agent-follow/)
   assert.match(tab, /isInspectorPaneAbandoned/)

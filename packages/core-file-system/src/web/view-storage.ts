@@ -106,6 +106,15 @@ export function defaultViewId(collectionPath: string, routeViewId?: string) {
   return viewForPath(collectionPath, routeViewId)?.id ?? builtinAllViewId(collectionPath)
 }
 
+/** 水合时列表可能还没有内置块类型视图；URL 上的 builtin-block: 仍用 stub 还原，不能退回「全部」。 */
+export function pickViewForRoute(listed: SavedView[], collectionPath: string, routeViewId?: string) {
+  const route = String(routeViewId ?? '').trim()
+  if (route) {
+    return listed.find((item) => item.id === route) ?? viewForPath(collectionPath, route)
+  }
+  return listed.find((item) => item.id === loadActiveViewId(collectionPath, listed)) ?? listed[0] ?? null
+}
+
 export type StarredView = { path: string; viewId: string }
 
 const STARRED_VIEWS_KEY = 'fsdb.starredViews'

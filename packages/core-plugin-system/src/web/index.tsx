@@ -55,6 +55,7 @@ function PluginAppWindow({
   pluginId,
   shell,
   fullscreen,
+  minimized,
   onClose,
   onMinimize,
   onToggleFullscreen,
@@ -65,6 +66,7 @@ function PluginAppWindow({
   pluginId: string
   shell: StoreShell
   fullscreen: boolean
+  minimized: boolean
   onClose: () => void
   onMinimize: () => void
   onToggleFullscreen: () => void
@@ -186,6 +188,11 @@ function PluginAppWindow({
     ? { top: 0, left: 0, width: '100vw', height: '100vh', zIndex: z + 8 }
     : { top: geom.y, left: geom.x, width: geom.w, height: geom.h, zIndex: z }
 
+  if (minimized) {
+    // 缩小只藏窗口，不卸 React：终端/画板卸掉会断连接、清掉内存里的历史。
+    Object.assign(style, { visibility: 'hidden', pointerEvents: 'none' })
+  }
+
   const handles: Array<{ key: string; className: string; edge: ResizeEdge }> = [
     { key: 'n', className: 'absolute inset-x-2 top-0 h-1.5 cursor-n-resize', edge: { north: true } },
     { key: 's', className: 'absolute inset-x-2 bottom-0 h-1.5 cursor-s-resize', edge: { south: true } },
@@ -210,9 +217,12 @@ function PluginAppWindow({
       data-shell-resizable={shell.resizable ? '1' : '0'}
       data-fullscreen={fullscreen || undefined}
       data-controls={controlsOpen ? 'open' : undefined}
+      data-minimized={minimized || undefined}
+      aria-hidden={minimized || undefined}
+      inert={minimized || undefined}
       onPointerDown={bringFront}
-      onPointerEnter={fullscreen ? undefined : openControls}
-      onPointerLeave={fullscreen ? undefined : closeControlsSoon}
+      onPointerEnter={fullscreen || minimized ? undefined : openControls}
+      onPointerLeave={fullscreen || minimized ? undefined : closeControlsSoon}
     >
       <div className="plugin-store-window-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-transparent">
         {children}
@@ -379,7 +389,7 @@ function PluginExtrasLayer(props: SlotProps) {
   return (
     <div className="pointer-events-none fixed inset-0 z-20" data-testid="plugin-store-extras">
       {windows.map(({ entry, pluginId, title, listing }) => {
-        if (minimized[entry.id]) return null
+        const isMin = Boolean(minimized[entry.id])
         const shell = storeShellFromRecord(listing)
         const Component = entry.Component
         return (
@@ -389,7 +399,8 @@ function PluginExtrasLayer(props: SlotProps) {
             title={title}
             pluginId={pluginId}
             shell={shell}
-            fullscreen={Boolean(shell.resizable) && fullscreenId === entry.id}
+            fullscreen={!isMin && Boolean(shell.resizable) && fullscreenId === entry.id}
+            minimized={isMin}
             onClose={() => dismissAndStop(entry.id, pluginId)}
             onMinimize={() => {
               if (fullscreenId === entry.id) setFullscreenId(null)

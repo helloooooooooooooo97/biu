@@ -8,6 +8,7 @@ import {
   clearContentJump,
   consumeContentJump,
   peekContentJump,
+  posRangeForJump,
   rememberContentJump,
   snippetAtLine,
   stripMarkdownLine,
@@ -67,6 +68,27 @@ test('applyContentJump navigate still moves the caret when asked', () => {
   const editor = editorOf(md)
   applyContentJump(editor, md, { path: '/pages/home', start_line: 5, end_line: 5 }, { navigate: true })
   assert.match(textAtCaret(editor), /UNIQUE_NAV_ANCHOR/)
+  assert.match(editor.view.dom.innerHTML, /page-agent-edit/)
+  editor.destroy()
+})
+
+test('applyContentJump marks the whole added span, not the first 48 characters', () => {
+  const md = '# 欢迎\n\n这是第一段很长的正文需要整段高亮\n\n这是第二段同样要被标出来'
+  const editor = editorOf(md)
+  applyContentJump(editor, md, {
+    path: '/pages/home',
+    start_line: 1,
+    end_line: 5,
+    text: '欢迎\n这是第一段很长的正文需要整段高亮\n这是第二段同样要被标出来',
+  })
+  const marked = [...editor.view.dom.querySelectorAll('.page-agent-edit')].map((node) => node.textContent ?? '').join('')
+  assert.match(marked, /第一段很长的正文需要整段高亮/)
+  assert.match(marked, /第二段同样要被标出来/)
+  const range = posRangeForJump(editor.state.doc, md, { path: '/pages/home', start_line: 1, end_line: 5, text: '欢迎\n这是第一段很长的正文需要整段高亮\n这是第二段同样要被标出来' })
+  assert.ok(range)
+  const span = editor.state.doc.textBetween(range!.from, range!.to, '\n')
+  assert.match(span, /第一段/)
+  assert.match(span, /第二段/)
   editor.destroy()
 })
 

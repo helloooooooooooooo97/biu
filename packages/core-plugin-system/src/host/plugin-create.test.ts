@@ -303,13 +303,14 @@ test('sandbox/pack live on the plugins collection, not as tools', () => {
     initSandbox: async () => ({ id: 'x', sandboxPath: '/tmp/x' }),
   } as Store)
   const ids = spec.actions?.map((item) => item.id) ?? []
-  assert.deepEqual(ids, ['sandbox', 'start', 'stop', 'pack', 'uninstall'])
+  assert.deepEqual(ids, ['sandbox', 'start', 'stop', 'pack', 'reload', 'uninstall'])
   const sandbox = spec.actions?.find((item) => item.id === 'sandbox')
   const pack = spec.actions?.find((item) => item.id === 'pack')
   assert.equal(spec.actions?.find((item) => item.id === 'create'), undefined)
   assert.equal(sandbox?.allowMissing, true)
   assert.match(JSON.stringify(sandbox?.parameters), /listing\.shell/)
   assert.match(String(pack?.parameters?.description ?? ''), /host\.ts/)
+  assert.match(String(pack?.parameters?.description ?? ''), /沙箱 package.json/)
 })
 
 test('pack web jsx uses globalThis.React instead of bundling npm react', async () => {
@@ -401,6 +402,45 @@ test('pack bundles npm deps but keeps react on globalThis', async () => {
     assert.match(webJs, /pong/)
     assert.match(webJs, /globalThis\.React/)
     assert.doesNotMatch(webJs, /from ['"]react['"]/)
+    assert.doesNotMatch(webJs, /from ['"]tiny-ping['"]/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('pack installs sandbox package.json deps without host node_modules', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'plugin-sandbox-npm-'))
+  try {
+    const ctx = new Context()
+    stubHub(ctx)
+    const store = new PluginStoreService(
+      ctx,
+      join(dir, '.plugin'),
+      join(dir, 'store.json'),
+      join(dir, '.plugin-dev'),
+    ).open()
+    await store.initSandbox({
+      id: 'store-file-dep',
+      name: 'File dep',
+      headless: true,
+    })
+    const sandbox = join(dir, '.plugin-dev', 'store-file-dep')
+    const vendor = join(sandbox, 'vendor', 'tiny-ping')
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(vendor, { recursive: true })
+    await writeFile(join(vendor, 'package.json'), JSON.stringify({ name: 'tiny-ping', type: 'module', main: 'index.js' }))
+    await writeFile(join(vendor, 'index.js'), `export const ping = 'from-sandbox'\n`)
+    await writeFile(
+      join(sandbox, 'package.json'),
+      `${JSON.stringify({ name: 'store-file-dep', private: true, dependencies: { 'tiny-ping': 'file:./vendor/tiny-ping' } }, null, 2)}\n`,
+    )
+    await writeFile(
+      join(sandbox, 'web.tsx'),
+      `import { ping } from 'tiny-ping'\nexport const name = 'store-file-dep'\nexport function apply() { return ping }\n`,
+    )
+    await store.pack('store-file-dep')
+    const webJs = await readFile(join(dir, '.plugin', 'store-file-dep', 'web.js'), 'utf8')
+    assert.match(webJs, /from-sandbox/)
     assert.doesNotMatch(webJs, /from ['"]tiny-ping['"]/)
   } finally {
     await rm(dir, { recursive: true, force: true })

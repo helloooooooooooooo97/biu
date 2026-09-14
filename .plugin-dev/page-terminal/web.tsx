@@ -1,768 +1,849 @@
-import { createPortal } from 'react-dom'
-import {
-  MYSQL_DEFAULT,
-  MYSQL_HELP_LINES,
-  MYSQL_SQL_HELP,
-  describeProfile,
-  packSession,
-  parseMysqlProfile,
-  parseSession,
-  sameSession,
-  stripDraft,
-  type MysqlProfile,
-  type TerminalSession,
-} from './shell.ts'
+import { FitAddon } from '@xterm/addon-fit'
+import { Terminal } from '@xterm/xterm'
+import '@xterm/xterm/css/xterm.css'
 import { makeOverlay, relockAncestors, unlockAncestors, watchZoom } from './zoom.ts'
 
 const React = globalThis.React
-const { useEffect, useRef, useState } = React
+const { useEffect, useRef } = React
 
 export const name = 'page-terminal'
 export const inject = ['pageEditor']
 
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
-const INK = '#0b0e14'
-const PAPER = '#c9d1d9'
-const GREEN = '#3fb950'
-const ACCENT = '#e3b341'
-const ERR = '#ff7b72'
-const MAX_LINES = 400
-const SQL_CONT = '    ->'
+const DEFAULTS = { title: '终端', height: 240 }
 
-const SAMPLE = {
-  cwd: '~',
-  prompt: '$',
-  lines: ['真 shell 终端（/bin/sh）。输入 `help` 看用法。'],
-}
+// 历史记录：写进块数据里，agent 直接读页面 markdown 就能看到用户跑过什么。
+const HISTORY_MAX = 200      // 最多保留的命令条数
+const HISTORY_OUT_LINES = 10 // 每条命令最多保留的输出行数
+const HISTORY_OUT_CHARS = 600 // 单条输出字符上限，防止撑爆 markdown
+const OUTPUT_SETTLE_MS = 600 // 输出安静这么久，就认为这条命令跑完了
 
-type Line = { kind: 'in' | 'out' | 'err'; text: string }
+type HistoryEntry = { cmd: string; at: number; out?: string }
 
-function parseLines(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw.map((item) => String(item ?? ''))
-  const text = String(raw ?? '')
-  return text ? text.split('\n') : []
-}
+// ---------------------------------------------------------------------------
+// xterm 附带的「辅助节点」处理（踩坑总结，改动前务必读 README）：
+//  1. helper-textarea 是 xterm 接收键盘输入的节点，**不能 display:none**
+//     —— 隐藏元素无法聚焦，会导致整个终端打不了字。
+//  2. .xterm-helpers 里住着字符测量元素，**不能整块压掉**，
+//     否则它量不出字符宽度 → 字间距错乱、光标消失。
+//  3. 字符测量元素会因祖先 transform/backdrop-filter 改变包含块而显形，
+//     表现为"顶部多出一行会自己变的乱码"。用 opacity:0 藏，不要 clip-path：
+//     Chrome 里 clip-path:inset(100%) 会让 getBoundingClientRect 宽高为 0，
+//     字格宽度变成 0，提示符和输出全叠在最左边（历史记录仍能记到按键）。
+// ---------------------------------------------------------------------------
+const HELPER_TEXTAREA = '.xterm-helper-textarea'
+const MEASURE_SELECTORS = ['.xterm-char-measure-element', '.xterm-width-cache-measure-container'].join(',')
+const BURIED_SELECTORS = [
+  '.xterm-accessibility',
+  '.xterm-accessibility-tree',
+  '.xterm-message',
+  '.live-region',
+  '.composition-view',
+].join(',')
 
-function blockHeight(data: Record<string, unknown>) {
-  const n = Number(data.height)
-  return Number.isFinite(n) && n >= 120 ? Math.round(n) : 320
-}
-
-function Glyph({ shrink }: { shrink?: boolean }) {
-  return (
-    <svg width={12} height={12} viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-      {shrink ? (
-        <path d="M6 2h1.6v3.4H11V7H6V2Zm4 12H8.4V10.6H5V9h5v5Z" />
-      ) : (
-        <path d="M9 2h5v5h-1.5V4.56L8.78 8.28 7.72 7.22 11.44 3.5H9V2ZM2 9h1.5v2.44l3.72-3.72 1.06 1.06L4.56 12.5H7V14H2V9Z" />
-      )}
-    </svg>
-  )
-}
-
-/* ---------------- mysql：真连宿主的 mysql 客户端 ---------------- */
-
-type MysqlRun = { ok: boolean; stdout: string; stderr: string; exitCode: number; ms: number; error?: string }
-
-async function runMysql(sql: string, conn: MysqlProfile): Promise<MysqlRun> {
-  try {
-    const res = await fetch('/api/page-terminal/mysql', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sql, conn }),
-    })
-    const data = (await res.json()) as MysqlRun
-    if (!res.ok && data.error) return { ok: false, stdout: '', stderr: data.error, exitCode: -1, ms: 0 }
-    return data
-  } catch (error) {
-    return { ok: false, stdout: '', stderr: `✗ 请求宿主失败：${String(error)}`, exitCode: -1, ms: 0 }
+function decodePtyChunk(data: unknown, onText: (text: string) => void) {
+  if (typeof data === 'string') {
+    onText(data)
+    return
+  }
+  if (data instanceof ArrayBuffer) {
+    onText(new TextDecoder().decode(data))
+    return
+  }
+  if (ArrayBuffer.isView(data)) {
+    onText(new TextDecoder().decode(data))
+    return
+  }
+  if (typeof Blob !== 'undefined' && data instanceof Blob) {
+    void data.text().then(onText)
   }
 }
 
-/** 从 `mysql` 后面的参数里抠出连接覆盖项和一段 SQL。 */
-function parseMysqlArgs(rest: string[], base: MysqlProfile) {
-  const conn: MysqlProfile = { ...base }
-  let sql = ''
-  const strip = (text: string) => text.replace(/^["']|["']$/g, '')
-  const take = (inline: string, i: number) => {
-    if (inline) return { value: strip(inline), next: i }
-    const next = rest[i + 1]
-    return next == null ? { value: '', next: i } : { value: strip(String(next)), next: i + 1 }
-  }
-  for (let i = 0; i < rest.length; i++) {
-    const item = rest[i]
-    if (item === '-e' || item === '--execute') {
-      const got = take('', i)
-      sql = got.value
-      i = got.next
-      continue
-    }
-    const flag = /^(-[hPuDp])(.*)$/.exec(item)
-    if (flag) {
-      const got = take(flag[2], i)
-      i = got.next
-      if (flag[1] === '-h') conn.host = got.value || conn.host
-      else if (flag[1] === '-P') conn.port = Number(got.value) || conn.port
-      else if (flag[1] === '-u') conn.user = got.value || conn.user
-      else if (flag[1] === '-D') conn.database = got.value
-      else if (flag[1] === '-p') conn.password = got.value
-      continue
-    }
-    // 没带 -e：剩下的整段都当 SQL
-    sql = strip(rest.slice(i).join(' '))
-    break
-  }
-  return { conn, sql }
+function styleHelperTextarea(el: HTMLElement) {
+  const s = el.style
+  s.setProperty('position', 'absolute', 'important')
+  s.setProperty('left', '-9999px', 'important')
+  s.setProperty('top', '0', 'important')
+  s.setProperty('width', '1px', 'important')
+  s.setProperty('height', '1px', 'important')
+  s.setProperty('opacity', '0', 'important')
+  s.setProperty('color', 'transparent', 'important')
+  s.setProperty('caret-color', 'transparent', 'important')
+  s.setProperty('background', 'transparent', 'important')
+  s.setProperty('border', '0', 'important')
+  s.setProperty('padding', '0', 'important')
+  s.setProperty('margin', '0', 'important')
+  s.setProperty('overflow', 'hidden', 'important')
+  s.setProperty('resize', 'none', 'important')
+  s.setProperty('z-index', '-5', 'important')
+  // 不要 display:none。
+  s.removeProperty('display')
 }
 
-/* ---------------- 真 shell：attach / 写入 / 实时回显 ---------------- */
-
-type ShellAttach = {
-  id: string
-  name: string
-  reused: boolean
-  seq: number
-  output: string
-  cwd: string
-  alive: boolean
-}
-
-async function shellAttach(name: string): Promise<ShellAttach | null> {
-  try {
-    const res = await fetch(`/api/page-terminal/shell/${encodeURIComponent(name)}`, { method: 'POST' })
-    if (!res.ok) return null
-    return (await res.json()) as ShellAttach
-  } catch {
-    return null
+function buryAuxiliaryNodes(root: HTMLElement) {
+  for (const node of root.querySelectorAll(MEASURE_SELECTORS)) {
+    const s = (node as HTMLElement).style
+    s.setProperty('opacity', '0', 'important')
+    s.setProperty('pointer-events', 'none', 'important')
+    s.removeProperty('display')
+    s.removeProperty('clip-path')
+  }
+  for (const node of root.querySelectorAll(HELPER_TEXTAREA)) {
+    styleHelperTextarea(node as HTMLElement)
+  }
+  for (const node of root.querySelectorAll(BURIED_SELECTORS)) {
+    const el = node as HTMLElement
+    if (el.style.display !== 'none') el.style.setProperty('display', 'none', 'important')
   }
 }
 
-async function shellWrite(name: string, data: string) {
-  try {
-    const res = await fetch(`/api/page-terminal/shell/${encodeURIComponent(name)}/write`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data, source: 'page' }),
-    })
-    return res.ok
-  } catch {
-    return false
-  }
+const STYLE_ID = 'pt-xterm-style-v1'
+const STYLE_CSS = `
+.pt-pane .xterm { padding: 0 !important; height: 100%; }
+.pt-pane .xterm-viewport { background: transparent !important; }
+.pt-pane .xterm-screen { background: transparent !important; }
+.pt-pane canvas { background: transparent !important; }
+
+/* 无需滚动时把滚动条彻底藏掉 */
+.pt-pane .scrollbar.invisible { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+.pt-pane .scrollbar.invisible > .slider { opacity: 0 !important; height: 0 !important; background: transparent !important; }
+
+/* xterm 自绘滚动条：细条 + 圆角 + 半透明 */
+.pt-pane .scrollbar { width: 12px !important; min-width: 12px !important; max-width: 12px !important; }
+.pt-pane .scrollbar > .slider {
+  width: 8px !important; min-width: 8px !important; max-width: 8px !important;
+  left: 2px !important; right: auto !important;
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--dsw-label-3, rgba(242,241,237,0.45)) 55%, transparent) !important;
+  border: 0 !important;
 }
+.pt-pane .scrollbar > .slider:hover,
+.pt-pane .scrollbar > .slider.active {
+  background: color-mix(in srgb, var(--dsw-label-2, rgba(242,241,237,0.72)) 70%, transparent) !important;
+}
+`
 
-export const SHELL_HELP_LINES = [
-  '这是真 shell（/bin/sh，无 tty），和 agent 的 terminal_write 是同一条会话。',
-  '  <任意命令>     直接发给 shell，例：ls -la   git status   npm test',
-  '  clear          清屏（只清显示，不发给 shell）',
-  '  mysql ...      走 mysql 客户端 batch 模式（见下）',
-  '  help           看这份说明',
-  '',
-  '没有 tty 的三个后果：',
-  '  · vim / top / less 这类全屏程序不可用',
-  '  · sudo 拿不到密码提示',
-  '  · python 等程序的输出会攒着一次性出来，想看实时就 python3 -u',
-  '',
-  '会话活着：刷新页面、切页都不会杀掉 shell；host 重启才没。',
-  '命令记录存在块详情 data.session.history（有上限，长输出会被截），不是宿主本地存储。',
-]
-
-/* ---------------- 终端界面（放大时复用同一份） ---------------- */
-
-function TerminalSurface({
-  cwd,
-  prompt,
-  sample,
-  session,
-  shellName,
-  mysql,
-  sqlOpen,
-  setSqlOpen,
-  connRef,
-  zoomed,
-  onZoom,
-  onClose,
-  onChange,
-  onPersist,
-}: {
-  cwd: string
-  prompt: string
-  sample: string[]
-  session: TerminalSession
-  shellName: string
-  mysql: MysqlProfile
-  /** 下面三个提到块层，放大/还原时不会丢 SQL 模式与已改过的连接 */
-  sqlOpen: boolean
-  setSqlOpen: (next: boolean) => void
-  connRef: { current: MysqlProfile }
-  zoomed: boolean
-  onZoom: () => void
-  onClose?: () => void
-  onChange: () => void
-  onPersist: () => void
-}) {
-  const [busy, setBusy] = useState(false)
-  const [ready, setReady] = useState(false)
-  const scrollRef = useRef<HTMLDivElement | null>(null)
-  const inputRef = useRef<HTMLInputElement | null>(null)
-  const busyRef = useRef(false)
-  const history = session.history
-  const [draft, setDraft] = useState(session.input)
-  const [sqlBuffer, setSqlBuffer] = useState<string[]>([])
-  const promptLabel = sqlOpen ? (sqlBuffer.length ? SQL_CONT : 'mysql>') : `${session.cwd} ${prompt}`
-
-  // 实时输出：攒一帧再渲染，别让每个 chunk 都触发一轮 React
-  const lastSeq = useRef(0)
-  const dirty = useRef(false)
-  const frameRef = useRef<number | undefined>(undefined)
-  const liveness = useRef(true)
-
-  const tick = () => {
-    frameRef.current = undefined
-    if (!dirty.current) return
-    dirty.current = false
-    onChange()
-  }
-
-  const kick = () => {
-    if (frameRef.current != null) return
-    frameRef.current = window.requestAnimationFrame(tick)
-  }
-
-  /** 追加一段 shell 原始输出：按行落进 history，尾部半行留着。 */
-  const feed = (text: string, kind: Line['kind'] = 'out') => {
-    if (!text) return
-    const chunk = (session.partial ?? '') + text
-    const lines = chunk.split('\n')
-    const partial = lines.pop() ?? ''
-    for (const line of lines) session.history.push({ kind, text: line })
-    session.partial = partial
-    if (session.history.length > MAX_LINES) session.history = session.history.slice(-MAX_LINES)
-    dirty.current = true
-    kick()
-    onPersist()
-  }
-
-  const push = (line: Line) => {
-    session.history.push(line)
-    if (session.history.length > MAX_LINES) session.history = session.history.slice(-MAX_LINES)
-    onChange()
-    onPersist()
-  }
-
-  const out = (text: string, failed = false) => push({ kind: failed ? 'err' : 'out', text })
-
-  // 挂上：attach 同名会话（不存在就开），把本地还没见过的输出补上
+function useTerminalStyle() {
   useEffect(() => {
-    if (!shellName || shellName === 'page:terminal') return
-    let gone = false
-    void shellAttach(shellName).then((state) => {
-      if (gone) return
-      if (!state) {
-        setReady(true)
+    // 每次用最新内容覆盖，不能"已存在就 return"，否则旧版本内容会一直挡着。
+    const id = STYLE_ID
+    for (const stale of document.querySelectorAll('style[id^="pt-xterm-style"]')) {
+      if (stale.id !== id) stale.remove()
+    }
+    const existing = document.getElementById(id)
+    const el = existing instanceof HTMLStyleElement ? existing : document.createElement('style')
+    el.id = id
+    el.textContent = STYLE_CSS
+    if (el.parentNode !== document.head) document.head.appendChild(el)
+  }, [])
+}
+
+const THEME = {
+  background: 'rgba(0,0,0,0)',
+  foreground: '#f0efed',
+  cursor: '#f0efed',
+  cursorAccent: '#191919',
+  selectionBackground: 'rgba(242,241,237,0.22)',
+  black: '#191919',
+  red: '#e5484d',
+  green: '#30a46c',
+  yellow: '#ffb224',
+  blue: '#5b9fd6',
+  magenta: '#b07cd6',
+  cyan: '#12a594',
+  white: '#bcbab6',
+  brightBlack: '#5f5f5a',
+  brightRed: '#ff6369',
+  brightGreen: '#4cc38a',
+  brightYellow: '#ffc53d',
+  brightBlue: '#78b4e4',
+  brightMagenta: '#c496e4',
+  brightCyan: '#3ddbd9',
+  brightWhite: '#f0efed',
+}
+
+/** 单个终端面：一个块 = 一个 PTY。 */
+function TerminalSurface({
+  height,
+  history,
+  onHistory,
+  sessionKey,
+  fill,
+}: {
+  height: number
+  history: HistoryEntry[]
+  onHistory: (next: HistoryEntry[]) => void
+  /** 后端会话键：同一个块刷新/切页都能连回同一个 shell。 */
+  sessionKey: string
+  /** 放大时撑满容器，而不是固定高度。 */
+  fill?: boolean
+}) {
+  useTerminalStyle()
+  const host = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const element = host.current
+    if (!element) return
+
+    const term = new Terminal({
+      fontFamily: '"SF Mono", Menlo, Monaco, Consolas, monospace',
+      fontSize: 12,
+      lineHeight: 1.2,
+      cursorBlink: true,
+      cursorStyle: 'block',
+      allowTransparency: true,
+      scrollback: 2000,
+      theme: THEME,
+    })
+    const fit = new FitAddon()
+    term.loadAddon(fit)
+    term.open(element)
+
+    buryAuxiliaryNodes(element)
+    const observer = new MutationObserver(() => buryAuxiliaryNodes(element))
+    observer.observe(element, { childList: true, subtree: true })
+
+    const fitted = () => {
+      try {
+        fit.fit()
+        return true
+      } catch {
+        return false
+      }
+    }
+    fitted()
+
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+    let socket: WebSocket | undefined
+    let raf = 0
+    // 连接延后到布局稳定，避免用错误尺寸启动 shell。
+    raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        fitted()
+        socket = new WebSocket(
+          `${protocol}//${location.host}/ws/page-terminal` +
+            `?cols=${term.cols}&rows=${term.rows}&session=${encodeURIComponent(sessionKey)}`,
+        )
+        socket.binaryType = 'arraybuffer'
+        socket.addEventListener('open', () => {
+          const sync = () =>
+            socket?.readyState === WebSocket.OPEN &&
+            socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
+          sync()
+          window.setTimeout(sync, 60)
+          window.setTimeout(sync, 220)
+        })
+        // 纯直通：文本或二进制帧都解码后再交给 xterm。Chrome 上 PTY 常走 binary。
+        socket.addEventListener('message', (event) => {
+          decodePtyChunk(event.data, (chunk) => {
+            if (!chunk) return
+            term.write(chunk)
+            recordOutput(chunk)
+          })
+        })
+        socket.addEventListener('close', (event) => {
+          if (event.code === 1000) return
+          const why = event.reason?.trim() || `code ${event.code}`
+          term.write(`\r\n\x1b[31m终端未能启动：${why}\x1b[0m\r\n`)
+        })
+      })
+    })
+
+    // ---- 历史记录采集 ----------------------------------------------------
+    // 思路：累积用户按键，遇到回车就认为一条命令输入完毕；
+    // 该命令之后的 PTY 输出先缓存起来，等"输出安静"后取前几行，写回块数据。
+    //
+    // 之所以用 onData（用户输入）而不是解析回显：onData 给的是纯按键，
+    // 不受 shell 提示符格式影响，简单可靠。
+    const historyRef = [...history]
+    let pendingLine = ''            // 当前正在输入的一行
+    let capturing = false           // 是否正在为「上一条命令」收集输出
+    let outBuffer = ''              // 缓存的输出
+    let outTimer: number | undefined
+
+    const stripAnsi = (text: string) =>
+      // 去掉 ANSI 转义、回车覆盖、退格等控制符，只留可读文本
+      text
+        .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
+        .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
+        .replace(/\x1b[()][0-9A-Za-z]/g, '')
+        .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '')
+
+    // 判断一行是否是 shell 提示符（或提示符擦行残渣）。
+    // 提示符没有统一格式，这里用几个常见特征做启发式判断。
+    const isPromptLike = (line: string) => {
+      const text = line.trim()
+      if (!text) return false
+      // 擦行残渣：整行几乎都是 % 或空格
+      if (/^[%\s]+$/.test(text)) return true
+      // 常见的 user@host 提示符
+      if (/^\S*@\S*\s*[:~\/.]/.test(text)) return true
+      // 以 (env) user@host 开头
+      if (/^\([^)]*\)\s*\S*@\S*/.test(text)) return true
+      // 结尾是 % / $ / # 且含有 @ 或路径
+      if (/[@~\/]/.test(text) && /[%$#]\s*$/.test(text)) return true
+      return false
+    }
+
+    const flushHistory = () => {
+      if (outTimer) {
+        window.clearTimeout(outTimer)
+        outTimer = undefined
+      }
+      if (!capturing) return
+      capturing = false
+      const clean = stripAnsi(outBuffer)
+        .split('\n')
+        .map((line) => line.replace(/\s+$/, ''))
+        // shell 在命令跑完后会立刻画出下一条提示符（含擦行序列残渣），
+        // 那些属于"下一条"，从尾部砍掉，避免污染这条命令的输出。
+        .filter((line) => !isPromptLike(line))
+        .filter((line, index, all) => !(index === all.length - 1 && line === ''))
+      outBuffer = ''
+      if (clean.length === 0) return
+      const out = clean.slice(0, HISTORY_OUT_LINES).join('\n').slice(0, HISTORY_OUT_CHARS)
+      const last = historyRef[historyRef.length - 1]
+      if (!last || last.out !== undefined) return
+      last.out = out || undefined
+      onHistory([...historyRef])
+    }
+
+    const recordOutput = (chunk: string) => {
+      if (!capturing) return
+      outBuffer += chunk
+      // 输出一直在动就继续等，安静下来才算这条命令跑完。
+      if (outTimer) window.clearTimeout(outTimer)
+      outTimer = window.setTimeout(flushHistory, OUTPUT_SETTLE_MS)
+    }
+
+    const recordInput = (data: string) => {
+      for (const ch of data) {
+        if (ch === '\r' || ch === '\n') {
+          const cmd = pendingLine.trim()
+          pendingLine = ''
+          if (!cmd) continue
+          historyRef.push({ cmd, at: Date.now() })
+          if (historyRef.length > HISTORY_MAX) historyRef.splice(0, historyRef.length - HISTORY_MAX)
+          onHistory([...historyRef])
+          capturing = true
+          outBuffer = ''
+          continue
+        }
+        if (ch === '\x7f' || ch === '\b') {
+          pendingLine = pendingLine.slice(0, -1)
+          continue
+        }
+        if (ch === '\x03' || ch === '\x04' || ch === '\x1b') {
+          // Ctrl-C / Ctrl-D / ESC：放弃当前行
+          pendingLine = ''
+          continue
+        }
+        if (ch >= ' ') pendingLine += ch
+      }
+    }
+    // ---------------------------------------------------------------------
+
+    const dataSub = term.onData((data) => {
+      recordInput(data)
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input', data }))
+    })
+    // xterm 列数一变就同步给 PTY，保证 shell 的擦行宽度和显示宽度一致。
+    const resizeSub = term.onResize(({ cols, rows }) => {
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'resize', cols, rows }))
+    })
+
+    const resizeObs = new ResizeObserver(() => {
+      try {
+        fit.fit()
+      } catch {
         return
       }
-      const behind = state.seq > lastSeq.current
-      if (state.output && (behind || !session.history.length)) {
-        const lines = state.output.split('\n')
-        const partial = lines.pop() ?? ''
-        session.history.splice(0, session.history.length, ...lines.map((text) => ({ kind: 'out' as const, text })))
-        session.partial = partial
-        onChange()
-        onPersist()
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
       }
-      lastSeq.current = state.seq
-      if (state.cwd) session.cwd = state.cwd
-      liveness.current = state.alive !== false
-      setReady(true)
     })
-    return () => {
-      gone = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shellName])
+    resizeObs.observe(element)
 
-  // 订阅 /ws：host 把 shell 输出广播成 terminal 帧
-  useEffect(() => {
-    if (typeof WebSocket === 'undefined') return
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-    let ws: WebSocket | null = null
-    let retry: number | undefined
-    let closed = false
-    const open = () => {
-      ws = new WebSocket(`${proto}://${location.host}/ws`)
-      ws.onmessage = (event) => {
-        let parsed: { type?: string; payload?: Record<string, unknown> }
-        try {
-          parsed = JSON.parse(String(event.data))
-        } catch {
-          return
-        }
-        if (parsed.type !== 'terminal') return
-        const payload = parsed.payload ?? {}
-        if (payload.id !== shellName) return
-        if (payload.kind === 'output') {
-          const seq = Number(payload.seq)
-          if (!(seq > lastSeq.current)) return
-          lastSeq.current = seq
-          feed(String(payload.chunk ?? ''))
-          return
-        }
-        if (payload.kind === 'echo') {
-          // agent 那边敲的命令：补成命令行显示（否则页面上只有输出、没有命令）
-          for (const line of String(payload.chunk ?? '').split('\n')) {
-            if (line.trim()) push({ kind: 'in', text: line })
-          }
-          return
-        }
-        if (payload.kind === 'exit') {
-          liveness.current = false
-          out(`— 会话已结束（exit ${payload.code ?? '?'}）—`, true)
-        }
-      }
-      ws.onclose = () => {
-        if (closed) return
-        retry = window.setTimeout(open, 1500)
-      }
-    }
-    open()
     return () => {
-      closed = true
-      if (retry) window.clearTimeout(retry)
-      if (ws) {
-        ws.onclose = null
-        ws.close()
+      if (outTimer) window.clearTimeout(outTimer)
+      cancelAnimationFrame(raf)
+      observer.disconnect()
+      resizeObs.disconnect()
+      resizeSub.dispose()
+      dataSub.dispose()
+      try {
+        socket?.close()
+      } catch {
+        // 可能还没连上。
       }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shellName])
-
-  useEffect(() => {
-    const box = scrollRef.current
-    if (box) box.scrollTop = box.scrollHeight
-  }, [history.length, zoomed])
-
-  // 按键全部在输入框上以 capture 阶段原生处理。
-  //
-  // 为什么不能在 JSX 里写 onKeyDown：
-  //   ProseMirror 的 keydown 监听挂在 .ProseMirror（输入框的祖先），
-  //   React 的 onKeyDown 挂在 React 根容器（更外层）。事件先到 PM、后到 React，
-  //   所以 React 里的 stopPropagation 是「太晚了」——PM 已经处理过退格了。
-  // 为什么 Enter 也要自己处理：
-  //   capture 阶段 stopPropagation 之后 React 的 onKeyDown 也不会再触发。
-  // 结果：退格/左右/删除都归输入框，Enter 走我们自己的 run()。
-  useEffect(() => {
-    const input = inputRef.current
-    if (!input) return
-    const guard = (event: KeyboardEvent) => {
-      event.stopPropagation()
-      if (event.key === 'Enter') {
-        event.preventDefault()
-        runRef.current(input.value)
-      }
-    }
-    input.addEventListener('keydown', guard, true)
-    input.addEventListener('keyup', guard, true)
-    input.addEventListener('keypress', guard, true)
-    return () => {
-      input.removeEventListener('keydown', guard, true)
-      input.removeEventListener('keyup', guard, true)
-      input.removeEventListener('keypress', guard, true)
+      term.dispose()
     }
   }, [])
 
-  // 键盘监听是原生注册的（见上面的 capture 守卫），用 ref 拿到最新的 run
-  const runRef = useRef<(raw: string) => void>(() => {})
+  return (
+    <div
+      ref={host}
+      className="pt-pane"
+      onKeyDown={(event) => event.stopPropagation()}
+      style={{
+        position: 'relative',
+        width: '100%',
+        height: fill ? undefined : height,
+        flex: fill ? 1 : undefined,
+        minHeight: 0,
+        padding: '8px 10px',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        background: '#191919',
+      }}
+    />
+  )
+}
 
-  const busyWrap = async (body: () => Promise<void>) => {
-    busyRef.current = true
-    setBusy(true)
-    try {
-      await body()
-    } finally {
-      busyRef.current = false
-      setBusy(false)
-      requestAnimationFrame(() => inputRef.current?.focus())
-    }
+/** 历史面板：和终端分开的独立组件，只负责把块数据里的 history 画出来。
+   不往 xterm 里塞内容，避免干扰真实 shell 的输出。 */
+/** 把毫秒差格式化成「刚刚 / 3 分钟 / 2 小时 / 1 天」。 */
+function formatSpan(ms: number) {
+  if (!Number.isFinite(ms) || ms < 0) return ''
+  const min = Math.floor(ms / 60000)
+  if (min < 1) return '刚刚'
+  if (min < 60) return `${min} 分钟`
+  const hour = Math.floor(min / 60)
+  if (hour < 24) return `${hour} 小时`
+  return `${Math.floor(hour / 24)} 天`
+}
+
+function HistoryPanel({
+  history,
+  writable,
+  onClear,
+}: {
+  history: HistoryEntry[]
+  writable: boolean
+  onClear: () => void
+}) {
+  const React2 = React
+  // 默认折叠：历史是参考信息，不该一上来占满屏幕。
+  const [open, setOpen] = React2.useState(false)
+  if (history.length === 0) return null
+
+  const mono = '"SF Mono", Menlo, Monaco, Consolas, monospace'
+
+  // 统计：总条数 + 最常用的几条命令（去掉参数，按命令名归并）。
+  const counts = new Map<string, number>()
+  for (const entry of history) {
+    const head = entry.cmd.trim().split(/\s+/)[0] || entry.cmd.trim()
+    counts.set(head, (counts.get(head) ?? 0) + 1)
   }
-
-  const showMysqlRun = async (result: MysqlRun, sql: string) => {
-    const text = result.stdout.trimEnd()
-    if (text) {
-      for (const line of text.split('\n')) {
-        out(line)
-        await new Promise((resolve) => setTimeout(resolve, 4))
-      }
-    }
-    const err = result.stderr.trim()
-    if (err) {
-      for (const line of err.split('\n')) out(`✗ ${line}`, true)
-    }
-    const head = sql.split('\n').join(' ').slice(0, 48)
-    out(
-      result.ok
-        ? `✓ ${head}${sql.length > 48 ? '…' : ''} · ${result.ms} ms`
-        : `✗ 执行失败（exit ${result.exitCode}）`,
-      !result.ok && !err,
-    )
-    if (!result.ok) {
-      const drop = result.stderr.trim()
-      if (/Access denied/i.test(drop)) {
-        const masked = describeProfile(connRef.current)
-        out('→ 这是认证失败，不是 SQL 写错了。当前凭据：' + masked)
-        out('→ 直接在 SQL 模式里敲：mysql -u<用户> -p<密码>   就能换连接（不用先 exit）')
-        out('→ 想改长期默认：编辑块围栏里的 mysql 字段（密码会写进文档，自己权衡）')
-      } else if (/Can't connect|Connection refused|2003/i.test(drop)) {
-        out('→ 连不上服务端：确认 mysql 在跑、端口对（当前 ' + describeProfile(connRef.current) + '）', true)
-      } else if (/Unknown database/i.test(drop)) {
-        out('→ 库名不存在。先 `SHOW DATABASES;` 看有哪些库', true)
-      } else if (/1064|syntax/i.test(drop)) {
-        out('→ SQL 语法错在 `' + head + '` 附近；多行语句要等行尾 `;` 才发', true)
-      }
-    }
-  }
-
-  const execSql = async (sql: string) => {
-    const result = await runMysql(sql, connRef.current)
-    await showMysqlRun(result, sql)
-  }
-
-  const runMysqlCommand = async (rest: string[]) => {
-    const head = (rest[0] ?? '').toLowerCase()
-    if (!rest.length || head === 'shell') {
-      connRef.current = { ...mysql }
-      setSqlOpen(true)
-      out('已连到 ' + describeProfile(connRef.current) + '（mysql 客户端 batch 模式）')
-      if (!connRef.current.password) {
-        out('提示：当前没有密码。本机 root 若设过密码，这里每条 SQL 都会报 1045；')
-        out('      直接在下面敲 `mysql -u root -p<密码>` 即可换连接。')
-      }
-      out(MYSQL_SQL_HELP)
-      out('  例：SHOW DATABASES;   USE mysql;   SELECT VERSION();')
-      return
-    }
-    if (head === 'help' || head === '?') {
-      for (const line of MYSQL_HELP_LINES) out(line)
-      return
-    }
-    if (head === 'status' || head === 'config') {
-      out('当前连接：' + describeProfile(connRef.current))
-      out('参数来源：块详情 data.mysql')
-      return
-    }
-    if (head === 'ping') {
-      await execSql('SELECT VERSION() AS version, CURRENT_USER() AS user, @@port AS port, DATABASE() AS db;')
-      return
-    }
-    if (head === 'dbs' || head === 'databases') {
-      await execSql('SHOW DATABASES;')
-      return
-    }
-    if (head === 'use') {
-      const db = (rest[1] ?? '').replace(/;?$/, '')
-      if (!db) {
-        out('✗ mysql use: 需要一个库名', true)
-        return
-      }
-      connRef.current = { ...connRef.current, database: db }
-      await execSql('SELECT DATABASE() AS db;')
-      return
-    }
-    if (head === 'tables') {
-      const db = (rest[1] ?? '').replace(/;?$/, '')
-      if (db) connRef.current = { ...connRef.current, database: db }
-      if (!connRef.current.database) {
-        out('✗ mysql tables: 先 `mysql use <库>` 或 `mysql tables <库>`', true)
-        return
-      }
-      await execSql('SHOW TABLES;')
-      return
-    }
-    const { conn, sql } = parseMysqlArgs(rest, connRef.current)
-    connRef.current = conn
-    if (!sql) {
-      setSqlOpen(true)
-      out('已连到 ' + describeProfile(conn) + '（mysql 客户端 batch 模式）')
-      out(MYSQL_SQL_HELP)
-      return
-    }
-    await execSql(sql)
-  }
-
-  /** 真正发给 shell（只本地记一下 cd，为了提示行好看；真实 cwd 由 shell 自己管） */
-  const sendToShell = async (cmd: string) => {
-    if (!ready) {
-      out('✗ shell 还没连上（等一下再敲，或刷新页面重开）', true)
-      return
-    }
-    const cd = /^cd(\s+.*)?$/.exec(cmd)
-    if (cd && !/[*?$`|&;<>]/.test(cd[1] ?? '')) {
-      const target = (cd[1] ?? '').trim()
-      if (!target || target === '~') session.cwd = '~'
-      else {
-        session.cwd = target.startsWith('/') ? target : `${session.cwd}/${target}`.replace(/\/\.\//g, '/')
-      }
-    }
-    const ok = await shellWrite(shellName, `${cmd}\n`)
-    if (!ok) out('✗ 写入 shell 失败（会话可能已结束，刷新会重开）', true)
-  }
-
-  const run = async (raw: string) => {
-    if (busyRef.current) return
-    const cmd = raw.trim()
-    const echo = `${promptLabel}${cmd ? ` ${cmd}` : ''}`
-    session.input = ''
-    setDraft('')
-    // 上一段输出没收尾：补一行，免得和提示行粘在一起
-    if (session.partial) feed('\n')
-    onChange()
-
-    if (sqlOpen) {
-      if (/^(exit|quit|\\q)$/i.test(cmd)) {
-        setSqlOpen(false)
-        setSqlBuffer([])
-        out('已退出 SQL 模式')
-        return
-      }
-      if (cmd === 'help' || cmd === '?') {
-        for (const line of MYSQL_HELP_LINES) out(line)
-        return
-      }
-      if (!cmd) {
-        push({ kind: 'in', text: echo })
-        return
-      }
-      // SQL 模式下也能换连接：`mysql -u用户 -p密码`（原来的实现直接拒绝，导致
-      // 「用默认凭据进了 SQL 模式 → 每条 SQL 都 1045 → 出不去也改不了」是死路）
-      if (/^(mysql|connect)(\s|$)/.test(cmd)) {
-        push({ kind: 'in', text: echo })
-        const { conn, sql } = parseMysqlArgs(cmd.replace(/;\s*$/, '').split(/\s+/).slice(1), connRef.current)
-        connRef.current = conn
-        out('已换到 ' + describeProfile(conn))
-        if (sql) await busyWrap(() => execSql(sql))
-        return
-      }
-      if (/^use\s+\S+;?$/i.test(cmd)) {
-        push({ kind: 'in', text: echo })
-        const db = cmd.replace(/^use\s+/i, '').replace(/;?$/, '')
-        connRef.current = { ...connRef.current, database: db }
-        await busyWrap(() => execSql('SELECT DATABASE() AS db;'))
-        return
-      }
-      if (/^(ls|cd|pwd|cat|echo|clear|sh|bash|whoami|export|git|npm|python3?)\b/.test(cmd)) {
-        push({ kind: 'in', text: echo })
-        out('✗ 现在在 SQL 模式，只认 SQL；敲 `exit` 回终端再跑 shell 命令', true)
-        return
-      }
-      push({ kind: 'in', text: echo })
-      const next = [...sqlBuffer, cmd]
-      if (!/;\s*$/.test(cmd)) {
-        setSqlBuffer(next)
-        return
-      }
-      setSqlBuffer([])
-      await busyWrap(async () => {
-        await execSql(next.join('\n'))
-      })
-      return
-    }
-
-    if (!cmd) {
-      push({ kind: 'in', text: echo })
-      return
-    }
-
-    if (cmd === 'clear' || cmd === 'cls') {
-      session.history = []
-      session.partial = ''
-      onChange()
-      onPersist()
-      return
-    }
-    if (cmd === 'help' || cmd === '?') {
-      push({ kind: 'in', text: echo })
-      for (const line of SHELL_HELP_LINES) out(line)
-      return
-    }
-    if (/^mysql(\s|$)/.test(cmd)) {
-      push({ kind: 'in', text: echo })
-      await busyWrap(() => runMysqlCommand(cmd.split(/\s+/).slice(1)))
-      return
-    }
-
-    // 其余一律真发给 shell
-    push({ kind: 'in', text: echo })
-    await sendToShell(cmd)
-  }
-
-  // 交给原生键盘守卫调用
-  runRef.current = (raw: string) => {
-    void run(raw)
-  }
-
-  const btn: Record<string, unknown> = {
-    cursor: 'pointer',
-    border: 'none',
-    background: 'transparent',
-    color: PAPER,
-    fontFamily: MONO,
-    fontSize: 11,
-    fontWeight: 700,
-    padding: '4px 9px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-  }
-
-  const dim = 'rgba(201,209,217,.45)'
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 4)
+  const span = history.length > 1 && history[0].at && history[history.length - 1].at
+    ? formatSpan(history[history.length - 1].at - history[0].at)
+    : ''
 
   return (
     <div
-      data-testid="page-terminal-surface"
       style={{
-        position: 'relative',
-        flex: 1,
-        minHeight: 0,
-        width: '100%',
-        background: INK,
-        border: zoomed ? 'none' : '1px solid rgba(201,209,217,.18)',
-        borderRadius: zoomed ? 0 : 8,
-        boxSizing: 'border-box',
-        display: 'flex',
-        flexDirection: 'column',
-        fontFamily: MONO,
-        fontSize: 12.5,
-        lineHeight: 1.6,
-        color: PAPER,
-        overflow: 'hidden',
+        borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
+        background: 'color-mix(in srgb, var(--dsw-bg, #191919) 70%, transparent)',
       }}
     >
       <div
-        data-biu-ignore
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
           gap: 8,
-          padding: '4px 6px 4px 10px',
-          borderBottom: '1px solid rgba(201,209,217,.14)',
-          background: 'rgba(255,255,255,.02)',
+          height: 26,
+          padding: '0 10px',
+          color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
+          font: '11px ui-sans-serif, system-ui, sans-serif',
+          userSelect: 'none',
         }}
       >
-        <span style={{ color: 'rgba(201,209,217,.55)', fontSize: 10, letterSpacing: '.08em' }}>Terminal</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span data-testid="page-terminal-shell-name" style={{ color: dim, fontSize: 10 }}>
-            {ready ? `sh · ${shellName}` : '连接中…'}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            minWidth: 0,
+            border: 0,
+            padding: 0,
+            background: 'transparent',
+            color: 'inherit',
+            font: 'inherit',
+            cursor: 'pointer',
+            overflow: 'hidden',
+          }}
+        >
+          <span
+            style={{
+              display: 'inline-block',
+              transform: open ? 'rotate(90deg)' : 'none',
+              transition: 'transform 120ms ease',
+              fontSize: 9,
+            }}
+          >
+            ▶
           </span>
+          历史记录
+          <span style={{ opacity: 0.7 }}>{history.length} 条</span>
+          {top.length > 0 ? (
+            <span style={{ opacity: 0.55, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              · {top.map(([name, n]) => `${name}×${n}`).join(' · ')}
+            </span>
+          ) : null}
+          {span ? <span style={{ opacity: 0.45 }}>· {span}</span> : null}
+        </button>
+        <span style={{ flex: 1 }} />
+        {writable ? (
           <button
             type="button"
-            tabIndex={-1}
-            title="清屏"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => {
-              session.history = []
-              session.partial = ''
-              onChange()
-              onPersist()
+            onClick={onClear}
+            style={{
+              border: 0,
+              padding: 0,
+              background: 'transparent',
+              color: 'inherit',
+              font: 'inherit',
+              cursor: 'pointer',
             }}
-            style={btn}
           >
-            clear
+            清空
           </button>
-          {zoomed ? (
-            <button
-              type="button"
-              tabIndex={-1}
-              data-testid="page-terminal-shrink"
-              title="退出放大"
-              aria-label="退出放大"
-              onClick={() => onClose?.()}
-              style={btn}
-            >
-              <Glyph shrink />
-            </button>
-          ) : (
-            <button
-              type="button"
-              tabIndex={-1}
-              data-testid="page-terminal-zoom"
-              title="放大终端"
-              aria-label="放大终端"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={onZoom}
-              style={btn}
-            >
-              <Glyph />
-            </button>
-          )}
-        </span>
+        ) : null}
       </div>
-
-      <div
-        ref={scrollRef}
-        data-testid="page-terminal-body"
-        onClick={() => inputRef.current?.focus()}
-        style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '10px 12px', cursor: 'text' }}
-      >
-        {/*
-          注意：下面四个兄弟节点必须固定顺序 + 稳定 key。
-          否则 history/partial/sample 数量一变，React 按位置复用会把
-          <input> 整个重建 —— 表现就是「打字打到一半光标跳出去、退格删不掉」。
-        */}
-        <div key="lines">
-          {history.map((line, i) => (
-            <div
-              key={`${i}-${line.text.slice(0, 10)}`}
-              style={{
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                color: line.kind === 'in' ? ACCENT : line.kind === 'err' ? ERR : PAPER,
-                fontWeight: line.kind === 'in' ? 700 : 400,
-              }}
-            >
-              {line.text || ' '}
+      {open ? (
+        <div
+          style={{
+            maxHeight: 220,
+            overflowY: 'auto',
+            padding: '4px 10px 10px',
+            fontFamily: mono,
+            fontSize: 12,
+            lineHeight: 1.45,
+            color: 'var(--dsw-label-2, rgba(242,241,237,0.72))',
+          }}
+        >
+          {history.map((entry, index) => (
+            <div key={`${entry.at}-${index}`} style={{ marginTop: index === 0 ? 0 : 6 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <span style={{ color: '#4cc38a', flex: '0 0 auto' }}>$</span>
+                <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{entry.cmd}</span>
+              </div>
+              {entry.out ? (
+                <pre
+                  style={{
+                    margin: '2px 0 0',
+                    paddingLeft: 14,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all',
+                    color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
+                    font: 'inherit',
+                  }}
+                >
+                  {entry.out}
+                </pre>
+              ) : null}
             </div>
           ))}
         </div>
-        <div key="partial" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: PAPER }}>
-          {session.partial ?? ''}
-        </div>
-        <div key="sample" style={{ color: dim }}>
-          {sample.length && !history.length && !session.partial ? sample.join('\n') : ''}
-        </div>
-        <div key="prompt" style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-          <span style={{ color: GREEN, fontWeight: 700, whiteSpace: 'nowrap' }}>{promptLabel}</span>
-          <input
-            ref={inputRef}
-            data-testid="page-terminal-input"
-            data-page-block-capture=""
-            spellCheck={false}
-            value={draft}
-            readOnly={busy}
-            aria-label="终端输入"
-            onChange={(event) => {
-              setDraft(event.currentTarget.value)
-              session.input = event.currentTarget.value
-            }}
-            style={{
-              flex: 1,
-              minWidth: 40,
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              color: '#e6edf3',
-              font: 'inherit',
-              caretColor: GREEN,
-            }}
-          />
-        </div>
-      </div>
+      ) : null}
     </div>
   )
 }
 
-/* ---------------- 页面块 ---------------- */
+/** 标题栏图标按钮。 */
+function IconButton({
+  label,
+  active,
+  dataZoomExit,
+  onClick,
+  children,
+}: {
+  label: string
+  active?: boolean
+  dataZoomExit?: boolean
+  onClick: () => void
+  children: unknown
+}) {
+  return (
+    <button
+      type="button"
+      data-zoom-exit={dataZoomExit ? '' : undefined}
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      style={{
+        flex: '0 0 auto',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 22,
+        height: 22,
+        border: 0,
+        padding: 0,
+        borderRadius: 5,
+        background: active ? 'color-mix(in srgb, var(--dsw-label, #f0efed) 12%, transparent)' : 'transparent',
+        color: 'inherit',
+        cursor: 'pointer',
+      }}
+    >
+      {children as never}
+    </button>
+  )
+}
 
-function TerminalCard({
+function GearIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M6.455 1.45A.5.5 0 0 1 6.952 1h2.096a.5.5 0 0 1 .497.45l.186 1.858a4.996 4.996 0 0 1 1.466.848l1.703-.769a.5.5 0 0 1 .639.206l1.047 1.814a.5.5 0 0 1-.14.656l-1.517 1.09a5.026 5.026 0 0 1 0 1.694l1.516 1.09a.5.5 0 0 1 .141.656l-1.047 1.814a.5.5 0 0 1-.639.206l-1.703-.768c-.433.36-.928.649-1.466.847l-.186 1.858a.5.5 0 0 1-.497.45H6.952a.5.5 0 0 1-.497-.45l-.186-1.858a4.993 4.993 0 0 1-1.466-.848l-1.703.769a.5.5 0 0 1-.639-.206l-1.047-1.814a.5.5 0 0 1 .14-.656l1.517-1.09a5.033 5.026 0 0 1 0-1.694l-1.516-1.09a.5.5 0 0 1-.141-.656L2.46 3.593a.5.5 0 0 1 .639-.206l1.703.769c.433-.36.928-.65 1.466-.848l.186-1.858Zm-.177 7.567-.022-.037a2 2 0 0 1 3.466-1.997l.022.037a2 2 0 0 1-3.466 1.997Z"
+      />
+    </svg>
+  )
+}
+
+function ExpandIcon({ shrink }: { shrink?: boolean }) {
+  return shrink ? (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M6.2 9.8 2.5 13.5M9.8 6.2l3.7-3.7M2.5 13.5h3.2M2.5 13.5v-3.2M13.5 2.5h-3.2M13.5 2.5v3.2"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ) : (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M9.5 6.5 13.5 2.5M13.5 2.5h-3.2M13.5 2.5v3.2M6.5 9.5 2.5 13.5M2.5 13.5h3.2M2.5 13.5v-3.2"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/** 放大放映：不搬 DOM、不重建子树，只把当前块用 fixed 提升到全屏。
+   xterm 是命令式操作真实 DOM 的，搬动或重建都会丢节点，所以只改样式。
+   同时临时解开沿途祖先的 overflow/position（否则会被编辑器容器裁掉）。 */
+/** 放大：把块的真实 DOM 节点搬到 document.body 顶层，并铺满视口。
+   为什么必须搬到 body：
+     宿主把界面切成多层容器，各层常带 position:relative / z-index，
+     会形成各自的层叠上下文（例如检查器的 .app-side-bar-head 是 relative+z-index:3）。
+     节点留在原容器里时，z-index 再大也只在那个上下文内生效，
+     压不住其它分支里的 UI（顶部 tab 栏就压不住）。
+     挂到 body 顶层才能真正浮在一切之上。
+   为什么不重建 React 子树 / 用 Portal：xterm 命令式持有真实 DOM，
+   重建会让它画在脱离文档的节点上（实测黑屏）。
+   还原靠原位置留下的注释锚点。 */
+function useZoom() {
+  const [zoomed, setZoomed] = React.useState(false)
+  const slotRef = React.useRef<HTMLElement | null>(null)
+  const markRef = React.useRef<Comment | null>(null)
+  const nativeOffRef = React.useRef<(() => void) | null>(null)
+
+  const stopRef = React.useRef<() => void>(() => {})
+
+  const stop = React.useCallback(() => {
+    const slot = slotRef.current
+    const mark = markRef.current
+    if (slot && mark && mark.parentNode) {
+      mark.parentNode.insertBefore(slot, mark)
+      mark.remove()
+    }
+    markRef.current = null
+    nativeOffRef.current?.()
+    nativeOffRef.current = null
+    relockAncestors()
+    setZoomed(false)
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')))
+  }, [])
+  stopRef.current = stop
+
+  const start = React.useCallback(() => {
+    const slot = slotRef.current
+    if (!slot || markRef.current) return
+    // 原位留注释锚点，退出时据此还原。
+    const mark = document.createComment('page-terminal-zoom-anchor')
+    slot.parentNode?.insertBefore(mark, slot)
+    markRef.current = mark
+    unlockAncestors(mark)
+    document.body.appendChild(slot)
+    setZoomed(true)
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')))
+    // 节点被搬走后，React 的合成事件委托链会断，onClick 不再触发。
+    // 补一个原生监听，保证放大后还能点按钮退出。
+    window.setTimeout(() => {
+      const btn = slot.querySelector('[data-zoom-exit]') as HTMLElement | null
+      if (!btn) return
+      const handler = (event: Event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        stopRef.current()
+      }
+      btn.addEventListener('click', handler, true)
+      nativeOffRef.current = () => btn.removeEventListener('click', handler, true)
+    }, 0)
+  }, [])
+
+  // Esc 退出。用原生 keydown，捕获阶段优先。
+  React.useEffect(() => {
+    if (!zoomed) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      stop()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [zoomed, stop])
+
+  // 卸载兜底还原。
+  React.useEffect(() => () => relockAncestors(), [])
+
+  return { zoomed, start, stop, slotRef }
+}
+
+/** 终端设置：小悬浮窗，贴标题栏齿轮，点窗外关闭。 */
+function SettingsPanel({ onClose }: { onClose: () => void }) {
+  const React2 = React
+  const box = React2.useRef<HTMLDivElement | null>(null)
+  const [state, setState] = React2.useState<{
+    loading: boolean
+    error?: string
+    settings?: Record<string, number>
+    limits?: Record<string, { min: number; max: number }>
+    sessions?: number
+  }>({ loading: true })
+
+  React2.useEffect(() => {
+    let cancelled = false
+    fetch('/api/page-terminal/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setState({ loading: false, settings: data.settings, limits: data.limits, sessions: data.sessions })
+      })
+      .catch((err) => {
+        if (!cancelled) setState({ loading: false, error: String(err) })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  React2.useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [onClose])
+
+  const patch = (key: string, value: number) => {
+    setState((cur) => ({ ...cur, settings: { ...(cur.settings ?? {}), [key]: value } }))
+    fetch('/api/page-terminal/settings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ [key]: value }),
+    })
+      .then((res) => res.json())
+      .then((data) => setState((cur) => ({ ...cur, settings: data.settings, sessions: data.sessions })))
+      .catch(() => {
+        // 忽略：下次打开会重读。
+      })
+  }
+
+  const row = (key: string, label: string, hint: string) => {
+    const value = state.settings?.[key]
+    const limit = state.limits?.[key]
+    return (
+      <label
+        key={key}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr auto',
+          gap: '2px 10px',
+          padding: '8px 0',
+          borderTop: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
+        }}
+      >
+        <span style={{ color: 'var(--dsw-label, #f0efed)', fontWeight: 600 }}>{label}</span>
+        <input
+          type="number"
+          value={value ?? ''}
+          min={limit?.min}
+          max={limit?.max}
+          disabled={state.loading}
+          onChange={(event) => patch(key, Number(event.target.value))}
+          style={{
+            width: 64,
+            height: 26,
+            border: 0,
+            borderRadius: 7,
+            padding: '0 8px',
+            background: 'var(--dsw-hover, rgba(242,241,237,0.08))',
+            color: 'var(--dsw-label, #f0efed)',
+            font: 'inherit',
+            textAlign: 'right',
+            outline: 'none',
+          }}
+        />
+        <span style={{ gridColumn: '1 / -1', color: 'var(--dsw-label-3, rgba(242,241,237,0.45))', fontSize: 11, lineHeight: 1.4 }}>
+          {hint}
+          {limit ? ` · ${limit.min}–${limit.max}` : ''}
+        </span>
+      </label>
+    )
+  }
+
+  return (
+    <div
+      ref={box}
+      role="dialog"
+      aria-label="终端设置"
+      style={{
+        position: 'absolute',
+        top: 'calc(100% + 6px)',
+        right: 0,
+        zIndex: 40,
+        width: 268,
+        padding: '10px 12px 8px',
+        border: '1px solid var(--dsw-border, rgba(242,241,237,0.12))',
+        borderRadius: 10,
+        background: 'color-mix(in srgb, var(--dsw-sidebar, #222220) 92%, #111)',
+        boxShadow: '0 12px 32px rgba(0,0,0,0.42)',
+        color: 'var(--dsw-label-2, rgba(242,241,237,0.72))',
+        font: '12px ui-sans-serif, system-ui, sans-serif',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '2px 0 8px' }}>
+        <span style={{ color: 'var(--dsw-label, #f0efed)', fontWeight: 600, fontSize: 13 }}>设置</span>
+        {typeof state.sessions === 'number' ? (
+          <span style={{ color: 'var(--dsw-label-3, rgba(242,241,237,0.45))' }}>{state.sessions} 个后台会话</span>
+        ) : null}
+      </div>
+      {state.error ? (
+        <div style={{ padding: '6px 0', color: '#ff6369' }}>读取失败：{state.error}</div>
+      ) : (
+        <>
+          {row('maxSessions', '后台保留', '关掉页面后仍留着的会话，超出按最久未用淘汰')}
+          {row('bufferKB', '回放缓冲 KB', '每个会话缓存的输出，重连时回放')}
+          {row('replayLines', '回放行数', '重连时最多回放多少行')}
+        </>
+      )}
+    </div>
+  )
+}
+
+function PageTerminal({
   data,
   update,
   writable,
@@ -771,159 +852,115 @@ function TerminalCard({
   update: (patch: Record<string, unknown>) => void
   writable: boolean
 }) {
-  const cwd = String(data.cwd ?? '~/demo')
-  const prompt = String(data.prompt ?? '$')
-  const mysql = parseMysqlProfile(data.mysql)
-  const sample = parseLines(data.lines)
-  const [zoom, setZoom] = useState(false)
-  const [hover, setHover] = useState(false)
-  const height = blockHeight(data)
-  const hostRef = useRef<HTMLDivElement | null>(null)
-  const [overlayEl, setOverlayEl] = useState<HTMLElement | null>(null)
-  // SQL 模式与连接参数放在块层：放大/还原重建 surface 时不会丢
-  const [sqlOpen, setSqlOpen] = useState(false)
-  const connRef = useRef<MysqlProfile>({ ...parseMysqlProfile(data.mysql) })
-
-  // 会话名 = 块 id（挂在 NodeViewWrapper 的 data-page-block-id 上）：
-  // 刷新/切页接回同一条 shell；agent 用同一个名字也能接上。
-  const [blockId, setBlockId] = useState('')
+  const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const settingsWrap = React.useRef<HTMLDivElement | null>(null)
+  const zoom = useZoom()
+  const sessionKey = typeof data.sid === 'string' && data.sid ? data.sid : ''
   useEffect(() => {
-    const host = hostRef.current
-    const host2 = host?.closest('[data-page-block-id]')
-    setBlockId(host2?.getAttribute('data-page-block-id') ?? '')
-  }, [])
-  const shellName = `page:${blockId || 'terminal'}`
+    if (sessionKey || !writable) return
+    const sid = `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    update({ sid })
+  }, [sessionKey, writable, update])
 
-  const savedKey = JSON.stringify(data.session ?? null)
-  const sessionRef = useRef<TerminalSession | null>(null)
-  if (!sessionRef.current) {
-    const restored = parseSession(data.session)
-    restored.cwd = restored.cwd || cwd
-    if (!restored.seeded) {
-      restored.seeded = true
-      if (!restored.history.length && sample.length) {
-        restored.history = sample.map((text) => ({ kind: 'out' as const, text }))
-      }
+  React.useEffect(() => {
+    if (!settingsOpen) return
+    const onDown = (event: MouseEvent) => {
+      const node = settingsWrap.current
+      if (!node) return
+      if (event.target instanceof Node && node.contains(event.target)) return
+      setSettingsOpen(false)
     }
-    sessionRef.current = restored
-  }
-  const session = sessionRef.current
-  const timer = useRef<number | undefined>(undefined)
-  const savedRef = useRef(savedKey)
-  const dataRef = useRef(data)
-  dataRef.current = data
-  const [nonce, setNonce] = useState(0)
+    window.addEventListener('mousedown', onDown)
+    return () => window.removeEventListener('mousedown', onDown)
+  }, [settingsOpen])
 
-  const pack = () => packSession(stripDraft({ ...session, cwd: session.cwd || cwd }))
+  const height = typeof data.height === 'number' && data.height > 0 ? Math.min(900, data.height) : DEFAULTS.height
 
-  const flush = (delay = 350) => {
-    if (!writable) return
-    window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => {
-      const packed = pack()
-      if (sameSession(packed, packSession(parseSession(dataRef.current.session)))) return
-      update({ session: packed })
-    }, delay)
-  }
+  // 历史存在块数据里，agent 读页面 markdown 即可看到用户跑过什么。
+  const history: HistoryEntry[] = Array.isArray(data.history)
+    ? (data.history as unknown[])
+        .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+        .map((item) => ({
+          cmd: String(item.cmd ?? ''),
+          at: Number(item.at) || 0,
+          ...(typeof item.out === 'string' && item.out ? { out: item.out } : {}),
+        }))
+        .filter((item) => item.cmd)
+    : []
 
-  useEffect(() => {
-    if (!writable) return
-    const packed = pack()
-    if (sameSession(packed, packSession(parseSession(dataRef.current.session)))) return
-    update({ session: packed })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
-    if (savedKey === savedRef.current) return
-    savedRef.current = savedKey
-    const next = parseSession(data.session)
-    next.cwd = next.cwd || cwd
-    if (!next.seeded) next.seeded = true
-    sessionRef.current = next
-    setNonce((n) => n + 1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedKey])
-
-  useEffect(
-    () => () => {
-      window.clearTimeout(timer.current)
-      if (!writable) return
-      const packed = pack()
-      if (!sameSession(packed, packSession(parseSession(dataRef.current.session)))) update({ session: packed })
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  )
-
-  useEffect(() => {
-    if (!zoom) {
-      setOverlayEl(null)
-      return
-    }
-    const host = hostRef.current
-    if (host) unlockAncestors(host)
-    const el = makeOverlay('page-terminal-zoom-host', INK)
-    setOverlayEl(el)
-    const stop = watchZoom(() => setZoom(false), el)
-    return () => {
-      stop()
-      el.remove()
-      relockAncestors()
-      setOverlayEl(null)
-    }
-  }, [zoom])
-
-  const surface = (zoomed: boolean) => (
-    <TerminalSurface
-      key={zoomed ? 'zoom' : 'card'}
-      cwd={session.cwd || cwd}
-      prompt={prompt}
-      sample={sample}
-      session={session}
-      shellName={shellName}
-      mysql={mysql}
-      sqlOpen={sqlOpen}
-      setSqlOpen={setSqlOpen}
-      connRef={connRef}
-      zoomed={zoomed}
-      onZoom={() => setZoom(true)}
-      onClose={() => setZoom(false)}
-      onChange={() => {
-        setNonce((n) => n + 1)
-        flush()
+  const body = (
+    <section
+      ref={(el: HTMLElement | null) => {
+        zoom.slotRef.current = el
       }}
-      onPersist={() => flush(900)}
-    />
+      data-testid="page-terminal"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        ...(zoom.zoomed
+          ? {
+              position: 'fixed',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              zIndex: 2147483647,
+            }
+          : {}),
+        border: zoom.zoomed ? 'none' : '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
+        borderRadius: zoom.zoomed ? 0 : 8,
+        overflow: 'hidden',
+        background: '#191919',
+      }}
+    >
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          height: 30,
+          padding: '0 8px 0 10px',
+          borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
+          background: 'color-mix(in srgb, var(--dsw-label, #f0efed) 4%, transparent)',
+          color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
+          font: '11px ui-sans-serif, system-ui, sans-serif',
+          userSelect: 'none',
+        }}
+      >
+        <span style={{ flex: '0 0 auto', color: 'var(--dsw-label-2, rgba(242,241,237,0.72))' }}>终端</span>
+        <span style={{ flex: 1 }} />
+        <div ref={settingsWrap} style={{ position: 'relative', flex: '0 0 auto' }}>
+          <IconButton label="设置" active={settingsOpen} onClick={() => setSettingsOpen((v) => !v)}>
+            <GearIcon />
+          </IconButton>
+          {settingsOpen ? <SettingsPanel onClose={() => setSettingsOpen(false)} /> : null}
+        </div>
+        <IconButton
+          label={zoom.zoomed ? '退出全屏' : '全屏放大'}
+          active={zoom.zoomed}
+          dataZoomExit
+          onClick={() => (zoom.zoomed ? zoom.stop() : zoom.start())}
+        >
+          <ExpandIcon shrink={zoom.zoomed} />
+        </IconButton>
+      </header>
+      <HistoryPanel
+        history={history}
+        writable={writable}
+        onClear={() => update({ history: [] })}
+      />
+      {sessionKey ? (
+        <TerminalSurface
+          height={height}
+          history={history}
+          onHistory={(next) => update({ history: next })}
+          sessionKey={sessionKey}
+          fill={zoom.zoomed}
+        />
+      ) : null}
+    </section>
   )
 
-  return (
-    <div
-      ref={hostRef}
-      data-testid="page-terminal"
-      style={{ position: 'relative', width: '100%', height, display: 'flex' }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      {surface(false)}
-      {hover && !writable ? (
-        <span
-          data-biu-ignore
-          style={{
-            position: 'absolute',
-            right: 10,
-            bottom: 4,
-            fontFamily: MONO,
-            fontSize: 10,
-            color: 'rgba(201,209,217,.4)',
-          }}
-        >
-          help · 真 shell · mysql
-        </span>
-      ) : null}
-      {overlayEl ? createPortal(surface(true), overlayEl) : null}
-    </div>
-  )
+  return body
 }
 
 export function apply(ctx: {
@@ -936,7 +973,7 @@ export function apply(ctx: {
       blockTypeLabel?: string
       hint?: string
       aliases?: string[]
-      defaults?: Record<string, unknown> | (() => Record<string, unknown>)
+      defaults?: Record<string, unknown>
       View: (props: {
         data: Record<string, unknown>
         update: (patch: Record<string, unknown>) => void
@@ -951,9 +988,9 @@ export function apply(ctx: {
     label: '终端',
     blockType: 'terminal',
     blockTypeLabel: '终端',
-    hint: '真 shell 终端卡片（/bin/sh，与 agent 共用同一条会话）；右上角可放大到全屏',
-    aliases: ['terminal', 'shell', '终端', '命令行', 'console', 'cmd', 'bash', 'sh'],
-    defaults: () => ({ ...SAMPLE, mysql: { ...MYSQL_DEFAULT } }),
-    View: TerminalCard,
+    hint: '可交互的真实终端，每块一个独立 shell',
+    aliases: ['terminal', 'term', 'shell', '终端', '命令行'],
+    defaults: DEFAULTS,
+    View: PageTerminal,
   })
 }

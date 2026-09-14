@@ -87,16 +87,25 @@ export function raiseOverlay(el: HTMLElement) {
 
 /** 放大期间：吃掉 Esc（留给插件自己关），并保证覆盖层始终是 body 的最后一个孩子。 */
 export function watchZoom(onEscape: () => void, overlay: HTMLElement) {
+  // 关掉之后不要再把 overlay 提上来，否则 MutationObserver 会在 remove() 之后
+  // 又把它 append 回 body，导致退出全屏关不掉。
+  let closed = false
   const onKey = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return
     event.preventDefault()
     event.stopPropagation()
+    if (closed) return
+    closed = true
     onEscape()
   }
-  const observer = new MutationObserver(() => raiseOverlay(overlay))
+  const observer = new MutationObserver(() => {
+    if (closed || !overlay.isConnected) return
+    raiseOverlay(overlay)
+  })
   window.addEventListener('keydown', onKey, true)
   observer.observe(document.body, { childList: true })
   return () => {
+    closed = true
     window.removeEventListener('keydown', onKey, true)
     observer.disconnect()
   }

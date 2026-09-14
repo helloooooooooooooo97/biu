@@ -31,6 +31,18 @@ test.skipIf(process.platform === 'win32')('timeout kills pipeline so run does no
   assert.notEqual(result.code, 0)
 })
 
+test.skipIf(process.platform === 'win32')('onStdout sees incremental output', async () => {
+  const ctx = await runtime()
+  const seen: string[] = []
+  const result = await ctx.subprocess.run({
+    argv: subprocess.posixShellArgv('printf a; printf b'),
+    onStdout: (_chunk, acc) => seen.push(acc.stdout),
+  })
+  assert.equal(result.stdout, 'ab')
+  assert.ok(seen.length >= 1)
+  assert.equal(seen.at(-1), 'ab')
+})
+
 test.skipIf(process.platform === 'win32')('abort kills pipeline children', async () => {
   const ctx = await runtime()
   const abort = new AbortController()

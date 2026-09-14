@@ -33,7 +33,7 @@ export type SessionEvent = {
     }
   | { type: 'assistant/chunk'; text: string; channel?: 'reasoning' }
   | { type: 'tool/call'; id: string; name: string; arguments: string }
-  | { type: 'tool/result'; id: string; name: string; ok: boolean; detail: string }
+  | { type: 'tool/result'; id: string; name: string; ok: boolean; detail: string; partial?: boolean }
   | {
       type: 'content/edits'
       turn: number
@@ -65,7 +65,7 @@ export type ChatToolPart = {
   callId: string
   name: string
   arguments: string
-  result?: { ok: boolean; detail: string }
+  result?: { ok: boolean; detail: string; streaming?: boolean }
   step?: number
 }
 
@@ -176,6 +176,7 @@ export function deriveMessages(events: SessionEvent[]): DerivedMessage[] {
           : {}),
       })
     } else if (event.type === 'tool/result') {
+      if (event.partial) continue
       messages.push({ role: 'tool', tool_call_id: event.id, content: event.detail })
     }
   }
@@ -499,7 +500,10 @@ export function projectNodes(events: SessionEvent[]): ChatNode[] {
         r.tools.get(event.id) ??
         r.parts.find((part): part is ChatToolPart => part.kind === 'tool' && part.callId === event.id)
       if (existing) {
-        const next = { ...existing, result: { ok: event.ok, detail: event.detail } }
+        const next = {
+          ...existing,
+          result: { ok: event.ok, detail: event.detail, ...(event.partial ? { streaming: true } : {}) },
+        }
         r.tools.set(event.id, next)
         const idx = r.parts.findIndex((part) => part.kind === 'tool' && part.callId === event.id)
         if (idx >= 0) r.parts[idx] = next
@@ -512,7 +516,7 @@ export function projectNodes(events: SessionEvent[]): ChatNode[] {
           callId: event.id,
           name: event.name,
           arguments: '',
-          result: { ok: event.ok, detail: event.detail },
+          result: { ok: event.ok, detail: event.detail, ...(event.partial ? { streaming: true } : {}) },
           ...(currentStep != null ? { step: currentStep } : {}),
         }
         r.tools.set(event.id, part)

@@ -70,12 +70,24 @@ function stripJumpLine(line: string) {
 
 export function withJumpText(next: string, locus: ContentLocus): ContentLocus {
   const lines = next.split('\n')
-  const i = Math.min(Math.max(1, locus.start_line), Math.max(lines.length, 1)) - 1
-  for (let k = i; k < lines.length; k++) {
-    const text = stripJumpLine(lines[k] ?? '')
-    if (text) return { ...locus, text }
-  }
-  return locus
+  const last = Math.max(lines.length, 1)
+  const a = Math.min(Math.max(1, locus.start_line), last) - 1
+  const b = Math.min(Math.max(a, (locus.end_line ?? locus.start_line) - 1), last - 1)
+  const text = lines
+    .slice(a, b + 1)
+    .map((line) => stripJumpLine(line))
+    .filter(Boolean)
+    .join('\n')
+  return { ...locus, ...(text ? { text } : {}) }
+}
+
+export function changedOffsets(before: string, after: string) {
+  let i = 0
+  const min = Math.min(before.length, after.length)
+  while (i < min && before[i] === after[i]) i += 1
+  let j = 0
+  while (j < min - i && before[before.length - 1 - j] === after[after.length - 1 - j]) j += 1
+  return { start: i, end: after.length - j }
 }
 
 export function locusFromRange(text: string, start: number, end: number): ContentLocus {
@@ -114,13 +126,8 @@ export function mutationLocus(
     return withJumpText(next, { start_line, end_line: start_line + added.split('\n').length - 1 })
   }
   if (command === 'write') {
-    const a = before.split('\n')
-    const b = next.split('\n')
-    const n = Math.max(a.length, b.length, 1)
-    for (let i = 0; i < n; i++) {
-      if ((a[i] ?? '') !== (b[i] ?? '')) return withJumpText(next, { start_line: i + 1, end_line: i + 1 })
-    }
-    return withJumpText(next, { start_line: 1, end_line: 1 })
+    const { start, end } = changedOffsets(before, next)
+    return locusFromRange(next, start, end)
   }
   return null
 }

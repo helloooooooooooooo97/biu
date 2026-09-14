@@ -1091,11 +1091,11 @@ body {
   display: none;
 }
 
-.inspector-crumb-tab.is-crumb-open .inspector-crumb-full .fsdb-crumb:not(:last-child) {
+.inspector-crumb-tab.is-active .inspector-crumb-full .fsdb-crumb:not(:last-child) {
   display: inline-flex;
 }
 
-.inspector-crumb-tab.is-crumb-open .inspector-crumb-full .fsdb-crumb:last-child .fsdb-crumb-sep {
+.inspector-crumb-tab.is-active .inspector-crumb-full .fsdb-crumb:last-child .fsdb-crumb-sep {
   display: inline;
 }
 
@@ -1111,7 +1111,6 @@ body {
   display: inline-flex;
 }
 
-.inspector-crumb-toggle,
 .inspector-crumb-close {
   z-index: 4;
   display: grid;
@@ -1128,8 +1127,6 @@ body {
   cursor: pointer;
 }
 
-.inspector-crumb-toggle:hover,
-.inspector-crumb-toggle.is-open,
 .inspector-crumb-close:hover {
   background: var(--dsw-hover);
   box-shadow: none;

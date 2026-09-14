@@ -1,5 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { Editor } from '@tiptap/core'
 import { pageEditorExtensions } from './kit.ts'
 import { filterSlashItems, SLASH_ITEMS } from './slash.ts'
@@ -8,6 +10,9 @@ test('slash filter matches chinese labels and aliases', () => {
   assert.ok(filterSlashItems('标题').some((item) => item.id === 'h1'))
   assert.ok(filterSlashItems('code').some((item) => item.id === 'code'))
   assert.ok(filterSlashItems('图片').some((item) => item.id === 'image'))
+  const slashSrc = readFileSync(resolve(import.meta.dirname, './slash.ts'), 'utf8')
+  assert.match(slashSrc, /\/api\/db\/file\//)
+  assert.doesNotMatch(slashSrc, /readAsDataURL/)
   assert.ok(filterSlashItems('表格').some((item) => item.id === 'table'))
   assert.ok(filterSlashItems('公式').some((item) => item.id === 'math'))
   assert.ok(filterSlashItems('latex').some((item) => item.id === 'math'))

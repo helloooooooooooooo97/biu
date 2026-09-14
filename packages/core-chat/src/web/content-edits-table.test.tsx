@@ -4,6 +4,7 @@ import { CONTENT_JUMP_EVENT } from '@biu/type-file-system'
 import { ChatNodeList } from './thread.tsx'
 import {
   INSPECTOR_REVEAL_EVENT,
+  addedJumpFromSnapshot,
   compactEqualLines,
   contentEditLabel,
   numberDiffLines,
@@ -46,6 +47,16 @@ describe('contentEditLabel', () => {
   })
 })
 
+describe('addedJumpFromSnapshot', () => {
+  it('covers the whole added markdown, not the first line only', () => {
+    expect(addedJumpFromSnapshot('', '# 标题\n\n第一段\n\n第二段')).toEqual({
+      start_line: 1,
+      end_line: 5,
+      text: '# 标题\n\n第一段\n\n第二段',
+    })
+  })
+})
+
 describe('revealContentEdit', () => {
   it('opens the record in the right inspector and jumps, without navigating the chat route', () => {
     const seen: Array<{ type: string; detail: unknown }> = []
@@ -82,13 +93,13 @@ describe('ContentEditsTable', () => {
     ]
     render(<ChatNodeList nodes={nodes} sessionId="sess-1" onInspect={() => undefined} onFork={() => undefined} />)
     expect(screen.getByTestId('content-edits-table')).toBeTruthy()
-    expect(screen.getByText('本回合文件系统内容的改动')).toBeTruthy()
+    expect(screen.getByText('数据改动')).toBeTruthy()
     expect(screen.getByText('首页')).toBeTruthy()
     expect(screen.queryByLabelText('撤销 首页')).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('hides create rows and only lists content character edits', () => {
+  it('hides create rows and only lists content line edits', () => {
     const nodes: ChatNode[] = [
       { id: 'u-1', kind: 'user', text: '建页' },
       {
@@ -110,10 +121,19 @@ describe('ContentEditsTable', () => {
     expect(screen.getAllByText('−3').length).toBeGreaterThan(0)
   })
 
-  it('lists all five 你好 pages as separate rows and reveals the clicked one in the inspector', () => {
+  it('lists all five 你好 pages as separate rows and reveals the clicked one in the inspector', async () => {
     const seen: unknown[] = []
+    const jumps: unknown[] = []
     const onReveal = (event: Event) => seen.push((event as CustomEvent).detail)
+    const onJump = (event: Event) => jumps.push((event as CustomEvent).detail)
     window.addEventListener(INSPECTOR_REVEAL_EVENT, onReveal)
+    window.addEventListener(CONTENT_JUMP_EVENT, onJump)
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+      if (String(input).includes('/api/content-turns/file')) {
+        return { ok: true, json: async () => ({ before: '', after: '你好\n' }) }
+      }
+      return { ok: true, json: async () => ({}) }
+    })
     const href = window.location.href
     const nodes: ChatNode[] = [
       { id: 'u-1', kind: 'user', text: '五页都写你好' },
@@ -134,7 +154,13 @@ describe('ContentEditsTable', () => {
     fireEvent.click(screen.getByText('你好 · p4'))
     expect(window.location.href).toBe(href)
     expect(seen).toEqual([{ collection: '/pages', recordId: 'p4', unique: true }])
+    await waitFor(() =>
+      expect(jumps).toEqual([
+        { path: '/pages/p4', start_line: 1, end_line: 1, navigate: true, text: '你好\n' },
+      ]),
+    )
     window.removeEventListener(INSPECTOR_REVEAL_EVENT, onReveal)
+    window.removeEventListener(CONTENT_JUMP_EVENT, onJump)
   })
 
   it('loads a file diff from content-turns when the row chevron is opened', async () => {

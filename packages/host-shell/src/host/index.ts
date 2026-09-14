@@ -17,7 +17,15 @@ export class ShellService extends Service {
   constructor(ctx: Context) {
     super(ctx, 'shell')
     this.runner = (command, signal) =>
-      ctx.subprocess.run({ argv: posixShellArgv(command), timeoutMs: 15_000 }, signal)
+      ctx.subprocess.run(
+        {
+          argv: posixShellArgv(command),
+          timeoutMs: 15_000,
+          onStdout: (_chunk, acc) => ctx.tools.report({ code: null, stdout: acc.stdout, stderr: acc.stderr }),
+          onStderr: (_chunk, acc) => ctx.tools.report({ code: null, stdout: acc.stdout, stderr: acc.stderr }),
+        },
+        signal,
+      )
   }
 
   setRunner(runner: ShellRunner) {

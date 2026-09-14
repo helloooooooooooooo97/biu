@@ -112,6 +112,20 @@ test('chip caption keeps line span off the truncated preview', () => {
   assert.match(chipLabel(ref), /\(1-12\)$/)
 })
 
+test('html pick chip uses the inner node label, not the page title', () => {
+  assert.equal(
+    chipLabel({
+      kind: 'html',
+      id: 'html:0-d981a47f:0/0/2',
+      label: '从民歌运动到流媒体时代 · 半世纪的声音地图',
+      route: '/p/p002',
+      title: '华语流行简史',
+      path: '/pages/p002',
+    }),
+    '从民歌运动到流媒体时代 · 半世纪的声音地图',
+  )
+})
+
 test('chip label puts line span in parentheses after the name', () => {
   assert.equal(
     chipLabel({
@@ -581,10 +595,34 @@ test('html surface pick carries page path and markdown lines like a block', () =
   assert.equal(hit.ref.text, ':::html\n<div>静态富排版</div>\n:::')
   assert.equal(hit.ref.selection, '静态富排版，不跑脚本')
   assert.equal(hit.ref.plugin, 'page-html-blocks')
+  assert.match(hit.ref.element ?? '', /静态富排版，不跑脚本/)
+  assert.doesNotMatch(hit.ref.element ?? '', /data-biu-kind/)
   const packed = formatPicks([hit.ref])
   assert.match(packed, /"plugin":"page-html-blocks"/)
   assert.match(packed, /"path":"\/pages\/p002"/)
   assert.match(packed, /"start_line":14/)
+  assert.match(packed, /"element":/)
   bindEditorTextHost(root, null)
+  root.remove()
+})
+
+test('html block pick names the inner node even when the host is the plugin shell', () => {
+  const root = document.createElement('div')
+  root.className = 'tiptap'
+  const block = document.createElement('div')
+  block.className = 'page-block'
+  block.setAttribute('data-page-block', 'html')
+  block.setAttribute('data-biu-kind', 'plugin')
+  block.setAttribute('data-biu-id', 'page-html-blocks:html')
+  block.setAttribute('data-biu-label', 'HTML')
+  const title = document.createElement('div')
+  title.textContent = '达米恩·查泽雷'
+  block.append(title)
+  root.append(block)
+  document.body.append(root)
+  const hit = resolvePickFromNode(title, '/pages/p1')
+  assert.ok(hit)
+  assert.match(hit.ref.element ?? '', /达米恩·查泽雷/)
+  assert.doesNotMatch(hit.ref.element ?? '', /data-biu-kind="plugin"/)
   root.remove()
 })

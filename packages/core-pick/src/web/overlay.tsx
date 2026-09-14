@@ -1,9 +1,7 @@
 import { useEffect } from 'react'
 import type { SlotProps } from '@biu/type-slots'
 import { getPick, usePickState } from './service.ts'
-import { editorHostFromNode } from './editor-host.ts'
 import { boxFromPoints, pickSurfaceAtPoint, resolvePickAtPoint, resolvePicksInRect, visiblePickBox } from './resolve.ts'
-import { textPickFromPlain, textPickFromSelection, withHostSource, withPickLocus } from './types.ts'
 
 const DRAG_PX = 6
 
@@ -76,30 +74,14 @@ export function PickOverlay(_props: SlotProps) {
       const started = drag
       drag = null
       if (!pick.picking) return
-      const snippet = textPickFromSelection(route())
-      if (snippet) {
-        pick.add(snippet)
-        window.getSelection()?.removeAllRanges()
-        return
-      }
-      if (started.editor) {
-        const node =
-          (event.target instanceof Node ? event.target : null) ??
-          (typeof document !== 'undefined' ? document.activeElement : null)
-        const host = editorHostFromNode(node)
-        const locus = host?.locusFromSelection()
-        const raw = locus?.selection?.trim()
-        if (raw) {
-          const base = textPickFromPlain(route(), raw)
-          if (base) pick.add(withPickLocus(withHostSource(base, node), locus))
-          window.getSelection()?.removeAllRanges()
-          return
-        }
-        if (started.boxed) return
-      }
       if (started.boxed) {
-        const box = boxFromPoints(started.x, started.y, event.clientX, event.clientY)
-        pick.addMany(resolvePicksInRect(box, route(), pickSurfaceAtPoint(started.x, started.y) ?? document).map((hit) => hit.ref))
+        pick.addMany(
+          resolvePicksInRect(
+            boxFromPoints(started.x, started.y, event.clientX, event.clientY),
+            route(),
+            pickSurfaceAtPoint(started.x, started.y) ?? document,
+          ).map((hit) => hit.ref),
+        )
         return
       }
       const hit = resolvePickAtPoint(event.clientX, event.clientY, route())

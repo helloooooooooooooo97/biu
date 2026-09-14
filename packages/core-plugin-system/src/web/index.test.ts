@@ -51,6 +51,16 @@ test('plugin system web declares extras so store plugins can mount windows', asy
   assert.match(readFileSync(resolve(import.meta.dirname, './index.tsx'), 'utf8'), /listenEnablePageBlockPlugin/)
 })
 
+test('plugin extras keep windows mounted when minimized', async () => {
+  const { readFileSync } = await import('node:fs')
+  const { resolve } = await import('node:path')
+  const src = readFileSync(resolve(import.meta.dirname, './index.tsx'), 'utf8')
+  assert.doesNotMatch(src, /if \(minimized\[entry\.id\]\) return null/)
+  assert.match(src, /minimized=\{isMin\}/)
+  assert.match(src, /visibility: 'hidden'/)
+  assert.match(src, /data-minimized/)
+})
+
 test('plugin system web passes name/tags/action chrome into databaseUi', async () => {
   const ctx = new Context()
   await ctx.plugin(slots)
@@ -125,7 +135,7 @@ test('plugin window hover controls sit on the right without a title bar', async 
   assert.match(src, /size-8/)
   assert.match(src, /data-controls-place/)
   assert.match(src, /inside/)
-  assert.match(src, /fullscreen \? undefined : openControls/)
+  assert.match(src, /fullscreen \|\| minimized \? undefined : openControls/)
   assert.match(src, /width: '100vw'/)
   assert.match(src, /height: '100vh'/)
   assert.doesNotMatch(src, /100vw - 32px/)

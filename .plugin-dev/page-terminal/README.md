@@ -1,72 +1,85 @@
-# 终端（page-terminal）
+# 页面终端
 
-在页面里用 `/` 插入一个 **终端卡片**：**真 shell**（宿主侧 `/bin/sh`），输入命令、实时看输出，右上角可以**全屏放大**（Esc 退出）。无头插件，不占运行窗口。
+在页面里用 `/` 插入**真实可交互的终端块**。每个块拥有独立 PTY 会话，会自动适配块尺寸；页面卸载时会话仍保留，插件停用时才统一关闭。无头插件，不占运行窗口。
 
-> 这是真 shell，不是模拟：内核能力在 `packages/host-terminal`，页面按块 id 命名会话，
-> **和 agent 的 `terminal_write` 是同一条会话**（agent 敲的你能看见，你敲的 agent 读得到）。
-> `mysql` 另走一条独立通道（`/api/page-terminal/mysql`，客户端 batch 模式）。
->
-> ⚠️ 这条 shell **不受沙箱约束**，等价于你自己开一个终端。边界在「谁能访问这个 HTTP API」，不在 shell 本身。
-> 当前 API 无鉴权，风险清单见工作区页面「host-termal 与安全边界」。
-
-## 能力与限制
-
-- **L2 真 shell，无 tty**：`cd` / 环境变量 / 管道 / `&&` / `mysql -p` 提示都能用。
-  但 `vim`/`top`/`less` 这类全屏程序不可用（无 tty），`sudo` 拿不到密码提示，
-  程序输出会块缓冲（想看实时用 `python3 -u`）。
-- **会话活着**：shell 进程挂在 host 里，刷新页面 / 切页 / 关块都不杀；host 重启才没。
-- **命名 = 块 id**：会话名是 `page:<blockId>`。agent 用同一个名字 `terminal_open({name:"page:xxx"})`
-  就能接上同一条 shell。
-- **页面输入**：沿用卡片底部的输入行。Enter 发送；`clear` 只清屏；`help` 看用法。
-  按键在输入框上以 capture 阶段原生处理，ProseMirror 不会抢（否则退格会删块、光标会跳出）。
-- **孤儿会话**：删块不会自动 kill 会话（避免复制粘贴误杀）。用
-  `curl /api/page-terminal/shell` 看活着的会话，或 `terminal_close`。
-
-## 设计要点
-
-- 卡片自带标题栏：左侧写「Terminal」，右侧 `clear`（清屏）和 `⤢`（放大）。
-- 放大 = 真全屏：覆盖层直接挂到 `document.body`（`position: fixed; inset: 0`，最高 z-index），并临时把沿途祖先的 `overflow` 放开，所以不会像 HTML 块那样被编辑区裁掉。Esc 或再点 ⤢ 退出，退出后祖先样式原样还原。
-- 放大前后**会话不丢**：输入过的命令、输出都在。
-- **命令记录存在块详情里**：写在块 `data.session.history`（不是浏览器 localStorage），刷新、换设备、导出 markdown 后在。围栏字段 `cwd` / `prompt` / `lines` 只当开场白，首次挂载灌一次，之后以 `session` 为准。正在输入、还没回车的那半截命令**不落盘**。
-- 输入行永远在最底部，Enter 执行；`help` 看命令表，`demo` 看引导。
-- 高度写在围栏头 `height=`（默认 320，最小 120），超出滚动。
-
-## mysql（真连数据库）
-
-- `mysql` → 进 SQL 模式，之后每行 SQL 以 `;` 结束执行，`exit` / `\q` 退出。
-- `mysql -e "SHOW DATABASES;"` → 直接执行一条 SQL。
-- `mysql ping` / `mysql dbs` / `mysql tables [库]` / `mysql use <库>` / `mysql status`。
-- `mysql -h 主机 -P 端口 -u 用户 -p密码 -D 库` → 覆盖连接参数（可只给一部分），只对本次会话有效，不写回文档。
-- 想在真 shell 里直接用 `mysql -uroot -p` 也行（会真连、真提示），但**没有 tty**，交互式提示可能不显示；批量用 `mysql` 子命令更稳。
-- 默认连接参数来自块详情 `data.mysql`（围栏 JSON 的 `mysql` 字段）。**密码写在围栏里就会进 markdown**，介意的话别写，改用 `-p` 临时给。
-- host 侧边界：只 spawn mysql 客户端（参数走数组，无 shell 拼接），密码走 `MYSQL_PWD` 环境变量不进 ps；挡掉 `\!` / `system` / `source`。写操作（DML/DDL）会真的执行。
-- 客户端位置：`BIU_MYSQL_BIN` 环境变量 > `/opt/homebrew/opt/mysql-client/bin/mysql` > `mysql@8.0` > 系统路径。
-
-## SQL 模式的两个坑（已修，别再踩）
-
-1. **默认凭据没密码 → 每条 SQL 都 1045。** 用裸 `mysql` 进 SQL 模式时，连接参数取块里的
-   `data.mysql`（默认 `root@127.0.0.1:3306` 无密码）。本机 root 若设过密码，你看到的会是
-   `ERROR 1045 Access denied ... (using password: NO)` ——**这是认证失败，不是 SQL 写错**。
-2. **进了 SQL 模式也能换连接。** 直接在 SQL 模式里敲 `mysql -u root -p<密码>`（或 `connect ...`）
-   就换过去了，不需要先 `exit`。旧版会把它当 shell 命令拒掉，属于死路，已改。
-
-失败时终端会按错误类型给提示（1045 / 2003 连不上 / 1043 库不存在 / 1064 语法）。
+改页面或代写块之前，先照下面「示例写法」写 `:::pageBlock` 围栏。
 
 ## 示例写法
 
-围栏头：`kind=terminal plugin=page-terminal`。围栏体是 JSON：`cwd`、`prompt`、`lines`（开场白，数组）、`height`、`mysql`（mysql 连接参数，可选）。
-`data.session.history` 是命令记录（跟文档走），有 200 行 / 4000 字上限。
+围栏头：`kind=terminal plugin=page-terminal`。围栏体是 JSON：`title`（标题，可省）、`height`（终端高度像素，默认 240）。
 
 ```md
 :::pageBlock {kind=terminal plugin=page-terminal}
 {
-  "cwd": "~/demo",
-  "prompt": "$",
-  "lines": ["Welcome to the demo terminal.", "输入 `help` 看命令，`demo` 看引导。"],
-  "height": 340,
-  "mysql": { "host": "127.0.0.1", "port": 3306, "user": "root", "password": "", "database": "" }
+  "title": "终端",
+  "height": 260
 }
 :::
 ```
 
 写入页面用 `db_content` 对应 page 的 markdown，按上面围栏粘贴或替换。斜杠插入时编辑器会补 `id=`；手写围栏可省略 `id`。
+
+## 结构
+
+- `host.ts`：注册 WebSocket 端点 `/ws/page-terminal`，用 node-pty 拉起交互 zsh（补齐 Unix PATH，不用登录壳）；
+维护**会话池**（见下）；转发输入输出与尺寸。
+- `web.tsx`：`pageEditor.registerBlock({ kind: 'terminal' })` 注册块；
+xterm + FitAddon 渲染 + 历史采集 + 历史面板。
+
+## MySQL 批处理 API
+
+宿主保留独立的非交互 MySQL 接口：
+
+- `GET /api/page-terminal/mysql/bin`：检查本机 MySQL 客户端。
+- `POST /api/page-terminal/mysql`：以 batch 模式执行 SQL；请求体为 `{ sql, conn, timeoutMs? }`。
+
+连接密码只通过 `MYSQL_PWD` 子进程环境变量传递，不放进命令行；接口拒绝 `\!`、`system` 和 `source` 等客户端 shell 指令。交互操作仍建议直接在 PTY 中运行 `mysql`。
+
+## 会话池（关页面不丢状态）
+
+前端只是「显示层」，**关掉前端不该杀掉后端进程**。
+
+
+| 操作            | 行为                                         |
+| ------------- | ------------------------------------------ |
+| 刷新 / 切页 / 块卸载 | 连接断开，**进程保留**，可重连                          |
+| 重开页面 / 同一块    | 按 `sid` **连回同一个 shell**（`cd`、`export` 都还在） |
+| 插件停用 / 卸载     | 杀掉全部会话                                     |
+| 超过 50 个会话     | LRU 淘汰最久没被连接的                              |
+
+
+**会话键** `sid` 存在块数据里（`:::pageBlock` 的 JSON 中），跟着 markdown 走，
+所以块在哪个页面、什么时候打开，都能连回它自己的 shell。
+
+**重连回放**：后端为每个会话保留最近 `MAX_BUFFER_BYTES`（512KB）的输出字节，
+重连时先发 `ESC[2J ESC[3J ESC[H` 清屏，再把最近 `MAX_REPLAY_LINES`（200 行）字节重放，
+然后接上实时流。按行截取时会避开残缺的 ANSI 序列。
+
+## 历史记录（写进块数据，供 agent 读）
+
+每次回车算一条命令，记录 `{ cmd, at, out? }`，写回块数据的 `history` 字段：
+
+```json
+"history": [
+  { "cmd": "cd ..", "at": 1789292949505 },
+  { "cmd": "ls",    "at": 1789292950106, "out": "LICENSE\ndocs\n..." }
+]
+```
+
+- 上限 **200 条**；每条输出最多前 **10 行** / 600 字符
+- 采集自 xterm 的 `onData`（纯用户按键，不受提示符格式影响）
+- 输出里会**剔掉泄露进来的下一条提示符**（`isPromptLike` 启发式判断）
+- 历史在 UI 上是**独立面板**（默认折叠），不往 xterm 里塞内容 —— 避免干扰真实 shell 输出
+
+## 实现注意事项（血泪总结，改前必读）
+
+xterm 在编辑器容器里跑，比独立页面麻烦得多：
+
+1. **helper-textarea 不能 `display:none`** —— 那是 xterm 接收键盘输入的节点，隐藏后会失去焦点，**整个终端打不了字**。要用「移出屏幕 + 透明 + 1px」的方式藏。
+2. **不能压 `.xterm-helpers`，也不能 `display:none` 字符测量元素** —— 测量元素住在 `.xterm-helpers` 里，压掉后它量不出字符宽度（width=0），**字间距错乱、光标消失**。
+3. **顶部若出现一行"会自己变的乱码"（`%%%%`/`zzzz`/`vvvv`）** —— 那是字符测量元素里的占位文本显形了。祖先的 `transform` / `backdrop-filter` 会改变定位包含块，让它的 `left:-119988px` 失效。修法：`opacity:0`（**不要** `clip-path: inset(100%)`：Chrome 里 `getBoundingClientRect()` 会变成 0，字格宽度为 0，提示符叠在最左边，历史却还能记到命令）。
+4. **PTY 输出可能是 WebSocket 二进制帧** —— `event.data` 不是 string 时不能丢成 `''`，要按 ArrayBuffer/Blob 解码再 `term.write`。
+5. **PTY 列数必须等于 xterm 列数** —— zsh 的提示符擦行序列宽度依赖列数，不一致会在屏幕上残留一行反显 `%`。要带实测尺寸建连、连发几次 resize、并监听 `term.onResize`。
+6. **不要往 PTY 写清屏序列** —— shell 开着 echo，会被原样回显成 `^[[2J` 乱码。清屏用前端 `term.reset()`。
+7. **向 head 注入 `<style>` 不要写「已存在同 id 就 return」** —— 旧版本留下的同 id 标签会一直挡着，新样式永远不生效。每次覆盖内容，并清理旧标签。
+8. **改完代码要 pack + 重载** —— 宿主不会自动重新 import 已挂载的插件。

@@ -1,6 +1,6 @@
 import type { DbRecord } from '@biu/type-file-system'
 import { recordBuiltinValues } from '@biu/type-file-system'
-import { listPageBlockFences, pageBlockData, pageBlockRecordId, parsePageBlockRecordId } from '@biu/core-editor/host'
+import { listPageBlockFences, pageBlockData, pageBlockRecordId, parsePageBlockRecordId, uniquifyPageBlockMarkdown, defaultPageBlockTitle } from '@biu/core-editor/host'
 import type { PagesStore, PageRow } from './store.ts'
 
 export const PAGE_BLOCK_HOT_WINDOW_MS = 5 * 60 * 1000
@@ -15,19 +15,20 @@ type IndexRow = {
   kind: string
   plugin: string
   title: string
+  page_title: string
   data_json: string
   page_created_at: number
   page_updated_at: number
 }
 
-function blockTitle(kind: string, data: Record<string, unknown>) {
+function blockTitle(pageName: string, kindName: string, data: Record<string, unknown>) {
   if (typeof data.title === 'string' && data.title.trim()) return data.title.trim()
-  if (typeof data.html === 'string' && data.html.trim()) {
-    const text = data.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 48)
-    if (text) return text
-  }
-  if (typeof data.file === 'string' && data.file.trim()) return data.file.replace(/^assets\//, '')
-  return kind
+  return defaultPageBlockTitle(pageName, kindName)
+}
+
+function pageNameFromRecord(rec: { data?: unknown } | null): string {
+  const data = rec?.data && typeof rec.data === 'object' && !Array.isArray(rec.data) ? (rec.data as Record<string, unknown>) : {}
+  return String(data.title ?? data.name ?? data.label ?? '').trim()
 }
 
 function toRecord(row: IndexRow): DbRecord {
@@ -35,6 +36,7 @@ function toRecord(row: IndexRow): DbRecord {
     id: pageBlockRecordId(row.page_id, row.block_id),
     title: row.title,
     pageId: row.page_id,
+    pageTitle: row.page_title || undefined,
     blockId: row.block_id,
     blockKind: row.kind,
     plugin: row.plugin,
@@ -77,6 +79,7 @@ export class PageBlocksIndex {
         kind TEXT NOT NULL,
         plugin TEXT NOT NULL DEFAULT '',
         title TEXT NOT NULL,
+        page_title TEXT NOT NULL DEFAULT '',
         data_json TEXT NOT NULL,
         page_created_at INTEGER NOT NULL DEFAULT 0,
         page_updated_at INTEGER NOT NULL DEFAULT 0,
@@ -92,6 +95,11 @@ export class PageBlocksIndex {
         value TEXT NOT NULL
       );
     `)
+    try {
+      sqlite.exec('ALTER TABLE page_block_index ADD COLUMN page_title TEXT NOT NULL DEFAULT ""')
+    } catch {
+      /* 列已在 */
+    }
     return sqlite
   }
 
@@ -111,32 +119,39 @@ export class PageBlocksIndex {
   }
 
   async reindexPage(page: PageRow) {
+    const unique = uniquifyPageBlockMarkdown(page.notes)
+    const row = unique.changed ? await this.store.update(page.id, { notes: unique.markdown }) : page
     const db = await this.db()
-    const fences = listPageBlockFences(page.notes).filter((item) => item.id)
+    const fences = listPageBlockFences(row.notes).filter((item) => item.id)
     db.exec('BEGIN')
     try {
-      db.prepare('DELETE FROM page_block_index WHERE page_id = ?').run(page.id)
+      db.prepare('DELETE FROM page_block_index WHERE page_id = ?').run(row.id)
       const insert = db.prepare(`
         INSERT INTO page_block_index(
-          page_id, block_id, kind, plugin, title, data_json, page_created_at, page_updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          page_id, block_id, kind, plugin, title, page_title, data_json, page_created_at, page_updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
+      const seen = new Set<string>()
+      const pageTitle = String(row.title ?? '').trim()
       for (const fence of fences) {
+        if (seen.has(fence.id)) continue
+        seen.add(fence.id)
         const data = pageBlockData(fence)
         insert.run(
-          page.id,
+          row.id,
           fence.id,
           fence.kind,
           fence.plugin,
-          blockTitle(fence.kind, data),
+          blockTitle(pageTitle, fence.kind, data),
+          pageTitle,
           JSON.stringify(data),
-          page.createdAt,
-          page.updatedAt,
+          row.createdAt,
+          row.updatedAt,
         )
       }
       db.prepare(
         'INSERT INTO page_block_cover(page_id, page_updated_at) VALUES(?, ?) ON CONFLICT(page_id) DO UPDATE SET page_updated_at=excluded.page_updated_at',
-      ).run(page.id, page.updatedAt)
+      ).run(row.id, row.updatedAt)
       db.exec('COMMIT')
     } catch (error) {
       db.exec('ROLLBACK')
@@ -171,7 +186,12 @@ export class PageBlocksIndex {
     const batch = [...takeHot, ...warm]
     for (const slim of batch) {
       const page = await this.store.get(slim.id)
-      if (page) await this.reindexPage(page)
+      if (!page) continue
+      try {
+        await this.reindexPage(page)
+      } catch {
+        /* 单页索引失败不拖垮 host */
+      }
     }
     await this.writeMeta('last_run_at', String(now))
     await this.writeMeta('last_batch', String(batch.length))

@@ -7,7 +7,11 @@
 
 站点禁止嵌入时，卡片会提示；点工具条跳转或「侧栏打开」，会打开检查器浏览器并继续访问同一地址。没有 Electron 时退回系统浏览器标签。
 
+地址栏不是链接时会按搜索词打开 DuckDuckGo。对话里搜网页用 `web_search`，读某个链接用 `web_fetch`（对齐 Claude / Codex / DSH：搜和读是两个工具）。
+
 ## 示例写法
+
+页面卡片围栏如下。
 
 围栏头：`kind=browser plugin=page-browser`。
 

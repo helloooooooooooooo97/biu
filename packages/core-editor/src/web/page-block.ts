@@ -2,10 +2,12 @@ import { mergeAttributes, Node } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
 import type { Node as PmNode } from '@tiptap/pm/model'
-import { ReplaceStep } from '@tiptap/pm/transform'
 import { PageBlockView } from './page-block-view.tsx'
 import { getPageEditor } from './service.ts'
 import { formatPageBlockFence, parsePageBlockData, parsePageBlockMeta } from './page-block-meta.ts'
+import { createPageBlockId, isPageBlockId } from '../page-block-fence.ts'
+
+export { createPageBlockId, isPageBlockId }
 
 const metaKey = new PluginKey('page-block-meta')
 const uniqueFilesKey = new PluginKey('page-block-unique-files')
@@ -42,29 +44,15 @@ export function duplicateAssetPath(file: string) {
   return `assets/${stem}-copy-${id}${ext}`
 }
 
-export function createPageBlockId() {
-  return crypto.randomUUID().replace(/-/g, '').slice(0, 8)
-}
-
-export function isPageBlockId(raw: unknown) {
-  return typeof raw === 'string' && /^[a-z0-9]{6,32}$/i.test(raw.trim())
-}
-
 function nodePageBlockId(node: PmNode) {
   return isPageBlockId(node.attrs.id) ? String(node.attrs.id).trim() : ''
 }
 
-/** 整篇换文档（打开、离开源码、setContent）时再扫；日常编辑不跟。 */
-function shouldAssignPageBlockIds(transactions: readonly Transaction[], oldDoc: PmNode) {
-  return transactions.some((item) => {
-    if (item.getMeta(assignIdsKey)) return true
-    if (!item.docChanged) return false
-    const size = oldDoc.content.size
-    return item.steps.some((step) => step instanceof ReplaceStep && step.from === 0 && step.to === size)
-  })
+function shouldAssignPageBlockIds(transactions: readonly Transaction[]) {
+  return transactions.some((item) => item.docChanged || item.getMeta(assignIdsKey))
 }
 
-/** 打开旧文档、源码贴完切回、agent 整篇写入时：缺 id / 坏 id / 重复 id 各补一次。 */
+/** 粘贴、插入、整篇写入：缺 id / 坏 id / 重复 id 立刻各补一次。 */
 export function assignPageBlockIds(state: EditorState): Transaction | null {
   const seen = new Set<string>()
   const patch: { pos: number; node: PmNode }[] = []
@@ -232,8 +220,8 @@ export const pageBlock = Node.create({
       }),
       new Plugin({
         key: assignIdsKey,
-        appendTransaction(transactions, oldState, state) {
-          if (!shouldAssignPageBlockIds(transactions, oldState.doc)) return null
+        appendTransaction(transactions, _oldState, state) {
+          if (!shouldAssignPageBlockIds(transactions)) return null
           return assignPageBlockIds(state)
         },
       }),

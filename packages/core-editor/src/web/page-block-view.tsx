@@ -74,7 +74,11 @@ export function PageBlockView({ node, updateAttributes, editor, getPos }: NodeVi
   const pickId = blockId || `${plugin || 'page-block'}:${kind}`
   const pickLabel = spec?.label || kind
   const update = (patch: Record<string, unknown>, opts?: { replace?: boolean }) => {
-    updateAttributes({ data: opts?.replace ? patch : { ...data, ...patch } })
+    const next = opts?.replace ? { ...patch } : { ...data, ...patch }
+    if (!Object.prototype.hasOwnProperty.call(patch, 'title') && typeof data.title === 'string') {
+      next.title = data.title
+    }
+    updateAttributes({ data: next })
   }
   const View = spec?.View
   const hostRef = useRef<HTMLElement | null>(null)
@@ -95,6 +99,9 @@ export function PageBlockView({ node, updateAttributes, editor, getPos }: NodeVi
   const onMouseDown = (event: MouseEvent) => {
     if (!editor.isEditable || editor.isDestroyed) return
     if (event.target instanceof Element && event.target.closest('textarea, input, select, button, a')) return
+    // Pick overlay resolves the inner html node. A node selection here becomes
+    // a markdown fence pick on pointerup and hides that node.
+    if (document.documentElement.classList.contains('pick-mode')) return
     const pos = getPos()
     if (typeof pos !== 'number') return
     editor.chain().setNodeSelection(pos).run()
@@ -112,7 +119,7 @@ export function PageBlockView({ node, updateAttributes, editor, getPos }: NodeVi
       data-biu-kind="plugin"
       data-biu-id={pickId}
       data-biu-label={pickLabel}
-      contentEditable="false"
+      contentEditable={false}
       data-testid={`page-block-${kind}`}
       onMouseDown={onMouseDown}
     >

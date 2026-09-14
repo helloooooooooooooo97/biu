@@ -21,6 +21,8 @@ export type PickRef = {
   insert?: number
   /** 登记这块 UI 的插件 id，改呈现/卡片时对着它 sandbox。 */
   plugin?: string
+  /** HTML 块内被点中的节点 outerHTML（已去掉 pick 戳），text 仍是整块围栏。 */
+  element?: string
 }
 
 export function pickKey(ref: PickRef) {
@@ -51,6 +53,7 @@ export function dedupePicks(refs: PickRef[]): PickRef[] {
       ...(ref.plugin || prev.plugin ? { plugin: ref.plugin || prev.plugin } : {}),
       ...locusFields(ref.start_line != null ? ref : prev),
       ...sourceFields(ref.path ? ref : prev),
+      ...(ref.element || prev.element ? { element: ref.element || prev.element } : {}),
     })
   }
   return [...map.values()]
@@ -75,6 +78,7 @@ function pickPayload(ref: PickRef) {
   if (ref.text) data.text = ref.text
   if (ref.selection) data.selection = ref.selection
   else if (ref.insert != null) data.insert = ref.insert
+  if (ref.element) data.element = ref.element
   return data
 }
 
@@ -125,6 +129,7 @@ function parsePickAttrs(raw: string): PickRef | null {
       selection: selection || undefined,
       insert: !selection && Number.isInteger(insert) && insert >= 0 ? insert : undefined,
     }),
+    ...(attrs.element?.trim() ? { element: attrs.element.trim() } : {}),
   }
 }
 
@@ -215,6 +220,7 @@ export function chipSpanLabel(ref: PickRef) {
 }
 
 function pickChipName(ref: PickRef) {
+  if (ref.kind === 'html' && ref.label?.trim()) return ref.label.trim()
   if (ref.title?.trim()) return ref.title.trim()
   const file = ref.path?.split('/').filter(Boolean).pop() ?? ''
   if (file.includes('.')) return file
@@ -306,6 +312,7 @@ export function pickChipAttrs(ref: PickRef) {
     text: ref.text ?? null,
     selection: ref.selection ?? null,
     insert: ref.insert ?? null,
+    element: ref.element ?? null,
   }
 }
 
@@ -335,6 +342,7 @@ export function pickRefFromAttrs(attrs: Record<string, unknown>): PickRef | null
       selection: selection || undefined,
       insert: !selection && Number.isInteger(insert) && insert >= 0 ? insert : undefined,
     }),
+    ...(typeof attrs.element === 'string' && attrs.element.trim() ? { element: attrs.element.trim() } : {}),
   }
 }
 

@@ -331,6 +331,45 @@ test('ingest keeps reasoning chunks separate from the answer', async () => {
   assert.equal(reply?.kind === 'reply' && reply.parts[1]?.kind, 'assistant')
 })
 
+test('ingest updates live tool/result without duplicating the card', async () => {
+  mockFetch({
+    '/api/sessions': () => ({ sessions: [] }),
+    '/api/approvals': () => ({ mode: 'auto', pending: [] }),
+  })
+  const ctx = new Context()
+  await ctx.plugin(sessionView)
+  const view = ctx.sessionView as SessionViewService
+  view.ingest('s1', { type: 'session/open', version: 1, seq: 0, ts: 1 })
+  view.ingest('s1', { type: 'turn/start', turn: 1, seq: 1, ts: 2 })
+  view.ingest('s1', { type: 'step/start', turn: 1, step: 0, seq: 2, ts: 3 })
+  view.ingest('s1', { type: 'tool/call', id: 'c1', name: 'web_search', arguments: '{"query":"jay"}', seq: 3, ts: 4 })
+  view.ingest('s1', {
+    type: 'tool/result',
+    id: 'c1',
+    name: 'web_search',
+    ok: true,
+    detail: '{"sources":[]}',
+    partial: true,
+    seq: 4,
+    ts: 5,
+  })
+  view.ingest('s1', {
+    type: 'tool/result',
+    id: 'c1',
+    name: 'web_search',
+    ok: true,
+    detail: '{"sources":[{"url":"https://example.com"}]}',
+    partial: true,
+    seq: 4,
+    ts: 6,
+  })
+  const reply = view.get().nodes.find((node) => node.kind === 'reply')
+  assert.equal(reply?.kind === 'reply' && reply.parts.filter((part) => part.kind === 'tool').length, 1)
+  const tool = reply?.kind === 'reply' ? reply.parts.find((part) => part.kind === 'tool') : undefined
+  assert.equal(tool?.kind === 'tool' && tool.result?.streaming, true)
+  assert.match(tool?.kind === 'tool' ? tool.result?.detail ?? '' : '', /example.com/)
+})
+
 test('ingest updates live tool/call arguments without duplicating the card', async () => {
   mockFetch({
     '/api/sessions': () => ({ sessions: [] }),

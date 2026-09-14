@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import { dirname, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Service, type Context, type Plugin } from 'cordis'
@@ -32,6 +33,8 @@ export type StoreListing = {
   lastRunAt: number | null
   hasHost: boolean
   hasWeb: boolean
+  /** 已安装 host.js + web.js 的内容短哈希，与加载 URL 的 v 参数一致。 */
+  codeVersion?: string
   headless?: boolean
   shell?: StoreShell
 }
@@ -46,9 +49,29 @@ type StoreHub = {
 
 const ALLOWED_FILES = new Set(['manifest.json', 'host.js', 'web.js'])
 const README_FILE = 'README.md'
+/** pack 进 .plugin 的可执行代码；版本号按这两个文件一起算。 */
+const PLUGIN_CODE_FILES = ['host.js', 'web.js'] as const
 
-export function storeWebUrl(id: string) {
-  return `/api/plugin-store/files/${encodeURIComponent(id)}/web.js`
+/** 已安装插件代码短版本：host.js 与 web.js 按文件名顺序一起 SHA-1，取前 12 位。 */
+export async function hashInstalledPluginCode(dir: string): Promise<string | undefined> {
+  const hash = createHash('sha1')
+  let any = false
+  for (const name of PLUGIN_CODE_FILES) {
+    const file = join(dir, name)
+    if (!existsSync(file)) continue
+    hash.update(name)
+    hash.update('\0')
+    hash.update(await readFile(file))
+    any = true
+  }
+  return any ? hash.digest('hex').slice(0, 12) : undefined
+}
+
+export function storeWebUrl(id: string, version?: string | number) {
+  const base = `/api/plugin-store/files/${encodeURIComponent(id)}/web.js`
+  // 带上整包代码短哈希（host + web），让前端的「挂载键」随每次重打包变化，
+  // 从而触发真正的卸载 + 重新 import；否则前端会一直用最早加载的模块实例。
+  return version === undefined ? base : `${base}?v=${encodeURIComponent(String(version))}`
 }
 
 export function defaultPluginDir() {
@@ -255,6 +278,7 @@ export class PluginStoreService extends Service {
     const sandboxReadme = join(sandbox, README_FILE)
     if (existsSync(sandboxReadme)) await writeFile(join(dest, README_FILE), await readFile(sandboxReadme))
     else await this.ensureReadme(dest, manifest.name, manifest.blurb)
+    // 运行中才重新挂载（保持原有语义）；停止状态下的重载请用 reload。
     if (this.isEnabled(manifest.id)) await this.mountFromDisk(manifest, dest)
     return { id: manifest.id, sandboxPath: sandbox, pluginPath: dest }
   }
@@ -314,6 +338,7 @@ export class PluginStoreService extends Service {
       const manifest = await readManifest(dir)
       const enabled = this.isEnabled(manifest.id)
       const stats = await pluginDirStats(dir)
+      const codeVersion = await hashInstalledPluginCode(dir)
       items.push({
         ...manifest,
         enabled,
@@ -324,6 +349,7 @@ export class PluginStoreService extends Service {
         lastRunAt: this.state.lastRunAt[manifest.id] ?? null,
         hasHost: stats.hasHost,
         hasWeb: stats.hasWeb,
+        ...(codeVersion ? { codeVersion } : {}),
         ...(manifest.headless ? { headless: true } : { shell: parseStoreShell(manifest.shell) }),
       })
     }
@@ -338,6 +364,20 @@ export class PluginStoreService extends Service {
     const manifest = await readManifest(hit)
     this.setEnabled(manifest.id, true)
     this.touchLastRun(manifest.id)
+    await this.mountFromDisk(manifest, hit)
+    this.invalidateList()
+    return (await this.list()).find((item) => item.id === manifest.id)
+  }
+
+  /**
+   * 重载：重新挂载已安装的插件，让 snapshot 里的 web 入口带上最新内容 hash，
+   * 前端据此 dispose 旧模块并重新 import —— 改完代码即可生效，无需反复 start。
+   */
+  async reload(id: string) {
+    if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
+    const hit = await this.findPluginDir(id)
+    if (!hit) throw new Error(`unknown store plugin: ${id}`)
+    const manifest = await readManifest(hit)
     await this.mountFromDisk(manifest, hit)
     this.invalidateList()
     return (await this.list()).find((item) => item.id === manifest.id)
@@ -438,6 +478,7 @@ export class PluginStoreService extends Service {
     const webFile = join(dir, 'web.js')
     const hostCode = existsSync(hostFile) ? (await readFile(hostFile, 'utf8')).trim() : ''
     const hasWeb = existsSync(webFile)
+    const codeVersion = await hashInstalledPluginCode(dir)
     if (!hostCode && !hasWeb) throw new Error(`plugin ${manifest.id} has neither host nor web`)
     const mod = (hostCode
       ? await importHostFile(hostFile)
@@ -451,7 +492,7 @@ export class PluginStoreService extends Service {
       inject: mod.inject,
       togglable: true,
       enabled: true,
-      web: hasWeb ? storeWebUrl(manifest.id) : undefined,
+      web: hasWeb ? storeWebUrl(manifest.id, codeVersion) : undefined,
       packageName: `store:${manifest.id}`,
     }
     await this.hub().adopt(entry)

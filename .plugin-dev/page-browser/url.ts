@@ -1,5 +1,9 @@
 /** 地址归一化 + 常用站点别名（浏览器卡片用）。 */
 
+export function searchUrl(query: string): string {
+  return `https://duckduckgo.com/?q=${encodeURIComponent(query.trim())}`
+}
+
 export function normalizeUrl(raw: string): string {
   const text = raw.trim()
   if (!text) return ''
@@ -7,7 +11,7 @@ export function normalizeUrl(raw: string): string {
   if (/^[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/.test(text)) return `https://${text}`
   if (/^localhost(:\d+)?(\/\S*)?$/.test(text)) return `http://${text}`
   if (text.startsWith('/')) return text
-  return ''
+  return searchUrl(text)
 }
 
 export const BOOKMARKS: Array<{ label: string; url: string }> = [

@@ -1,4 +1,4 @@
-import { ArchiveBoxArrowDownIcon, PlayIcon, StopIcon } from '@heroicons/react/16/solid'
+import { ArchiveBoxArrowDownIcon, ArrowPathIcon, PlayIcon, StopIcon } from '@heroicons/react/16/solid'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import { asHttpHref } from '@biu/type-file-system'
 import type { CollectionActionInfo, DbRecord } from '@biu/type-file-system'
@@ -67,6 +67,8 @@ function PluginAction({ action, busy, run, className, place }: FsActionProps & {
       <TrashGlyph aria-hidden className="size-[14px]" />
     ) : action.id === 'pack' ? (
       <ArchiveBoxArrowDownIcon aria-hidden className="size-[14px]" />
+    ) : action.id === 'reload' ? (
+      <ArrowPathIcon aria-hidden className="size-[14px]" />
     ) : null
   return (
     <button

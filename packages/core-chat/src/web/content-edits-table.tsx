@@ -1,5 +1,5 @@
 import { memo, useEffect, useState } from 'react'
-import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/16/solid'
+import { ChevronDownIcon, ChevronRightIcon, CircleStackIcon } from '@heroicons/react/16/solid'
 import { CONTENT_JUMP_EVENT } from '@biu/type-file-system'
 import { lineDiff, type DiffLine } from './tool-format.ts'
 
@@ -29,8 +29,32 @@ export function contentEditLabel(file: ContentEditRow, files: ContentEditRow[]) 
   return id ? `${title} · ${id}` : title
 }
 
+function lineAtOffset(text: string, offset: number) {
+  if (offset <= 0) return 1
+  return text.slice(0, offset).split('\n').length
+}
+
+export function addedJumpFromSnapshot(before: string, after: string) {
+  let i = 0
+  const min = Math.min(before.length, after.length)
+  while (i < min && before[i] === after[i]) i += 1
+  let j = 0
+  while (j < min - i && before[before.length - 1 - j] === after[after.length - 1 - j]) j += 1
+  const slice = after.slice(i, after.length - j)
+  const end = Math.max(i, after.length - j)
+  return {
+    start_line: lineAtOffset(after, i),
+    end_line: lineAtOffset(after, end > i ? end - 1 : i),
+    ...(slice.trim() ? { text: slice } : {}),
+  }
+}
+
 /** 右侧检查器打开记录并跳到改动行；不改中间主界面、不关聊天。 */
-export function revealContentEdit(path: string, jumpLine: number) {
+export function revealContentEdit(
+  path: string,
+  jumpLine: number,
+  scope?: { sessionId?: string; turn?: number },
+) {
   const parts = recordParts(path)
   if (parts) {
     window.dispatchEvent(
@@ -39,11 +63,36 @@ export function revealContentEdit(path: string, jumpLine: number) {
       }),
     )
   }
-  window.dispatchEvent(
-    new CustomEvent(CONTENT_JUMP_EVENT, {
-      detail: { path, start_line: jumpLine, end_line: jumpLine, navigate: true },
-    }),
-  )
+  const fire = (extra?: { start_line?: number; end_line?: number; text?: string }) => {
+    window.dispatchEvent(
+      new CustomEvent(CONTENT_JUMP_EVENT, {
+        detail: {
+          path,
+          start_line: extra?.start_line ?? jumpLine,
+          end_line: extra?.end_line ?? extra?.start_line ?? jumpLine,
+          navigate: true,
+          ...(extra?.text ? { text: extra.text } : {}),
+        },
+      }),
+    )
+  }
+  const sessionId = scope?.sessionId?.trim()
+  const turn = scope?.turn
+  if (!sessionId || turn == null) {
+    fire()
+    return
+  }
+  const qs = new URLSearchParams({ session: sessionId, turn: String(turn), path })
+  void fetch(`/api/content-turns/file?${qs}`)
+    .then(async (res) => {
+      if (!res.ok) {
+        fire()
+        return
+      }
+      const body = (await res.json()) as { before?: string; after?: string }
+      fire(addedJumpFromSnapshot(body.before ?? '', body.after ?? ''))
+    })
+    .catch(() => fire())
 }
 
 export type NumberedDiffLine = DiffLine & { oldLine?: number; newLine?: number }
@@ -149,15 +198,14 @@ function FileDiffView({ sessionId, turn, path }: { sessionId: string; turn: numb
     >
       {rows.map((line, index) => {
         if (line.type === 'skip') {
-          const oldRange = line.oldFrom != null && line.oldTo != null ? `${line.oldFrom}–${line.oldTo}` : ''
           return (
-            <div key={`skip-${index}`} className="flex px-2 py-0.5 text-[#7B7B79]">
-              <span className="w-10 shrink-0 text-right tabular-nums">{oldRange}</span>
-              <span className="w-10 shrink-0" />
+            <div key={`skip-${index}`} className="flex px-3 py-0.5 text-[#7B7B79]">
+              <span className="w-7 shrink-0" />
               <span className="min-w-0 flex-1 px-2 text-center">··· 未改 {line.count} 行</span>
             </div>
           )
         }
+        const lineNo = line.type === 'remove' ? line.oldLine : line.newLine
         const prefix = line.type === 'add' ? '+' : line.type === 'remove' ? '−' : ' '
         const rowClass =
           line.type === 'add'
@@ -168,12 +216,11 @@ function FileDiffView({ sessionId, turn, path }: { sessionId: string; turn: numb
         return (
           <div
             key={`${index}-${line.type}`}
-            className={`flex whitespace-pre-wrap break-all px-2 ${rowClass}`}
+            className={`flex whitespace-pre-wrap break-all px-3 ${rowClass}`}
             data-old-line={line.oldLine ?? ''}
             data-new-line={line.newLine ?? ''}
           >
-            <span className="w-10 shrink-0 select-none text-right tabular-nums text-[#7B7B79]">{line.oldLine ?? ''}</span>
-            <span className="w-10 shrink-0 select-none text-right tabular-nums text-[#7B7B79]">{line.newLine ?? ''}</span>
+            <span className="w-7 shrink-0 select-none text-right tabular-nums text-[#7B7B79]">{lineNo ?? ''}</span>
             <span className="w-4 shrink-0 select-none px-1 opacity-70">{prefix}</span>
             <span className="min-w-0 flex-1">{line.text || ' '}</span>
           </div>
@@ -204,7 +251,10 @@ export const ContentEditsTable = memo(function ContentEditsTable({
       data-testid="content-edits-table"
     >
       <div className="flex items-center justify-between gap-2 border-b border-(--dsw-border) px-3 py-2">
-        <div className="text-(length:--dsw-chat-ui-font-size) font-semibold text-(--dsw-label-2)">本回合文件系统内容的改动</div>
+        <div className="flex min-w-0 items-center gap-1.5 text-[12px] font-semibold text-(--dsw-label-2)">
+          <CircleStackIcon className="size-3.5 shrink-0" aria-hidden />
+          数据改动
+        </div>
         <div className="flex items-center gap-2 text-[12px] font-semibold tabular-nums">
           <span className="text-[#448361]">+{added}</span>
           <span className="text-[#c4554d]">−{removed}</span>
@@ -227,23 +277,23 @@ export const ContentEditsTable = memo(function ContentEditsTable({
                 </button>
                 <button
                   type="button"
-                  className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-(--dsw-label) hover:underline"
+                  className="min-w-0 flex-1 truncate text-left text-[12px] font-semibold text-(--dsw-label) hover:underline"
                   title={file.path}
-                  onClick={() => revealContentEdit(file.path, file.jump_line)}
+                  onClick={() => revealContentEdit(file.path, file.jump_line, { sessionId, turn })}
                 >
                   {contentEditLabel(file, visible)}
                 </button>
                 <button
                   type="button"
                   className="text-[12px] font-semibold tabular-nums text-[#448361] hover:underline"
-                  onClick={() => revealContentEdit(file.path, file.jump_line)}
+                  onClick={() => revealContentEdit(file.path, file.jump_line, { sessionId, turn })}
                 >
                   +{file.added}
                 </button>
                 <button
                   type="button"
                   className="text-[12px] font-semibold tabular-nums text-[#c4554d] hover:underline"
-                  onClick={() => revealContentEdit(file.path, file.jump_line)}
+                  onClick={() => revealContentEdit(file.path, file.jump_line, { sessionId, turn })}
                 >
                   −{file.removed}
                 </button>

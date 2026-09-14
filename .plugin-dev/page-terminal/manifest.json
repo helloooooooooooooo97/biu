@@ -1,16 +1,15 @@
 {
   "id": "page-terminal",
-  "name": "终端",
-  "blurb": "在页面里插入真 shell 终端卡片（宿主 /bin/sh，与 agent 共用同一条会话，刷新不丢）；另有 mysql 客户端 batch 模式（ping/dbs/tables/use）。右上角可全屏放大。",
+  "name": "页面终端",
+  "blurb": "在页面里用 / 插入真实交互终端块。每个块一个独立 PTY，会话在后端常驻；同时提供独立的 MySQL batch API。",
   "tags": [
     "page",
     "editor",
     "terminal",
-    "shell",
+    "pty",
     "mysql"
   ],
   "author": "Biu",
-  "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",
   "headless": true,
-  "createdAt": 1789204035676
+  "createdAt": 1789292495394
 }

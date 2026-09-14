@@ -1,0 +1,20 @@
+{
+  "id": "global-terminal",
+  "name": "全局终端",
+  "blurb": "模拟 macOS Terminal 的全局浮动终端窗口。独立 PTY 会话，可交互访问本机目录，支持窗口缩放与全屏。",
+  "tags": [
+    "terminal",
+    "macos",
+    "pty",
+    "window"
+  ],
+  "author": "Biu",
+  "shell": {
+    "width": 880,
+    "height": 560,
+    "minWidth": 520,
+    "minHeight": 320,
+    "resizable": true
+  },
+  "createdAt": 1789290149590
+}

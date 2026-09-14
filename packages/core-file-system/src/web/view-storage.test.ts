@@ -6,6 +6,7 @@ import {
   defaultViewId,
   loadRecords,
   persistViewDisplay,
+  pickViewForRoute,
   rememberRecords,
   savedViewFromRecord,
   toggleStarredRecord,
@@ -18,6 +19,14 @@ import {
 test('views collection still resolves catalog stubs from the route', () => {
   assert.equal(viewForPath(VIEWS_COLLECTION_PATH, 'builtin:/events')?.filters.tablePath, '/events')
   assert.equal(viewForPath(VIEWS_COLLECTION_PATH, builtinCatalogViewId('/events'))?.id, builtinCatalogViewId('/events'))
+  assert.equal(viewForPath('/page-blocks', 'builtin-block:terminal')?.filters.blockKind, 'terminal')
+})
+
+test('pickViewForRoute keeps builtin-block from the URL when the list is still only 全部', () => {
+  const all = builtinAllView({ path: '/page-blocks', label: '组件', view: { title: '组件' } })
+  const picked = pickViewForRoute([all], '/page-blocks', 'builtin-block:terminal')
+  assert.equal(picked?.id, 'builtin-block:terminal')
+  assert.equal(picked?.filters.blockKind, 'terminal')
 })
 
 test('tables default to the builtin 全部xx view', () => {

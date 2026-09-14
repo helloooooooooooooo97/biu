@@ -53,7 +53,7 @@ test('mutationLocus reports 1-based lines in the new text', () => {
   )
   assert.deepEqual(
     mutationLocus('replace_lines', before, 'one\ntwo\nC\nD', { start_line: 3, end_line: 4, new_str: 'C\nD' }),
-    { start_line: 3, end_line: 4, text: 'C' },
+    { start_line: 3, end_line: 4, text: 'C\nD' },
   )
   assert.deepEqual(mutationLocus('insert', before, 'one\nmid\ntwo\nthree\nfour', { insert_line: 1, new_str: 'mid' }), {
     start_line: 2,
@@ -65,5 +65,10 @@ test('mutationLocus reports 1-based lines in the new text', () => {
     start_line: 3,
     end_line: 3,
     text: 'THREE',
+  })
+  assert.deepEqual(mutationLocus('write', '', '# 标题\n\n第一段全文\n\n第二段也在', { value: '# 标题\n\n第一段全文\n\n第二段也在' }), {
+    start_line: 1,
+    end_line: 5,
+    text: '标题\n第一段全文\n第二段也在',
   })
 })

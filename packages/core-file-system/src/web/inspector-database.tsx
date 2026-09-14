@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentType } from 'react'
-import { ChevronLeftIcon, ChevronRightIcon, CircleStackIcon, XMarkIcon } from '@heroicons/react/16/solid'
+import { useEffect, useMemo, useRef, useSyncExternalStore, type ComponentType } from 'react'
+import { CircleStackIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import type { SlotProps } from '@biu/type-slots'
 import type { CollectionInfo } from '@biu/type-file-system'
 import type { CollectionChrome } from '@biu/type-file-system/ui'
 import { parseAppPath } from '@biu/web-session-view'
-import { HeadlessDismiss, HEADLESS_DISMISS_IGNORE } from '@biu/public-ui'
 import { buildCrumbs, pathForCrumbTarget, type Crumb, type CrumbTarget } from './sidebar-nav.ts'
 import { CollectionBrowser } from './browser.tsx'
 import { CrumbTrail } from './crumb-trail.tsx'
@@ -113,6 +112,7 @@ function useBindInspectorDbPath(paneId: string, tables: CollectionInfo[], seedCo
     const fallback = defaultInspectorDbPath(tables, seedCollection)
     if (fallback) setInspectorDbPath(paneId, fallback)
   }, [inspectorPath, paneId, seedCollection, tables])
+  if (isInspectorPaneAbandoned(paneId)) return inspectorPath
   return inspectorPath || defaultInspectorDbPath(tables, seedCollection)
 }
 
@@ -198,7 +198,6 @@ export function DatabaseInspectorTab({
   const inspectorPath = useBindInspectorDbPath(id, tables, seedCollection)
   const { collection: tabCollection } = crumbsForRoute(inspectorPath, tables)
   const agentWorking = useInspectorAgentWorking(tabCollection || seedCollection || '')
-  const [trailOpen, setTrailOpen] = useState(false)
   const crumbRef = useRef<HTMLElement>(null)
   const tabRef = useRef<HTMLDivElement>(null)
   useViewTick()
@@ -221,14 +220,9 @@ export function DatabaseInspectorTab({
   }, [id, leaf?.id, leaf?.kind, leaf?.label, leafChoice?.emoji, leafChoice?.icon, leafChoice?.mode])
 
   return (
-    <HeadlessDismiss
-      enabled={trailOpen}
-      onDismiss={() => setTrailOpen(false)}
-      ignoreSelector={`${HEADLESS_DISMISS_IGNORE}, [data-fsdb-crumb-menu]`}
-    >
     <div
       ref={tabRef}
-      className={`inspector-tab inspector-crumb-tab${active ? ' is-active' : ''}${trailOpen ? ' is-crumb-open' : ''}${agentWorking ? ' is-agent-working' : ''}`}
+      className={`inspector-tab inspector-crumb-tab${active ? ' is-active' : ''}${agentWorking ? ' is-agent-working' : ''}`}
       role="tab"
       aria-selected={Boolean(active)}
       data-testid="inspector-tab-database"
@@ -240,7 +234,7 @@ export function DatabaseInspectorTab({
         <CrumbTrail
           crumbs={crumbs}
           onActivate={onActivate}
-          allowMenu={trailOpen}
+          allowMenu={Boolean(active)}
           lockRootCrumb
           onPick={(target) => {
             onActivate?.()
@@ -257,28 +251,6 @@ export function DatabaseInspectorTab({
         </span>
       )}
       <span className="inspector-crumb-actions">
-        {crumbs.length > 1 ? (
-          <button
-            type="button"
-            className={`inspector-crumb-toggle${trailOpen ? ' is-open' : ''}`}
-            title={trailOpen ? '收起面包屑' : '展开面包屑'}
-            aria-label={trailOpen ? '收起面包屑' : '展开面包屑'}
-            aria-expanded={trailOpen}
-            data-testid="inspector-crumb-toggle"
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              onActivate?.()
-              setTrailOpen((open) => !open)
-            }}
-          >
-            {trailOpen ? (
-              <ChevronLeftIcon aria-hidden className="size-3" />
-            ) : (
-              <ChevronRightIcon aria-hidden className="size-3" />
-            )}
-          </button>
-        ) : null}
         {onClose ? (
           <button
             type="button"
@@ -297,7 +269,6 @@ export function DatabaseInspectorTab({
         ) : null}
       </span>
     </div>
-    </HeadlessDismiss>
   )
 }
 

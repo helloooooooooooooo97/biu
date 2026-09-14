@@ -32,6 +32,7 @@ export type PageBlockSpec = {
   blockTypeLabel?: string
   hint?: string
   aliases?: string[]
+  /** 插入时的块 data。每块都有 title；不写则用「当前页面名 + 组件类型名」。 */
   defaults?: Record<string, unknown> | (() => Record<string, unknown>)
   View: ComponentType<PageBlockViewProps>
 }

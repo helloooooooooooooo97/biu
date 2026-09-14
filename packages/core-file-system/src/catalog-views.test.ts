@@ -12,6 +12,7 @@ import {
   mergeCatalogViews,
   mergePageBlockViews,
   mergeTableViews,
+  catalogLockFilters,
   stubBuiltinAllView,
   stubBuiltinBlockKindView,
   isBuiltinAllViewForCollection,
@@ -140,4 +141,10 @@ test('each registered page block kind gets a builtin view', () => {
   assert.equal(isBuiltinBlockKindViewId(builtinBlockKindViewId('algorithm')), true)
   assert.equal(stubBuiltinBlockKindView('builtin-block:html')?.filters.blockKind, 'html')
   assert.equal(stubBuiltinBlockKindView('user-1'), null)
+  assert.deepEqual(catalogLockFilters('builtin-block:terminal', []), { blockKind: 'terminal' })
+  assert.deepEqual(
+    catalogLockFilters('builtin-block:terminal', [{ id: 'builtin-block:terminal', builtin: true, filters: {} }]),
+    { blockKind: 'terminal' },
+  )
+  assert.deepEqual(catalogLockFilters('mine', [{ id: 'mine', builtin: false, filters: { blockKind: 'html' } }]), {})
 })

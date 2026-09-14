@@ -504,6 +504,51 @@ test('statInputComposition: idle with multiple turns -> latest turn is "this", e
   assert.ok(out.histPct < 0.5) // curPct=1-histPct > 0.5
 })
 
+test('append coalesces live partial tool/result for the same id', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  const record = await ctx.sessions.create()
+  await ctx.sessions.append(record.id, {
+    type: 'assistant/message',
+    text: '',
+    tool_calls: [{ id: 'c1', name: 'web_search', arguments: '{}' }],
+  })
+  const first = await ctx.sessions.append(record.id, {
+    type: 'tool/result',
+    id: 'c1',
+    name: 'web_search',
+    ok: true,
+    detail: '{"sources":[]}',
+    partial: true,
+  })
+  const second = await ctx.sessions.append(record.id, {
+    type: 'tool/result',
+    id: 'c1',
+    name: 'web_search',
+    ok: true,
+    detail: '{"sources":[{"url":"https://example.com"}]}',
+    partial: true,
+  })
+  const final = await ctx.sessions.append(record.id, {
+    type: 'tool/result',
+    id: 'c1',
+    name: 'web_search',
+    ok: true,
+    detail: '{"sources":[{"url":"https://example.com"}]}',
+  })
+  const events = (await ctx.sessions.require(record.id)).events
+  const results = events.filter((event) => event.type === 'tool/result')
+  assert.equal(results.length, 1)
+  assert.equal(second.seq, first.seq)
+  assert.equal(final.seq, first.seq)
+  assert.equal(results[0]?.partial, undefined)
+  assert.deepEqual(
+    deriveMessages(events).filter((item) => item.role === 'tool'),
+    [{ role: 'tool', tool_call_id: 'c1', content: '{"sources":[{"url":"https://example.com"}]}' }],
+  )
+})
+
 test('append coalesces live tool/call arguments for the same id', async () => {
   const ctx = new Context()
   await ctx.plugin(sessionStore, { driver: 'memory' })

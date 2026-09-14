@@ -1,8 +1,9 @@
 /** 检查器里每个数据库 Tab 有自己的路径，不改中间主界面。 */
 
 import { CONTENT_JUMP_EVENT, parseContentJump } from '@biu/type-file-system'
+import { parseAppPath } from '@biu/web-session-view'
 import { normalizeCollectionPath } from '../paths.ts'
-import { DATA_MODULE_PATH, databaseAllViewPath, databaseRecordPath, databaseViewPath } from './database-path.ts'
+import { DATA_MODULE, DATA_MODULE_PATH, databaseAllViewPath, databaseRecordPath, databaseViewPath } from './database-path.ts'
 import { upsertSavedView, savedViewFromRecord } from './view-storage.ts'
 import { type SavedView } from './saved-view.ts'
 
@@ -200,9 +201,14 @@ export function inspectorCollectionTabId(collection: string) {
   return `database:${collection}`
 }
 
-/** 同一数据页：路径不含 query。 */
+/** 同一数据页：记录叶节点忽略视图段和 query。 */
 export function inspectorPageKey(href: string) {
-  return String(href || '').split('?')[0]
+  const path = String(href || '').split('?')[0]
+  const parsed = parseAppPath(path, [DATA_MODULE])
+  if (parsed.kind === 'record' && parsed.recordId) {
+    return `${DATA_MODULE_PATH}${normalizeCollectionPath(parsed.collection)}/record/${parsed.recordId}`
+  }
+  return path
 }
 
 function paneWithHref(tabId: string, href: string) {
@@ -283,8 +289,9 @@ export function reuseInspectorOfferPane(tabId: string, opened: string[]) {
 
 function revealInspectorPane(paneId: string, href: string) {
   setInspectorDbPath(paneId, href)
+  const live = paneWithPageKey(href) ?? paneId
   window.dispatchEvent(new Event('biu:inspector-open'))
-  window.dispatchEvent(new CustomEvent('biu:inspector-tab', { detail: paneId }))
+  window.dispatchEvent(new CustomEvent('biu:inspector-tab', { detail: live }))
 }
 
 function nextInspectorPaneId(tabId: string) {
@@ -311,6 +318,14 @@ export function showInInspector(collection: string, href: string, opts?: { uniqu
   const paneIds = paneIdsForTab(tabId)
   if (unique) {
     const live = paneIds.filter((id) => getInspectorDbPath(id))
+    // 从「全部页面」这类列表栏打开同一条记录时，把这一栏切过去，不要再开一栏同页。
+    if (inspectorPathIsRecord(href)) {
+      const listPane = live.find((id) => !inspectorPathIsRecord(getInspectorDbPath(id)))
+      if (listPane) {
+        revealInspectorPane(listPane, href)
+        return
+      }
+    }
     const target = live.length ? nextInspectorPaneId(tabId) : tabId
     revealInspectorPane(target, href)
     return

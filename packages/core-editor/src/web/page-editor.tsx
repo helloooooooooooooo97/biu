@@ -40,10 +40,12 @@ export function recentlyLocalEdit(typedAt: number, now = Date.now()) {
 }
 
 function jumpToPending(editor: Editor, markdown: string, recordId: string, force = false) {
-  requestAnimationFrame(() => {
+  const run = () => {
     if (editor.isDestroyed) return
     tryContentJump(editor, markdown, recordId, force)
-  })
+  }
+  run()
+  requestAnimationFrame(run)
 }
 
 function asMarkdown(value: unknown) {
@@ -495,7 +497,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
     if (!editor || editor.isDestroyed) return
     const onJump = () => {
       if (editor.isDestroyed) return
-      jumpToPending(editor, asMarkdown(value), record.id)
+      jumpToPending(editor, asMarkdown(value), record.id, true)
     }
     window.addEventListener(CONTENT_JUMP_EVENT, onJump)
     return () => window.removeEventListener(CONTENT_JUMP_EVENT, onJump)

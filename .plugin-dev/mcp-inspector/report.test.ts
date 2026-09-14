@@ -39,7 +39,7 @@ test('only populated whitelist categories appear, in the fixed diagnostic order'
   assert.doesNotMatch(html, /Processlist|Iostat 设备趋势|Iotop 快照/)
 })
 
-test('metadata shows original business values but drops top-level control fields', () => {
+test('metadata flattens business values and drops top-level control fields', () => {
   const html = buildReportFragment({
     items: [
       item('meta1', 'metadata', 'cdb.metadata.list_instance_metainfo_cdb_preprocess', {
@@ -85,23 +85,21 @@ test('metadata shows original business values but drops top-level control fields
       }),
     ],
   })
-  assert.match(html, /class="metadata-hero"/)
+  assert.match(html, /class="skin-grid"/)
+  assert.match(html, /实例元数据/)
   assert.match(html, /orders-primary/)
   assert.match(html, /cdb-demo/)
   assert.match(html, /ap-beijing/)
-  assert.match(html, /10\.0\.0\.8:3306/)
+  assert.match(html, /10\.0\.0\.8/)
+  assert.match(html, /3306/)
   assert.match(html, /示例公司/)
-  assert.match(html, /拓扑节点/)
+  assert.match(html, />节点</)
   assert.match(html, /11\.1\.2\.3:20123/)
   assert.match(html, /mysql-txsql-8\.0\.30/)
-  assert.match(html, /节点时间线/)
-  assert.match(html, />master</)
+  assert.match(html, />主库</)
   assert.match(html, />s0</)
-  assert.match(html, /查询范围/)
-  assert.match(html, /原始元数据/)
-  // 原始值仍在折叠 JSON 里，没有为美化而丢字段。
-  assert.match(html, /server_device_class/)
-  assert.match(html, /queried_oss_clusters/)
+  assert.doesNotMatch(html, /server_device_class/)
+  assert.doesNotMatch(html, /queried_oss_clusters/)
   assert.doesNotMatch(html, /data_status|start_time|end_time/)
 })
 

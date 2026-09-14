@@ -47,6 +47,10 @@ export function apply(ctx: Context) {
   }
 
   const forks = new Map<string, Fiber>()
+  // 记录每个 fork 挂载时用的 web 入口 URL。
+  // 打包后 URL 会带上新的版本号（?v=mtime），据此判断是否需要重新加载，
+  // 否则插件的 fork 一旦建立就永远不会更新，改代码看不到效果。
+  const forkWebs = new Map<string, string>()
   let pending = false
   let running = false
 
@@ -84,10 +88,16 @@ export function apply(ctx: Context) {
         .sort((a, b) => Number(b.id === 'core-file-system') - Number(a.id === 'core-file-system'))
       const enabledIds = new Set(enabledRows.map((plugin) => plugin.id))
 
+      const webOf = new Map(enabledRows.map((plugin) => [plugin.id, plugin.web]))
+
       for (const [id, fiber] of [...forks.entries()]) {
-        if (enabledIds.has(id)) continue
+        const stillEnabled = enabledIds.has(id)
+        // web 入口变了（例如重打包后带上新的 ?v= 版本号）也要重挂。
+        const sameWeb = forkWebs.get(id) === webOf.get(id)
+        if (stillEnabled && sameWeb) continue
         await fiber.dispose()
         forks.delete(id)
+        forkWebs.delete(id)
       }
 
       for (const row of enabledRows) {
@@ -95,8 +105,10 @@ export function apply(ctx: Context) {
         const loaded = await resolvePlugin(row.id, row.web)
         if (!loaded) continue
         const plugin = runtimeWebPlugin(loaded)
+        if (!plugin) continue
         const fiber = ctx.plugin(plugin)
         forks.set(row.id, fiber)
+        forkWebs.set(row.id, row.web ?? '')
         await fiber
       }
 

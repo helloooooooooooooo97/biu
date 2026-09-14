@@ -76,6 +76,8 @@ test('page plugin stores pages in SQLite under .page', async () => {
   assert.notEqual(registered[1]?.view?.moduleId, registered[0]?.view?.moduleId)
   assert.deepEqual(registered[1]?.records, { update: true })
   assert.equal(registered[1]?.schema.contentField, 'data')
+  assert.equal(registered[1]?.schema.fields.title?.writable, true)
+  assert.deepEqual(registered[1]?.schema.columns, ['title', 'blockKind', 'plugin', 'pageId'])
 
   const spec = registered[0]!
   assert.equal((await spec.list()).length, 0)
@@ -161,14 +163,24 @@ test('page-blocks collection updates one fence by page::block id', async () => {
   assert.equal(listed.length, 1)
   assert.equal(listed[0]?.id, `${pageId}::ab12cd34`)
   assert.equal(listed[0]?.blockKind, 'html')
+  assert.equal(listed[0]?.pageTitle, '海报')
+  assert.equal(listed[0]?.title, '海报 html')
+  const renamed = await blocks.update!(`${pageId}::ab12cd34`, { title: '刊头' })
+  assert.equal(renamed.title, '刊头')
   const updated = await blocks.update!(`${pageId}::ab12cd34`, {
     data: { html: '<div>新</div>', deck: false },
   })
+  assert.equal(updated.title, '刊头')
+  const clobbered = await blocks.update!(`${pageId}::ab12cd34`, {
+    data: { html: '<div>新</div>', title: '旧名', deck: false },
+  })
+  assert.equal(clobbered.title, '刊头')
   assert.match(String(updated.data), /新/)
   assert.match(String(updated.data), /"deck":false/)
   const md = await readFile(join(root, `.page/${pageId}.md`), 'utf8')
-  assert.match(md, /id=ab12cd34 deck=false/)
+  assert.match(md, /id=ab12cd34 title="刊头" deck=false/)
   assert.match(md, /<div>新<\/div>/)
+  assert.match(md, /刊头/)
   assert.equal(blocks.create, undefined)
   assert.equal(blocks.remove, undefined)
 })
@@ -192,6 +204,27 @@ test('clearing the last pageBlock fence drops the index row immediately', async 
   const idle = await index.sync()
   assert.equal(idle.scanned, 0)
   assert.equal((await index.list()).length, 0)
+})
+
+test('reindex rewrites duplicate pageBlock ids instead of crashing', async () => {
+  const ctx = new Context()
+  await ctx.plugin(tools)
+  const root = await mkdtemp(join(tmpdir(), 'page-block-dup-'))
+  await ctx.plugin(fsPlugin, { root })
+  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets'))
+  const index = new PageBlocksIndex(store, { hotWindowMs: 60_000, hotLimit: 8, warmLimit: 8 })
+  const fence = (id: string, body: string) => `:::pageBlock {kind=html plugin=page-html-blocks id=${id}}\n<div>${body}</div>\n:::\n`
+  const created = await store.create({ title: '粘贴崩了', notes: fence('ab12cd34', 'a') + fence('ab12cd34', 'b') })
+  await index.reindexPage(created)
+  const listed = await index.list()
+  assert.equal(listed.length, 2)
+  const ids = listed.map((row) => String(row.blockId)).sort()
+  assert.equal(new Set(ids).size, 2)
+  assert.equal(ids.includes('ab12cd34'), true)
+  const md = await readFile(join(root, `.page/${created.id}.md`), 'utf8')
+  const fences = md.match(/id=([a-z0-9]+)/gi) ?? []
+  assert.equal(fences.length, 2)
+  assert.notEqual(fences[0], fences[1])
 })
 
 test('page-block index scans a hot batch instead of every page', async () => {

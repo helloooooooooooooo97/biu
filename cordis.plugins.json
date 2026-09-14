@@ -15,6 +15,7 @@
     { "id": "mcp", "package": "@biu/host-mcp", "togglable": false, "enabled": true },
     { "id": "terminal", "package": "@biu/host-terminal", "togglable": false, "enabled": true },
     { "id": "lsp", "package": "@biu/host-lsp", "togglable": false, "enabled": true },
+    { "id": "web", "package": "@biu/host-web", "togglable": false, "enabled": true },
     { "id": "context", "package": "@biu/host-context", "togglable": false, "enabled": true },
     { "id": "approvals", "package": "@biu/host-approvals", "togglable": false, "enabled": true },
     { "id": "agent-loop", "package": "@biu/host-agent-loop", "togglable": false, "enabled": true },

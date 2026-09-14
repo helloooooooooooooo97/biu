@@ -13,6 +13,7 @@ export function MentionChipView({ node }: NodeViewProps) {
       data-type="mention"
       data-id={id}
       data-kind={pick.kind}
+      contentEditable={false}
       onClick={(event: { preventDefault: () => void; stopPropagation: () => void }) => {
         event.preventDefault()
         event.stopPropagation()
