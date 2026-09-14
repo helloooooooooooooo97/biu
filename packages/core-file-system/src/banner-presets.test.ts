@@ -48,3 +48,23 @@ test('static movements use distinct composition systems instead of one shared co
   assert.match(preset('cn-xuan'), /font:900 clamp/)
   assert.match(preset('cn-kan'), /STKaiti/)
 })
+
+test('gallery spans light, cool, vivid, pastel, neutral, and intentionally dark palettes', () => {
+  const preset = (id: string) => BANNER_PRESETS.find((entry) => entry.id === id)?.html ?? ''
+
+  assert.match(preset('jp-kamekura'), /#f7f7f4/)
+  assert.match(preset('jp-seigaiha'), /#dcecf1/)
+  assert.match(preset('jp-yokoo'), /#ff7a00/)
+  assert.match(preset('us-greiman'), /#8ff5ff/)
+  assert.match(preset('us-warhol'), /#ff5ebc/)
+  assert.match(preset('eu-weingart'), /#2357ff/)
+  assert.match(preset('eu-memphis'), /#b9f3dc/)
+  assert.match(preset('cn-yue'), /#ffd7df/)
+  assert.match(preset('cn-window'), /#cde5d8/)
+  assert.match(preset('cn-seal'), /#f7ecd6/)
+
+  // A few dark fields remain because darkness is integral to these movements,
+  // not because every regional family shares one museum-like palette.
+  assert.match(preset('eu-deco'), /#1a1420/)
+  assert.match(preset('us-carson'), /#151515/)
+})
