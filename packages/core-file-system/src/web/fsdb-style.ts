@@ -370,12 +370,12 @@ const CSS = `
 .fsdb-detail-more-item.is-danger svg{color:var(--dsw-danger)}
 .fsdb-detail-split{display:flex;flex-direction:column;flex:none;width:100%;min-height:min-content;overflow:visible}
 .fsdb-detail-main{box-sizing:border-box;width:100%;max-width:none;margin-inline:0;display:flex;flex-direction:column;gap:8px;padding:0 0 24px;min-width:0}
-.fsdb-detail-main > :not(.fsdb-page-banner){box-sizing:border-box;width:100%;max-width:var(--dsw-chat-max-width);margin-inline:auto;padding-left:80px;padding-right:0}
+.fsdb-detail-main > :not(.fsdb-page-banner){box-sizing:border-box;width:100%;max-width:var(--dsw-chat-max-width);margin-inline:auto;padding-left:80px;padding-right:80px}
 .fsdb-detail-main:not(:has(> .fsdb-page-banner)){padding-top:80px}
 .fsdb-page-banner{position:relative;flex:none;box-sizing:border-box;width:100%;margin:0 0 16px;height:240px;overflow:hidden;background:#161616;border-radius:0;z-index:2}
 .fsdb-page-banner.is-empty{height:80px;margin-bottom:0;background:transparent}
 .fsdb-page-banner iframe{display:block;width:100%;height:100%;border:0;pointer-events:none;background:transparent}
-.fsdb-banner-story{position:absolute;left:80px;bottom:44px;z-index:3;max-width:min(36rem,calc(100% - 96px));padding:10px 12px;border-radius:8px;background:rgba(12,12,12,.72);color:#F0EFED;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .18s ease,transform .18s ease}
+.fsdb-banner-story{position:absolute;left:80px;bottom:44px;z-index:3;max-width:min(36rem,calc(100% - 160px));padding:10px 12px;border-radius:8px;background:rgba(12,12,12,.72);color:#F0EFED;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .18s ease,transform .18s ease}
 .fsdb-page-banner:hover .fsdb-banner-story,.fsdb-page-banner:focus-within .fsdb-banner-story{opacity:1;transform:none;pointer-events:auto}
 .fsdb-banner-story-head,.fsdb-banner-fly-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .fsdb-banner-story-title{font-size:12px;font-weight:700;letter-spacing:.04em}
