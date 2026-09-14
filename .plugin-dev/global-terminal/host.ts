@@ -112,7 +112,7 @@ export function apply(ctx: Ctx) {
           const ws = current.socket
           if (!isOpen(ws)) return
           try {
-            ws.send(chunk)
+            ws.send(typeof chunk === 'string' ? chunk : String(chunk))
           } catch {
             // 连接可能已断；数据仍在 buffer。
           }

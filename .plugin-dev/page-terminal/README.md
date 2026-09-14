@@ -68,9 +68,10 @@ xterm 在编辑器容器里跑，比独立页面麻烦得多：
 
 1. **helper-textarea 不能 `display:none`** —— 那是 xterm 接收键盘输入的节点，隐藏后会失去焦点，**整个终端打不了字**。要用「移出屏幕 + 透明 + 1px」的方式藏。
 2. **不能压 `.xterm-helpers`，也不能 `display:none` 字符测量元素** —— 测量元素住在 `.xterm-helpers` 里，压掉后它量不出字符宽度（width=0），**字间距错乱、光标消失**。
-3. **顶部若出现一行"会自己变的乱码"（`%%%%`/`zzzz`/`vvvv`）** —— 那是字符测量元素里的占位文本显形了。祖先的 `transform` / `backdrop-filter` 会改变定位包含块，让它的 `left:-119988px` 失效。修法：`clip-path: inset(100%)` 裁成 0 面积（仍在布局树、可测量，但不绘制）。
-4. **PTY 列数必须等于 xterm 列数** —— zsh 的提示符擦行序列宽度依赖列数，不一致会在屏幕上残留一行反显 `%`。要带实测尺寸建连、连发几次 resize、并监听 `term.onResize`。
-5. **不要往 PTY 写清屏序列** —— shell 开着 echo，会被原样回显成 `^[[2J` 乱码。清屏用前端 `term.reset()`。
-6. **向 head 注入 `<style>` 不要写「已存在同 id 就 return」** —— 旧版本留下的同 id 标签会一直挡着，新样式永远不生效。每次覆盖内容，并清理旧标签。
-7. **改完代码要 pack + 重载** —— 宿主不会自动重新 import 已挂载的插件。
+3. **顶部若出现一行"会自己变的乱码"（`%%%%`/`zzzz`/`vvvv`）** —— 那是字符测量元素里的占位文本显形了。祖先的 `transform` / `backdrop-filter` 会改变定位包含块，让它的 `left:-119988px` 失效。修法：`opacity:0`（**不要** `clip-path: inset(100%)`：Chrome 里 `getBoundingClientRect()` 会变成 0，字格宽度为 0，提示符叠在最左边，历史却还能记到命令）。
+4. **PTY 输出可能是 WebSocket 二进制帧** —— `event.data` 不是 string 时不能丢成 `''`，要按 ArrayBuffer/Blob 解码再 `term.write`。
+5. **PTY 列数必须等于 xterm 列数** —— zsh 的提示符擦行序列宽度依赖列数，不一致会在屏幕上残留一行反显 `%`。要带实测尺寸建连、连发几次 resize、并监听 `term.onResize`。
+6. **不要往 PTY 写清屏序列** —— shell 开着 echo，会被原样回显成 `^[[2J` 乱码。清屏用前端 `term.reset()`。
+7. **向 head 注入 `<style>` 不要写「已存在同 id 就 return」** —— 旧版本留下的同 id 标签会一直挡着，新样式永远不生效。每次覆盖内容，并清理旧标签。
+8. **改完代码要 pack + 重载** —— 宿主不会自动重新 import 已挂载的插件。
 

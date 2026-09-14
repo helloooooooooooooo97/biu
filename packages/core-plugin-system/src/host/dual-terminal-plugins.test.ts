@@ -62,13 +62,15 @@ describe('terminal store plugins', () => {
   })
 
   it('page terminal keeps the helper textarea focusable and hides the measurement nodes', async () => {
-    const web = await readFile(pluginFile('page-terminal', 'web.tsx'), 'utf8')
-    // helper-textarea 不能 display:none（会失去焦点、打不了字）
-    assert.match(web, /HELPER_TEXTAREA/)
-    assert.match(web, /removeProperty\('display'\)/)
-    // 测量元素用 clip-path 隐藏（不能 display:none，否则字间距错乱、光标消失）
-    assert.match(web, /clip-path/)
-    assert.match(web, /xterm-char-measure-element/)
+    for (const id of ['page-terminal', 'global-terminal'] as const) {
+      const web = await readFile(pluginFile(id, 'web.tsx'), 'utf8')
+      assert.match(web, /HELPER_TEXTAREA/)
+      assert.match(web, /removeProperty\('display'\)/)
+      assert.match(web, /setProperty\('opacity', '0'/)
+      assert.match(web, /decodePtyChunk/)
+      assert.match(web, /binaryType = 'arraybuffer'/)
+      assert.doesNotMatch(web, /setProperty\('clip-path'/)
+    }
   })
 
   it('page terminal persists history into block data and keeps sessions alive', async () => {
