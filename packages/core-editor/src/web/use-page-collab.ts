@@ -24,27 +24,33 @@ export function usePageCollab(pageId: string): PageCollab {
 
   useEffect(() => {
     let cancelled = false
+    let wait = 0
     void (async () => {
       try {
-      const me = await fetch('/api/members/me').then((res) => res.json()) as { member: CollabMember | null; token?: string; empty?: boolean }
-      if (cancelled) return
-      if (!me.member && me.empty) {
-        const created = await fetch('/api/members/bootstrap', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name: '用户' }),
-        }).then((res) => res.json()) as { member?: CollabMember; token?: string }
+        const me = (await fetch('/api/members/me').then((res) => res.json())) as {
+          member: CollabMember | null
+          token?: string
+          empty?: boolean
+        }
         if (cancelled) return
-        setMember(created.member ?? null)
-        return created.token ?? ''
-      }
-      setMember(me.member)
-      return me.token ?? ''
+        if (!me.member && me.empty) {
+          const created = (await fetch('/api/members/bootstrap', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name: '你' }),
+          }).then((res) => res.json())) as { member?: CollabMember; token?: string }
+          if (cancelled) return
+          setMember(created.member ?? null)
+          return created.token ?? ''
+        }
+        setMember(me.member)
+        return me.token ?? ''
       } catch {
         return ''
       }
     })().then((token) => {
-      if (cancelled || !token) {
+      if (cancelled) return
+      if (!token) {
         setReady(true)
         return
       }
@@ -54,11 +60,20 @@ export function usePageCollab(pageId: string): PageCollab {
         document: ydoc,
         token,
       })
-      setProvider(next)
-      setReady(true)
+      let done = false
+      const finish = () => {
+        if (cancelled || done) return
+        done = true
+        setProvider(next)
+        setReady(true)
+      }
+      next.on('synced', finish)
+      next.on('authenticationFailed', finish)
+      wait = window.setTimeout(finish, 4000)
     })
     return () => {
       cancelled = true
+      if (wait) window.clearTimeout(wait)
     }
   }, [pageId, ydoc])
 

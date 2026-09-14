@@ -19,6 +19,7 @@ import { pageMention } from './mention.ts'
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import { openMathPop } from './math-pop.ts'
+import { collabCaretUser } from './collab-user.ts'
 import type { Doc } from 'yjs'
 
 function latexFromMarkdown(raw: unknown) {
@@ -240,7 +241,7 @@ export function pageEditorExtensions(collab?: { ydoc: Doc; provider?: unknown; u
             ? [
                 CollaborationCaret.configure({
                   provider: collab.provider,
-                  user: { name: collab.user?.name ?? '用户', color: collab.user?.color ?? '#2563eb' },
+                  user: collabCaretUser(collab.user),
                 }),
               ]
             : []),

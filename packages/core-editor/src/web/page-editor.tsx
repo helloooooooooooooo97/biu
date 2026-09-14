@@ -10,6 +10,8 @@ import { Selection } from '@tiptap/pm/state'
 import type { FsContentProps } from '@biu/type-file-system/ui'
 import { pageEditorExtensions } from './kit.ts'
 import { usePageCollab } from './use-page-collab.ts'
+import { collabCaretUser } from './collab-user.ts'
+import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { PageBlockHandle } from './page-block-handle.tsx'
 import { editorHostIsLive } from './editor-live.ts'
 import { FOCUS_RECORD_CONTENT, FOCUS_RECORD_TITLE, handleContentTitleNav, shouldLeaveContentForTitle, focusRecordTitleNear, isDocStartSelection } from './title-content-nav.ts'
@@ -311,17 +313,18 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
   const [findIndex, setFindIndex] = useState(0)
   const [findTotal, setFindTotal] = useState(0)
 
+  const liveCollab = Boolean(collab.ready && collab.provider)
   const editor = useEditor(
     {
       immediatelyRender: false,
       shouldRerenderOnTransaction: false,
       editable: writable !== false && collab.member?.role !== 'viewer',
       extensions: pageEditorExtensions(
-        collab.provider
-          ? { ydoc: collab.ydoc, provider: collab.provider, user: collab.member ?? { name: '用户' } }
+        liveCollab
+          ? { ydoc: collab.ydoc, provider: collab.provider, user: collabCaretUser(collab.member) }
           : undefined,
       ),
-      content: asMarkdown(value),
+      content: liveCollab ? undefined : asMarkdown(value),
       contentType: 'markdown',
       editorProps: {
         attributes: {
@@ -360,9 +363,9 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
           })
         }
       },
-      onUpdate: ({ editor: current }) => {
+      onUpdate: ({ editor: current, transaction }) => {
         if (hydratedId.current !== record.id) return
-        typedAt.current = Date.now()
+        if (!isChangeOrigin(transaction)) typedAt.current = Date.now()
         if (timer.current) clearTimeout(timer.current)
         timer.current = setTimeout(() => {
           queueMicrotask(() => {
@@ -386,7 +389,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
         })
       },
     },
-    [record.id, collab.provider, collab.member?.role],
+    [record.id, collab.ready, collab.provider, collab.member?.role, collab.member?.name],
   )
   editorRef.current = editor ?? null
 
@@ -397,6 +400,38 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
     const md = asMarkdown(value)
+    if (liveCollab) {
+      if (hydratedId.current !== record.id) {
+        const frag = collab.ydoc.getXmlFragment('default')
+        if (frag.length > 0) {
+          saved.current = editor.getMarkdown()
+          hydratedId.current = record.id
+          jumpToPending(editor, saved.current, record.id, true)
+          return
+        }
+        saved.current = md
+        hydratedId.current = record.id
+        if (md) editor.commands.setContent(md, { contentType: 'markdown' })
+        jumpToPending(editor, md, record.id, true)
+        return
+      }
+      if (md === saved.current || md === editor.getMarkdown()) {
+        jumpToPending(editor, md, record.id)
+        return
+      }
+      const canPaint = () =>
+        shouldApplyRemoteMarkdown({
+          focused: editor.isFocused,
+          live: editorHostIsLive(editor),
+          hasJump: Boolean(contentJumpForRecord(record.id)),
+          recentlyLocal: recentlyLocalEdit(typedAt.current),
+        })
+      if (!canPaint()) return
+      saved.current = md
+      editor.commands.setContent(md, { contentType: 'markdown' })
+      jumpToPending(editor, md, record.id, true)
+      return
+    }
     if (hydratedId.current !== record.id) {
       if (value == null) return
       saved.current = md
@@ -437,7 +472,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
       return
     }
     paint(md)
-  }, [editor, record.id, value])
+  }, [editor, record.id, value, liveCollab, collab.ydoc])
 
   useEffect(() => () => {
     if (remoteTimer.current) clearTimeout(remoteTimer.current)
@@ -479,8 +514,8 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
-    editor.setEditable(writable !== false)
-  }, [editor, writable])
+    editor.setEditable(writable !== false && collab.member?.role !== 'viewer')
+  }, [editor, writable, collab.member?.role])
 
   useEffect(
     () => () => {
