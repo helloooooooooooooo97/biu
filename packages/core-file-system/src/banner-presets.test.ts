@@ -34,8 +34,10 @@ test('static movements use distinct composition systems instead of one shared co
     return item.html
   }
 
-  assert.match(preset('jp-ukiyo'), /writing-mode:vertical-rl/)
-  assert.match(preset('jp-seigaiha'), /border-radius:50%/)
+  assert.match(preset('jp-hattori'), /東 京/)
+  assert.match(preset('jp-taku-satoh'), /STRUCTURE 01/)
+  assert.match(preset('jp-groovisions'), /GROOVISIONS/)
+  assert.match(preset('jp-mieno'), /拉伸、切割、越界/)
   assert.match(preset('jp-yokoo'), /transform:rotate\(-7deg\)/)
   assert.match(preset('us-lubalin'), /letter-spacing:-\.105em/)
   assert.match(preset('us-vignelli'), /grid-template-columns:repeat\(8,1fr\)/)
@@ -53,7 +55,9 @@ test('gallery spans light, cool, vivid, pastel, neutral, and intentionally dark 
   const preset = (id: string) => BANNER_PRESETS.find((entry) => entry.id === id)?.html ?? ''
 
   assert.match(preset('jp-kamekura'), /#f7f7f4/)
-  assert.match(preset('jp-seigaiha'), /#dcecf1/)
+  assert.match(preset('jp-sato'), /#1457ff/)
+  assert.match(preset('jp-hattori'), /#f1ff55/)
+  assert.match(preset('jp-groovisions'), /#53d7ff/)
   assert.match(preset('jp-yokoo'), /#ff7a00/)
   assert.match(preset('us-greiman'), /#8ff5ff/)
   assert.match(preset('us-warhol'), /#ff5ebc/)
@@ -67,4 +71,14 @@ test('gallery spans light, cool, vivid, pastel, neutral, and intentionally dark 
   // not because every regional family shares one museum-like palette.
   assert.match(preset('eu-deco'), /#1a1420/)
   assert.match(preset('us-carson'), /#151515/)
+})
+
+test('modern Japanese defaults do not fall back to traditional motif categories', () => {
+  const ids = new Set(BANNER_PRESETS.filter((item) => item.style === 'jp').map((item) => item.id))
+  for (const retired of ['jp-rimpa', 'jp-ukiyo', 'jp-seigaiha', 'jp-mingei', 'jp-tate', 'jp-live-seigaiha']) {
+    assert.equal(ids.has(retired), false, retired)
+  }
+  for (const current of ['jp-sato', 'jp-hattori', 'jp-taku-satoh', 'jp-groovisions', 'jp-mieno', 'jp-live-type']) {
+    assert.equal(ids.has(current), true, current)
+  }
 })
