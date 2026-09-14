@@ -39,6 +39,7 @@ test('static movements use distinct composition systems instead of one shared co
   assert.match(preset('jp-mieno'), /拉伸、切割、越界/)
   assert.match(preset('jp-yuni-yoshida'), /HAND MADE/)
   assert.match(preset('jp-ohara-type'), /TYPE \/ AIR \/ SHADOW/)
+  assert.match(preset('jp-nakajima'), /mix-blend-mode:multiply/)
   assert.match(preset('jp-kawamura'), /repeating-linear-gradient/)
   assert.match(preset('us-lubalin'), /letter-spacing:-\.105em/)
   assert.match(preset('us-vignelli'), /grid-template-columns:repeat\(8,1fr\)/)

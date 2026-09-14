@@ -120,10 +120,10 @@ export const BANNER_PRESETS: BannerPreset[] = [
   html(
     'jp-nakajima',
     'jp',
-    '扫描排印',
-    '中岛英树：用实验字体、扫描噪点和极端比例，让文化出版物保持不可预测。',
-    'background:#e6e2da;color:#111',
-    `<div style="position:absolute;left:-2%;top:-18%;font:900 clamp(150px,27vw,310px)/1 Helvetica,sans-serif;letter-spacing:-.14em;transform:scaleX(.58);transform-origin:left;color:#2322dd">N</div><div style="position:absolute;left:26%;top:0;width:31%;height:100%;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(17,17,17,.25) 3px 4px);mix-blend-mode:multiply;transform:skewX(-8deg)"></div><div style="position:absolute;right:5%;top:12%;font:300 clamp(42px,8vw,88px)/.7 'Yu Gothic',sans-serif;letter-spacing:-.1em;text-align:right">扫描<br>排印</div><div style="position:absolute;right:5%;bottom:13px;font:800 8px/1 ui-monospace,monospace;letter-spacing:.2em">HIDEKI NAKAJIMA / SCAN 13</div>`,
+    '分层排印',
+    '中岛英树：拆开字母笔画，以尺度、颜色与错位套印让文字游移于信息和图像之间。',
+    'background:#ece9df;color:#111',
+    `<div style="position:absolute;left:-5%;top:-25%;font:900 clamp(170px,30vw,340px)/1 Helvetica,sans-serif;letter-spacing:-.15em;transform:scaleX(.58);transform-origin:left;color:#00c7d7;mix-blend-mode:multiply">N</div><div style="position:absolute;left:3%;top:-16%;font:900 clamp(156px,28vw,320px)/1 Helvetica,sans-serif;letter-spacing:-.15em;transform:scaleX(.54) rotate(5deg);transform-origin:left;color:#ff3d6e;mix-blend-mode:multiply">N</div><div style="position:absolute;left:15%;top:-8%;font:900 clamp(140px,25vw,290px)/1 Helvetica,sans-serif;letter-spacing:-.15em;transform:scaleX(.48) rotate(-4deg);transform-origin:left;color:#f4db23;mix-blend-mode:multiply">N</div><div style="position:absolute;right:5%;top:12%;font:700 clamp(38px,7vw,78px)/.7 'Yu Gothic',sans-serif;letter-spacing:-.1em;text-align:right">分层<br>排印</div><div style="position:absolute;right:5%;bottom:13px;font:800 8px/1 ui-monospace,monospace;letter-spacing:.2em">HIDEKI NAKAJIMA / LAYER 03</div>`,
   ),
   html(
     'jp-kawamura',
