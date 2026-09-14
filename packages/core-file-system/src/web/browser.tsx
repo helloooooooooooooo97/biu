@@ -113,13 +113,13 @@ import {
   getStarredViews,
   getStarredViewsVersion,
   isViewStarred,
-  loadActiveViewId,
   loadViews,
   pullSavedViews,
   rememberRecords,
   rememberViews,
   persistStarredViews,
   persistViewDisplay,
+  pickViewForRoute,
   pushSavedViews,
   subscribeStarredViews,
   toggleStarredView,
@@ -793,7 +793,7 @@ export function CollectionBrowser({
       const right = toolbarRightRef.current
       const row = viewMeasureRef.current
       if (!toolbar || !right || !row) return
-      const tabs = [...row.querySelectorAll('[data-view-measure]')] as HTMLElement[]
+      const tabs = Array.from(row.querySelectorAll('[data-view-measure]')) as HTMLElement[]
       const available = Math.max(0, toolbar.clientWidth - right.offsetWidth - 12)
       const next = countFittingViewTabs(tabs.map((el) => el.offsetWidth), available, 2)
       setViewTabFit((prev) => (prev === next ? prev : next))
@@ -866,7 +866,7 @@ export function CollectionBrowser({
             id: activeViewId,
             sortField,
             sortDir,
-            filters: queryFilters,
+            filters: queryFilters as SavedView['filters'],
             query: fetchQuery,
           }),
           listed.total,
@@ -962,7 +962,7 @@ export function CollectionBrowser({
     const listed = listedViews(collectionPath, user)
     rememberViews(collectionPath, listed)
     if (stored || listed[0]) {
-      const next = (routeViewId && listed.find((item) => item.id === routeViewId)) || stored || listed[0]
+      const next = pickViewForRoute(listed, collectionPath, routeViewId) || stored || listed[0]
       setViews(listed)
       if (next) {
         setActiveViewId(next.id)
@@ -987,7 +987,7 @@ export function CollectionBrowser({
       setFilterTree(emptyFilterGroup())
       setSorts(normalizeSorts(undefined, 'title', 'asc'))
     }
-  }, [collectionPath, dataPath, tablePathsKey])
+  }, [collectionPath, dataPath, routeViewId, tablePathsKey])
 
   useEffect(() => {
     let debounce = 0
@@ -1105,7 +1105,7 @@ export function CollectionBrowser({
     const handle = event.currentTarget
     const table = handle.closest('table')
     if (!table) return
-    const heads = [...table.querySelectorAll('thead th')]
+    const heads = Array.from(table.querySelectorAll('thead th'))
     const startX = event.clientX
     const snapshot: Record<string, number> = {}
     for (let i = 0; i < columns.length; i += 1) {
@@ -1209,7 +1209,7 @@ export function CollectionBrowser({
     if (!force && checkHoverRef.current === next) return
     const root = checkStackRef.current
     if (root) {
-      for (const el of root.querySelectorAll('.fsdb-check-slot.is-hover')) {
+      for (const el of Array.from(root.querySelectorAll('.fsdb-check-slot.is-hover'))) {
         if (next && el.getAttribute('data-check') === next) continue
         el.classList.remove('is-hover')
       }
@@ -1231,7 +1231,7 @@ export function CollectionBrowser({
       const next: { kind: 'head' | 'gap' | 'row'; id?: string; h: number }[] = []
       const head = table.tHead?.rows[0]
       if (head) next.push({ kind: 'head', h: head.getBoundingClientRect().height })
-      for (const tr of table.tBodies[0]?.rows ?? []) {
+      for (const tr of Array.from(table.tBodies[0]?.rows ?? [])) {
         const h = tr.getBoundingClientRect().height
         if (tr.classList.contains('fsdb-group-row') || !tr.dataset.recordId) next.push({ kind: 'gap', h })
         else next.push({ kind: 'row', id: tr.dataset.recordId, h })
@@ -1484,7 +1484,8 @@ export function CollectionBrowser({
     rememberViews(collectionPath, listed)
     viewsRef.current = listed
     setViews(listed)
-    const nextView = (activeId ? listed.find((item) => item.id === activeId) : undefined) ?? listed[0]
+    const nextView =
+      pickViewForRoute(listed, collectionPath, routeViewId ?? activeId ?? undefined) ?? listed[0]
     const prevView = activeId ? prev.find((item) => item.id === activeId) : undefined
     if (!nextView) return
     if (prevView && viewStateKey(normalizeSavedView(prevView)) === viewStateKey(normalizeSavedView(nextView))) return
@@ -2510,13 +2511,10 @@ export function CollectionBrowser({
     viewsRef.current = listedViewsNow
     setViews(listedViewsNow)
     const listed = viewsRef.current
-    const view =
-      listed.find((item) => item.id === routeViewId) ??
-      listed.find((item) => item.id === loadActiveViewId(collectionPath, listed)) ??
-      listed[0]
+    const view = pickViewForRoute(listed, collectionPath, routeViewId)
     if (view) applyView(view)
     setHydrated(true)
-  }, [allColumnKeys, collectionPath, dataPath, schema, schemaDefaultKeys])
+  }, [allColumnKeys, collectionPath, dataPath, routeViewId, schema, schemaDefaultKeys])
 
   useEffect(() => {
     if (sheet || !hydrated || !activeViewId) return
@@ -2770,7 +2768,7 @@ export function CollectionBrowser({
                 ))}
               </div>
               <div className="tasks-viewtabs">
-                {(views.length ? splitVisibleViews(views, viewTabFit, activeViewId).shown : []).map((view) => (
+                {(views.length ? splitVisibleViews(views, viewTabFit, activeViewId ?? undefined).shown : []).map((view) => (
                   <button
                     key={view.id}
                     type="button"

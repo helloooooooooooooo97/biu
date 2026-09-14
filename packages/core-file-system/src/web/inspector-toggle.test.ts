@@ -6,6 +6,15 @@ import assert from 'node:assert/strict'
 const browser = readFileSync(resolve(import.meta.dirname, './browser.tsx'), 'utf8')
 const detail = readFileSync(resolve(import.meta.dirname, './record-detail.tsx'), 'utf8')
 
+test('hydrating page-blocks prefers the route view over local 全部', () => {
+  assert.match(browser, /pickViewForRoute\(listed, collectionPath, routeViewId\)/)
+  assert.match(browser, /pickViewForRoute\(listed, collectionPath, routeViewId \?\? activeId/)
+  assert.doesNotMatch(
+    browser,
+    /listed.find\(\(item\) => item.id === routeViewId\) \?\?\s*listed.find\(\(item\) => item.id === loadActiveViewId/,
+  )
+})
+
 test('data sidebar brand sits left with a collapse control on the right', () => {
   const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
   assert.match(sidebar, /app-side-bar-head-brand/)

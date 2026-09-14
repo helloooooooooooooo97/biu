@@ -163,7 +163,7 @@ export function apply(ctx: Ctx) {
   }
 
   const killAll = () => {
-    for (const session of [...pool.values()]) kill(session)
+    pool.forEach((session) => kill(session))
     pool.clear()
   }
 
@@ -173,9 +173,9 @@ export function apply(ctx: Ctx) {
   const evictIfNeeded = () => {
     while (pool.size > settings.maxSessions) {
       let oldest: PooledSession | null = null
-      for (const session of pool.values()) {
+      pool.forEach((session) => {
         if (!oldest || session.lastSeen < oldest.lastSeen) oldest = session
-      }
+      })
       if (!oldest) break
       kill(oldest)
     }
