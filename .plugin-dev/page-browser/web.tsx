@@ -94,7 +94,7 @@ function BrowserSurface({
   const go = (raw: string) => {
     const next = normalizeUrl(raw)
     if (!next) {
-      setNotice('地址看不懂，试试 example.com 或 https://…')
+      setNotice('输入链接或搜索词')
       return
     }
     window.clearTimeout(timer.current)
@@ -184,7 +184,7 @@ function BrowserSurface({
             data-page-block-capture=""
             spellCheck={false}
             value={addr}
-            placeholder="输入链接，例如 example.com"
+            placeholder="链接或搜索词"
             aria-label="地址"
             onKeyDown={(event) => event.stopPropagation()}
             onChange={(event) => setAddr(event.currentTarget.value)}

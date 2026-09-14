@@ -1,0 +1,14 @@
+{
+  "name": "@biu/host-web",
+  "license": "Apache-2.0",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "网上访问缝 ctx.web：search / fetch 与 web_search / web_fetch",
+  "exports": {
+    ".": "./src/host/index.ts"
+  },
+  "peerDependencies": {
+    "cordis": "4.0.0-rc.8"
+  }
+}
