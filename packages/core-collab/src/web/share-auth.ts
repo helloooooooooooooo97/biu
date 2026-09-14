@@ -1,4 +1,4 @@
-export type ShareAuth = { token: string; pageId: string; role: string }
+export type ShareAuth = { token: string; pageId: string; role: string; name?: string; guestId?: string }
 
 const KEY = 'biu_share_auth'
 

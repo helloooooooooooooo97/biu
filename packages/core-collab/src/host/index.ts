@@ -199,7 +199,26 @@ export function apply(ctx: Context) {
       return
     }
     const pageId = String(route.query.get('pageId') ?? '')
-    route.send(200, { shares: shares.list(pageId).map(({ role, createdAt }) => ({ pageId, role, createdAt })) })
+    const origin = publicOrigin(String(route.req.headers.host ?? ''))
+    route.send(200, {
+      shares: shares.list(pageId).map((item) => ({
+        pageId: item.pageId,
+        role: item.role,
+        createdAt: item.createdAt,
+        locked: item.role === 'viewer',
+        url: `${origin}/share/${encodeURIComponent(item.token)}`,
+      })),
+    })
+  })
+
+  ctx.http.route('DELETE', '/api/shares', (route) => {
+    const actor = memberFromReq(route.req.headers.cookie)
+    if (!actor || actor.role !== 'owner') {
+      route.send(403, { error: 'owner required' })
+      return
+    }
+    const pageId = String(route.query.get('pageId') ?? '')
+    route.send(200, { ok: shares.revokePage(pageId) })
   })
 
   ctx.http.route('GET', '/api/shares/:token', async (route) => {

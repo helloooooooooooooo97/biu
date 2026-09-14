@@ -64,14 +64,14 @@ export function ShareShell() {
               .then(async (res) => {
                 const body = (await res.json()) as ShareEnter & { error?: string }
                 if (!res.ok) throw new Error(body.error || '失败')
-                setShareAuth({ token: body.token, pageId: body.pageId, role: body.role })
+                setShareAuth({ token: body.token, pageId: body.pageId, role: body.role, name: body.guest.name, guestId: body.guest.id })
                 setSession(body)
               })
               .catch((err: Error) => setError(String(err.message || err)))
           }}
         >
           <h1>{meta.title}</h1>
-          <p>{meta.locked ? '只读分享，只能看这一页。' : '只能打开这一页，看不到工作区里的其他页面。'}</p>
+          <p>{meta.locked ? '这是带锁的只读分享：只能看这一页，不能改，也看不到其他页面。' : '只能打开这一页，看不到工作区里的其他页面。'}</p>
           <label>
             显示名称
             <input value={name} autoComplete="nickname" onChange={(event) => setName(event.target.value)} />
@@ -89,7 +89,13 @@ export function ShareShell() {
     <div className="share-shell is-page" data-testid="share-shell">
       <header className="share-shell-bar">
         <span className="share-shell-title">{session.title}</span>
-        {session.locked ? <span className="share-shell-lock">只读</span> : <span className="share-shell-lock is-edit">可编辑</span>}
+        {session.locked ? (
+          <span className="share-shell-lock" data-testid="share-locked">
+            只读 · 只能看这一页
+          </span>
+        ) : (
+          <span className="share-shell-lock is-edit">可编辑 · 只能看这一页</span>
+        )}
         <span className="share-shell-who">{session.guest.name}</span>
       </header>
       <div className="share-shell-page">

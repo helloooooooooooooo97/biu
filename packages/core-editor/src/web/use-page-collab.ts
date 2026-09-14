@@ -22,7 +22,7 @@ function shareAuthFor(pageId: string) {
   try {
     const raw = sessionStorage.getItem('biu_share_auth')
     if (!raw) return null
-    const parsed = JSON.parse(raw) as { token?: string; pageId?: string; role?: string }
+    const parsed = JSON.parse(raw) as { token?: string; pageId?: string; role?: string; name?: string; guestId?: string }
     if (!parsed.token || parsed.pageId !== pageId) return null
     return parsed
   } catch {
@@ -58,7 +58,7 @@ export function usePageCollab(pageId: string): PageCollab {
       }
       const share = shareAuthFor(pageId)
       if (share?.token) {
-        const identity = { id: 'share', name: '访客', color: colorForId(pageId) }
+        const identity = { id: share.guestId || 'share', name: share.name || '访客', color: colorForId(share.guestId || pageId) }
         setMember({ id: identity.id, name: identity.name, role: share.role || 'viewer', color: identity.color })
         setGuest(identity)
         return { token: share.token, identity }

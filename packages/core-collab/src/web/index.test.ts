@@ -27,4 +27,5 @@ test('share route skips the workspace login wall', () => {
   const share = readFileSync(resolve(import.meta.dirname, './share-shell.tsx'), 'utf8')
   assert.match(share, /只能打开这一页/)
   assert.match(share, /\/api\/shares\//)
+  assert.match(share, /share-locked/)
 })
