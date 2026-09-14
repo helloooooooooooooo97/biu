@@ -48,9 +48,10 @@ test('static movements use distinct composition systems instead of one shared co
   assert.match(preset('eu-futurism'), /skewX\(-23deg\)/)
   assert.match(preset('cn-gba-tech'), /SYSTEM READY/)
   assert.match(preset('cn-variable-hanzi'), /scaleX\(1\.35\)/)
-  assert.match(preset('cn-digital-jade'), /mix-blend-mode:multiply/)
-  assert.match(preset('cn-night-shanghai'), /CLUB \/ 02:17/)
-  assert.match(preset('cn-soft-future'), /LIQUID METAL/)
+  assert.match(preset('cn-hanzi-lexicon'), /点 01/)
+  assert.match(preset('cn-bilingual-editorial'), /BILINGUAL EDITORIAL SYSTEM/)
+  assert.match(preset('cn-poster-field'), /POSTER/)
+  assert.match(preset('cn-beyond-page'), /perspective\(260px\)/)
 })
 
 test('gallery spans light, cool, vivid, pastel, neutral, and intentionally dark palettes', () => {
@@ -67,8 +68,9 @@ test('gallery spans light, cool, vivid, pastel, neutral, and intentionally dark 
   assert.match(preset('eu-memphis'), /#b9f3dc/)
   assert.match(preset('cn-shanghai-mode'), /#d8ff36/)
   assert.match(preset('cn-variable-hanzi'), /#ff477e/)
-  assert.match(preset('cn-digital-jade'), /#baff5a/)
-  assert.match(preset('cn-soft-future'), /#ff4f24/)
+  assert.match(preset('cn-hanzi-lexicon'), /#1357ff/)
+  assert.match(preset('cn-bilingual-editorial'), /#d9ff43/)
+  assert.match(preset('cn-abstract-east'), /#ff4e20/)
 
   // A few dark fields remain because darkness is integral to these movements,
   // not because every regional family shares one museum-like palette.
@@ -88,10 +90,15 @@ test('Japanese and Chinese defaults are fashion-forward rather than historical e
   }
   for (const current of [
     'jp-tokyo-chrome', 'jp-harajuku-soft', 'jp-data-stage', 'jp-numero', 'jp-hybrid-tailoring',
-    'cn-shanghai-mode', 'cn-gba-tech', 'cn-variable-hanzi', 'cn-digital-jade',
-    'cn-cpop-stage', 'cn-new-luxury', 'cn-street-type', 'cn-art-book',
-    'cn-night-shanghai', 'cn-soft-future',
+    'cn-shanghai-mode', 'cn-gba-tech', 'cn-variable-hanzi', 'cn-hanzi-lexicon',
+    'cn-bilingual-editorial', 'cn-abstract-east', 'cn-street-type', 'cn-art-book',
+    'cn-poster-field', 'cn-beyond-page',
   ]) {
     assert.equal(ids.has(current), true, current)
+  }
+  for (const removed of [
+    'cn-digital-jade', 'cn-cpop-stage', 'cn-new-luxury', 'cn-night-shanghai', 'cn-soft-future',
+  ]) {
+    assert.equal(ids.has(removed), false, removed)
   }
 })
