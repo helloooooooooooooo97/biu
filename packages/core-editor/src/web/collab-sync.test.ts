@@ -3,14 +3,19 @@ import assert from 'node:assert/strict'
 import { Editor } from '@tiptap/core'
 import * as Y from 'yjs'
 import { pageEditorExtensions } from './kit.ts'
-import { collabCaretUser } from './collab-user.ts'
+import { collabCaretUser, loadOrCreateGuest } from './collab-user.ts'
 import { PAGE_EDITOR_STYLE } from './style.ts'
 
-test('unknown identity still gets a caret name', () => {
-  assert.equal(collabCaretUser(null).name, '你')
-  assert.equal(collabCaretUser({ name: '  ' }).name, '你')
-  assert.equal(collabCaretUser({ name: '甲' }).name, '甲')
-  assert.notEqual(collabCaretUser({ id: 'a' }).color, collabCaretUser({ id: 'b' }).color)
+test('guest id persists in localStorage and is the caret label', () => {
+  localStorage.clear()
+  const first = loadOrCreateGuest()
+  assert.match(first.id, /^g_[a-f0-9]{12}$/)
+  const again = loadOrCreateGuest()
+  assert.equal(again.id, first.id)
+  assert.equal(collabCaretUser(first).name, first.id)
+  localStorage.clear()
+  const other = loadOrCreateGuest()
+  assert.notEqual(other.id, first.id)
 })
 
 test('two editors on one ydoc show each others edits', async () => {

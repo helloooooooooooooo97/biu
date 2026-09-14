@@ -86,6 +86,16 @@ test('collab hooks persist yjs and mark viewers read-only', async () => {
   assert.equal(loaded.getMap('meta').get('k'), 1)
 })
 
+test('guest id is reused as an editor member', () => {
+  const store = new MembersStore(join(mkdtempSync(join(tmpdir(), 'biu-mem-')), 'm.sqlite'))
+  const a = store.ensureGuest('g_aaaaaaaaaaaa')
+  assert.equal(a.role, 'owner')
+  assert.equal(store.ensureGuest('g_aaaaaaaaaaaa').id, a.id)
+  const b = store.ensureGuest('g_bbbbbbbbbbbb')
+  assert.equal(b.role, 'editor')
+  assert.throws(() => store.ensureGuest('not-a-guest'))
+})
+
 test('yjs store round-trips an update', () => {
   const store = new YjsStore(join(mkdtempSync(join(tmpdir(), 'biu-yjs-')), 'yjs'))
   const doc = new Y.Doc()

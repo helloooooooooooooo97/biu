@@ -56,6 +56,10 @@ export function newId(prefix: string) {
   return `${prefix}_${randomBytes(9).toString('hex')}`
 }
 
+export function isGuestId(value: string) {
+  return /^g_[a-f0-9]{12}$/.test(value)
+}
+
 export function setCookieHeader(token: string) {
   return `${MEMBER_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`
 }

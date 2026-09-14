@@ -9,8 +9,8 @@ export const PAGE_EDITOR_STYLE = `
 .page-source .cm-editor.cm-focused>.cm-scroller>.cm-selectionLayer .cm-selectionBackground,.page-source .cm-selectionLayer .cm-selectionBackground{background:color-mix(in srgb,var(--dsw-pick) 40%,transparent)}
 .page-editor .tiptap{outline:none;box-shadow:none;border:0}
 .page-editor .tiptap:focus,.page-editor .tiptap:focus-visible,.page-editor .tiptap.ProseMirror-focused{outline:none;box-shadow:none}
-.page-editor .collaboration-carets__caret{position:relative;border-left:2px solid;border-right:0;margin:0;word-break:normal;pointer-events:none}
-.page-editor .collaboration-carets__label{position:absolute;top:0;left:6px;padding:0 5px;border-radius:2px;color:#fff;font-size:11px;font-weight:700;line-height:1.4;white-space:nowrap;pointer-events:none}
+.page-editor .collaboration-carets__caret{position:relative;z-index:20;border-left:2px solid;border-right:0;margin:0;word-break:normal;pointer-events:none}
+.page-editor .collaboration-carets__label{position:absolute;top:0;left:6px;z-index:21;padding:0 5px;border-radius:2px;color:#fff;font-size:11px;font-weight:700;line-height:1.4;white-space:nowrap;pointer-events:none}
 .page-block-handle{position:absolute;z-index:6;width:28px;display:flex;flex-direction:column;align-items:center;pointer-events:auto}
 .page-block-handle-grip{flex:none;display:flex;align-items:center;justify-content:center;width:22px;height:26px;margin:0;border:0;border-radius:6px;padding:0;background:transparent;color:#EFEEEC;cursor:grab}
 .page-block-handle-grip:hover,.page-block-handle-grip:focus-visible{background:var(--dsw-hover);color:#EFEEEC}

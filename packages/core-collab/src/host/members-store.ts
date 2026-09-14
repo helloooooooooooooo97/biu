@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { createRequire } from 'node:module'
 import { createHash, randomBytes } from 'node:crypto'
-import { isRole, newId, type Member, type MemberRole } from './session.ts'
+import { isRole, isGuestId, newId, type Member, type MemberRole } from './session.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 
@@ -72,6 +72,20 @@ export class MembersStore {
     if (!row || !isRole(row.role) || row.role === 'owner') throw new Error('invalid invite')
     const member = this.add(name, row.role)
     this.db.prepare('DELETE FROM invites WHERE token_hash = ?').run(hashToken(token))
+    return member
+  }
+
+  ensureGuest(id: string): Member {
+    if (!isGuestId(id)) throw new Error('invalid guest id')
+    const existing = this.get(id)
+    if (existing) return existing
+    const member: Member = {
+      id,
+      name: id,
+      role: this.list().length === 0 ? 'owner' : 'editor',
+      createdAt: Date.now(),
+    }
+    this.db.prepare('INSERT INTO members (id, name, role, created_at) VALUES (?, ?, ?, ?)').run(member.id, member.name, member.role, member.createdAt)
     return member
   }
 

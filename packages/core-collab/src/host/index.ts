@@ -98,7 +98,17 @@ export function apply(ctx: Context) {
     }
   })
 
-  ctx.http.route('GET', '/api/members', (route) => {
+  ctx.http.route('POST', '/api/members/guest', async (route) => {
+    const body = (await route.json<{ guestId?: string }>()) ?? {}
+    try {
+      const member = members.ensureGuest(String(body.guestId ?? ''))
+      const token = signSession(secret, member.id)
+      route.res.setHeader('set-cookie', setCookieHeader(token))
+      route.send(200, { member, token })
+    } catch (error) {
+      route.send(400, { error: String(error) })
+    }
+  })
     const actor = memberFromReq(route.req.headers.cookie)
     if (!actor) {
       route.send(401, { error: 'sign in' })

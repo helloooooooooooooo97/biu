@@ -321,7 +321,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
       editable: writable !== false && collab.member?.role !== 'viewer',
       extensions: pageEditorExtensions(
         liveCollab
-          ? { ydoc: collab.ydoc, provider: collab.provider, user: collabCaretUser(collab.member) }
+          ? { ydoc: collab.ydoc, provider: collab.provider, user: collabCaretUser(collab.guest) }
           : undefined,
       ),
       content: liveCollab ? undefined : asMarkdown(value),
@@ -419,6 +419,11 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
         jumpToPending(editor, md, record.id)
         return
       }
+      const paintRemote = (next: string) => {
+        saved.current = next
+        editor.commands.setContent(next, { contentType: 'markdown' })
+        jumpToPending(editor, next, record.id, true)
+      }
       const canPaint = () =>
         shouldApplyRemoteMarkdown({
           focused: editor.isFocused,
@@ -426,10 +431,22 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
           hasJump: Boolean(contentJumpForRecord(record.id)),
           recentlyLocal: recentlyLocalEdit(typedAt.current),
         })
-      if (!canPaint()) return
-      saved.current = md
-      editor.commands.setContent(md, { contentType: 'markdown' })
-      jumpToPending(editor, md, record.id, true)
+      if (!canPaint()) {
+        if (remoteTimer.current) clearTimeout(remoteTimer.current)
+        const wait = () => {
+          if (editor.isDestroyed) return
+          const next = asMarkdown(valueRef.current)
+          if (next === saved.current) return
+          if (!canPaint()) {
+            remoteTimer.current = setTimeout(wait, LOCAL_EDIT_MS)
+            return
+          }
+          paintRemote(next)
+        }
+        remoteTimer.current = setTimeout(wait, LOCAL_EDIT_MS)
+        return
+      }
+      paintRemote(md)
       return
     }
     if (hydratedId.current !== record.id) {
