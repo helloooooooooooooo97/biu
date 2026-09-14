@@ -10,7 +10,8 @@ import {
   RectangleStackIcon,
   RectangleGroupIcon,
   TableCellsIcon,
-import { UserGroupIcon } from '@heroicons/react/16/solid'
+  UserGroupIcon,
+} from '@heroicons/react/16/solid'
 
 export function TableGlyph({ icon, className = 'size-4' }: { icon?: string; className?: string }) {
   const name = (icon ?? '').trim().toLowerCase()

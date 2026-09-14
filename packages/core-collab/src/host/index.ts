@@ -109,6 +109,13 @@ export function apply(ctx: Context) {
 
   ctx.http.ws('/collaboration', (socket, req) => {
     const request = incomingToRequest(req)
-    collab.handleConnection(socket as unknown as WebSocket, request)
+    const connection = collab.handleConnection(socket as unknown as WebSocket, request)
+    socket.on('message', (data) => {
+      const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data as Buffer)
+      connection.handleMessage(bytes)
+    })
+    socket.on('close', (code, reason) => {
+      connection.handleClose({ code, reason: reason.toString() })
+    })
   })
 }
