@@ -1083,7 +1083,6 @@ export function apply(ctx: Context) {
       route.send(400, { error: String(error) })
     }
   })
-  })
   ctx.http.route('GET', '/api/sessions/:id', async (route) => {
     const record = await ctx.sessions.getVisible(route.params.id)
     if (!record) return route.send(404, { error: 'unknown session' })
