@@ -27,11 +27,12 @@ test('owner sees every page; editor sees shared or owned pages; nested agent inh
   }))
   const vis = createPageVisibility(members, shares, ownership)
 
-  assert.equal(await vis.canSeePage('private'), true)
-
   await httpRequest.run({ cookie: cookieFor('secret', editor.id) }, async () => {
     assert.equal(await vis.canSeePage('private'), false)
     assert.equal(await vis.canSeePage('mine', editor.id), true)
+    assert.equal(await vis.canSeeRecord({ collection: '/sessions', recordId: 's1', ownerMemberId: editor.id }), true)
+    assert.equal(await vis.canSeeRecord({ collection: '/sessions', recordId: 's2', ownerMemberId: owner.id }), false)
+    assert.equal(await vis.canSeeRecord({ collection: '/members', recordId: owner.id }), true)
   })
 
   shares.create('shared', 'editor', owner.id)

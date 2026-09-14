@@ -1333,3 +1333,30 @@ test('page list drops records the current person cannot see', async () => {
   assert.deepEqual(listed.items.map((row) => row.id), ['mine'])
   await assert.rejects(() => db.read('/pages/theirs'), /unknown record/)
 })
+
+test('sessions list uses the same record access as pages', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = [
+    { id: 's-mine', title: '我的代理', ownerMemberId: 'm1' },
+    { id: 's-theirs', title: '别人的代理', ownerMemberId: 'm2' },
+  ]
+  db.register({
+    id: 'sessions',
+    path: '/sessions',
+    schema: {
+      labelField: 'title',
+      fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true }, ownerMemberId: { type: 'string' } },
+    },
+    list: () => rows,
+    get: (id) => rows.find((row) => row.id === id) ?? null,
+  })
+  db.setPageAccess({
+    canSeeRecord: async (input) => input.ownerMemberId === 'm1',
+    resolveOwnerMemberId: async () => 'm1',
+  })
+  const listed = await db.list('/sessions')
+  assert.equal(listed.kind, 'collection')
+  if (listed.kind !== 'collection') return
+  assert.deepEqual(listed.items.map((row) => row.id), ['s-mine'])
+})

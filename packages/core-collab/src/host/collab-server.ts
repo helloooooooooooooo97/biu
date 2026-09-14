@@ -12,6 +12,7 @@ export function createCollabServer(
   readSession: (token: string) => string,
   shares?: SharesStore,
   readShare?: (token: string) => ShareAccess | null,
+  pageOwnedBy?: (memberId: string, pageId: string) => boolean,
 ) {
   return new Hocuspocus({
     debounce: 2000,
@@ -27,7 +28,8 @@ export function createCollabServer(
       }
       const member = members.get(readSession(token))
       if (!member) throw new Error('Authentication required')
-      if (member.role !== 'owner' && shares && !shares.isShared(pageId)) throw new Error('page is not shared')
+      const owned = Boolean(pageOwnedBy?.(member.id, pageId))
+      if (member.role !== 'owner' && !owned && shares && !shares.isShared(pageId)) throw new Error('page is not shared')
       if (!canEdit(member.role)) connectionConfig.readOnly = true
       return { user: { id: member.id, name: member.name, color: colorFor(member.id) } }
     },

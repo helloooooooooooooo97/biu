@@ -4,8 +4,19 @@ import { cookieValue, readSession } from './session.ts'
 import type { MembersStore } from './members-store.ts'
 import type { SharesStore } from './shares-store.ts'
 
+/** 工作区公共表：登录即可看。其它表按归属 / 分享过滤。 */
+const WORKSPACE_TABLES = new Set(['/members', '/plugins', '/facets', '/views', '/notices'])
+
+export type RecordAccessInput = {
+  collection: string
+  recordId: string
+  ownerMemberId?: string
+  pageId?: string
+}
+
 export type PageVisibility = {
   canSeePage: (pageId: string, ownerMemberId?: string) => Promise<boolean>
+  canSeeRecord: (input: RecordAccessInput) => Promise<boolean>
 }
 
 export type PageOwnership = {
@@ -61,18 +72,29 @@ export function createPageVisibility(
   shares: SharesStore,
   ownership: PageOwnership,
 ): PageVisibility {
+  const actorOf = async () => {
+    const actorId = (await ownership.resolveOwnerMemberId()) || ownership.currentMemberId()
+    return actorId ? members.get(actorId) : undefined
+  }
+
   return {
-    async canSeePage(pageId: string, ownerMemberId?: string) {
+    async canSeeRecord(input) {
       const store = httpRequest.getStore()
-      const sid = currentSessionId()?.trim()
       if (store?.unrestricted) return true
-      if (store == null && !sid) return true
-      const actorId = (await ownership.resolveOwnerMemberId()) || ownership.currentMemberId()
-      const actor = actorId ? members.get(actorId) : undefined
+      const actor = await actorOf()
       if (!actor) return false
       if (actor.role === 'owner') return true
-      if (shares.isShared(pageId)) return true
-      return Boolean(ownerMemberId && ownerMemberId === actor.id)
+      if (WORKSPACE_TABLES.has(input.collection)) return true
+      const pageId = input.pageId || (input.collection === '/pages' ? input.recordId : '')
+      if (pageId && shares.isShared(pageId)) return true
+      return Boolean(input.ownerMemberId && ownerMemberIdMatches(input.ownerMemberId, actor.id))
+    },
+    canSeePage(pageId, ownerMemberId) {
+      return this.canSeeRecord({ collection: '/pages', recordId: pageId, pageId, ownerMemberId })
     },
   }
+}
+
+function ownerMemberIdMatches(ownerMemberId: string, actorId: string) {
+  return ownerMemberId === actorId
 }

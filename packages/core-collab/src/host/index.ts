@@ -41,7 +41,21 @@ export function apply(ctx: Context) {
   const yjs = new YjsStore(join(dataPath(root, 'collab'), 'yjs'))
   const presence = new PresenceStore()
   const sessionOf = (token: string) => readSession(secret, token)
-  const collab = createCollabServer(members, yjs, sessionOf, shares, (token) => readShareAccess(secret, token))
+  const collab = createCollabServer(
+    members,
+    yjs,
+    sessionOf,
+    shares,
+    (token) => readShareAccess(secret, token),
+    (memberId, pageId) => {
+      const facets = (
+        ctx.database as {
+          facets?: { recordMeta: (collection: string, recordId: string) => { createdBy?: { memberId?: string } | null } | null }
+        }
+      ).facets
+      return facets?.recordMeta('/pages', pageId)?.createdBy?.memberId === memberId
+    },
+  )
   const publicOrigin = (host?: string) => String(process.env.PUBLIC_ORIGIN ?? `http://${host ?? '127.0.0.1:5173'}`).replace(/\/$/, '')
   ctx.database.register(
     membersCollection(members, (role) => {
@@ -67,6 +81,7 @@ export function apply(ctx: Context) {
   const pageOwnership = createPageOwnership(members, secret, sessionsOf)
   const pageVisibility = createPageVisibility(members, shares, pageOwnership)
   ctx.database.setPageAccess?.({
+    canSeeRecord: (input) => pageVisibility.canSeeRecord(input),
     canSeePage: (pageId, ownerMemberId) => pageVisibility.canSeePage(pageId, ownerMemberId),
     resolveOwnerMemberId: () => pageOwnership.resolveOwnerMemberId(),
   })

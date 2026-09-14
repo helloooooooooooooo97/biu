@@ -49,6 +49,8 @@ function asRecord(row: SessionSummary): DbRecord {
     mascotShape: mascot.shape,
     mascotColor: mascot.color,
     mascotEye: mascot.eye,
+    ownerMemberId: String(row.config?.ownerMemberId ?? ''),
+    parentSessionId: String(row.config?.parentSessionId ?? ''),
     ...recordBuiltinValues({
       createdAt: row.config?.createdAt,
       updatedAt: row.updatedAt,

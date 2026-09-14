@@ -599,12 +599,28 @@ export class DatabaseService extends Service implements Database {
     return this.facets.recordMeta('/pages', pageId)?.createdBy?.memberId ?? ''
   }
 
+  private ownerMemberIdOf(spec: CollectionSpec, record: { id: string } & Record<string, unknown>) {
+    const pageId = this.pageIdOf(spec, record)
+    if (pageId) return this.pageOwnerMemberId(pageId) || asPerson(record.createdBy)?.memberId || ''
+    const fromMeta = this.facets.recordMeta(spec.path, record.id)?.createdBy?.memberId ?? ''
+    const fromPerson = asPerson(record.createdBy)?.memberId || asPerson(record.creator)?.memberId || ''
+    const fromField = String(record.ownerMemberId ?? '').trim()
+    return fromField || fromMeta || fromPerson
+  }
+
   private async allowRecord(spec: CollectionSpec, record: { id: string } & Record<string, unknown>) {
     const vis = this.visibility()
     if (!vis) return true
     const pageId = this.pageIdOf(spec, record)
-    if (!pageId) return true
-    return vis.canSeePage(pageId, this.pageOwnerMemberId(pageId) || asPerson(record.createdBy)?.memberId)
+    const ownerMemberId = this.ownerMemberIdOf(spec, record)
+    if (vis.canSeeRecord) {
+      return vis.canSeeRecord({ collection: spec.path, recordId: String(record.id), ownerMemberId, pageId })
+    }
+    if (vis.canSeePage) {
+      if (!pageId) return true
+      return vis.canSeePage(pageId, ownerMemberId)
+    }
+    return true
   }
 
   private async assertVisible(spec: CollectionSpec, record: { id: string } & Record<string, unknown>) {

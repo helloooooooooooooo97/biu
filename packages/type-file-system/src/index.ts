@@ -675,8 +675,16 @@ export type ListPage = {
   columns?: string[]
 }
 
+export type RecordAccessInput = {
+  collection: string
+  recordId: string
+  ownerMemberId?: string
+  pageId?: string
+}
+
 export type PageAccess = {
-  canSeePage: (pageId: string, ownerMemberId?: string) => boolean | Promise<boolean>
+  canSeeRecord?: (input: RecordAccessInput) => boolean | Promise<boolean>
+  canSeePage?: (pageId: string, ownerMemberId?: string) => boolean | Promise<boolean>
   resolveOwnerMemberId: () => Promise<string>
 }
 
