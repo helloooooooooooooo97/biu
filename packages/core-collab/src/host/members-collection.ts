@@ -25,7 +25,7 @@ export function membersCollection(store: MembersStore, inviteUrl: (role: MemberR
       inspector: true,
       icon: 'users',
       order: 22,
-      blurb: '工作区成员。列表 db_list /members。改姓名/角色 db_update。新建 db_create（title=姓名，role=editor|viewer）。删除 db_delete。owner 发邀请：db_action invite，args.role=editor|viewer，返回 url。',
+      blurb: '工作区成员。登录后使用。列表 db_list /members。改姓名/角色 db_update。新建 db_create（title=姓名，password=密码，role=editor|viewer）。删除 db_delete。owner 发邀请：db_action invite，args.role=editor|viewer，返回 url。',
     },
     schema: {
       labelField: 'title',
@@ -33,6 +33,7 @@ export function membersCollection(store: MembersStore, inviteUrl: (role: MemberR
       fields: {
         ...REQUIRED_RECORD_FIELDS,
         title: { type: 'string', label: '姓名', writable: true },
+        password: { type: 'string', label: '密码', writable: true },
         role: {
           type: 'select',
           label: '角色',
@@ -67,8 +68,8 @@ export function membersCollection(store: MembersStore, inviteUrl: (role: MemberR
       return rows.map((fields) => {
         const role = isRole(fields.role) ? fields.role : 'editor'
         const name = String(fields.title ?? fields.name ?? '同事')
-        if (!store.list().length) return memberRecord(store.bootstrap(name))
-        return memberRecord(store.add(name, role === 'owner' ? 'editor' : role))
+        if (!store.list().length) return memberRecord(store.bootstrap(name, String(fields.password ?? '')))
+        return memberRecord(store.add(name, role === 'owner' ? 'editor' : role, String(fields.password ?? '')))
       })
     },
     remove: (query) => {

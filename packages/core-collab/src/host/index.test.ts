@@ -95,6 +95,16 @@ test('presence lists distinct guests on one page', () => {
   assert.equal(room.list('p2').length, 0)
 })
 
+test('register then login with name and password', () => {
+  const store = new MembersStore(join(mkdtempSync(join(tmpdir(), 'biu-mem-')), 'm.sqlite'))
+  const owner = store.register('翠云安', 'secret')
+  assert.equal(owner.role, 'owner')
+  assert.equal(store.login('翠云安', 'secret').id, owner.id)
+  assert.throws(() => store.login('翠云安', 'wrong'))
+  const editor = store.register('同事', 'pass')
+  assert.equal(editor.role, 'editor')
+})
+
 test('guest id is reused as an editor member', () => {
   const store = new MembersStore(join(mkdtempSync(join(tmpdir(), 'biu-mem-')), 'm.sqlite'))
   const a = store.ensureGuest('g_aaaaaaaaaaaa')

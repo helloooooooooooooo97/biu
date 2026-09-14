@@ -8,16 +8,10 @@ import { pageEditorExtensions } from './kit.ts'
 import { collabCaretUser, loadOrCreateGuest } from './collab-user.ts'
 import { PAGE_EDITOR_STYLE } from './style.ts'
 
-test('guest id persists in localStorage and is the caret label', () => {
-  localStorage.clear()
-  const first = loadOrCreateGuest()
-  assert.match(first.id, /^g_[a-f0-9]{12}$/)
-  const again = loadOrCreateGuest()
-  assert.equal(again.id, first.id)
-  assert.equal(collabCaretUser(first).name, first.id)
-  localStorage.clear()
-  const other = loadOrCreateGuest()
-  assert.notEqual(other.id, first.id)
+test('caret label is the display name once', () => {
+  assert.equal(collabCaretUser({ id: 'm_1', name: '翠云安', color: '#2563eb' }).name, '翠云安')
+  const guest = loadOrCreateGuest()
+  assert.equal(collabCaretUser(guest).name, guest.name || guest.id)
 })
 
 test('two editors on one ydoc show each others edits', async () => {
@@ -38,16 +32,16 @@ test('two editors on one ydoc show each others edits', async () => {
   b.destroy()
 })
 
-test('page editor overlays remote carets and stacks avatars', () => {
+test('page editor stacks avatars and uses one official caret label', () => {
   const src = readFileSync(resolve(import.meta.dirname, './page-editor.tsx'), 'utf8')
-  assert.match(src, /PresenceCarets/)
-  assert.match(src, /usePagePresence\(record\.id, collab\.guest, caretFrom\)/)
-  assert.match(src, /setCaretFrom\(current\.state\.selection\.head\)/)
+  assert.match(src, /PresenceAvatars/)
+  assert.doesNotMatch(src, /PresenceCarets/)
+  assert.match(src, /usePagePresence\(record\.id, collab\.guest\)/)
 })
 
 test('presence stack styles are circular', () => {
   assert.match(PAGE_EDITOR_STYLE, /page-presence-dot\{[^}]*border-radius:50%/)
-  assert.match(PAGE_EDITOR_STYLE, /page-presence-caret\{[^}]*width:2px/)
+  assert.doesNotMatch(PAGE_EDITOR_STYLE, /page-presence-caret/)
 })
 
 test('remote caret is a line with the label on the right, not a box', () => {

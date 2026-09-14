@@ -12,7 +12,7 @@ import { pageEditorExtensions } from './kit.ts'
 import { usePageCollab } from './use-page-collab.ts'
 import { collabCaretUser } from './collab-user.ts'
 import { usePagePresence } from './use-page-presence.ts'
-import { PresenceAvatars, PresenceCarets } from './presence-avatars.tsx'
+import { PresenceAvatars } from './presence-avatars.tsx'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { PageBlockHandle } from './page-block-handle.tsx'
 import { editorHostIsLive } from './editor-live.ts'
@@ -295,8 +295,7 @@ function TableBar({ editor }: { editor: Editor }) {
 
 export function PageEditor({ record, value, writable, onChange, path }: FsContentProps) {
   const collab = usePageCollab(record.id)
-  const [caretFrom, setCaretFrom] = useState(1)
-  const viewers = usePagePresence(record.id, collab.guest, caretFrom)
+  const viewers = usePagePresence(record.id, collab.guest)
   const source = usePageSourceMode(record.id)
   const saved = useRef(asMarkdown(value))
   const sourceMode = useRef(source)
@@ -326,7 +325,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
       extensions: pageEditorExtensions({
         ydoc: collab.ydoc,
         provider: collab.provider,
-        user: collabCaretUser(collab.guest),
+        user: collabCaretUser(collab.member ?? collab.guest),
       }),
       content: undefined,
       contentType: 'markdown',
@@ -356,7 +355,6 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
         },
       },
       onSelectionUpdate: ({ editor: current }) => {
-        setCaretFrom(current.state.selection.head)
         const host = current.view.dom.closest('.page-editor')
         if (host instanceof HTMLElement) {
           const locus = markdownLocusFromSelection(current)
@@ -634,7 +632,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
   if (source) {
     return (
       <div className="page-editor is-source" onKeyDownCapture={onEditorHotkey}>
-        <PresenceAvatars viewers={viewers} selfId={collab.guest.id} />
+        <PresenceAvatars viewers={viewers} selfId={collab.member?.id ?? collab.guest.id} />
         {findBar}
         <SourceEditor
           ref={sourceFind}
@@ -652,10 +650,9 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
 
   return (
     <div className="page-editor" onKeyDownCapture={onEditorHotkey}>
-      <PresenceAvatars viewers={viewers} selfId={collab.guest.id} />
+      <PresenceAvatars viewers={viewers} selfId={collab.member?.id ?? collab.guest.id} />
       {findBar}
       <EditorContent editor={editor} />
-      <PresenceCarets editor={editor} viewers={viewers} selfId={collab.guest.id} />
       {writable !== false ? <PageBlockHandle editor={editor} /> : null}
       {writable !== false ? <Bubble editor={editor} onSendChat={sendToChat} /> : null}
       {writable !== false ? <TableBar editor={editor} /> : null}

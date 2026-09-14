@@ -15,9 +15,6 @@ export const PAGE_EDITOR_STYLE = `
 .page-presence-dot{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin-left:-6px;border:2px solid var(--dsw-bg,#1b1b1b);border-radius:50%;color:#fff;font-size:9px;font-weight:800;line-height:1;letter-spacing:0;text-transform:uppercase}
 .page-presence-dot:last-child{margin-left:0}
 .page-presence-dot.is-self{box-shadow:0 0 0 1px color-mix(in srgb,#fff 35%,transparent)}
-.page-presence-carets{position:absolute;inset:0;z-index:25;pointer-events:none;overflow:visible}
-.page-presence-caret{position:absolute;width:2px;margin:0;border-radius:1px;pointer-events:none}
-.page-presence-caret-label{position:absolute;left:4px;top:-2px;padding:0 4px;border-radius:2px;color:#fff;font-size:10px;font-weight:700;line-height:1.3;white-space:nowrap}
 .page-block-handle{position:absolute;z-index:6;width:28px;display:flex;flex-direction:column;align-items:center;pointer-events:auto}
 .page-block-handle-grip{flex:none;display:flex;align-items:center;justify-content:center;width:22px;height:26px;margin:0;border:0;border-radius:6px;padding:0;background:transparent;color:#EFEEEC;cursor:grab}
 .page-block-handle-grip:hover,.page-block-handle-grip:focus-visible{background:var(--dsw-hover);color:#EFEEEC}

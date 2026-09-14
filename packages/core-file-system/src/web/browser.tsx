@@ -3176,6 +3176,7 @@ export function CollectionBrowser({
                 </span>
               ) : null}
             </div>
+            {chrome?.Toolbar ? <chrome.Toolbar /> : null}
             {canCreate ? (
               <button
                 type="button"

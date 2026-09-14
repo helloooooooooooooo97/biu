@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 
 export const MEMBER_COOKIE = 'biu_member'
 export const ROLES = ['owner', 'editor', 'viewer'] as const
@@ -62,4 +62,23 @@ export function isGuestId(value: string) {
 
 export function setCookieHeader(token: string) {
   return `${MEMBER_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`
+}
+
+export function clearCookieHeader() {
+  return `${MEMBER_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`
+}
+
+export function hashPassword(password: string) {
+  const salt = randomBytes(16).toString('hex')
+  const hash = scryptSync(String(password), salt, 32).toString('hex')
+  return `${salt}:${hash}`
+}
+
+export function verifyPassword(password: string, stored: string) {
+  const [salt, hash] = String(stored ?? '').split(':')
+  if (!salt || !hash) return false
+  const next = scryptSync(String(password), salt, 32).toString('hex')
+  const a = Buffer.from(hash)
+  const b = Buffer.from(next)
+  return a.length === b.length && timingSafeEqual(a, b)
 }

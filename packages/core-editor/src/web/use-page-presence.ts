@@ -1,29 +1,27 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CollabGuest } from './collab-user.ts'
 
-export type PresenceViewer = { id: string; color: string; from?: number }
+export type PresenceViewer = { id: string; color: string; name?: string }
 
-export function usePagePresence(pageId: string, guest: CollabGuest, caretFrom: number): PresenceViewer[] {
-  const [viewers, setViewers] = useState<PresenceViewer[]>([{ id: guest.id, color: guest.color, from: caretFrom }])
-  const fromRef = useRef(caretFrom)
-  fromRef.current = caretFrom
+export function usePagePresence(pageId: string, guest: CollabGuest): PresenceViewer[] {
+  const [viewers, setViewers] = useState<PresenceViewer[]>([{ id: guest.id, color: guest.color, name: guest.name }])
 
   useEffect(() => {
     let cancelled = false
     const apply = (rows: PresenceViewer[]) => {
       if (cancelled) return
-      const next = rows.length ? rows : [{ id: guest.id, color: guest.color, from: fromRef.current }]
+      const next = rows.length ? rows : [{ id: guest.id, color: guest.color, name: guest.name }]
       setViewers(next)
     }
     const beat = () => {
       void fetch('/api/collab/presence', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ pageId, guestId: guest.id, color: guest.color, from: fromRef.current }),
+        body: JSON.stringify({ pageId, guestId: guest.id, color: guest.color, name: guest.name }),
       })
         .then((res) => res.json())
         .then((body: { viewers?: PresenceViewer[] }) => apply(body.viewers ?? []))
-        .catch(() => apply([{ id: guest.id, color: guest.color, from: fromRef.current }]))
+        .catch(() => apply([{ id: guest.id, color: guest.color, name: guest.name }]))
     }
     const onPush = (event: Event) => {
       const detail = (event as CustomEvent<{ pageId?: string; viewers?: PresenceViewer[] }>).detail
@@ -38,15 +36,7 @@ export function usePagePresence(pageId: string, guest: CollabGuest, caretFrom: n
       window.clearInterval(timer)
       window.removeEventListener('biu:presence', onPush)
     }
-  }, [pageId, guest.id, guest.color])
-
-  useEffect(() => {
-    void fetch('/api/collab/presence', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ pageId, guestId: guest.id, color: guest.color, from: caretFrom }),
-    }).catch(() => undefined)
-  }, [caretFrom, pageId, guest.id, guest.color])
+  }, [pageId, guest.id, guest.color, guest.name])
 
   return viewers
 }

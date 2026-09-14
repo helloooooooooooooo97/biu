@@ -5,7 +5,7 @@ import type { Context } from 'cordis'
 import { dataPath } from '@biu/host-plugin-loader/data-dir'
 import { MembersStore } from './members-store.ts'
 import { membersCollection } from './members-collection.ts'
-import { cookieValue, isRole, readSession, setCookieHeader, signSession } from './session.ts'
+import { cookieValue, isRole, readSession, setCookieHeader, clearCookieHeader, signSession } from './session.ts'
 import { createCollabServer, incomingToRequest } from './collab-server.ts'
 import { YjsStore } from './yjs-store.ts'
 import { PRESENCE_CHANNEL, PresenceStore } from './presence.ts'
@@ -60,15 +60,44 @@ export function apply(ctx: Context) {
   })
 
   ctx.http.route('POST', '/api/members/bootstrap', async (route) => {
-    const body = (await route.json<{ name?: string }>()) ?? {}
+    const body = (await route.json<{ name?: string; password?: string }>()) ?? {}
     try {
-      const member = members.bootstrap(String(body.name ?? '用户'))
+      const member = members.bootstrap(String(body.name ?? '用户'), String(body.password ?? ''))
       const token = signSession(secret, member.id)
       route.res.setHeader('set-cookie', setCookieHeader(token))
       route.send(200, { member, token })
     } catch (error) {
       route.send(409, { error: String(error) })
     }
+  })
+
+  ctx.http.route('POST', '/api/members/register', async (route) => {
+    const body = (await route.json<{ name?: string; password?: string }>()) ?? {}
+    try {
+      const member = members.register(String(body.name ?? ''), String(body.password ?? ''))
+      const token = signSession(secret, member.id)
+      route.res.setHeader('set-cookie', setCookieHeader(token))
+      route.send(200, { member, token })
+    } catch (error) {
+      route.send(400, { error: String(error) })
+    }
+  })
+
+  ctx.http.route('POST', '/api/members/login', async (route) => {
+    const body = (await route.json<{ name?: string; password?: string }>()) ?? {}
+    try {
+      const member = members.login(String(body.name ?? ''), String(body.password ?? ''))
+      const token = signSession(secret, member.id)
+      route.res.setHeader('set-cookie', setCookieHeader(token))
+      route.send(200, { member, token })
+    } catch (error) {
+      route.send(401, { error: String(error) })
+    }
+  })
+
+  ctx.http.route('POST', '/api/members/logout', (route) => {
+    route.res.setHeader('set-cookie', clearCookieHeader())
+    route.send(200, { ok: true })
   })
 
   ctx.http.route('POST', '/api/members/invite', async (route) => {
@@ -89,9 +118,9 @@ export function apply(ctx: Context) {
   })
 
   ctx.http.route('POST', '/api/members/join', async (route) => {
-    const body = (await route.json<{ token?: string; name?: string }>()) ?? {}
+    const body = (await route.json<{ token?: string; name?: string; password?: string }>()) ?? {}
     try {
-      const member = members.join(String(body.token ?? ''), String(body.name ?? '同事'))
+      const member = members.join(String(body.token ?? ''), String(body.name ?? '同事'), String(body.password ?? ''))
       const token = signSession(secret, member.id)
       route.res.setHeader('set-cookie', setCookieHeader(token))
       route.send(200, { member, token })
@@ -133,11 +162,12 @@ export function apply(ctx: Context) {
   })
 
   ctx.http.route('POST', '/api/collab/presence', async (route) => {
-    const body = (await route.json<{ pageId?: string; guestId?: string; color?: string; from?: number }>()) ?? {}
+    const body = (await route.json<{ pageId?: string; guestId?: string; color?: string; from?: number; name?: string }>()) ?? {}
+    const actor = memberFromReq(route.req.headers.cookie)
     const pageId = String(body.pageId ?? '')
-    const guestId = String(body.guestId ?? '')
+    const guestId = actor?.id || String(body.guestId ?? '')
     const from = Number.isFinite(Number(body.from)) ? Number(body.from) : undefined
-    const viewers = presence.touch(pageId, guestId, body.color, from)
+    const viewers = presence.touch(pageId, guestId, body.color, from, actor?.name || body.name)
     bumpPresence(pageId)
     route.send(200, { viewers })
   })

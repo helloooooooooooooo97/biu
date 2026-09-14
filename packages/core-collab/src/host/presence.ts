@@ -6,6 +6,7 @@ export type Viewer = {
   color: string
   at: number
   from?: number
+  name?: string
 }
 
 const COLORS = ['#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777']
@@ -19,7 +20,7 @@ export function colorForId(id: string) {
 export class PresenceStore {
   private pages = new Map<string, Map<string, Viewer>>()
 
-  touch(pageId: string, id: string, color?: string, from?: number) {
+  touch(pageId: string, id: string, color?: string, from?: number, name?: string) {
     if (!pageId || !id) return this.list(pageId)
     let room = this.pages.get(pageId)
     if (!room) {
@@ -27,7 +28,7 @@ export class PresenceStore {
       this.pages.set(pageId, room)
     }
     const caret = Number.isFinite(from) ? Number(from) : undefined
-    room.set(id, { id, color: color || colorForId(id), at: Date.now(), from: caret })
+    room.set(id, { id, color: color || colorForId(id), at: Date.now(), from: caret, name: name || id })
     return this.list(pageId)
   }
 

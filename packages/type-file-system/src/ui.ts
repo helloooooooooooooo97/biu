@@ -53,6 +53,8 @@ export type CollectionChrome = {
   Board?: ComponentType<{ record: DbRecord; openRecord?: (recordId: string, collection?: string) => void }>
   /** 正文。不传则把 content 当文件默认渲染。结构由登记方自己解析。 */
   Content?: ComponentType<FsContentProps>
+  /** 集合工具栏右侧、新建按钮左边。成员邀请等集合级操作走这里。 */
+  Toolbar?: ComponentType
   /** 详情弹窗额外分区（概况之外）。旧任务详情的脚本/进度汇报走这里。 */
   panes?: FsDetailPane[]
   /** 点行：集合自己决定跳到哪。不传则打开本表记录详情。 */

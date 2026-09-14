@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import * as Y from 'yjs'
 import { HocuspocusProvider } from '@hocuspocus/provider'
-import { collabCaretUser, loadOrCreateGuest, type CollabGuest } from './collab-user.ts'
+import { collabCaretUser, colorForId, type CollabGuest } from './collab-user.ts'
 
 export type CollabMember = { id: string; name: string; role: string; color?: string }
 
@@ -20,7 +20,7 @@ function wsUrl() {
 
 export function usePageCollab(pageId: string): PageCollab {
   const [ydoc] = useState(() => new Y.Doc())
-  const [guest] = useState(() => loadOrCreateGuest())
+  const [guest, setGuest] = useState<CollabGuest>(() => ({ id: 'pending', color: '#2563eb', name: '' }))
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null)
   const [member, setMember] = useState<CollabMember | null>(null)
   const [ready, setReady] = useState(false)
@@ -28,7 +28,6 @@ export function usePageCollab(pageId: string): PageCollab {
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const caret = collabCaretUser(guest)
       try {
         const me = (await fetch('/api/members/me').then((res) => res.json())) as {
           member: CollabMember | null
@@ -36,24 +35,21 @@ export function usePageCollab(pageId: string): PageCollab {
         }
         if (cancelled) return
         if (me.token && me.member) {
-          setMember({ ...me.member, name: guest.id, color: caret.color })
-          return me.token
+          const color = colorForId(me.member.id)
+          const identity = { id: me.member.id, name: me.member.name, color }
+          setMember({ ...me.member, color })
+          setGuest(identity)
+          return { token: me.token, identity }
         }
-        const created = (await fetch('/api/members/guest', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ guestId: guest.id }),
-        }).then((res) => res.json())) as { member?: CollabMember; token?: string }
-        if (cancelled) return
-        setMember(created.member ? { ...created.member, name: guest.id, color: caret.color } : { id: guest.id, name: guest.id, role: 'editor', color: caret.color })
-        return created.token ?? ''
       } catch {
-        setMember({ id: guest.id, name: guest.id, role: 'editor', color: caret.color })
-        return ''
+        /* not signed in */
       }
-    })().then((token) => {
+      return { token: '', identity: null as CollabGuest | null }
+    })().then((result) => {
       if (cancelled) return
-      if (!token) {
+      const token = result?.token ?? ''
+      const identity = result?.identity
+      if (!token || !identity) {
         setReady(true)
         return
       }
@@ -63,14 +59,14 @@ export function usePageCollab(pageId: string): PageCollab {
         document: ydoc,
         token,
       })
-      next.setAwarenessField('user', collabCaretUser(guest))
+      next.setAwarenessField('user', collabCaretUser(identity))
       setProvider(next)
       setReady(true)
     })
     return () => {
       cancelled = true
     }
-  }, [pageId, ydoc, guest])
+  }, [pageId, ydoc])
 
   useLayoutEffect(() => {
     return () => {

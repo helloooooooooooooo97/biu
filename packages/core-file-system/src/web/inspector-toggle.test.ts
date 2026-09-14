@@ -397,6 +397,7 @@ test('creating a record opens a new inspector pane instead of covering the view'
 
 test('create record sits at the right of the toolbar with a blue label', () => {
   assert.match(browser, /aria-label="排序"[\s\S]*aria-label="筛选"[\s\S]*aria-label="分组"/)
+  assert.match(browser, /chrome\?\.Toolbar/)
   assert.match(browser, /className="fsdb-create-btn"/)
   assert.match(browser, /新建记录/)
   assert.match(browser, /<PlusIcon[\s\S]*新建/)

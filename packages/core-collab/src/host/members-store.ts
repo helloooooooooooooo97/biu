@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { createRequire } from 'node:module'
 import { createHash, randomBytes } from 'node:crypto'
-import { isRole, isGuestId, newId, type Member, type MemberRole } from './session.ts'
+import { hashPassword, isRole, isGuestId, newId, verifyPassword, type Member, type MemberRole } from './session.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 
@@ -32,6 +32,21 @@ export class MembersStore {
         created_at INTEGER NOT NULL
       );
     `)
+    const cols = this.db.prepare('PRAGMA table_info(members)').all() as Array<{ name: string }>
+    if (!cols.some((col) => col.name === 'password_hash')) {
+      this.db.exec('ALTER TABLE members ADD COLUMN password_hash TEXT NOT NULL DEFAULT ""')
+    }
+  }
+
+  private passwordOf(id: string) {
+    const row = this.db.prepare('SELECT password_hash FROM members WHERE id = ?').get(id) as { password_hash?: string } | undefined
+    return String(row?.password_hash ?? '')
+  }
+
+  findByName(name: string) {
+    const want = String(name ?? '').trim()
+    if (!want) return undefined
+    return this.list().find((row) => row.name === want)
   }
 
   list(): Member[] {
@@ -52,10 +67,12 @@ export class MembersStore {
     return { id: row.id, name: row.name, role: row.role, createdAt: row.created_at }
   }
 
-  bootstrap(name: string): Member {
+  bootstrap(name: string, password = ''): Member {
     if (this.list().length) throw new Error('workspace already has members')
     const member: Member = { id: newId('m'), name: name.trim() || '用户', role: 'owner', createdAt: Date.now() }
-    this.db.prepare('INSERT INTO members (id, name, role, created_at) VALUES (?, ?, ?, ?)').run(member.id, member.name, member.role, member.createdAt)
+    this.db
+      .prepare('INSERT INTO members (id, name, role, created_at, password_hash) VALUES (?, ?, ?, ?, ?)')
+      .run(member.id, member.name, member.role, member.createdAt, password ? hashPassword(password) : '')
     return member
   }
 
@@ -67,10 +84,10 @@ export class MembersStore {
     return { token, role, createdAt }
   }
 
-  join(token: string, name: string): Member {
+  join(token: string, name: string, password = ''): Member {
     const row = this.db.prepare('SELECT role FROM invites WHERE token_hash = ?').get(hashToken(token)) as { role: string } | undefined
     if (!row || !isRole(row.role) || row.role === 'owner') throw new Error('invalid invite')
-    const member = this.add(name, row.role)
+    const member = this.add(name, row.role, password)
     this.db.prepare('DELETE FROM invites WHERE token_hash = ?').run(hashToken(token))
     return member
   }
@@ -85,19 +102,49 @@ export class MembersStore {
       role: this.list().length === 0 ? 'owner' : 'editor',
       createdAt: Date.now(),
     }
-    this.db.prepare('INSERT INTO members (id, name, role, created_at) VALUES (?, ?, ?, ?)').run(member.id, member.name, member.role, member.createdAt)
+    this.db
+      .prepare('INSERT INTO members (id, name, role, created_at, password_hash) VALUES (?, ?, ?, ?, ?)')
+      .run(member.id, member.name, member.role, member.createdAt, '')
     return member
   }
 
-  add(name: string, role: MemberRole): Member {
+  add(name: string, role: MemberRole, password = ''): Member {
+    const title = String(name ?? '').trim() || '同事'
+    if (this.findByName(title)) throw new Error('name taken')
     if (role === 'owner' && this.list().some((item) => item.role === 'owner')) throw new Error('owner already exists')
     const member: Member = {
       id: newId('m'),
-      name: String(name ?? '').trim() || '同事',
+      name: title,
       role: this.list().length === 0 ? 'owner' : role === 'owner' ? 'editor' : role,
       createdAt: Date.now(),
     }
-    this.db.prepare('INSERT INTO members (id, name, role, created_at) VALUES (?, ?, ?, ?)').run(member.id, member.name, member.role, member.createdAt)
+    this.db
+      .prepare('INSERT INTO members (id, name, role, created_at, password_hash) VALUES (?, ?, ?, ?, ?)')
+      .run(member.id, member.name, member.role, member.createdAt, password ? hashPassword(password) : '')
+    return member
+  }
+
+  register(name: string, password: string): Member {
+    const title = String(name ?? '').trim()
+    const pass = String(password ?? '')
+    if (!title || !pass) throw new Error('name and password required')
+    if (this.findByName(title)) throw new Error('name taken')
+    const named = this.list().filter((row) => !isGuestId(row.id) && this.passwordOf(row.id))
+    if (!named.length) {
+      if (!this.list().length) return this.bootstrap(title, pass)
+      const member: Member = { id: newId('m'), name: title, role: 'owner', createdAt: Date.now() }
+      this.db
+        .prepare('INSERT INTO members (id, name, role, created_at, password_hash) VALUES (?, ?, ?, ?, ?)')
+        .run(member.id, member.name, member.role, member.createdAt, hashPassword(pass))
+      return member
+    }
+    return this.add(title, 'editor', pass)
+  }
+
+  login(name: string, password: string) {
+    const member = this.findByName(String(name ?? '').trim())
+    if (!member) throw new Error('unknown member')
+    if (!verifyPassword(password, this.passwordOf(member.id))) throw new Error('bad password')
     return member
   }
 

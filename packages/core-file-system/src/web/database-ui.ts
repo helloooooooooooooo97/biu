@@ -15,6 +15,7 @@ function mergeChrome(layers: CollectionChrome[]): CollectionChrome {
   let Title: CollectionChrome['Title']
   let Board: CollectionChrome['Board']
   let Content: CollectionChrome['Content']
+  let Toolbar: CollectionChrome['Toolbar']
   let openRow: CollectionChrome['openRow']
   let listViews: CollectionChrome['listViews']
   let lockedFiltersFromSearch: CollectionChrome['lockedFiltersFromSearch']
@@ -28,6 +29,7 @@ function mergeChrome(layers: CollectionChrome[]): CollectionChrome {
     if (layer.Title) Title = layer.Title
     if (layer.Board) Board = layer.Board
     if (layer.Content) Content = layer.Content
+    if (layer.Toolbar) Toolbar = layer.Toolbar
     if (layer.openRow) openRow = layer.openRow
     if (layer.listViews) listViews = layer.listViews
     if (layer.lockedFiltersFromSearch) lockedFiltersFromSearch = layer.lockedFiltersFromSearch
@@ -39,7 +41,7 @@ function mergeChrome(layers: CollectionChrome[]): CollectionChrome {
       }
     }
   }
-  return { cells, Action, Actions, DetailTools, Icon, Title, Board, Content, panes: panes.length ? panes : undefined, openRow, listViews, lockedFiltersFromSearch }
+  return { cells, Action, Actions, DetailTools, Icon, Title, Board, Content, Toolbar, panes: panes.length ? panes : undefined, openRow, listViews, lockedFiltersFromSearch }
 }
 
 function mergeViews(layers: CollectionViewType[]): CollectionViewType[] {

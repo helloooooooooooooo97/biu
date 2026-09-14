@@ -36,6 +36,17 @@ test('decorate merges DetailTools; later layer wins', () => {
   assert.equal(ui.chrome('/pages').DetailTools, Second)
 })
 
+test('decorate merges Toolbar', () => {
+  const ctx = new Context()
+  const ui = new DatabaseUiService(ctx)
+  const First = () => null
+  const Second = () => null
+  ui.decorate('/members', { Toolbar: First })
+  assert.equal(ui.chrome('/members').Toolbar, First)
+  ui.decorate('/members', { Toolbar: Second })
+  assert.equal(ui.chrome('/members').Toolbar, Second)
+})
+
 test('decorate merges Actions; later layer wins', () => {
   const ctx = new Context()
   const ui = new DatabaseUiService(ctx)
