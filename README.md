@@ -425,6 +425,7 @@ make          # installs deps, starts host and Vite
 | --- | --- |
 | UI | http://127.0.0.1:5173 |
 | API / WS | http://127.0.0.1:3141 |
+| LAN read-only share | `http://<lan-ip>:3142/share/...` (workstation stays on localhost) |
 
 Without a configured key, sending a message returns only a local echo. Click **＋ Configure model** next to the input, or:
 
@@ -442,7 +443,7 @@ Once configured, follow the [First-run flow](#first-run-flow) to start a Live se
 | --- | --- |
 | `make` / `make restart` | Install and start both / stop then start |
 | `make host` / `make web` | Start one side only |
-| `make stop` | Free ports `3141` / `5173` |
+| `make stop` | Free ports `3141` / `3142` / `5173` |
 | `npm test` | Vitest |
 | `npx tsc --noEmit` | Type check |
 
@@ -451,9 +452,9 @@ Alternatively: `npm run dev:host` and `npm run dev:web`.
 | Variable | Default | |
 | --- | --- | --- |
 | `PORT` / `HTTP_HOST` | `3141` / `127.0.0.1` | workstation (keep loopback; `0.0.0.0` exposes the whole app) |
-| `SHARE_PORT` / `SHARE_HOST` | off / `0.0.0.0` | LAN share-only listener (`/share` and `/api/share` only) |
+| `SHARE_PORT` / `SHARE_HOST` | `3142` / `0.0.0.0` | on by default for `make` / `npm run dev`; share pages only. `SHARE_PORT=0` disables |
 | `SHARE_PUBLIC_URL` | first LAN IPv4 | origin copied into share links, e.g. `http://192.168.1.8:3142` |
-| `SHARE_PROXY_UI` | off | dev: proxy share HTML/JS to Vite, e.g. `http://127.0.0.1:5173` |
+| `SHARE_PROXY_UI` | Vite during `dev:host` | share HTML/JS from `5173` in dev; `npm start` uses `public/` |
 | `CORDIS_WORKSPACE` | `.workspace` | default workspace |
 | `DEEPSEEK_API_KEY` etc. | | or store in the UI only |
 

@@ -63,8 +63,15 @@ export type HttpListenConfig = {
   shareHost?: string
 }
 
+function defaultSharePort() {
+  const raw = process.env.SHARE_PORT
+  if (raw !== undefined && raw !== '') return Number(raw)
+  if (process.env.VITEST) return 0
+  return 3142
+}
+
 function resolveListenConfig(config?: HttpListenConfig) {
-  const sharePortRaw = config?.sharePort ?? (process.env.SHARE_PORT ? Number(process.env.SHARE_PORT) : 0)
+  const sharePortRaw = config?.sharePort ?? defaultSharePort()
   return {
     port: Number(config?.port ?? process.env.PORT ?? 3141),
     host: config?.host ?? process.env.HTTP_HOST ?? '127.0.0.1',

@@ -8,6 +8,7 @@ test('LAN share listener allows share API and SPA, not the workstation', () => {
   assert.equal(isSharePublicPath('/share/abc'), true)
   assert.equal(isSharePublicPath('/share/abc/r/1'), true)
   assert.equal(isSharePublicPath('/assets/index.js'), true)
+  assert.equal(isSharePublicPath('/@vite/client'), true)
   assert.equal(isSharePublicPath('/'), false)
   assert.equal(isSharePublicPath('/s/session'), false)
   assert.equal(isSharePublicPath('/api/db/list'), false)

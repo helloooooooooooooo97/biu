@@ -10,11 +10,18 @@ export function firstLanIPv4() {
   return ''
 }
 
+export function resolvedSharePort() {
+  const raw = process.env.SHARE_PORT
+  if (raw !== undefined && raw !== '') return Number(raw)
+  if (process.env.VITEST) return 0
+  return 3142
+}
+
 /** Origin LAN guests should open. Localhost Host headers are not reused when SHARE_PORT is set. */
 export function publicShareOrigin(req?: IncomingMessage) {
   const env = process.env.SHARE_PUBLIC_URL?.replace(/\/$/, '')
   if (env) return env
-  const sharePort = Number(process.env.SHARE_PORT ?? 0)
+  const sharePort = resolvedSharePort()
   if (sharePort > 0) {
     const ip = firstLanIPv4()
     return `http://${ip || '127.0.0.1'}:${sharePort}`

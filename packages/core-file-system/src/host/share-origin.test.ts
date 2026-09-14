@@ -19,6 +19,24 @@ test('SHARE_PORT wins over localhost Host when minting share links', () => {
   }
 })
 
+test('SHARE_PORT=0 keeps the request Host for local-only links', () => {
+  const prevPort = process.env.SHARE_PORT
+  const prevUrl = process.env.SHARE_PUBLIC_URL
+  process.env.SHARE_PORT = '0'
+  delete process.env.SHARE_PUBLIC_URL
+  try {
+    assert.equal(
+      publicShareUrl({ headers: { host: '127.0.0.1:3141' } } as never, 'tok'),
+      'http://127.0.0.1:3141/share/tok',
+    )
+  } finally {
+    if (prevPort === undefined) delete process.env.SHARE_PORT
+    else process.env.SHARE_PORT = prevPort
+    if (prevUrl === undefined) delete process.env.SHARE_PUBLIC_URL
+    else process.env.SHARE_PUBLIC_URL = prevUrl
+  }
+})
+
 test('SHARE_PUBLIC_URL overrides detected origin', () => {
   const prev = process.env.SHARE_PUBLIC_URL
   process.env.SHARE_PUBLIC_URL = 'http://192.168.1.8:3142/'
@@ -32,3 +50,4 @@ test('SHARE_PUBLIC_URL overrides detected origin', () => {
     else process.env.SHARE_PUBLIC_URL = prev
   }
 })
+
