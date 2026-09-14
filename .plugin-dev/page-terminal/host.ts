@@ -204,7 +204,7 @@ export function apply(ctx: Ctx) {
           const ws = current.socket
           if (!isOpen(ws)) return
           try {
-            ws.send(chunk)
+            ws.send(typeof chunk === 'string' ? chunk : String(chunk))
           } catch {
             // 连接可能已断；数据已写入 buffer，下次重连会回放。
           }
