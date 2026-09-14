@@ -13,6 +13,7 @@
     "predev": "node scripts/link-cordis-plugins.mjs",
     "prestart": "node scripts/link-cordis-plugins.mjs",
     "dev": "concurrently -k \"npm:dev:host\" \"npm:dev:web\"",
+    "dev:collab": "env BIU_MODE=collab PORT=3142 tsx host/index.ts",
     "dev:host": "tsx host/index.ts",
     "dev:host:nowatch": "tsx host/index.ts",
     "dev:web": "vite",
