@@ -1,6 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
+import { existsSync } from 'node:fs'
 import { mkdtemp, mkdir, readFile, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -10,7 +11,7 @@ import * as tools from '@biu/host-tools'
 import * as fsPlugin from '@biu/host-fs'
 import * as page from './index.ts'
 import { dumpMarkdown, splitMarkdown } from './markdown.ts'
-import { ASSET_GC_GRACE_MS, PAGE_ASSETS, PAGE_ROOT, PageAssetConflictError, PagesStore, collectPageAssetNames } from './store.ts'
+import { ASSET_GC_GRACE_MS, PAGE_ASSETS, PAGE_DB, PAGE_ROOT, PageAssetConflictError, PagesStore, collectPageAssetNames } from './store.ts'
 import { PageBlocksIndex } from './page-blocks-index.ts'
 
 test('markdown frontmatter roundtrips YAML properties and body', () => {
@@ -22,7 +23,7 @@ test('markdown frontmatter roundtrips YAML properties and body', () => {
   assert.equal(body, '正文第一段\n')
 })
 
-test('page plugin stores pages in SQLite under .page', async () => {
+test('page plugin stores pages in SQLite under .biu', async () => {
   const ctx = new Context()
   const registered: CollectionSpec[] = []
   class FakeDb extends Service {
@@ -91,9 +92,9 @@ test('page plugin stores pages in SQLite under .page', async () => {
   const loaded = await spec.get!(created[0]!.id)
   assert.equal(loaded?.notes, '# 标题\n内容')
   assert.equal(loaded?.title, '新页面')
-  const sqlite = await readFile(join(root, '.page/pages.sqlite'))
+  const sqlite = await readFile(join(root, '.biu/pages.sqlite'))
   assert.ok(sqlite.byteLength > 0)
-  const mdFile = await readFile(join(root, `.page/${created[0]!.id}.md`), 'utf8')
+  const mdFile = await readFile(join(root, `.biu/page/${created[0]!.id}.md`), 'utf8')
   assert.match(mdFile, /^---\n/)
   assert.match(mdFile, /title: 新页面/)
   assert.match(mdFile, /# 标题\n内容/)
@@ -171,7 +172,7 @@ test('page-blocks collection updates one fence by page::block id', async () => {
   assert.equal(clobbered.title, '刊头')
   assert.match(String(updated.data), /新/)
   assert.match(String(updated.data), /"deck":false/)
-  const md = await readFile(join(root, `.page/${pageId}.md`), 'utf8')
+  const md = await readFile(join(root, `.biu/page/${pageId}.md`), 'utf8')
   assert.match(md, /id=ab12cd34 title="刊头" deck=false/)
   assert.match(md, /<div>新<\/div>/)
   assert.match(md, /刊头/)
@@ -215,7 +216,7 @@ test('reindex rewrites duplicate pageBlock ids instead of crashing', async () =>
   const ids = listed.map((row) => String(row.blockId)).sort()
   assert.equal(new Set(ids).size, 2)
   assert.equal(ids.includes('ab12cd34'), true)
-  const md = await readFile(join(root, `.page/${created.id}.md`), 'utf8')
+  const md = await readFile(join(root, `.biu/page/${created.id}.md`), 'utf8')
   const fences = md.match(/id=([a-z0-9]+)/gi) ?? []
   assert.equal(fences.length, 2)
   assert.notEqual(fences[0], fences[1])
@@ -255,7 +256,7 @@ test('pages sqlite drops leftover notes column after flushing to markdown', asyn
   await ctx.plugin(fsPlugin, { root })
   await mkdir(join(root, PAGE_ROOT), { recursive: true })
   const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
-  const db = new DatabaseSync(join(root, PAGE_ROOT, 'pages.sqlite'))
+  const db = new DatabaseSync(join(root, PAGE_DB))
   db.exec(`
     CREATE TABLE pages (
       id TEXT PRIMARY KEY,
@@ -287,7 +288,7 @@ test('pages sqlite drops leftover notes column after flushing to markdown', asyn
   assert.equal(cols.includes('notes'), false)
 })
 
-test('PagesStore reads existing markdown files from .page', async () => {
+test('PagesStore reads existing markdown files from .biu/page', async () => {
   const ctx = new Context()
   await ctx.plugin(tools)
   const root = await mkdtemp(join(tmpdir(), 'page-store-'))
@@ -388,4 +389,22 @@ test('gcAssets deletes unreferenced files after one day', async () => {
   const fresh = await readFile(join(root, '.biu/assets', 'fresh-orphan.json'), 'utf8')
   assert.equal(fresh, '{}')
   assert.equal(a.title, 'A')
+})
+
+test('PagesStore migrates leftover .page into .biu', async () => {
+  const ctx = new Context()
+  await ctx.plugin(tools)
+  const root = await mkdtemp(join(tmpdir(), 'page-migrate-'))
+  await ctx.plugin(fsPlugin, { root })
+  await mkdir(join(root, '.page/assets'), { recursive: true })
+  await writeFile(join(root, '.page/home.md'), dumpMarkdown({ title: 'Home' }, 'from-legacy\n'), 'utf8')
+  await writeFile(join(root, '.page/assets', 'board.json'), '{"ok":1}')
+  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets'))
+  const home = await store.get('home')
+  assert.equal(home?.notes, 'from-legacy\n')
+  const md = await readFile(join(root, PAGE_ROOT, 'home.md'), 'utf8')
+  assert.match(md, /from-legacy/)
+  const asset = await readFile(join(root, PAGE_ASSETS, 'board.json'), 'utf8')
+  assert.match(asset, /ok/)
+  assert.equal(existsSync(join(root, '.page')), false)
 })

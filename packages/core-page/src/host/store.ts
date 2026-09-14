@@ -4,12 +4,10 @@ import { basename, dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
 import type { DbRecord, SchemaFieldValue } from '@biu/type-file-system'
 import { emptySchemaValue, normalizeSchemaValue } from '@biu/type-file-system'
-import { dataPath } from '@biu/host-plugin-loader/data-dir'
+import { dataPath, migrateLegacyPageDir, PAGE_ASSETS, PAGE_DB, PAGE_ROOT } from '@biu/host-plugin-loader/data-dir'
 import { dumpMarkdown, splitMarkdown } from './markdown.ts'
 
-export const PAGE_ROOT = '.page'
-export const PAGE_DB = '.page/pages.sqlite'
-export const PAGE_ASSETS = '.page/assets'
+export { PAGE_ROOT, PAGE_DB, PAGE_ASSETS } from '@biu/host-plugin-loader/data-dir'
 /** 正文不再引用后，附件再留一天，避免撤销/未落盘指针误删。 */
 export const ASSET_GC_GRACE_MS = 24 * 60 * 60 * 1000
 
@@ -193,6 +191,7 @@ export class PagesStore {
   private db: import('node:sqlite').DatabaseSync | null = null
 
   private async ensureDirs() {
+    migrateLegacyPageDir(this.fs.resolve('.'))
     await mkdir(dirname(this.fs.resolve(`${PAGE_ROOT}/x.md`)), { recursive: true })
     await mkdir(this.fs.resolve(PAGE_ASSETS), { recursive: true })
     await mkdir(this.assetsDir, { recursive: true })
@@ -279,7 +278,7 @@ export class PagesStore {
     this.db.exec('ALTER TABLE pages DROP COLUMN notes')
   }
 
-  /** sqlite 里已有、磁盘还没有 `.page/<id>.md` 的页，用列表字段写回 Markdown（正文为空）。 */
+  /** sqlite 里已有、磁盘还没有 `.biu/page/<id>.md` 的页，用列表字段写回 Markdown（正文为空）。 */
   private async backfillMarkdown(mdIds: Set<string>) {
     if (!this.db) return
     const rows = this.db.prepare('SELECT * FROM pages').all() as SqlPage[]
