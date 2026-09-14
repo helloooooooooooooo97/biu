@@ -4,7 +4,7 @@ import { Context } from 'cordis'
 import * as tools from '@biu/host-tools'
 import * as systemPrompt from '@biu/host-system-prompt'
 import * as web from './index.ts'
-import { parseDuckDuckGoHtml, stripTags, unwrapDuckHref, WebError, WebService } from './index.ts'
+import { parseBingHtml, parseDuckDuckGoHtml, stripTags, unwrapBingHref, unwrapDuckHref, WebError, WebService } from './index.ts'
 
 const SAMPLE = `
 <html><body>
@@ -29,10 +29,25 @@ test('parses duckduckgo html results and unwraps uddg redirects', () => {
   assert.equal(stripTags('<p>Hi&nbsp;<b>there</b></p>'), 'Hi there')
 })
 
+test('parses Bing organic results and unwraps ck/a base64 urls', () => {
+  const href =
+    'https://www.bing.com/ck/a?!&&p=x&u=a1' + Buffer.from('https://zh.wikipedia.org/wiki/Jay').toString('base64')
+  const html = `
+    <ol id="b_results">
+      <li class="b_algo"><h2><a href="${href}">嘉年华 演唱会</a></h2>
+        <div class="b_caption"><p>2026 巡演城市</p></div></li>
+    </ol>`
+  const hits = parseBingHtml(html)
+  assert.equal(hits[0]?.title, '嘉年华 演唱会')
+  assert.equal(hits[0]?.url, 'https://zh.wikipedia.org/wiki/Jay')
+  assert.equal(unwrapBingHref(href), 'https://zh.wikipedia.org/wiki/Jay')
+})
+
 test('web_search / web_fetch match Claude/DSH: query in, sources + fetch text out', async () => {
   const original = globalThis.fetch
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input)
+    if (url.includes('www.bing.com/search')) throw new TypeError('fetch failed')
     if (url.includes('html.duckduckgo.com')) return new Response(SAMPLE, { status: 200 })
     if (url.includes('example.com/docs')) {
       return new Response('<html><script>x</script><p>Hello docs</p></html>', { status: 200, headers: { 'content-type': 'text/html' } })

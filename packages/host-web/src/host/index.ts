@@ -6,7 +6,14 @@ import { registerWebTools } from './tools.ts'
 import type { WebConfig } from './types.ts'
 
 export { WebError } from './types.ts'
-export { parseDuckDuckGoHtml, stripTags, unwrapDuckHref } from './html.ts'
+export {
+  parseBingHtml,
+  parseDuckDuckGoHtml,
+  parseWikiOpenSearch,
+  stripTags,
+  unwrapBingHref,
+  unwrapDuckHref,
+} from './html.ts'
 export { WebService } from './service.ts'
 
 export const name = 'web'
