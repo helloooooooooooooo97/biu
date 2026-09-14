@@ -36,7 +36,6 @@ test('static movements use distinct composition systems instead of one shared co
 
   assert.match(preset('jp-hattori'), /東 京/)
   assert.match(preset('jp-taku-satoh'), /STRUCTURE 01/)
-  assert.match(preset('jp-groovisions'), /GROOVISIONS/)
   assert.match(preset('jp-mieno'), /拉伸、切割、越界/)
   assert.match(preset('jp-tokyo-chrome'), /LIQUID \/ UTILITY/)
   assert.match(preset('jp-hybrid-tailoring'), /mix-blend-mode:difference/)
@@ -60,7 +59,6 @@ test('gallery spans light, cool, vivid, pastel, neutral, and intentionally dark 
   assert.match(preset('jp-tokyo-chrome'), /#7dff36/)
   assert.match(preset('jp-sato'), /#1457ff/)
   assert.match(preset('jp-hattori'), /#f1ff55/)
-  assert.match(preset('jp-groovisions'), /#53d7ff/)
   assert.match(preset('jp-harajuku-soft'), /#ffc9e8/)
   assert.match(preset('us-greiman'), /#8ff5ff/)
   assert.match(preset('us-warhol'), /#ff5ebc/)
@@ -82,7 +80,7 @@ test('Japanese and Chinese defaults are fashion-forward rather than historical e
   const ids = new Set(BANNER_PRESETS.map((item) => item.id))
   for (const retired of [
     'jp-rimpa', 'jp-ukiyo', 'jp-seigaiha', 'jp-mingei', 'jp-tate',
-    'jp-kamekura', 'jp-ikko', 'jp-sugiura', 'jp-yokoo', 'jp-hara',
+    'jp-kamekura', 'jp-ikko', 'jp-sugiura', 'jp-yokoo', 'jp-hara', 'jp-groovisions',
     'cn-song', 'cn-bai', 'cn-yue', 'cn-liangyou', 'cn-xuan',
     'cn-seal', 'cn-steiner', 'cn-kan', 'cn-chan', 'cn-window',
   ]) {

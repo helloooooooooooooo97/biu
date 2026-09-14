@@ -94,14 +94,6 @@ export const BANNER_PRESETS: BannerPreset[] = [
     `<div style="position:absolute;left:12%;top:19%;width:94px;height:94px;border:1px solid #183f39;border-radius:50%"><div style="position:absolute;left:46px;top:-18px;height:130px;border-left:1px solid #ff5a4f"></div><div style="position:absolute;left:-18px;top:46px;width:130px;border-top:1px solid #ff5a4f"></div></div><div style="position:absolute;left:24px;top:16px;font:700 9px/1 ui-monospace,monospace;letter-spacing:.2em">TAKU SATOH / ANATOMY</div><div style="position:absolute;right:6%;top:22%;width:38%"><div style="font:700 27px/1 'Yu Gothic',sans-serif">设计解剖</div><div style="margin-top:8px;font:500 10px/1.55 'Yu Gothic',sans-serif">STRUCTURE 01<br>MATERIAL 02<br>BEHAVIOR 03</div></div>`,
   ),
   html(
-    'jp-groovisions',
-    'jp',
-    '东京流行',
-    'Groovisions：扁平角色、音乐、动态图形与商品系统，轻快而精准。',
-    'background:#53d7ff;color:#112342',
-    `<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:1fr 1fr;gap:5px;padding:5px"><i style="background:#ffef45"></i><i style="background:#ff5ca8"></i><i style="background:#fff"></i><i style="background:#7557ff"></i><i style="background:#ff784f"></i><i style="background:#112342"></i><i style="background:#fff"></i><i style="background:#ffef45"></i><i style="background:#ff5ca8"></i><i style="background:#fff"></i></div><div style="position:relative;height:100%;display:grid;place-items:center"><div style="width:112px;height:112px;border-radius:56px;background:#fff;display:grid;place-items:center;box-shadow:8px 8px 0 #112342"><div style="font:900 37px/.8 Helvetica,sans-serif;letter-spacing:-.08em">GV<br>01</div></div><div style="position:absolute;left:16px;bottom:13px;background:#112342;color:#fff;padding:4px 7px;font:800 9px/1 sans-serif;letter-spacing:.2em">GROOVISIONS / TOKYO POP</div></div>`,
-  ),
-  html(
     'jp-tokyo-chrome',
     'jp',
     '东京银幕',
