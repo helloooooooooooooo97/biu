@@ -9,6 +9,7 @@ export function isShareHref(pathname = window.location.pathname) {
 
 /** LAN :3142 only allows /share APIs. Don't boot the full plugin tree. */
 export function mountShareApp(el: HTMLElement) {
+  document.documentElement.classList.add('share')
   createRoot(el).render(
     <BrowserRouter>
       <ShareRoot />

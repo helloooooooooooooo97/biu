@@ -208,6 +208,7 @@ function SharePage({ token, recordId }: { token: string; recordId: string }) {
           </button>
         </div>
       </header>
+      <div className="fsdb-share-body">
       {shown ? (
         <RecordDetail
           selected={shown}
@@ -249,6 +250,7 @@ function SharePage({ token, recordId }: { token: string; recordId: string }) {
           {snapshot.records.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}
         </div>
       )}
+      </div>
     </div>
   )
 }
