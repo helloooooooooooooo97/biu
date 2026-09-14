@@ -22,22 +22,6 @@ export type BannerPreset = {
 const box = (css: string, inner: string) =>
   `<div style="box-sizing:border-box;height:100%;max-height:100%;width:100%;overflow:hidden;position:relative;${css}">${inner}</div>`
 
-type JpLayout = 'ma' | 'woodblock' | 'pattern' | 'craft' | 'symbol' | 'geometry' | 'cosmos' | 'collage' | 'vertical'
-
-/** 日式不是一套“和风皮肤”：余白、木版、纹样、民艺、战后海报各用自己的构成。 */
-function jpCopy(kicker: string, name: string, thought: string, extra = '', layout: JpLayout = 'ma') {
-  const shell = 'position:relative;z-index:1;box-sizing:border-box;height:100%;max-height:100%;overflow:hidden;'
-  if (layout === 'woodblock') return `<div style="${shell}${extra}"><div style="position:absolute;right:28px;top:18px;writing-mode:vertical-rl;background:#f2dfb8;color:#1a120e;padding:8px 6px;font:700 24px/1 'Yu Mincho','Songti SC',serif;letter-spacing:.16em">${name}</div><div style="position:absolute;left:26px;bottom:20px;max-width:38%;border-left:4px solid currentColor;padding-left:9px;font:700 10px/1.55 ui-sans-serif,sans-serif">${thought}</div><div style="position:absolute;left:26px;top:20px;font:800 9px/1 ui-sans-serif,sans-serif;letter-spacing:.28em">${kicker}</div></div>`
-  if (layout === 'pattern') return `<div style="${shell}display:grid;place-items:center;${extra}"><div style="width:120px;height:120px;border-radius:50%;display:grid;place-items:center;background:rgba(8,20,24,.72);border:1px solid currentColor;text-align:center"><div><div style="font:600 25px/1 'Yu Mincho','Songti SC',serif;letter-spacing:.16em">${name}</div><div style="margin-top:8px;font:700 8px/1 ui-sans-serif,sans-serif;letter-spacing:.24em">${kicker}</div></div></div><div style="position:absolute;right:22px;bottom:18px;width:31%;font:500 9px/1.55 ui-sans-serif,sans-serif;text-align:right">${thought}</div></div>`
-  if (layout === 'craft') return `<div style="${shell}display:flex;align-items:stretch;padding:18px 24px;${extra}"><div style="width:34%;border-right:1px solid currentColor;display:flex;align-items:flex-end;padding:0 18px 3px 0;font:600 28px/1 'Yu Mincho','Songti SC',serif">${name}</div><div style="display:flex;flex:1;flex-direction:column;justify-content:space-between;padding-left:18px"><div style="font:700 9px/1 ui-monospace,monospace;letter-spacing:.2em">${kicker}</div><div style="max-width:260px;font:500 11px/1.65 'Yu Mincho','Songti SC',serif">${thought}</div></div></div>`
-  if (layout === 'symbol') return `<div style="${shell}${extra}"><div style="position:absolute;left:24px;top:18px;font:700 9px/1 Helvetica,Arial,sans-serif;letter-spacing:.3em">${kicker}</div><div style="position:absolute;right:25px;bottom:18px;text-align:right"><div style="font:800 31px/.9 Helvetica,Arial,sans-serif;letter-spacing:-.06em">${name}</div><div style="width:180px;margin-top:7px;font:500 9px/1.45 Helvetica,Arial,sans-serif">${thought}</div></div></div>`
-  if (layout === 'geometry') return `<div style="${shell}display:grid;grid-template-columns:1fr 1fr;${extra}"><div style="align-self:end;padding:16px 20px;color:#fff;mix-blend-mode:difference"><div style="font:800 9px/1 Helvetica,Arial,sans-serif;letter-spacing:.24em">${kicker}</div><div style="margin-top:4px;font:700 27px/.95 'Yu Gothic',sans-serif">${name}</div></div><div style="align-self:start;padding:18px 20px;font:600 10px/1.5 'Yu Gothic',sans-serif">${thought}</div></div>`
-  if (layout === 'cosmos') return `<div style="${shell}display:grid;place-items:center;${extra}"><div style="text-align:center;text-shadow:0 1px 14px #000"><div style="font:500 9px/1 ui-sans-serif,sans-serif;letter-spacing:.42em">${kicker}</div><div style="margin-top:7px;font:600 24px/1 'Yu Mincho','Songti SC',serif;letter-spacing:.2em">${name}</div><div style="max-width:270px;margin-top:9px;font:500 9px/1.6 ui-sans-serif,sans-serif">${thought}</div></div></div>`
-  if (layout === 'collage') return `<div style="${shell}${extra}"><div style="position:absolute;left:6%;top:13%;font:900 clamp(38px,7vw,76px)/.8 Impact,sans-serif;transform:rotate(-7deg);text-shadow:4px 4px 0 #111">${name}</div><div style="position:absolute;right:6%;top:18px;background:#ffe48a;color:#2a0830;padding:4px 8px;font:900 9px/1 sans-serif;letter-spacing:.2em;transform:rotate(3deg)">${kicker}</div><div style="position:absolute;right:7%;bottom:16px;width:34%;background:#111;color:#fff;padding:7px 9px;font:700 9px/1.4 sans-serif;transform:rotate(-2deg)">${thought}</div></div>`
-  if (layout === 'vertical') return `<div style="${shell}${extra}"><div style="position:absolute;right:42px;top:18px;bottom:18px;writing-mode:vertical-rl;font:600 28px/1 'Yu Mincho','Songti SC',serif;letter-spacing:.18em">${name}</div><div style="position:absolute;right:92px;top:20px;max-height:150px;writing-mode:vertical-rl;font:500 10px/1.7 'Yu Mincho','Songti SC',serif;letter-spacing:.08em">${thought}</div><div style="position:absolute;left:24px;bottom:18px;font:700 9px/1 sans-serif;letter-spacing:.3em">${kicker}</div></div>`
-  return `<div style="${shell}padding:18px 26px;${extra}"><div style="font:700 9px/1.2 ui-sans-serif,sans-serif;letter-spacing:.34em;opacity:.65">${kicker}</div><div style="position:absolute;left:26px;bottom:18px;width:min(40%,26rem);border-top:1px solid currentColor;padding-top:8px"><div style="font:600 24px/1.05 'Yu Mincho','Songti SC',serif;letter-spacing:.12em">${name}</div><div style="margin-top:7px;font:500 10px/1.55 ui-sans-serif,sans-serif;opacity:.72">${thought}</div></div></div>`
-}
-
 type UsLayout = 'idea' | 'cut' | 'ligature' | 'system' | 'street' | 'digital' | 'deconstruct' | 'punk' | 'lab'
 
 /** 美式从企业现代主义到街头、数字新浪潮、朋克，每一支的尺度与阅读秩序都不同。 */
@@ -67,21 +51,6 @@ function euCopy(kicker: string, name: string, thought: string, extra = '', layou
   if (layout === 'futurism') return `<div style="${shell}${extra}"><div style="position:absolute;left:5%;top:12%;font:900 clamp(42px,8vw,90px)/.65 Impact,sans-serif;letter-spacing:-.04em;transform:skewX(-23deg);text-transform:uppercase">${name}!</div><div style="position:absolute;left:42%;top:18px;font:900 9px/1 sans-serif;letter-spacing:.3em;transform:rotate(-8deg)">${kicker}</div><div style="position:absolute;right:5%;bottom:12px;width:36%;font:700 10px/1.15 sans-serif;transform:rotate(-6deg)">${thought}</div></div>`
   if (layout === 'editorial') return `<div style="${shell}display:grid;grid-template-columns:2fr 1fr;grid-template-rows:auto 1fr;${extra}"><div style="grid-row:1/3;background:#ff3d8d;padding:14px 18px;display:flex;flex-direction:column;justify-content:space-between"><div style="font:800 9px/1 sans-serif;letter-spacing:.2em">${kicker}</div><div style="font:900 clamp(35px,6vw,70px)/.72 'Arial Narrow',sans-serif;text-transform:uppercase">${name}</div></div><div style="padding:16px;font:700 10px/1.4 sans-serif">${thought}</div></div>`
   return `<div style="${shell}display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:auto 1fr auto;gap:8px;padding:16px 22px;${extra}"><div style="grid-column:1/4;border-top:2px solid;padding-top:5px;font:700 8px/1 sans-serif">1928</div><div style="grid-column:5/13;border-top:2px solid;padding-top:5px;font:700 9px/1 sans-serif;letter-spacing:.16em">${kicker}</div><div style="grid-column:5/13;align-self:end;font:700 clamp(26px,4vw,50px)/.9 sans-serif;letter-spacing:-.04em">${name}</div><div style="grid-column:5/9;font:500 10px/1.45 sans-serif">${thought}</div></div>`
-}
-
-type CnLayout = 'book' | 'void' | 'calendar' | 'propaganda' | 'seal' | 'ink' | 'retail' | 'lattice'
-
-/** 中式依据印本、月份牌、宣传画、文人水墨和香港现代设计分别构成。 */
-function cnCopy(kicker: string, name: string, thought: string, extra = '', layout: CnLayout = 'book') {
-  const shell = `position:relative;z-index:1;box-sizing:border-box;height:100%;max-height:100%;overflow:hidden;font-family:'Songti SC','STSong','Noto Serif CJK SC',serif;`
-  if (layout === 'void') return `<div style="${shell}${extra}"><div style="position:absolute;left:11%;top:18%;writing-mode:vertical-rl;font:600 28px/1 serif;letter-spacing:.2em">${name}</div><div style="position:absolute;left:calc(11% + 48px);top:20%;max-height:120px;writing-mode:vertical-rl;font:500 10px/1.8 serif;letter-spacing:.08em">${thought}</div><div style="position:absolute;right:24px;bottom:18px;font:600 9px/1 serif;letter-spacing:.3em">${kicker}</div></div>`
-  if (layout === 'calendar') return `<div style="${shell}display:grid;grid-template-columns:1fr 1.6fr 1fr;grid-template-rows:auto 1fr auto;padding:22px 32px;${extra}"><div style="grid-column:1/-1;text-align:center;font:700 9px/1 serif;letter-spacing:.36em">${kicker}</div><div style="grid-column:2;align-self:end;text-align:center;font:700 30px/1 serif;letter-spacing:.2em">${name}</div><div style="grid-column:1/-1;border-top:3px double currentColor;padding-top:5px;text-align:center;font:500 10px/1.35 serif">${thought}</div></div>`
-  if (layout === 'propaganda') return `<div style="${shell}${extra}"><div style="position:absolute;left:4%;top:10%;font:900 clamp(46px,9vw,100px)/.68 'Heiti SC','Microsoft YaHei',sans-serif;letter-spacing:-.08em;transform:skewX(-9deg)">${name}</div><div style="position:absolute;right:5%;top:18px;font:900 10px/1 sans-serif;letter-spacing:.2em">${kicker}</div><div style="position:absolute;right:5%;bottom:12px;width:38%;font:800 11px/1.3 'Heiti SC',sans-serif;text-align:right">${thought}</div></div>`
-  if (layout === 'seal') return `<div style="${shell}display:grid;grid-template-columns:1fr 1fr;${extra}"><div style="display:grid;place-items:center"><div style="width:96px;height:96px;border:4px double currentColor;display:grid;place-items:center;font:800 35px/1 serif">${name}</div></div><div style="display:flex;flex-direction:row-reverse;justify-content:center;gap:15px;padding:20px"><div style="writing-mode:vertical-rl;font:700 10px/1.6 serif;letter-spacing:.15em">${kicker}</div><div style="writing-mode:vertical-rl;font:500 10px/1.7 serif;letter-spacing:.08em">${thought}</div></div></div>`
-  if (layout === 'ink') return `<div style="${shell}${extra}"><div style="position:absolute;right:8%;top:17%;writing-mode:vertical-rl;font:500 31px/1 'STKaiti','KaiTi',serif;letter-spacing:.2em">${name}</div><div style="position:absolute;right:calc(8% + 54px);top:19%;max-height:122px;writing-mode:vertical-rl;font:500 10px/1.8 serif">${thought}</div><div style="position:absolute;left:24px;bottom:17px;font:600 8px/1 Helvetica,sans-serif;letter-spacing:.28em">${kicker}</div></div>`
-  if (layout === 'retail') return `<div style="${shell}display:grid;grid-template-columns:1.3fr .7fr;${extra}"><div style="padding:16px 22px;display:flex;flex-direction:column;justify-content:space-between"><div style="font:800 9px/1 Helvetica,sans-serif;letter-spacing:.25em">${kicker}</div><div style="font:700 clamp(34px,6vw,70px)/.8 serif;letter-spacing:.12em">${name}</div></div><div style="padding:16px;display:flex;align-items:flex-end;font:600 10px/1.5 serif">${thought}</div></div>`
-  if (layout === 'lattice') return `<div style="${shell}display:grid;place-items:center;${extra}"><div style="width:46%;background:rgba(20,10,7,.72);border:1px solid currentColor;padding:12px 18px;text-align:center"><div style="font:600 9px/1 serif;letter-spacing:.32em">${kicker}</div><div style="margin-top:7px;font:700 27px/1 serif;letter-spacing:.18em">${name}</div><div style="margin-top:8px;font:500 9px/1.55 serif">${thought}</div></div></div>`
-  return `<div style="${shell}${extra}"><div style="position:absolute;right:26px;top:18px;bottom:18px;border-right:1px solid;padding-right:9px;writing-mode:vertical-rl;font-size:9px;font-weight:600;letter-spacing:.22em">${kicker}</div><div style="position:absolute;left:28px;top:20px;bottom:20px;display:flex;flex-direction:row-reverse;gap:13px"><div style="writing-mode:vertical-rl;font-size:27px;font-weight:700;letter-spacing:.14em">${name}</div><div style="max-height:138px;writing-mode:vertical-rl;font-size:10px;line-height:1.7;letter-spacing:.08em">${thought}</div></div><div style="position:absolute;left:16px;bottom:14px;width:17px;height:17px;display:grid;place-items:center;background:#a52218;color:#f6ead3;font:700 9px/1 serif">印</div></div>`
 }
 
 function html(
@@ -133,44 +102,44 @@ export const BANNER_PRESETS: BannerPreset[] = [
     `<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:1fr 1fr;gap:5px;padding:5px"><i style="background:#ffef45"></i><i style="background:#ff5ca8"></i><i style="background:#fff"></i><i style="background:#7557ff"></i><i style="background:#ff784f"></i><i style="background:#112342"></i><i style="background:#fff"></i><i style="background:#ffef45"></i><i style="background:#ff5ca8"></i><i style="background:#fff"></i></div><div style="position:relative;height:100%;display:grid;place-items:center"><div style="width:112px;height:112px;border-radius:56px;background:#fff;display:grid;place-items:center;box-shadow:8px 8px 0 #112342"><div style="font:900 37px/.8 Helvetica,sans-serif;letter-spacing:-.08em">GV<br>01</div></div><div style="position:absolute;left:16px;bottom:13px;background:#112342;color:#fff;padding:4px 7px;font:800 9px/1 sans-serif;letter-spacing:.2em">GROOVISIONS / TOKYO POP</div></div>`,
   ),
   html(
-    'jp-kamekura',
+    'jp-tokyo-chrome',
     'jp',
-    '龟仓红日',
-    '1964：把国旗收成一个圆。现代主义最硬的一刀，也是最日本的一刀。',
-    'background:#f7f7f4;color:#111827',
-    `<div style="position:absolute;right:12%;top:18%;width:120px;height:120px;border-radius:50%;background:#e6002d"></div>${jpCopy('KAMEKURA · 1964', '红日', '把国旗收成一个圆。现代主义最硬的一刀，也是最日本的一刀。', '', 'symbol')}`,
+    '东京银幕',
+    '银色液态材质、极窄字与酸性绿，来自东京机能时装和数码秀场。',
+    'background:linear-gradient(112deg,#eef1f4 0%,#8f99a8 34%,#fafafa 52%,#67717d 76%,#d8dde2 100%);color:#10131a',
+    `<div style="position:absolute;left:8%;top:12%;width:84%;height:76%;border:1px solid rgba(0,0,0,.24);clip-path:polygon(0 0,92% 0,100% 38%,88% 100%,7% 88%);background:linear-gradient(135deg,rgba(255,255,255,.72),rgba(85,255,54,.28),rgba(255,255,255,.08));backdrop-filter:blur(8px)"></div><div style="position:relative;height:100%;padding:15px 20px;display:flex;flex-direction:column;justify-content:space-between"><div style="display:flex;justify-content:space-between;font:800 8px/1 ui-monospace,monospace;letter-spacing:.28em"><span>TOKYO / CHROME</span><span>26SS</span></div><div style="font:900 clamp(38px,7vw,82px)/.72 'Arial Narrow',Helvetica,sans-serif;letter-spacing:-.07em;transform:scaleX(.72);transform-origin:left bottom">东京银幕</div><div style="position:absolute;right:19px;bottom:15px;background:#7dff36;padding:4px 7px;font:800 9px/1 ui-monospace,monospace">LIQUID / UTILITY</div></div>`,
   ),
   html(
-    'jp-ikko',
+    'jp-harajuku-soft',
     'jp',
-    '田中一光',
-    '能乐脸谱切成色块。传统不是临摹，是几何以后的再认。',
-    'background:#f3efe4;color:#171717',
-    `<div style="position:absolute;inset:0;display:grid;grid-template-columns:1.6fr 1fr 1fr;grid-template-rows:1fr 1fr"><div style="background:#171717"></div><div style="background:#c43c1c"></div><div style="background:#e8c84a"></div><div style="background:#f3efe4"></div><div style="background:#2a5a9e"></div><div style="background:#171717"></div></div>${jpCopy('IKKO TANAKA', '色面能乐', '能乐脸谱切成色块。传统不是临摹，是几何以后的再认。', '', 'geometry')}`,
+    '原宿软塑',
+    '透明果冻、软体字和糖果撞色，轻盈但不幼稚。',
+    'background:#ffc9e8;color:#3a2070',
+    `<div style="position:absolute;left:7%;top:10%;width:130px;height:130px;border-radius:48% 52% 62% 38%/42% 34% 66% 58%;background:linear-gradient(145deg,rgba(255,255,255,.8),#8c7bff 48%,#54f0d1);box-shadow:inset 12px 12px 28px rgba(255,255,255,.65),12px 18px 30px rgba(67,34,117,.18);transform:rotate(-14deg)"></div><div style="position:absolute;right:6%;top:16%;font:900 clamp(38px,7vw,78px)/.74 'Arial Rounded MT Bold','Yu Gothic',sans-serif;letter-spacing:-.08em;text-align:right">SOFT<br>MODE</div><div style="position:absolute;right:7%;bottom:15px;font:700 9px/1 ui-monospace,monospace;letter-spacing:.22em">HARAJUKU / NEW MATERIAL</div>`,
   ),
   html(
-    'jp-sugiura',
+    'jp-data-stage',
     'jp',
-    '杉浦康平',
-    '《银花》式密铺：亚洲书籍把信息当成曼荼罗，阅读是进入结构。',
-    'background:#342a68;color:#fff5c7;background-image:repeating-conic-gradient(from 0deg at 78% 50%,#eb5b83 0 8deg,#342a68 8deg 16deg)',
-    jpCopy('SUGIURA · 银花', '曼荼罗编辑', '亚洲书籍把信息当成曼荼罗，阅读是进入结构。', '', 'cosmos'),
+    '数据舞台',
+    '实时视觉、坐标、扫描线与高纯度光色，把信息变成秀场。',
+    'background:#090d24;color:#d8ff00;background-image:linear-gradient(rgba(72,118,255,.16) 1px,transparent 1px),linear-gradient(90deg,rgba(72,118,255,.16) 1px,transparent 1px);background-size:20px 20px',
+    `<div style="position:absolute;left:10%;top:17%;width:150px;height:92px;border:1px solid #4c76ff;transform:perspective(220px) rotateY(22deg)"><div style="position:absolute;inset:12px;background:linear-gradient(90deg,#ff32c7,#6847ff 52%,#00e5ff);filter:blur(1px)"></div></div><div style="position:absolute;right:5%;top:16px;font:700 8px/1 ui-monospace,monospace;letter-spacing:.22em">LIVE DATA / TOKYO 35.6762°N</div><div style="position:absolute;left:19px;bottom:14px;font:800 clamp(28px,5vw,56px)/.8 'Yu Gothic',sans-serif;letter-spacing:-.06em">数据舞台</div><div style="position:absolute;right:5%;bottom:15px;width:22%;font:600 9px/1.35 ui-monospace,monospace">SCAN / SIGNAL<br>BODY / SPACE</div>`,
   ),
   html(
-    'jp-yokoo',
+    'jp-numero',
     'jp',
-    '横尾忠则',
-    '浮世绘撞上波普。拼贴、荧光、剧场：现代不是干净，是冲突。',
-    'background:#ff7a00;color:#fff36d',
-    `<div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,#f5007a 0 16px,#ff7a00 16px 32px,#00a8ff 32px 36px);opacity:.72"></div>${jpCopy('YOKOO', '横尾', '浮世绘撞上波普。拼贴、荧光、剧场：现代不是干净，是冲突。', '', 'collage')}`,
+    '东京时装编辑',
+    'Numéro TOKYO 式知性与玩心：巨型刊头、细字信息和不对称色场。',
+    'background:#ff5f3d;color:#161245',
+    `<div style="position:absolute;right:0;top:0;width:36%;height:100%;background:#a7f0dd"></div><div style="position:absolute;left:4%;top:-10%;font:300 clamp(110px,19vw,220px)/1 Didot,'Times New Roman',serif;letter-spacing:-.09em">N°</div><div style="position:absolute;left:18px;bottom:13px;font:900 29px/.9 'Arial Narrow',sans-serif;letter-spacing:-.04em">TOKYO<br>MODE</div><div style="position:absolute;right:18px;top:16px;width:27%;font:700 8px/1.45 ui-monospace,monospace;letter-spacing:.16em">NEW SILHOUETTE<br>NEW ATTITUDE<br>ISSUE 026</div>`,
   ),
   html(
-    'jp-hara',
+    'jp-hybrid-tailoring',
     'jp',
-    '白',
-    '原研哉《白》：空不是没有，是感受力被打开以后的场。',
-    'background:#f6f4ef;color:#2a2a28',
-    jpCopy('HARA · WHITE', '白', '空不是没有，是感受力被打开以后的场。', 'padding:40px 48px'),
+    '混合剪裁',
+    '像 sacai 的服装逻辑：经典结构被切开、错层，再缝成新的轮廓。',
+    'background:#e8e7ff;color:#161616',
+    `<div style="position:absolute;left:0;top:0;width:58%;height:100%;background:#202020;clip-path:polygon(0 0,82% 0,100% 46%,72% 100%,0 100%)"></div><div style="position:absolute;left:31%;top:0;width:37%;height:100%;background:#ff6b45;clip-path:polygon(20% 0,100% 0,72% 100%,0 100%)"></div><div style="position:relative;height:100%;padding:15px 20px;color:#fff;mix-blend-mode:difference"><div style="font:800 9px/1 ui-monospace,monospace;letter-spacing:.24em">HYBRID / TAILORING</div><div style="position:absolute;left:20px;bottom:13px;font:900 clamp(34px,6vw,72px)/.72 Helvetica,sans-serif;letter-spacing:-.07em">混合剪裁</div><div style="position:absolute;right:18px;bottom:15px;writing-mode:vertical-rl;font:700 9px/1 'Yu Gothic',sans-serif;letter-spacing:.22em">解构经典　重组轮廓</div></div>`,
   ),
   html(
     'jp-mieno',
@@ -344,84 +313,84 @@ export const BANNER_PRESETS: BannerPreset[] = [
   ),
 
   html(
-    'cn-song',
+    'cn-shanghai-mode',
     'cn',
-    '宋版',
-    '版心、鱼尾、界栏。印本把阅读收进格子，敬字如敬人。',
-    'background:#f0e2c4;color:#2a1c12;background-image:linear-gradient(#c4a070 1px,transparent 1px);background-size:100% 28px;background-position:0 18px',
-    `<div style="position:absolute;left:50%;top:12px;bottom:12px;width:2px;background:#8a5a32;transform:translateX(-1px)"></div>${cnCopy('宋刻本', '版心', '版心、鱼尾、界栏。印本把阅读收进格子，敬字如敬人。', '', 'book')}`,
+    '上海 MODE',
+    '国际时装编辑网格里放进锐利汉字，不靠旗袍、月份牌或老上海符号。',
+    'background:#d8ff36;color:#171717',
+    `<div style="position:absolute;left:5%;top:8%;font:900 clamp(72px,14vw,160px)/.72 'Heiti SC','Microsoft YaHei',sans-serif;letter-spacing:-.13em">上<br>海</div><div style="position:absolute;left:42%;top:16px;font:300 clamp(48px,8vw,96px)/.8 Didot,'Times New Roman',serif;letter-spacing:-.08em">MODE</div><div style="position:absolute;right:18px;bottom:15px;width:28%;border-top:6px solid;padding-top:6px;font:700 9px/1.4 ui-monospace,monospace">SHANGHAI / 26SS<br>NEW CHINESE EDITORIAL</div>`,
   ),
   html(
-    'cn-bai',
+    'cn-gba-tech',
     'cn',
-    '计白当黑',
-    '书法与印章：白不是底，是笔。留白的密度，就是精神的密度。',
-    'background:#f7f1e4;color:#1a120e',
-    `<div style="position:absolute;right:10%;top:16%;width:54px;height:54px;border:3px solid #c4122e"></div>${cnCopy('计白当黑', '白即笔', '白不是底，是笔。留白的密度，就是精神的密度。', '', 'void')}`,
+    '湾区机能',
+    '深圳速度、硬件界面与机能服装：冷银、状态绿、编号和模块接口。',
+    'background:linear-gradient(120deg,#eef1f3,#8a96a2 52%,#dce2e7);color:#10151c',
+    `<div style="position:absolute;inset:12px;border:1px solid rgba(10,20,30,.38)"></div><div style="position:absolute;left:22px;top:20px;font:800 8px/1 ui-monospace,monospace;letter-spacing:.2em">GBA_0755 / SYSTEM READY</div><div style="position:absolute;left:5%;bottom:12px;font:900 clamp(46px,8vw,96px)/.68 'Arial Narrow','Heiti SC',sans-serif;letter-spacing:-.09em">湾区机能</div><div style="position:absolute;right:20px;top:20px;width:12px;height:12px;border-radius:50%;background:#74ff39;box-shadow:0 0 18px #74ff39"></div><div style="position:absolute;right:20px;bottom:17px;font:700 9px/1 ui-monospace,monospace;writing-mode:vertical-rl;letter-spacing:.2em">HARDWARE / BODY / CITY</div>`,
   ),
   html(
-    'cn-yue',
+    'cn-variable-hanzi',
     'cn',
-    '月份牌',
-    '上海摩登：擦笔水彩、年历边框、商品与仕女同框。商业第一次成为大众美术。',
-    'background:linear-gradient(135deg,#ffd7df,#d8f1e1);color:#6a2444',
-    `<div style="position:absolute;inset:14px;border:8px solid #ed7d9b;outline:1px solid #fff9e8;outline-offset:6px"></div>${cnCopy('YUEFENPAI', '月份牌', '擦笔水彩、年历边框。商业第一次成为大众美术。', '', 'calendar')}`,
+    '可变汉字',
+    '压缩、拉宽、切片和重叠，让中文标题拥有时装刊头的身体感。',
+    'background:#ff477e;color:#351269',
+    `<div style="position:absolute;left:-3%;top:-20%;font:900 clamp(150px,27vw,310px)/1 'Heiti SC',sans-serif;letter-spacing:-.22em;transform:scaleX(.62);transform-origin:left center">变</div><div style="position:absolute;left:39%;top:8%;font:900 clamp(76px,13vw,150px)/.72 'Heiti SC',sans-serif;letter-spacing:-.16em;transform:scaleX(1.35)">字</div><div style="position:absolute;right:18px;bottom:15px;background:#b9ff35;padding:5px 8px;font:800 9px/1 ui-monospace,monospace;letter-spacing:.18em">VARIABLE HANZI / WIDTH 138</div>`,
   ),
   html(
-    'cn-liangyou',
+    'cn-digital-jade',
     'cn',
-    '良友',
-    '画报网格：摄影、摩登、栏目。民国杂志用铜版把城市印成可翻的速度。',
-    'background:#f6e9cd;color:#173c46;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:6px;padding:10px',
-    `<div style="background:#2f8795;color:#fff8dd;padding:16px;display:flex;flex-direction:column;justify-content:flex-end"><div style="font-size:10px;letter-spacing:.3em">1926</div><div style="font-size:24px;font-weight:800">良友</div><div style="margin-top:8px;font-size:12px;line-height:1.45">画报网格：摄影、摩登、栏目。城市被印成可翻的速度。</div></div><div style="background:#f18c72"></div><div style="background:#f5cf68"></div>`,
+    '数码玉',
+    '把“玉”从古典材质改写成透明界面、荧光折射与未来奢侈品。',
+    'background:linear-gradient(135deg,#83f5d0,#d7fff2 46%,#7cc7ff);color:#123b4d',
+    `<div style="position:absolute;left:10%;top:14%;width:160px;height:112px;border-radius:58% 42% 48% 52%;background:linear-gradient(145deg,rgba(255,255,255,.85),rgba(67,255,186,.18));box-shadow:inset 18px 14px 30px rgba(255,255,255,.72),inset -16px -12px 28px rgba(24,120,116,.22),10px 18px 35px rgba(22,88,109,.18);backdrop-filter:blur(6px)"></div><div style="position:absolute;left:22px;top:17px;font:700 8px/1 ui-monospace,monospace;letter-spacing:.24em">DIGITAL JADE / 透明度 72%</div><div style="position:absolute;right:5%;bottom:14px;text-align:right"><div style="font:800 36px/.86 'Heiti SC',sans-serif">数码玉</div><div style="margin-top:6px;font:700 9px/1 ui-monospace,monospace">LUXURY MATERIAL / NEXT</div></div>`,
   ),
   html(
-    'cn-xuan',
+    'cn-cpop-stage',
     'cn',
-    '宣传画',
-    '平涂、口号、前进。政治要求可读，色彩要求必胜。',
-    'background:#c4122e;color:#f6e27a',
-    `<div style="position:absolute;left:0;bottom:0;width:100%;height:22%;background:#f6e27a"></div>${cnCopy('宣传画', '前进', '平涂、口号、前进。政治要求可读，色彩要求必胜。', '', 'propaganda')}`,
+    '华流舞台',
+    '演出视觉、金属字、镭射紫与高能色带，不再借用宣传画语法。',
+    'background:#26115e;color:#fff',
+    `<div style="position:absolute;inset:0;background:conic-gradient(from 215deg at 68% 44%,#7a38ff,#ff39ad,#35d7ff,#7a38ff);opacity:.82;clip-path:polygon(38% 0,100% 0,100% 100%,18% 100%)"></div><div style="position:absolute;left:4%;top:13%;font:900 clamp(52px,10vw,116px)/.67 'Heiti SC','Arial Black',sans-serif;letter-spacing:-.12em;text-shadow:3px 3px 0 #35d7ff,-3px -2px 0 #ff39ad">华流<br>舞台</div><div style="position:absolute;right:18px;bottom:15px;font:800 9px/1 ui-monospace,monospace;letter-spacing:.22em">LIVE / C-POP / 02:46</div>`,
   ),
   html(
-    'cn-seal',
+    'cn-new-luxury',
     'cn',
-    '印学',
-    '朱文白文：方寸里的建筑。一枚印，是身份被压进朱红。',
-    'background:#f7ecd6;color:#a52218',
-    `<div style="position:absolute;right:12%;top:18%;width:86px;height:86px;background:#c52b20;display:grid;place-items:center;font:800 28px/1 'Songti SC',serif;color:#fff2da">印</div>${cnCopy('篆刻', '朱砂', '朱文白文：方寸里的建筑。一枚印，是身份被压进朱红。', '', 'seal')}`,
+    '新奢极简',
+    '奶油黄、镜面银和超细宋体，做当代美妆与时装品牌，而不是古风礼盒。',
+    'background:#f5e84d;color:#171717',
+    `<div style="position:absolute;right:0;top:0;width:42%;height:100%;background:linear-gradient(120deg,#fafafa,#8f99a3 45%,#f8f8f8 70%,#68717c)"></div><div style="position:absolute;left:22px;top:17px;font:500 8px/1 Didot,'Times New Roman',serif;letter-spacing:.38em">NEW LUXURY / BEAUTY</div><div style="position:absolute;left:5%;bottom:14px;font:300 clamp(43px,8vw,92px)/.72 'Songti SC',serif;letter-spacing:.18em">新奢</div><div style="position:absolute;right:18px;bottom:15px;color:#111;font:800 9px/1 ui-monospace,monospace;writing-mode:vertical-rl;letter-spacing:.22em">MATERIAL / LIGHT / SKIN</div>`,
   ),
   html(
-    'cn-steiner',
+    'cn-street-type',
     'cn',
-    '跨文化',
-    'Henry Steiner《Cross-Cultural Design》：并置，不是搅拌。变色龙保有形体，只反射当地的光。',
-    'background:#f7f2df;color:#132c4a;display:grid;grid-template-columns:1fr 1fr',
-    `<div style="background:#18a7a0;color:#fff5d8;padding:20px;display:flex;flex-direction:column;justify-content:flex-end"><div style="font-size:44px;font-weight:800">東</div></div><div style="padding:20px;border-top:14px solid #f4b942;display:flex;flex-direction:column;justify-content:flex-end"><div style="font-size:10px;letter-spacing:.28em;color:#e43d30">STEINER</div><div style="margin-top:6px;font-size:22px;font-weight:800">跨文化</div><div style="margin-top:8px;font-size:12px;line-height:1.5">并置，不是搅拌。变色龙保有形体，只反射当地的光。</div></div>`,
+    '街头字库',
+    '从滑板、独立音乐与城市贴纸提取中文粗体，不做仿古书法。',
+    'background:#ff7139;color:#1233a8',
+    `<div style="position:absolute;inset:8px;border:4px solid #1233a8"></div><div style="position:absolute;left:3%;top:6%;font:900 clamp(65px,12vw,138px)/.7 'Heiti SC','Arial Black',sans-serif;letter-spacing:-.14em;transform:rotate(-4deg)">街头<br>字库</div><div style="position:absolute;right:5%;top:16px;background:#caff38;padding:4px 8px;font:900 9px/1 ui-monospace,monospace;letter-spacing:.18em;transform:rotate(3deg)">LOCAL TYPE / 021</div><div style="position:absolute;right:5%;bottom:14px;font:800 10px/1.25 ui-monospace,monospace;text-align:right">SKATE / MUSIC<br>YOUTH / CITY</div>`,
   ),
   html(
-    'cn-kan',
+    'cn-art-book',
     'cn',
-    '靳埭强',
-    '水墨入现代。红点、宣纸、包豪斯骨架——东方的笔落在国际网格上。',
-    'background:#f6f1e6;color:#1a120e',
-    `<div style="position:absolute;left:12%;top:28%;width:72px;height:18px;background:#111;transform:rotate(-28deg);border-radius:40px"></div><div style="position:absolute;left:22%;top:22%;width:18px;height:18px;border-radius:50%;background:#c4122e"></div>${cnCopy('KAN TAI-KEUNG', '水墨现代', '红点、宣纸、包豪斯骨架。东方的笔落在国际网格上。', '', 'ink')}`,
+    '当代艺术书',
+    '克制的展览编号、巨大留白和突然出现的高纯度色块。',
+    'background:#f7f7f5;color:#111',
+    `<div style="position:absolute;left:8%;top:0;width:17%;height:66%;background:#224cff"></div><div style="position:absolute;left:8%;bottom:14px;font:700 8px/1 ui-monospace,monospace;letter-spacing:.2em">EXHIBITION 026<br>CHAPTER 04 / OBJECT 11</div><div style="position:absolute;left:42%;top:17%;font:300 clamp(40px,7vw,84px)/.82 'Songti SC',serif;letter-spacing:.06em">当代<br>艺术书</div><div style="position:absolute;right:18px;bottom:15px;width:22%;border-top:1px solid;padding-top:7px;font:500 9px/1.5 'Heiti SC',sans-serif">空间先于解释<br>编号先于装饰</div>`,
   ),
   html(
-    'cn-chan',
+    'cn-night-shanghai',
     'cn',
-    '陈幼坚',
-    '东方情、西方理。传统纹样被抽成标志，茶与都市共用一条中线。',
-    'background:#dff4ea;color:#173d32',
-    `<div style="position:absolute;right:0;top:0;bottom:0;width:28%;background:#3d63d8"></div>${cnCopy('ALAN CHAN', '新中式', '东方情、西方理。传统纹样被抽成标志，茶与都市共用一条中线。', '', 'retail')}`,
+    '午夜上海',
+    '俱乐部海报式窄体、电子蓝与粉红光轨，城市夜生活成为新海派。',
+    'background:#080817;color:#f5f5ff',
+    `<div style="position:absolute;inset:0;background:linear-gradient(112deg,transparent 0 43%,#2057ff 43% 45%,transparent 45% 61%,#ff3f9d 61% 64%,transparent 64%);filter:drop-shadow(0 0 12px #2057ff)"></div><div style="position:absolute;left:4%;top:12%;font:900 clamp(50px,10vw,116px)/.64 'Arial Narrow','Heiti SC',sans-serif;letter-spacing:-.1em;transform:scaleX(.68);transform-origin:left top">午夜<br>上海</div><div style="position:absolute;right:18px;top:16px;font:800 8px/1 ui-monospace,monospace;letter-spacing:.22em;writing-mode:vertical-rl">CLUB / 02:17 / SHANGHAI</div><div style="position:absolute;left:18px;bottom:14px;color:#7dffdb;font:800 9px/1 ui-monospace,monospace">NIGHT CULTURE / NEW HAI派</div>`,
   ),
   html(
-    'cn-window',
+    'cn-soft-future',
     'cn',
-    '冰裂纹',
-    '园林漏窗：景被框，框也是景。破裂的秩序，比完整更像自然。',
-    'background:#cde5d8;color:#24574b;background-image:linear-gradient(28deg,#6aa795 1px,transparent 1px),linear-gradient(-18deg,#6aa795 1px,transparent 1px),linear-gradient(72deg,#6aa795 1px,transparent 1px);background-size:46px 46px,52px 52px,38px 38px',
-    cnCopy('漏窗', '冰裂纹', '景被框，框也是景。破裂的秩序，比完整更像自然。', '', 'lattice'),
+    '柔性未来',
+    '珍珠渐变、流体轮廓与轻字重，面向年轻女性时装与美妆。',
+    'background:linear-gradient(118deg,#ffd7f0,#d8d2ff 45%,#b9f7ef);color:#4a286e',
+    `<div style="position:absolute;right:7%;top:12%;width:148px;height:112px;border-radius:62% 38% 44% 56%;background:radial-gradient(circle at 30% 24%,rgba(255,255,255,.95),rgba(255,255,255,.2) 36%,rgba(145,88,255,.24));box-shadow:inset 12px 10px 24px rgba(255,255,255,.76),0 18px 34px rgba(85,45,140,.14);transform:rotate(12deg)"></div><div style="position:absolute;left:5%;top:16%;font:300 clamp(45px,8vw,92px)/.78 'Songti SC',serif;letter-spacing:.12em">柔性<br>未来</div><div style="position:absolute;left:20px;bottom:15px;font:700 8px/1 ui-monospace,monospace;letter-spacing:.24em">SOFT FUTURE / BEAUTY 026</div>`,
   ),
 
   live(
@@ -432,25 +401,25 @@ export const BANNER_PRESETS: BannerPreset[] = [
     `<div style="height:100%;overflow:hidden;background:#ff6b55;color:#1b1b63;position:relative"><div id="b" style="position:absolute;left:-3%;top:-24%;font:900 210px/1 'Yu Gothic',sans-serif;transform-origin:left center">字</div><div style="position:absolute;right:22px;bottom:18px;font:800 10px/1 ui-monospace,monospace;letter-spacing:.25em">TYPOGRAPHY / TOKYO</div></div><script>(function(){var e=document.getElementById('b'),t=0;function f(){t+=0.025;if(e)e.style.transform='scaleX('+(0.52+Math.sin(t)*0.2)+')';requestAnimationFrame(f);}f();})()</script>`,
   ),
   live(
-    'jp-live-sun',
+    'jp-live-chrome',
     'jp',
-    '红日',
-    '圆在呼吸，仍然是圆。',
-    `<div style="height:100%;background:#f7f7f4;position:relative;color:#111827;display:flex;align-items:flex-end;padding:24px 32px;font:800 24px ui-sans-serif,sans-serif">红日<div id="s" style="position:absolute;right:12%;top:18%;width:120px;height:120px;border-radius:50%;background:#e6002d"></div></div><script>(function(){var e=document.getElementById('s'),t=0;function f(){t+=0.02;if(e)e.style.transform='scale('+(1+Math.sin(t)*0.06)+')';requestAnimationFrame(f);}f();})()</script>`,
+    '流动银幕',
+    '镜面高光缓慢掠过机能切面。',
+    `<div id="b" style="height:100%;position:relative;overflow:hidden;background:linear-gradient(112deg,#eef1f4,#7d8794 42%,#fafafa 52%,#67717d);color:#10131a"><div style="position:absolute;left:22px;bottom:18px;font:900 34px/.8 'Arial Narrow',sans-serif;letter-spacing:-.06em">TOKYO CHROME</div><div id="s" style="position:absolute;inset:-40% auto -40% -20%;width:25%;background:rgba(125,255,54,.55);filter:blur(18px);transform:skewX(-18deg)"></div></div><script>(function(){var e=document.getElementById('s'),x=-20;function f(){x+=.22;if(x>120)x=-25;if(e)e.style.left=x+'%';requestAnimationFrame(f)}f()})()</script>`,
   ),
   live(
-    'jp-live-white',
+    'jp-live-soft',
     'jp',
-    '白',
-    '空也在微微发热。',
-    `<div id="b" style="height:100%;background:#f6f4ef;color:#2a2a28;display:flex;align-items:flex-end;padding:36px 44px;font:800 28px ui-sans-serif,sans-serif">白</div><script>(function(){var e=document.getElementById('b'),t=0;function f(){t+=0.01;if(e)e.style.background='hsl(40 20% '+(95+Math.sin(t)*1.6)+'%)';requestAnimationFrame(f);}f();})()</script>`,
+    '软塑变形',
+    '果冻材质像面料一样缓慢改变轮廓。',
+    `<div style="height:100%;background:#ffc9e8;color:#3a2070;position:relative;overflow:hidden"><div id="s" style="position:absolute;left:16%;top:12%;width:145px;height:120px;background:linear-gradient(145deg,#fff,#8c7bff 48%,#54f0d1);box-shadow:inset 12px 12px 28px rgba(255,255,255,.7),12px 18px 30px rgba(67,34,117,.18)"></div><div style="position:absolute;right:22px;bottom:17px;font:900 29px/.8 'Arial Rounded MT Bold',sans-serif">SOFT MODE</div></div><script>(function(){var e=document.getElementById('s'),t=0;function f(){t+=.018;if(e)e.style.borderRadius=(46+Math.sin(t)*16)+'% '+(54-Math.sin(t)*16)+'% '+(42+Math.cos(t)*13)+'% '+(58-Math.cos(t)*13)+'%';requestAnimationFrame(f)}f()})()</script>`,
   ),
   live(
-    'jp-live-yokoo',
+    'jp-live-runway',
     'jp',
-    '横尾',
-    '冲突自己换场。',
-    `<div id="b" style="height:100%;background:#ff7a00;color:#fff36d;display:flex;align-items:flex-end;padding:24px 32px;font:800 24px ui-sans-serif,sans-serif">横尾</div><script>(function(){var e=document.getElementById('b'),t=0;function f(){t+=0.4;if(e)e.style.background='repeating-linear-gradient('+(45+t)+'deg,#f5007a 0 16px,#ff7a00 16px 32px,#00a8ff 32px 36px)';requestAnimationFrame(f);}f();})()</script>`,
+    '东京跑马灯',
+    '秀场标题在不对称色场上持续穿行。',
+    `<div style="height:100%;overflow:hidden;background:linear-gradient(90deg,#ff5f3d 0 64%,#a7f0dd 64%);color:#161245;display:flex;align-items:center"><div style="display:inline-block;white-space:nowrap;font:900 62px/.8 'Arial Narrow',sans-serif;letter-spacing:-.06em;animation:m 10s linear infinite">TOKYO MODE · NEW SILHOUETTE · 東京モード · </div></div><style>html,body{margin:0;height:100%;overflow:hidden}@keyframes m{from{transform:translateX(0)}to{transform:translateX(-50%)}}</style>`,
   ),
   live(
     'us-live-bass',
@@ -509,32 +478,32 @@ export const BANNER_PRESETS: BannerPreset[] = [
     `<div id="b" style="height:100%;background:#2357ff;color:#f8ff4f;display:flex;align-items:flex-end;padding:24px 32px;font:800 20px Helvetica,Arial,sans-serif;letter-spacing:.4em">WEINGART</div><script>(function(){var e=document.getElementById('b'),t=0;function f(){t+=0.03;if(e)e.style.letterSpacing=(.2+Math.sin(t)*.35)+'em';requestAnimationFrame(f);}f();})()</script>`,
   ),
   live(
-    'cn-live-seal',
+    'cn-live-variable',
     'cn',
-    '朱砂',
-    '印色在沁。',
-    `<div id="b" style="height:100%;background:#f7ecd6;color:#a52218;display:flex;align-items:flex-end;padding:24px 32px;font:800 24px 'Songti SC',serif">朱砂</div><script>(function(){var e=document.getElementById('b'),t=0;function f(){t+=0.015;if(e)e.style.background='radial-gradient(circle at '+(50+Math.sin(t)*16)+'% 40%, #d94a3a 0 12%, #f7ecd6 46%)';requestAnimationFrame(f);}f();})()</script>`,
+    '可变汉字',
+    '字宽在压缩与扩张之间持续变形。',
+    `<div style="height:100%;background:#ff477e;color:#351269;overflow:hidden;position:relative"><div id="b" style="position:absolute;left:-3%;top:-25%;font:900 225px/1 'Heiti SC',sans-serif;transform-origin:left center">变</div><div style="position:absolute;right:22px;bottom:18px;font:800 9px/1 ui-monospace,monospace;letter-spacing:.22em">VARIABLE HANZI</div></div><script>(function(){var e=document.getElementById('b'),t=0;function f(){t+=.025;if(e)e.style.transform='scaleX('+(0.48+Math.sin(t)*.28)+')';requestAnimationFrame(f)}f()})()</script>`,
   ),
   live(
-    'cn-live-xuan',
+    'cn-live-stage',
     'cn',
-    '前进',
-    '色带上推。',
-    `<div style="height:100%;background:#c4122e;color:#f6e27a;position:relative;display:flex;align-items:flex-end;padding:24px 32px;font:800 24px ui-sans-serif,sans-serif">前进<div id="y" style="position:absolute;left:0;bottom:0;width:100%;height:22%;background:#f6e27a"></div></div><script>(function(){var e=document.getElementById('y'),t=0;function f(){t+=0.03;if(e)e.style.height=(18+Math.sin(t)*6)+'%';requestAnimationFrame(f);}f();})()</script>`,
+    '华流光场',
+    '镭射色场围绕舞台中心持续旋转。',
+    `<div id="b" style="height:100%;background:conic-gradient(from 0deg at 68% 44%,#7a38ff,#ff39ad,#35d7ff,#7a38ff);color:#fff;display:flex;align-items:flex-end;padding:24px 32px;font:900 30px 'Heiti SC',sans-serif">华流舞台</div><script>(function(){var e=document.getElementById('b'),t=0;function f(){t+=.25;if(e)e.style.background='conic-gradient(from '+t+'deg at 68% 44%,#7a38ff,#ff39ad,#35d7ff,#7a38ff)';requestAnimationFrame(f)}f()})()</script>`,
   ),
   live(
-    'cn-live-bai',
+    'cn-live-jade',
     'cn',
-    '白即笔',
-    '红印微震。',
-    `<div style="height:100%;background:#f7f1e4;position:relative;color:#1a120e;display:flex;align-items:flex-end;padding:28px 36px;font:800 24px 'Songti SC',serif">计白当黑<div id="s" style="position:absolute;right:10%;top:16%;width:54px;height:54px;border:3px solid #c4122e"></div></div><script>(function(){var e=document.getElementById('s'),t=0;function f(){t+=0.04;if(e)e.style.transform='rotate('+Math.sin(t)*3+'deg)';requestAnimationFrame(f);}f();})()</script>`,
+    '数码玉',
+    '透明材质在青绿与冰蓝之间流动。',
+    `<div id="b" style="height:100%;background:linear-gradient(135deg,#83f5d0,#d7fff2 46%,#7cc7ff);color:#123b4d;position:relative"><div id="s" style="position:absolute;left:18%;top:17%;width:150px;height:108px;border-radius:58% 42% 48% 52%;background:rgba(255,255,255,.3);box-shadow:inset 18px 14px 30px rgba(255,255,255,.8),inset -16px -12px 28px rgba(24,120,116,.22)"></div><div style="position:absolute;right:22px;bottom:18px;font:800 25px 'Heiti SC',sans-serif">数码玉</div></div><script>(function(){var e=document.getElementById('s'),t=0;function f(){t+=.02;if(e)e.style.transform='rotate('+Math.sin(t)*8+'deg) scale('+(1+Math.cos(t)*.05)+')';requestAnimationFrame(f)}f()})()</script>`,
   ),
   live(
-    'cn-live-window',
+    'cn-live-night',
     'cn',
-    '冰裂纹',
-    '窗格在错位。',
-    `<div id="b" style="height:100%;background:#cde5d8;color:#24574b;display:flex;align-items:flex-end;padding:24px 32px;font:700 20px ui-sans-serif,sans-serif">漏窗</div><script>(function(){var e=document.getElementById('b'),t=0;function f(){t+=0.2;if(e)e.style.backgroundPosition=t+'px '+(t*0.4)+'px';e.style.backgroundImage='linear-gradient(28deg,#6aa795 1px,transparent 1px),linear-gradient(-18deg,#6aa795 1px,transparent 1px)';e.style.backgroundSize='46px 46px,52px 52px';requestAnimationFrame(f);}f();})()</script>`,
+    '午夜光轨',
+    '电子蓝与粉红光轨扫过城市夜场。',
+    `<div style="height:100%;background:#080817;color:#fff;position:relative;overflow:hidden"><div id="b" style="position:absolute;inset:-30%;background:conic-gradient(from 30deg,transparent 0 32%,#2057ff 33% 34%,transparent 35% 58%,#ff3f9d 59% 61%,transparent 62%);filter:blur(4px)"></div><div style="position:absolute;left:22px;bottom:17px;font:900 32px/.8 'Arial Narrow','Heiti SC',sans-serif">午夜上海</div></div><script>(function(){var e=document.getElementById('b'),t=0;function f(){t+=.18;if(e)e.style.transform='rotate('+t+'deg)';requestAnimationFrame(f)}f()})()</script>`,
   ),
 ]
 
