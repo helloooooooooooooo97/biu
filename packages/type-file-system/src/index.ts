@@ -41,7 +41,7 @@ export type AttachmentValue = { name: string; href: string; bytes?: number }
 
 export type PersonKind = 'user' | 'agent' | 'system'
 
-export type PersonValue = { kind: PersonKind; name: string; sessionId?: string }
+export type PersonValue = { kind: PersonKind; name: string; sessionId?: string; memberId?: string }
 
 export function asPerson(value: unknown): PersonValue | null {
   if (value == null || value === '') return null
@@ -65,7 +65,8 @@ export function asPerson(value: unknown): PersonValue | null {
     String(rec.name ?? rec.title ?? '').trim() ||
     (kind === 'system' ? '系统' : kind === 'user' ? '用户' : sessionId.slice(0, 8) || '')
   if (!name && !sessionId) return null
-  return { kind, name: name || 'Agent', ...(sessionId ? { sessionId } : {}) }
+  const memberId = String(rec.memberId ?? '').trim()
+  return { kind, name: name || 'Agent', ...(sessionId ? { sessionId } : {}), ...(memberId ? { memberId } : {}) }
 }
 
 export function personKey(person: PersonValue | null | undefined): string {
@@ -696,4 +697,19 @@ declare module 'cordis' {
   interface Events {
     'database/change'(): void
   }
+}
+
+export type PageAccess = {
+  canSeePage: (pageId: string, ownerMemberId?: string) => boolean | Promise<boolean>
+  resolveOwnerMemberId: () => Promise<string>
+}
+
+const pageAccessByCtx = new WeakMap<object, PageAccess>()
+
+export function setPageAccess(ctx: object, access: PageAccess) {
+  pageAccessByCtx.set(ctx, access)
+}
+
+export function getPageAccess(ctx: object) {
+  return pageAccessByCtx.get(ctx)
 }

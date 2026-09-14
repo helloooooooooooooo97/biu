@@ -130,6 +130,18 @@ test('register then login with name and password', () => {
   assert.equal(editor.role, 'editor')
 })
 
+test('default admin is root / 123456 and later registers are editors', () => {
+  const store = new MembersStore(join(mkdtempSync(join(tmpdir(), 'biu-mem-')), 'm.sqlite'))
+  const admin = store.ensureDefaultAdmin()
+  assert.equal(admin.name, 'root')
+  assert.equal(admin.role, 'owner')
+  assert.equal(store.login('root', '123456').id, admin.id)
+  const again = store.ensureDefaultAdmin()
+  assert.equal(again.id, admin.id)
+  const editor = store.register('同事', 'pass')
+  assert.equal(editor.role, 'editor')
+})
+
 test('guest id is reused as an editor member', () => {
   const store = new MembersStore(join(mkdtempSync(join(tmpdir(), 'biu-mem-')), 'm.sqlite'))
   const a = store.ensureGuest('g_aaaaaaaaaaaa')

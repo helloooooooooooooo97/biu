@@ -34,6 +34,7 @@ import {
   type ListPage,
   type PersonValue,
   parseContentJump,
+  getPageAccess,
 } from '@biu/type-file-system'
 import { parsePageBanner, type PageBanner } from '../page-banner.ts'
 import { SavedViewsStore, clientViewFromDbRow, viewsCollection, type StoredView } from './saved-views.ts'
@@ -569,10 +570,54 @@ export class DatabaseService extends Service implements Database {
     return [...this.collections.values()].sort((a, b) => a.path.localeCompare(b.path))
   }
 
+  private visibility() {
+    const access = getPageAccess(this.ctx)
+    return access ? { canSeePage: access.canSeePage } : undefined
+  }
+
+  private ownership() {
+    const access = getPageAccess(this.ctx)
+    return access ? { resolveOwnerMemberId: access.resolveOwnerMemberId } : undefined
+  }
+
+  private pageIdOf(spec: CollectionSpec, record: { id: string } & Record<string, unknown>) {
+    if (spec.path === '/pages') return record.id
+    if (spec.path === '/page-blocks') {
+      const id = String(record.id)
+      const cut = id.indexOf('::')
+      if (cut > 0) return id.slice(0, cut)
+      return String(record.pageId ?? '').trim()
+    }
+    return ''
+  }
+
+  private pageOwnerMemberId(pageId: string) {
+    if (!pageId) return ''
+    return this.facets.recordMeta('/pages', pageId)?.createdBy?.memberId ?? ''
+  }
+
+  private async allowRecord(spec: CollectionSpec, record: { id: string } & Record<string, unknown>) {
+    const vis = this.visibility()
+    if (!vis) return true
+    const pageId = this.pageIdOf(spec, record)
+    if (!pageId) return true
+    return vis.canSeePage(pageId, this.pageOwnerMemberId(pageId) || asPerson(record.createdBy)?.memberId)
+  }
+
+  private async assertVisible(spec: CollectionSpec, record: { id: string } & Record<string, unknown>) {
+    if (await this.allowRecord(spec, record)) return
+    throw new Error(`unknown record: ${spec.path}/${record.id}`)
+  }
+
   private async loadCollectionRows(spec: CollectionSpec, query: CollectionListQuery) {
     const rows = await spec.list(query)
     const listed = !query.ids?.length ? rows : rows.filter((row) => query.ids!.includes(row.id))
-    return listed.map((row) => this.decorateRecord(spec, row))
+    const decorated = listed.map((row) => this.decorateRecord(spec, row))
+    const visible: DbRecord[] = []
+    for (const row of decorated) {
+      if (await this.allowRecord(spec, row)) visible.push(row)
+    }
+    return visible
   }
 
   private async matchCollectionRows(
@@ -641,6 +686,7 @@ export class DatabaseService extends Service implements Database {
     if (parts.length === 2) {
       const record = await spec.get(parts[1]!)
       if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+      await this.assertVisible(spec, record)
       return {
         kind: 'record' as const,
         path: `${spec.path}/${record.id}`,
@@ -768,10 +814,11 @@ export class DatabaseService extends Service implements Database {
   }
 
   private async currentPerson(): Promise<PersonValue> {
+    const memberId = (await this.ownership()?.resolveOwnerMemberId())?.trim() ?? ''
     const sid = currentSessionId()?.trim()
-    if (!sid) return { kind: 'user', name: '用户' }
+    if (!sid) return { kind: 'user', name: '用户', ...(memberId ? { memberId } : {}) }
     const name = (await this.querySessionName(sid)) || sid.slice(0, 8)
-    return { kind: 'agent', name, sessionId: sid }
+    return { kind: 'agent', name, sessionId: sid, ...(memberId ? { memberId } : {}) }
   }
 
   private namedPerson(person: PersonValue): PersonValue {
@@ -858,6 +905,7 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    await this.assertVisible(spec, record)
     return { kind: 'record' as const, path: `${spec.path}/${record.id}`, schema: schemaFor(spec), value: withoutContent(spec, this.withBanner(spec, this.decorateRecord(spec, record))) }
   }
 
@@ -870,6 +918,7 @@ export class DatabaseService extends Service implements Database {
     const raw = parseContent(content)
     const current = await spec.get(parts[1]!)
     if (!current) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    await this.assertVisible(spec, current)
     const bannerPatch = takeBannerPatch(raw)
     if ('facet' in raw && schema.fields.facet) {
       if (!schema.fields.facet.writable || schema.fields.facet.computed) throw new Error(`field not writable: facet`)
@@ -1040,6 +1089,7 @@ export class DatabaseService extends Service implements Database {
     if (!action) throw new Error(`unknown action: ${actionId}`)
     const record = (await spec.get(parts[1]!)) ?? (action.allowMissing ? { id: parts[1]! } : null)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    if (!action.allowMissing) await this.assertVisible(spec, record)
     if (!matchActionWhen(record, action.when)) throw new Error(`action not available: ${actionId}`)
     const result = await action.run(parts[1]!, record, args)
     const next = (await spec.get(parts[1]!)) ?? record
@@ -1063,6 +1113,7 @@ export class DatabaseService extends Service implements Database {
     if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    await this.assertVisible(spec, record)
     return {
       kind: 'content' as const,
       path: `${spec.path}/${record.id}`,
@@ -1077,6 +1128,9 @@ export class DatabaseService extends Service implements Database {
     const spec = this.collection(`/${parts[0]}`)
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     if (!spec.update) throw new Error(`collection cannot update: ${spec.path}`)
+    const existing = await spec.get(parts[1]!)
+    if (!existing) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    await this.assertVisible(spec, existing)
     const schema = schemaFor(spec)
     const field = schema.contentField ?? 'content'
     if (!schema.fields[field]) throw new Error(`no content field: ${field}`)

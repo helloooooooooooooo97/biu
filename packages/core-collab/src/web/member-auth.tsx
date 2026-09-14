@@ -79,14 +79,14 @@ export function AuthGate() {
         }}
       >
         <h1>{title}</h1>
-        <p>用姓名和密码进入。没有邮箱验证，名字自己起即可。</p>
+        <p>用姓名和密码进入。默认管理员是 root / 123456，能看到全部页面。其他人只能看到已分享的页，以及自己（含自己的 Agent）创建的页。</p>
         <label>
           姓名
-          <input value={name} autoComplete="username" onChange={(event) => setName(event.target.value)} />
+          <input value={name} placeholder="root" autoComplete="username" onChange={(event) => setName(event.target.value)} />
         </label>
         <label>
           密码
-          <input type="password" value={password} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} onChange={(event) => setPassword(event.target.value)} />
+          <input type="password" value={password} placeholder={mode === 'login' ? '123456' : ''} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} onChange={(event) => setPassword(event.target.value)} />
         </label>
         {error ? <p className="member-auth-error">{error}</p> : null}
         <button type="submit" disabled={busy || !name.trim() || !password}>
@@ -128,7 +128,7 @@ export function AccountChip() {
       </button>
       {open ? (
         <div className="member-account-menu" role="menu">
-          <span className="member-account-role">{member.role === 'owner' ? '创建人' : member.role === 'viewer' ? '只读' : '编辑人'}</span>
+          <span className="member-account-role">{member.role === 'owner' ? '管理员' : member.role === 'viewer' ? '只读' : '编辑人'}</span>
           <button
             type="button"
             role="menuitem"

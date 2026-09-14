@@ -147,6 +147,21 @@ test('reload heals orphan tool_calls so next LLM round is valid', async () => {
   assert.ok(tool)
 })
 
+test('nested sessions inherit the workspace member who started the root agent', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  ctx.identity = { currentMemberId: () => 'm_root' }
+  const parent = await ctx.sessions.create()
+  assert.equal(parent.config?.ownerMemberId, 'm_root')
+  const child = await ctx.sessions.create(undefined, { parentSessionId: parent.id })
+  assert.equal(child.config?.ownerMemberId, 'm_root')
+  assert.equal(child.config?.parentSessionId, parent.id)
+  const forked = await ctx.sessions.fork(parent.id)
+  assert.equal(forked.config?.ownerMemberId, 'm_root')
+  assert.equal(forked.config?.parentSessionId, parent.id)
+})
+
 test('fork copies the append-only log into a child session', async () => {
   const ctx = new Context()
   await ctx.plugin(sessionStore, { driver: 'memory' })

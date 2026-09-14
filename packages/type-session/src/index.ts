@@ -112,6 +112,10 @@ export interface SessionConfig {
   /** 分面 */
   facet?: { tags: string[]; values: Record<string, Record<string, unknown>> }
   createdAt?: number
+  /** 这条 Agent 会话最终归属的工作区成员。子 Agent 沿父链继承。 */
+  ownerMemberId?: string
+  /** 拉起本会话的父 Agent session。空则为人在 UI 里开的会话。 */
+  parentSessionId?: string
   /** 右侧检查器页签与各栏库路径，跟这条 session 走。 */
   inspector?: SessionInspectorBind
 }
@@ -204,6 +208,8 @@ export function normalizeSessionConfig(value: unknown): SessionConfig | undefine
   }
   const inspector = normalizeInspectorBind(raw.inspector)
   if (inspector) next.inspector = inspector
+  if (typeof raw.ownerMemberId === 'string' && raw.ownerMemberId.trim()) next.ownerMemberId = raw.ownerMemberId.trim()
+  if (typeof raw.parentSessionId === 'string' && raw.parentSessionId.trim()) next.parentSessionId = raw.parentSessionId.trim()
   return Object.keys(next).length ? next : undefined
 }
 

@@ -1,20 +1,22 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
-import type { Context } from 'cordis'
+import { Service, type Context } from 'cordis'
 import { dataPath } from '@biu/host-plugin-loader/data-dir'
-import { MembersStore } from './members-store.ts'
+import { MembersStore, DEFAULT_ADMIN_NAME, DEFAULT_ADMIN_PASSWORD } from './members-store.ts'
 import { membersCollection } from './members-collection.ts'
 import { cookieValue, isRole, newId, readSession, readShareAccess, setCookieHeader, clearCookieHeader, signSession, signShareAccess } from './session.ts'
 import { createCollabServer, incomingToRequest } from './collab-server.ts'
 import { YjsStore } from './yjs-store.ts'
 import { isShareRole, SharesStore } from './shares-store.ts'
 import { PRESENCE_CHANNEL, PresenceStore } from './presence.ts'
+import { setPageAccess } from '@biu/type-file-system'
+import { createPageVisibility, createPageOwnership, withUnrestrictedPageAccess } from './page-visibility.ts'
 
 export const name = 'core-collab'
 export const inject = ['http', 'database']
 
-export { MembersStore } from './members-store.ts'
+export { MembersStore, DEFAULT_ADMIN_NAME, DEFAULT_ADMIN_PASSWORD } from './members-store.ts'
 export { SharesStore } from './shares-store.ts'
 export { YjsStore, pageDocName } from './yjs-store.ts'
 export { canEdit, canInvite, signSession, readSession, signShareAccess, readShareAccess, shareTokenFromPath } from './session.ts'
@@ -35,6 +37,7 @@ export function apply(ctx: Context) {
   const root = process.cwd()
   const secret = workspaceSecret(root)
   const members = new MembersStore(join(dataPath(root, 'collab'), 'members.sqlite'))
+  members.ensureDefaultAdmin()
   const shares = new SharesStore(join(dataPath(root, 'collab'), 'shares.sqlite'))
   const yjs = new YjsStore(join(dataPath(root, 'collab'), 'yjs'))
   const presence = new PresenceStore()
@@ -52,6 +55,30 @@ export function apply(ctx: Context) {
     const id = readSession(secret, token) || readSession(secret, cookieValue(cookie))
     return id ? members.get(id) : undefined
   }
+  const sessionsOf = () => {
+    try {
+      return ctx.get('sessions') as {
+        get?: (id: string) => Promise<{ config?: { ownerMemberId?: string; parentSessionId?: string } } | undefined>
+        peek?: (id: string) => { config?: { ownerMemberId?: string; parentSessionId?: string } } | undefined
+      }
+    } catch {
+      return undefined
+    }
+  }
+  const pageOwnership = createPageOwnership(members, secret, sessionsOf)
+  const pageVisibility = createPageVisibility(members, shares, pageOwnership)
+  setPageAccess(ctx, {
+    canSeePage: (pageId, ownerMemberId) => pageVisibility.canSeePage(pageId, ownerMemberId),
+    resolveOwnerMemberId: () => pageOwnership.resolveOwnerMemberId(),
+  })
+  new (class WorkspaceIdentity extends Service {
+    constructor() {
+      super(ctx, 'identity')
+    }
+    currentMemberId() {
+      return pageOwnership.currentMemberId()
+    }
+  })()
 
   ctx.http.route('GET', '/api/members/me', (route) => {
     const member = memberFromReq(route.req.headers.cookie)
@@ -162,13 +189,13 @@ export function apply(ctx: Context) {
     let title = pageId
     let content: unknown = ''
     try {
-      const read = await database.read(path)
+      const read = await withUnrestrictedPageAccess(() => database.read(path))
       title = String(read?.value?.title ?? read?.value?.name ?? '').trim() || pageId
     } catch {
       /* page may not exist yet */
     }
     try {
-      content = (await database.content(path)).value ?? ''
+      content = (await withUnrestrictedPageAccess(() => database.content(path))).value ?? ''
     } catch {
       content = ''
     }
