@@ -146,6 +146,7 @@ function SharePage({ token, recordId }: { token: string; recordId: string }) {
   }
 
   const schema = snapshot.schema
+  const live = snapshot
   const columns = snapshot.view?.columns?.length ? snapshot.view.columns : defaultColumnKeys(schema, Object.keys(schema.fields))
   const shown = selected ?? (snapshot.kind === 'record' ? snapshot.records[0] : null)
   if (recordId && !shown) {
@@ -160,9 +161,9 @@ function SharePage({ token, recordId }: { token: string; recordId: string }) {
   }
 
   async function copyAll() {
-    const files = snapshot.records.map((row) => ({
-      name: markdownFileName(String(row.title ?? row.id)),
-      text: recordToMarkdown(row, contentToMarkdown(snapshot.contents[row.id])),
+    const files = live.records.map((row) => ({
+      name: markdownFileName(row),
+      text: recordToMarkdown(row, contentToMarkdown(live.contents[row.id])),
     }))
     if (files.length === 1) {
       await navigator.clipboard.writeText(files[0]!.text)

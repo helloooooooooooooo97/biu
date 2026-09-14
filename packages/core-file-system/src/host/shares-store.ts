@@ -11,19 +11,6 @@ type DatabaseSync = import('node:sqlite').DatabaseSync
 
 const require = createRequire(import.meta.url)
 
-export type ShareKind = 'view' | 'record'
-
-export type ShareRecord = {
-  token: string
-  kind: ShareKind
-  collection: string
-  viewId: string
-  recordId: string
-  hasPassword: boolean
-  createdAt: number
-  updatedAt: number
-}
-
 type ShareRow = {
   token: string
   kind: string

@@ -29,8 +29,8 @@ export type ShareSnapshot = {
 }
 
 export function freezeSchema(schema: CollectionSchema): CollectionSchema {
-  const fields: CollectionSchema['fields'] = {}
-  for (const [key, field] of Object.entries(schema.fields)) {
+  const fields = { ...schema.fields }
+  for (const [key, field] of Object.entries(fields)) {
     fields[key] = { ...field, writable: false }
   }
   return { ...schema, fields, records: {} }

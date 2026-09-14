@@ -2647,15 +2647,15 @@ export function CollectionBrowser({
                 target={
                   detailId
                     ? {
-                        kind: 'record',
+                        kind: 'record' as const,
                         collection: collectionPath,
-                        viewId: activeViewId,
+                        viewId: activeViewId ?? undefined,
                         recordId: detailId,
                         title: String(detailRow?.title ?? title),
                       }
                     : activeViewId
                       ? {
-                          kind: 'view',
+                          kind: 'view' as const,
                           collection: collectionPath,
                           viewId: activeViewId,
                           title: activeView?.name ?? title,

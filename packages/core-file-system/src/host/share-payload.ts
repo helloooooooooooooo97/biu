@@ -1,20 +1,9 @@
-import type { CollectionSchema, DbRecord } from '@biu/type-file-system'
+import type { CollectionSchema, Database, DbRecord } from '@biu/type-file-system'
 import { collectAssetNames } from './assets-store.ts'
 import type { SavedViewsStore } from './saved-views.ts'
 import { freezeSchema, type ShareSnapshot } from '../share-snapshot.ts'
 import type { ShareRecord } from './shares-store.ts'
 import { encodeListFilter, resolveViewFilterTree } from '../query-logic.ts'
-
-type ShareDb = {
-  stat: (path: string) => Promise<{ kind: string; schema?: CollectionSchema; label?: string }>
-  list: (
-    path: string,
-    filter?: Record<string, unknown>,
-    page?: { q?: string; sortField?: string; sortDir?: 'asc' | 'desc'; sorts?: Array<{ field: string; dir: 'asc' | 'desc' }>; limit?: number },
-  ) => Promise<{ kind: string; items?: DbRecord[]; schema?: CollectionSchema }>
-  read: (path: string) => Promise<{ value?: DbRecord }>
-  content: (path: string) => Promise<{ value?: unknown }>
-}
 
 const SHARE_LIMIT = 200
 
@@ -22,22 +11,34 @@ function asFilter(view: { filters?: Record<string, string>; filterTree?: unknown
   return encodeListFilter(view.filters ?? {}, resolveViewFilterTree(view as { filters?: Record<string, string>; filterTree?: import('../query-logic.ts').FilterGroup | null }))
 }
 
+function asStat(raw: unknown) {
+  return raw as { kind?: string; schema?: CollectionSchema; label?: string }
+}
+
+function asRecordRead(raw: unknown) {
+  return raw as { value?: DbRecord }
+}
+
+function asContentRead(raw: unknown) {
+  return raw as { value?: unknown }
+}
+
 export async function buildShareSnapshot(
-  db: ShareDb,
+  db: Pick<Database, 'stat' | 'list' | 'read' | 'content'>,
   savedViews: SavedViewsStore,
   share: ShareRecord,
 ): Promise<ShareSnapshot> {
-  const stat = await db.stat(share.collection)
+  const stat = asStat(await db.stat(share.collection))
   if (stat.kind !== 'collection' || !stat.schema) throw new Error('unknown collection')
   const schema = freezeSchema(stat.schema)
   const title = String(stat.label ?? share.collection.replace(/^\//, ''))
   if (share.kind === 'record') {
-    const got = await db.read(`${share.collection}/${share.recordId}`)
+    const got = asRecordRead(await db.read(`${share.collection}/${share.recordId}`))
     const record = got.value
     if (!record?.id) throw new Error('unknown record')
     let content: unknown = null
     try {
-      content = (await db.content(`${share.collection}/${record.id}`)).value ?? null
+      content = asContentRead(await db.content(`${share.collection}/${record.id}`)).value ?? null
     } catch {
       content = null
     }
@@ -66,18 +67,18 @@ export async function buildShareSnapshot(
     filterTree: stored?.filterTree,
     columns: stored?.columns,
   }
-  const listed = await db.list(share.collection, asFilter(view), {
+  const listed = (await db.list(share.collection, asFilter(view), {
     q: String(view.query ?? ''),
     sortField: view.sortField,
     sortDir: view.sortDir,
     sorts: view.sorts,
     limit: SHARE_LIMIT,
-  })
+  })) as { items?: DbRecord[] }
   const records = listed.items ?? []
   const contents: Record<string, unknown> = {}
   for (const row of records) {
     try {
-      contents[row.id] = (await db.content(`${share.collection}/${row.id}`)).value ?? null
+      contents[row.id] = asContentRead(await db.content(`${share.collection}/${row.id}`)).value ?? null
     } catch {
       contents[row.id] = null
     }

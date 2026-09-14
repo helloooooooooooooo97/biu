@@ -21,6 +21,7 @@ function DetailTitleIcon({
   record,
   Icon,
   onChange,
+  locked,
 }: {
   emoji: string
   tableIcon?: string
