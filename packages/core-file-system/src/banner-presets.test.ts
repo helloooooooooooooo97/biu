@@ -19,7 +19,7 @@ test('banner presets cover four styles in static and live kinds', () => {
   }
   assert.ok(BANNER_PRESETS.some((item) => item.id === 'us-cranbrook'))
   assert.ok(BANNER_PRESETS.some((item) => item.id === 'eu-weingart'))
-  assert.ok(BANNER_PRESETS.some((item) => item.id === 'jp-tokyo-chrome'))
+  assert.ok(BANNER_PRESETS.some((item) => item.id === 'jp-yuni-yoshida'))
   assert.ok(BANNER_PRESETS.some((item) => item.id === 'cn-shanghai-mode'))
   const sample = BANNER_PRESETS[0]!
   assert.equal(isBannerPreset({ kind: sample.kind, html: sample.html }), true)
@@ -37,14 +37,16 @@ test('static movements use distinct composition systems instead of one shared co
   assert.match(preset('jp-hattori'), /東 京/)
   assert.match(preset('jp-taku-satoh'), /STRUCTURE 01/)
   assert.match(preset('jp-mieno'), /拉伸、切割、越界/)
-  assert.match(preset('jp-tokyo-chrome'), /LIQUID \/ UTILITY/)
-  assert.match(preset('jp-hybrid-tailoring'), /mix-blend-mode:difference/)
+  assert.match(preset('jp-yuni-yoshida'), /HAND MADE/)
+  assert.match(preset('jp-ohara-type'), /TYPE \/ AIR \/ SHADOW/)
+  assert.match(preset('jp-kawamura'), /repeating-linear-gradient/)
   assert.match(preset('us-lubalin'), /letter-spacing:-\.105em/)
   assert.match(preset('us-vignelli'), /grid-template-columns:repeat\(8,1fr\)/)
   assert.match(preset('us-carson'), /skewX\(-18deg\)/)
+  assert.match(preset('us-actual-source'), /SELF-SET RULES/)
   assert.match(preset('eu-swiss'), /grid-template-columns:repeat\(12,1fr\)/)
-  assert.match(preset('eu-deco'), /clip-path:polygon/)
-  assert.match(preset('eu-futurism'), /skewX\(-23deg\)/)
+  assert.match(preset('eu-dumbar'), /IDENTITY BEHAVES/)
+  assert.match(preset('eu-rudnick'), /GRID \/ ERROR \/ REPEAT/)
   assert.match(preset('cn-gba-tech'), /SYSTEM READY/)
   assert.match(preset('cn-variable-hanzi'), /scaleX\(1\.35\)/)
   assert.match(preset('cn-hanzi-lexicon'), /点 01/)
@@ -56,14 +58,16 @@ test('static movements use distinct composition systems instead of one shared co
 test('gallery spans light, cool, vivid, pastel, neutral, and intentionally dark palettes', () => {
   const preset = (id: string) => BANNER_PRESETS.find((entry) => entry.id === id)?.html ?? ''
 
-  assert.match(preset('jp-tokyo-chrome'), /#7dff36/)
   assert.match(preset('jp-sato'), /#1457ff/)
   assert.match(preset('jp-hattori'), /#f1ff55/)
-  assert.match(preset('jp-harajuku-soft'), /#ffc9e8/)
+  assert.match(preset('jp-yuni-yoshida'), /#ff533d/)
+  assert.match(preset('jp-yoshirotten'), /#101113/)
+  assert.match(preset('jp-kawamura'), /#3258ff/)
   assert.match(preset('us-greiman'), /#8ff5ff/)
-  assert.match(preset('us-warhol'), /#ff5ebc/)
+  assert.match(preset('us-actual-source'), /#1829ff/)
   assert.match(preset('eu-weingart'), /#2357ff/)
   assert.match(preset('eu-memphis'), /#b9f3dc/)
+  assert.match(preset('eu-dumbar'), /#e6ff00/)
   assert.match(preset('cn-shanghai-mode'), /#d8ff36/)
   assert.match(preset('cn-variable-hanzi'), /#ff477e/)
   assert.match(preset('cn-hanzi-lexicon'), /#1357ff/)
@@ -72,25 +76,33 @@ test('gallery spans light, cool, vivid, pastel, neutral, and intentionally dark 
 
   // A few dark fields remain because darkness is integral to these movements,
   // not because every regional family shares one museum-like palette.
-  assert.match(preset('eu-deco'), /#1a1420/)
+  assert.match(preset('eu-rudnick'), /#11131a/)
   assert.match(preset('us-carson'), /#151515/)
 })
 
-test('Japanese and Chinese defaults are fashion-forward rather than historical exhibits', () => {
+test('regional defaults are grounded in distinct design practices rather than generic trends', () => {
   const ids = new Set(BANNER_PRESETS.map((item) => item.id))
   for (const retired of [
     'jp-rimpa', 'jp-ukiyo', 'jp-seigaiha', 'jp-mingei', 'jp-tate',
     'jp-kamekura', 'jp-ikko', 'jp-sugiura', 'jp-yokoo', 'jp-hara', 'jp-groovisions',
+    'jp-tokyo-chrome', 'jp-harajuku-soft', 'jp-data-stage', 'jp-numero', 'jp-hybrid-tailoring',
+    'jp-live-chrome', 'jp-live-soft', 'jp-live-runway',
+    'us-warhol', 'us-live-pop',
+    'eu-deco', 'eu-futurism', 'eu-live-stijl', 'eu-live-memphis',
     'cn-song', 'cn-bai', 'cn-yue', 'cn-liangyou', 'cn-xuan',
     'cn-seal', 'cn-steiner', 'cn-kan', 'cn-chan', 'cn-window',
+    'cn-live-stage', 'cn-live-jade', 'cn-live-night',
   ]) {
     assert.equal(ids.has(retired), false, retired)
   }
   for (const current of [
-    'jp-tokyo-chrome', 'jp-harajuku-soft', 'jp-data-stage', 'jp-numero', 'jp-hybrid-tailoring',
+    'jp-yuni-yoshida', 'jp-ohara-type', 'jp-yoshirotten', 'jp-nakajima', 'jp-kawamura',
+    'jp-live-ohara', 'jp-live-yoshirotten', 'jp-live-kawamura',
+    'us-actual-source', 'us-live-dia',
+    'eu-dumbar', 'eu-rudnick', 'eu-live-dumbar', 'eu-live-rudnick',
     'cn-shanghai-mode', 'cn-gba-tech', 'cn-variable-hanzi', 'cn-hanzi-lexicon',
     'cn-bilingual-editorial', 'cn-abstract-east', 'cn-street-type', 'cn-art-book',
-    'cn-poster-field', 'cn-beyond-page',
+    'cn-poster-field', 'cn-beyond-page', 'cn-live-lexicon', 'cn-live-bilingual', 'cn-live-page',
   ]) {
     assert.equal(ids.has(current), true, current)
   }
