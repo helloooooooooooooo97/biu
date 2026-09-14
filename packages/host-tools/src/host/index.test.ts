@@ -2,6 +2,7 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { Context } from 'cordis'
 import * as tools from '@biu/host-tools'
+import { runWithToolProgress } from '@biu/host-tools'
 
 test('invoke missing tool fails; unregister drops the name', async () => {
   const ctx = new Context()
@@ -160,4 +161,24 @@ test('invoke rejects promptly when aborted during a hung execute', async () => {
   await new Promise((resolve) => setTimeout(resolve, 20))
   ac.abort()
   await assert.rejects(() => pending, /cancelled/)
+})
+
+test('report is ignored unless invoke is wrapped with progress', async () => {
+  const ctx = new Context()
+  await ctx.plugin(tools)
+  ctx.tools.register({
+    name: 'tick',
+    description: 'tick',
+    parameters: { type: 'object', properties: {} },
+    execute: () => {
+      ctx.tools.report({ n: 1 })
+      ctx.tools.report({ n: 2 })
+      return { n: 3 }
+    },
+  })
+  const seen: string[] = []
+  ctx.tools.report('outside')
+  const result = await runWithToolProgress((detail) => seen.push(detail), () => ctx.tools.invoke('tick'))
+  assert.deepEqual(result, { n: 3 })
+  assert.deepEqual(seen, ['{"n":1}', '{"n":2}'])
 })

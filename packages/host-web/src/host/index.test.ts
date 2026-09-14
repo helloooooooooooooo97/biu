@@ -2,6 +2,7 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { Context } from 'cordis'
 import * as tools from '@biu/host-tools'
+import { runWithToolProgress } from '@biu/host-tools'
 import * as systemPrompt from '@biu/host-system-prompt'
 import * as web from './index.ts'
 import { parseBingHtml, parseDuckDuckGoHtml, stripTags, unwrapBingHref, unwrapDuckHref, WebError, WebService } from './index.ts'
@@ -83,6 +84,14 @@ test('web_search / web_fetch match Claude/DSH: query in, sources + fetch text ou
 
     await assert.rejects(() => ctx.tools.invoke('web_fetch', { url: 'http://127.0.0.1/' }), /WEB_BLOCKED_URL|private/)
     await assert.rejects(() => ctx.tools.invoke('web_search', { query: '   ' }), /required/)
+
+    const progress: string[] = []
+    await runWithToolProgress((detail) => progress.push(detail), () =>
+      ctx.tools.invoke('web_search', { queries: ['typescript handbook', 'mdn'] }),
+    )
+    assert.equal(progress.length, 2)
+    assert.match(progress[0] ?? '', /TypeScript Handbook/)
+    assert.match(progress[1] ?? '', /TypeScript Handbook/)
   } finally {
     globalThis.fetch = original
   }

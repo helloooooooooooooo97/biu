@@ -103,7 +103,7 @@ export function deriveMessages(events: SessionEvent[]): LlmMessage[] {
       }
     } else if (event.type === 'tool/result') {
       // 错位/重复的 tool/result 不能进 LLM（否则报 tool 必须跟在 tool_calls 后）
-      if (!pendingToolCalls.has(event.id)) continue
+      if (event.partial || !pendingToolCalls.has(event.id)) continue
       messages.push({ role: 'tool', tool_call_id: event.id, content: event.detail })
       pendingToolCalls.delete(event.id)
     }
@@ -202,7 +202,7 @@ export function statInputComposition(events: SessionEvent[]): InputComposition {
         add(openTurn, len(event.arguments))
         break
       case 'tool/result':
-        add(openTurn, len(event.detail))
+        if (!event.partial) add(openTurn, len(event.detail))
         break
     }
   }
@@ -443,6 +443,31 @@ export class SessionsService extends Service {
         return existing
       }
       this.schedulePersist(id)
+    } else if (body.type === 'tool/result') {
+      const existing = record.events.slice(0, -1).findLast((item) => item.type === 'tool/result' && item.id === body.id)
+      if (existing && existing.type === 'tool/result') {
+        existing.name = body.name || existing.name
+        existing.ok = body.ok
+        existing.detail = body.detail
+        existing.ts = event.ts
+        if (body.partial) existing.partial = true
+        else delete existing.partial
+        record.events.pop()
+        if (body.partial) this.schedulePersist(id)
+        else {
+          this.clearPersistTimer(id)
+          await this.persist(record)
+        }
+        this.ctx.emit('session/event', { sessionId: id, event: existing })
+        return existing
+      }
+      if (body.partial) this.schedulePersist(id)
+      else {
+        this.clearPersistTimer(id)
+        await this.persist(record)
+      }
+      this.ctx.emit('session/event', { sessionId: id, event })
+      return event
     } else {
       this.clearPersistTimer(id)
       await this.persist(record)

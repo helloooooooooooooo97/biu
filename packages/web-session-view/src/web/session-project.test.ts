@@ -9,6 +9,7 @@ import {
   projectRequestMessages,
   projectTrajectory,
   sumTrajectoryUsage,
+  deriveMessages,
   type SessionEvent,
 } from './session-project.ts'
 
@@ -194,7 +195,26 @@ test('accumulates usage and stepCount while the turn is still streaming', () => 
   })
 })
 
-test('tool/call after tool/result keeps a single completed tool part', () => {
+test('partial tool/result marks the tool part as streaming', () => {
+  const nodes = projectNodes([
+    { type: 'turn/start', turn: 1, seq: 0, ts: 1 },
+    { type: 'tool/call', id: 'c1', name: 'web_search', arguments: '{"query":"jay"}', seq: 1, ts: 2 },
+    { type: 'tool/result', id: 'c1', name: 'web_search', ok: true, detail: '{"sources":[]}', partial: true, seq: 2, ts: 3 },
+  ])
+  const reply = nodes.find((node) => node.kind === 'reply')
+  assert.equal(reply?.kind, 'reply')
+  if (reply?.kind !== 'reply') return
+  const tool = reply.parts.find((part) => part.kind === 'tool')
+  assert.equal(tool?.kind === 'tool' && tool.result?.streaming, true)
+  const events: SessionEvent[] = [
+    { type: 'assistant/message', text: '', tool_calls: [{ id: 'c1', name: 'web_search', arguments: '{}' }], seq: 0, ts: 1 },
+    { type: 'tool/result', id: 'c1', name: 'web_search', ok: true, detail: '{}', partial: true, seq: 1, ts: 2 },
+  ]
+  assert.equal(
+    deriveMessages(events).some((item) => item.role === 'tool'),
+    false,
+  )
+})
   const nodes = projectNodes([
     { type: 'tool/result', id: 'c1', name: 'bash', ok: true, detail: 'ok', seq: 1, ts: 1 },
     { type: 'tool/call', id: 'c1', name: 'bash', arguments: '{}', seq: 2, ts: 2 },

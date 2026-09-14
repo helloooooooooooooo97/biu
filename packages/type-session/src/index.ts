@@ -42,7 +42,7 @@ export type SessionEventBody =
     }
   | { type: 'assistant/chunk'; text: string; channel?: 'reasoning' }
   | { type: 'tool/call'; id: string; name: string; arguments: string }
-  | { type: 'tool/result'; id: string; name: string; ok: boolean; detail: string }
+  | { type: 'tool/result'; id: string; name: string; ok: boolean; detail: string; partial?: boolean }
   | {
       type: 'content/edits'
       turn: number

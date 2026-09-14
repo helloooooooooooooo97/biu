@@ -220,11 +220,12 @@ export function ToolCard({
   const collapsedArtifacts =
     !open && formatted?.kind === 'bash' && formatted.artifacts?.length ? formatted.artifacts : null
 
-  const status = !node.result
+  const running = !node.result || Boolean(node.result.streaming)
+  const status = running
     ? live
       ? { label: '运行中', className: 'is-running' }
       : { label: '成功', className: 'is-ok' }
-    : node.result.ok
+    : node.result?.ok
       ? { label: '成功', className: 'is-ok' }
       : { label: '失败', className: 'is-fail' }
 
@@ -245,7 +246,7 @@ export function ToolCard({
           <span className="tool-call-title">{title}</span>
           {open ? null : <span className="tool-call-summary">{summary}</span>}
         </button>
-        {parsed.kind === 'bash' ? (
+        {parsed.kind === 'bash' || node.result?.streaming ? (
           <span className="tool-call-chars" title="输出字数" data-testid="tool-call-chars">
             {toolOutputChars(node.result?.detail, parsed.kind)}
           </span>

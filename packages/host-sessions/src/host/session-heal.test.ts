@@ -54,6 +54,27 @@ test('healInterruptedTurnBodies fills orphan tool results then closes step/turn'
   ])
 })
 
+test('partial tool/result does not close orphan tool calls', () => {
+  const events = [
+    ev({
+      type: 'assistant/message',
+      text: '',
+      tool_calls: [{ id: 'c1', name: 'web_search', arguments: '{}' }],
+      seq: 0,
+    }),
+    ev({ type: 'tool/result', id: 'c1', name: 'web_search', ok: true, detail: '{}', partial: true, seq: 1 }),
+  ]
+  assert.deepEqual(findOrphanToolCalls(events), [{ id: 'c1', name: 'web_search' }])
+  const rebuilt = rebuildHealedEvents(events)
+  assert.ok(rebuilt)
+  const finals = rebuilt!.filter((event) => event.type === 'tool/result' && !event.partial)
+  assert.equal(finals.length, 1)
+  if (finals[0]?.type === 'tool/result') {
+    assert.equal(finals[0].ok, false)
+    assert.match(finals[0].detail, /interrupted/)
+  }
+})
+
 test('findOrphanToolCalls ignores completed tool pairs', () => {
   assert.deepEqual(
     findOrphanToolCalls([

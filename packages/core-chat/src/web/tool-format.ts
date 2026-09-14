@@ -253,7 +253,7 @@ function summarizeList(items: unknown[]): string {
 }
 
 function summarizeRecord(value: Record<string, unknown>): string {
-  for (const key of ['items', 'tasks', 'views', 'records', 'rows', 'results', 'data', 'list']) {
+  for (const key of ['items', 'tasks', 'views', 'records', 'rows', 'results', 'sources', 'data', 'list']) {
     const nested = value[key]
     if (Array.isArray(nested)) return summarizeList(nested)
   }

@@ -32,6 +32,7 @@ export function registerWebTools(ctx: Context) {
       const batches: WebSearchResult[] = []
       for (const query of queries) {
         batches.push(await ctx.web.search({ query, maxResults }, signal))
+        ctx.tools.report(presentSearch(queries, batches))
       }
       return presentSearch(queries, batches)
     },

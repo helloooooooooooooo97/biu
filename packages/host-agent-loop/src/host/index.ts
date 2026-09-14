@@ -2,7 +2,7 @@ import { Service, type Context } from 'cordis'
 import type { AssistantReply, ChatOptions, LlmClient, LlmConfig, LlmMessage, LlmUsage } from '@biu/host-llm'
 import { runWithSession } from '@biu/host-sessions/scope'
 import { applyContextBudget } from '@biu/host-sessions'
-import { runWithToolPolicy, type AgentToolMode } from '@biu/host-tools'
+import { runWithToolPolicy, runWithToolProgress, type AgentToolMode } from '@biu/host-tools'
 
 /** 工具结果写入事件日志( tool/result )时统一上限字符数；超长裁剪，避免上下文被单次工具输出撑爆。 */
 export const MAX_TOOL_RESULT_CHARS = 16_000
@@ -248,7 +248,24 @@ export class AgentLoop implements AgentRunner {
         let ok = true
         try {
           if (this.signal.aborted) throw new Error('cancelled')
-          detail = truncateToolResult(stringify(await this.ctx.tools.invoke(call.name, args, this.signal)))
+          let lastPartialAt = 0
+          detail = truncateToolResult(
+            stringify(
+              await runWithToolProgress((partial) => {
+                const now = Date.now()
+                if (now - lastPartialAt < 40) return
+                lastPartialAt = now
+                void session.append(this.sessionId, {
+                  type: 'tool/result',
+                  id: call.id,
+                  name: call.name,
+                  ok: true,
+                  detail: truncateToolResult(partial),
+                  partial: true,
+                })
+              }, () => this.ctx.tools.invoke(call.name, args, this.signal)),
+            ),
+          )
         } catch (error) {
           ok = false
           detail = String(error)
