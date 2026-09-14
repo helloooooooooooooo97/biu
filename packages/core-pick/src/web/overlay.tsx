@@ -1,9 +1,7 @@
 import { useEffect } from 'react'
 import type { SlotProps } from '@biu/type-slots'
 import { getPick, usePickState } from './service.ts'
-import { picksOnPointerUp } from './commit-pick.ts'
 import { boxFromPoints, pickSurfaceAtPoint, resolvePickAtPoint, resolvePicksInRect, visiblePickBox } from './resolve.ts'
-import { textPickFromSelection } from './types.ts'
 
 const DRAG_PX = 6
 
@@ -37,7 +35,6 @@ export function PickOverlay(_props: SlotProps) {
       target instanceof Element && Boolean(target.closest(EDITOR_SEL))
 
     let drag: { x: number; y: number; boxed: boolean; editor: boolean } | null = null
-    let hoverHit: ReturnType<typeof resolvePickAtPoint> = null
 
     const onMove = (event: PointerEvent) => {
       if (drag) {
@@ -54,23 +51,21 @@ export function PickOverlay(_props: SlotProps) {
         )
         return
       }
-      hoverHit = resolvePickAtPoint(event.clientX, event.clientY, route())
-      if (!hoverHit) {
+      const hit = resolvePickAtPoint(event.clientX, event.clientY, route())
+      if (!hit) {
         pick.setHover(null)
         return
       }
-      pick.setHover(hoverBox(hoverHit.el))
+      pick.setHover(hoverBox(hit.el))
     }
 
     const onDown = (event: PointerEvent) => {
       if (event.button !== 0) return
       if (ignorePickCapture(event.target, event)) return
-      const target = event.target instanceof Element ? event.target : null
-      const inReadable = Boolean(target?.closest('.chat-stage, .page-editor, .tiptap, [data-testid="page-editor"], .cm-editor'))
-      const onHtmlNode = Boolean(target?.closest('[data-html-pick], [data-biu-kind="html"]'))
-      // Let the editor keep text selection, but do not let a pageBlock click
-      // become a NodeSelection that serializes the whole fence on pointerup.
-      if (!inReadable || onHtmlNode) event.preventDefault()
+      const inReadable =
+        event.target instanceof Element &&
+        Boolean(event.target.closest('.chat-stage, .page-editor, .tiptap, [data-testid="page-editor"], .cm-editor'))
+      if (!inReadable) event.preventDefault()
       drag = { x: event.clientX, y: event.clientY, boxed: false, editor: inEditor(event.target) }
     }
 
@@ -79,23 +74,18 @@ export function PickOverlay(_props: SlotProps) {
       const started = drag
       drag = null
       if (!pick.picking) return
-      const point = resolvePickAtPoint(event.clientX, event.clientY, route())
-      const boxHits = started.boxed
-        ? resolvePicksInRect(
+      if (started.boxed) {
+        pick.addMany(
+          resolvePicksInRect(
             boxFromPoints(started.x, started.y, event.clientX, event.clientY),
             route(),
             pickSurfaceAtPoint(started.x, started.y) ?? document,
-          ).map((hit) => hit.ref)
-        : []
-      const refs = picksOnPointerUp({
-        boxed: started.boxed,
-        boxHits,
-        hover: hoverHit,
-        point,
-        text: textPickFromSelection(route()),
-      })
-      if (refs.some((ref) => ref.kind === 'text')) window.getSelection()?.removeAllRanges()
-      pick.addMany(refs)
+          ).map((hit) => hit.ref),
+        )
+        return
+      }
+      const hit = resolvePickAtPoint(event.clientX, event.clientY, route())
+      if (hit) pick.add(hit.ref)
     }
 
     const onClick = (event: MouseEvent) => {
