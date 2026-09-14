@@ -126,7 +126,7 @@ export const SLASH_ITEMS: SlashItem[] = [
       editor.chain().focus().deleteRange(range).run()
       pickLocalImageSrc().then((src) => {
         if (!src || editor.isDestroyed) return
-        editor.chain().focus().setImage({ src }).run()
+        editor.chain().focus().setImage({ src, alt: '' }).run()
       })
     },
     ...BASIC_GROUP,
@@ -163,6 +163,23 @@ export const SLASH_ITEMS: SlashItem[] = [
   },
 ]
 
+function safeAssetFileName(name: string) {
+  const base = name.replace(/^.*[/\\]/, '').replace(/[^\p{L}\p{N}._-]+/gu, '-')
+  return base || `image-${Date.now()}.png`
+}
+
+async function uploadPageImage(file: File) {
+  const name = `${Date.now()}-${safeAssetFileName(file.name)}`
+  const res = await fetch(`/api/db/file/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    headers: { 'content-type': file.type || 'application/octet-stream' },
+    body: file,
+  })
+  const body = (await res.json().catch(() => ({}))) as { error?: string; href?: string; name?: string }
+  if (!res.ok) throw new Error(body.error || res.statusText)
+  return body.href || `/api/db/file/${encodeURIComponent(body.name || name)}`
+}
+
 function pickLocalImageSrc() {
   return new Promise<string>((resolve) => {
     const input = document.createElement('input')
@@ -174,10 +191,9 @@ function pickLocalImageSrc() {
         resolve('')
         return
       }
-      const reader = new FileReader()
-      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
-      reader.onerror = () => resolve('')
-      reader.readAsDataURL(file)
+      void uploadPageImage(file)
+        .then(resolve)
+        .catch(() => resolve(''))
     })
     input.addEventListener('cancel', () => resolve(''))
     input.click()

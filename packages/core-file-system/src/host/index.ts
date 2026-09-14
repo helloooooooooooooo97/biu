@@ -1173,19 +1173,30 @@ export class DatabaseService extends Service implements Database {
       return { kind: 'asset' as const, path: recPath, command: 'view' as const, assets }
     }
     if (!isAssetFileName(file)) throw new Error('invalid asset')
-    if (!names.has(file)) throw new Error(`asset not referenced: ${file}`)
     if (command === 'view') {
-      const read = await this.assets.read(file)
-      const text =
-        read.type.startsWith('text/') || read.type.includes('json') ? read.bytes.toString('utf8') : undefined
-      return {
-        kind: 'asset' as const,
-        path: recPath,
-        command: 'view' as const,
-        name: file,
-        etag: read.etag,
-        type: read.type,
-        ...(text != null ? { text } : {}),
+      if (!names.has(file)) throw new Error(`asset not referenced: ${file}`)
+      try {
+        const read = await this.assets.read(file)
+        const text =
+          read.type.startsWith('text/') || read.type.includes('json') ? read.bytes.toString('utf8') : undefined
+        return {
+          kind: 'asset' as const,
+          path: recPath,
+          command: 'view' as const,
+          name: file,
+          etag: read.etag,
+          type: read.type,
+          ...(text != null ? { text } : {}),
+        }
+      } catch {
+        return {
+          kind: 'asset' as const,
+          path: recPath,
+          command: 'view' as const,
+          name: file,
+          missing: true,
+          etag: '',
+        }
       }
     }
     if (command !== 'write') throw new Error(`unknown asset command: ${command}`)
@@ -1530,6 +1541,7 @@ export function apply(ctx: Context) {
       'command=replace_lines：按 1-based 闭区间 start_line..end_line 换成 new_str。',
       'command=insert：在 insert_line 之后插入 new_str（0 插到第一行前）。',
       'command=write：整篇覆盖，传 value。写成功只返回 {ok, path}，不含全文。str_replace / replace_lines / insert 成功额外返回 start_line、end_line（改后正文的 1-based 行）。编辑器会标出该段改动，不抢输入焦点、不自动跳转；跳转只在用户主动点目录或查找时发生。',
+      '页面插图：不要把 data URL / base64 写进正文。先把图片文件落到工作区（下载或生成），再用 db_asset command=write name=<文件名> from=<本地路径> 入库（新文件不要带 etag），然后 insert/str_replace 写入一行 Markdown：![说明](/api/db/file/<文件名>)。也可以先写这一行再 write 附件。',
     ].join(' '),
     parameters: {
       type: 'object',
@@ -1562,11 +1574,12 @@ export function apply(ctx: Context) {
   ctx.tools.register({
     name: 'db_asset',
     description: [
-      '读写一条记录引用的附件（画板 json、图片、文件），不是正文。正文仍用 db_content。',
-      'path 为 /<表>/<id>，name 为附件文件名（正文里的 assets/xxx 或 /api/page/file/xxx）。',
-      'command=view：不传 name 列出本条引用的附件及 etag；带 name 读该文件（文本/json 带 text）和 etag。',
-      'command=write：覆盖该文件，必须带 etag（等于上次 view 的 etag）。对不上返回 etag conflict，先 view 再写。',
-      '大内容不要塞进 value：先用 bash/python 写到本地文件，再 from=该路径（工作区相对或绝对，如 /tmp/board.json）。value 只适合短文本。',
+      '读写一条记录的附件（画板 json、图片、文件），不是正文。正文仍用 db_content。',
+      'path 为 /<表>/<id>，name 为附件文件名（正文里写成 assets/xxx、/api/db/file/xxx 或 /api/page/file/xxx）。',
+      'command=view：不传 name 列出本条已引用的附件及 etag；带 name 读该文件（文本/json 带 text）和 etag。引用了但文件还不存在时返回 missing=true、etag 空串。',
+      'command=write：写入该文件。新文件不要带 etag（可先不出现在正文里）；覆盖已有文件必须带 etag（等于上次 view 的 etag），对不上返回 etag conflict。',
+      '插图：先 write 图片（from=本地路径），再 db_content 插入 ![说明](/api/db/file/<name>)。不要把图片 base64 写进 db_content。',
+      '大内容不要塞进 value：先用 bash/python 写到本地文件，再 from=该路径（工作区相对或绝对，如 /tmp/hero.png）。value 只适合短文本。',
       '写成功只返回 {ok, path, name, etag}。前端开着的编辑器按 etag 重载，过期 PUT 会 409。',
     ].join(' '),
     parameters: {

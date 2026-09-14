@@ -623,6 +623,59 @@ test('editAsset views and writes referenced attachments with etag', async () => 
   await assert.rejects(() => db.editAsset('/pages/p1', { command: 'view', name: 'nope.json' }), /not referenced/)
 })
 
+test('editAsset can create a new image then reference it from content', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.assets = new FileSystemAssets(await mkdtemp(join(tmpdir(), 'db-asset-img-')))
+  const rows = new Map<string, Record<string, unknown>>([
+    ['p1', { id: 'p1', title: '页', notes: 'hello' }],
+  ])
+  db.register({
+    id: 'pages',
+    path: '/pages',
+    schema: {
+      contentField: 'notes',
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+        notes: { type: 'file', writable: true },
+      },
+    },
+    list: () => [...rows.values()] as { id: string }[],
+    get: (id) => rows.get(id) as { id: string } | undefined,
+    records: { update: true },
+    update: (id, patch) => {
+      const next = { ...rows.get(id), ...patch, id }
+      rows.set(id, next)
+      return next as { id: string }
+    },
+  })
+  const dump = join(await mkdtemp(join(tmpdir(), 'db-img-from-')), 'hero.png')
+  await writeFile(dump, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+  const created = await db.editAsset('/pages/p1', {
+    command: 'write',
+    name: 'hero.png',
+    from: dump,
+  })
+  assert.equal(created.ok, true)
+  assert.equal(created.name, 'hero.png')
+  await db.editContent('/pages/p1', {
+    command: 'insert',
+    insert_line: 1,
+    new_str: '![封面](/api/db/file/hero.png)',
+  })
+  assert.match(String((await db.content('/pages/p1')).value), /\/api\/db\/file\/hero\.png/)
+  const missingRef = await db.editContent('/pages/p1', {
+    command: 'insert',
+    insert_line: 2,
+    new_str: '![缺](/api/db/file/soon.png)',
+  })
+  assert.equal(missingRef.ok, true)
+  const viewed = await db.editAsset('/pages/p1', { command: 'view', name: 'soon.png' })
+  assert.equal(viewed.missing, true)
+  assert.equal(viewed.etag, '')
+})
+
 test('list paginates collection records and reports total', async () => {
   const ctx = new Context()
   const db = new DatabaseService(ctx)
