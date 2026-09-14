@@ -57,12 +57,14 @@ test('pointerup prefers a text selection over object picks', () => {
   assert.match(overlay, /inReadable/)
   assert.match(overlay, /\.chat-stage/)
   assert.match(overlay, /\.page-bubble/)
+  assert.match(overlay, /picksOnPointerUp/)
+  assert.match(overlay, /hoverHit/)
 })
 
-test('pointerup in the editor does not treat a node selection as a text pick', () => {
-  assert.doesNotMatch(overlay, /locusFromSelection/)
-  assert.match(overlay, /resolvePickAtPoint/)
-  assert.match(overlay, /started.boxed/)
+test('clicking a stamped html node prevents the editor from selecting the whole block', () => {
+  assert.match(overlay, /onHtmlNode/)
+  assert.match(overlay, /data-html-pick/)
+  assert.match(overlay, /data-biu-kind="html"/)
 })
 
 test('pointerup does not attach picks after pick mode has exited', () => {
