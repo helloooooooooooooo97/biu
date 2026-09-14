@@ -340,9 +340,9 @@ export const BANNER_PRESETS: BannerPreset[] = [
     'cn-digital-jade',
     'cn',
     '数码玉',
-    '把“玉”从古典材质改写成透明界面、荧光折射与未来奢侈品。',
-    'background:linear-gradient(135deg,#83f5d0,#d7fff2 46%,#7cc7ff);color:#123b4d',
-    `<div style="position:absolute;left:10%;top:14%;width:160px;height:112px;border-radius:58% 42% 48% 52%;background:linear-gradient(145deg,rgba(255,255,255,.85),rgba(67,255,186,.18));box-shadow:inset 18px 14px 30px rgba(255,255,255,.72),inset -16px -12px 28px rgba(24,120,116,.22),10px 18px 35px rgba(22,88,109,.18);backdrop-filter:blur(6px)"></div><div style="position:absolute;left:22px;top:17px;font:700 8px/1 ui-monospace,monospace;letter-spacing:.24em">DIGITAL JADE / 透明度 72%</div><div style="position:absolute;right:5%;bottom:14px;text-align:right"><div style="font:800 36px/.86 'Heiti SC',sans-serif">数码玉</div><div style="margin-top:6px;font:700 9px/1 ui-monospace,monospace">LUXURY MATERIAL / NEXT</div></div>`,
+    '以墨绿切面、荧光玉色与冷白编辑网格，重塑数字时代的东方材质。',
+    'background:#f1f0e9;color:#102c26',
+    `<div style="position:absolute;inset:0;background:linear-gradient(90deg,transparent 49.75%,rgba(16,44,38,.16) 50%,transparent 50.25%),linear-gradient(transparent 66%,rgba(16,44,38,.16) 66.5%,transparent 67%)"></div><div style="position:absolute;left:8%;top:-36%;width:48%;aspect-ratio:1;border-radius:50%;border:clamp(24px,5vw,58px) solid #0b3d32;box-shadow:inset 0 0 0 2px #baff5a,0 0 0 1px #0b3d32;transform:rotate(-18deg)"></div><div style="position:absolute;left:32%;top:-18%;width:34%;height:144%;background:linear-gradient(138deg,rgba(186,255,90,.92),rgba(23,133,105,.88) 47%,rgba(4,45,38,.96) 48% 66%,rgba(255,255,255,.4) 67%);clip-path:polygon(24% 0,100% 9%,76% 100%,0 86%);mix-blend-mode:multiply"></div><div style="position:absolute;left:18px;top:15px;font:800 8px/1 ui-monospace,monospace;letter-spacing:.23em">JADE / DIGITAL MATTER 01</div><div style="position:absolute;right:4%;bottom:12px;text-align:right"><div style="font:900 clamp(38px,7vw,78px)/.78 'Heiti SC',sans-serif;letter-spacing:-.13em">数码<br>玉</div><div style="margin-top:7px;font:700 8px/1 ui-monospace,monospace;letter-spacing:.16em;color:#178569">NEW MATERIAL / 新材质</div></div>`,
   ),
   html(
     'cn-cpop-stage',
@@ -388,9 +388,9 @@ export const BANNER_PRESETS: BannerPreset[] = [
     'cn-soft-future',
     'cn',
     '柔性未来',
-    '珍珠渐变、流体轮廓与轻字重，面向年轻女性时装与美妆。',
-    'background:linear-gradient(118deg,#ffd7f0,#d8d2ff 45%,#b9f7ef);color:#4a286e',
-    `<div style="position:absolute;right:7%;top:12%;width:148px;height:112px;border-radius:62% 38% 44% 56%;background:radial-gradient(circle at 30% 24%,rgba(255,255,255,.95),rgba(255,255,255,.2) 36%,rgba(145,88,255,.24));box-shadow:inset 12px 10px 24px rgba(255,255,255,.76),0 18px 34px rgba(85,45,140,.14);transform:rotate(12deg)"></div><div style="position:absolute;left:5%;top:16%;font:300 clamp(45px,8vw,92px)/.78 'Songti SC',serif;letter-spacing:.12em">柔性<br>未来</div><div style="position:absolute;left:20px;bottom:15px;font:700 8px/1 ui-monospace,monospace;letter-spacing:.24em">SOFT FUTURE / BEAUTY 026</div>`,
+    '用液态银带、雾面留白与紧凑黑体，呈现冷静而有张力的未来时装。',
+    'background:#e9e9e5;color:#161619',
+    `<div style="position:absolute;inset:-28% -8%;background:linear-gradient(113deg,transparent 0 31%,#777b82 31.5%,#f8f8f5 37%,#a8abb0 42%,#24262b 48%,#d9dadd 54%,#686b71 59%,transparent 59.5%);clip-path:polygon(0 17%,100% 0,76% 100%,9% 82%);transform:rotate(-6deg)"></div><div style="position:absolute;left:4%;top:10%;font:900 clamp(46px,9vw,102px)/.7 'Heiti SC',sans-serif;letter-spacing:-.12em">柔性<br>未来</div><div style="position:absolute;right:18px;top:13px;font:800 8px/1 ui-monospace,monospace;letter-spacing:.2em;writing-mode:vertical-rl">FLEX / FORM / 2026</div><div style="position:absolute;left:18px;bottom:13px;display:flex;align-items:center;gap:9px;font:800 8px/1 ui-monospace,monospace;letter-spacing:.18em"><span style="display:block;width:42px;height:3px;background:#ff4f24"></span>LIQUID METAL / 新廓形</div>`,
   ),
 
   live(

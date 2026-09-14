@@ -48,8 +48,9 @@ test('static movements use distinct composition systems instead of one shared co
   assert.match(preset('eu-futurism'), /skewX\(-23deg\)/)
   assert.match(preset('cn-gba-tech'), /SYSTEM READY/)
   assert.match(preset('cn-variable-hanzi'), /scaleX\(1\.35\)/)
-  assert.match(preset('cn-digital-jade'), /backdrop-filter:blur/)
+  assert.match(preset('cn-digital-jade'), /mix-blend-mode:multiply/)
   assert.match(preset('cn-night-shanghai'), /CLUB \/ 02:17/)
+  assert.match(preset('cn-soft-future'), /LIQUID METAL/)
 })
 
 test('gallery spans light, cool, vivid, pastel, neutral, and intentionally dark palettes', () => {
@@ -66,7 +67,8 @@ test('gallery spans light, cool, vivid, pastel, neutral, and intentionally dark 
   assert.match(preset('eu-memphis'), /#b9f3dc/)
   assert.match(preset('cn-shanghai-mode'), /#d8ff36/)
   assert.match(preset('cn-variable-hanzi'), /#ff477e/)
-  assert.match(preset('cn-soft-future'), /#ffd7f0/)
+  assert.match(preset('cn-digital-jade'), /#baff5a/)
+  assert.match(preset('cn-soft-future'), /#ff4f24/)
 
   // A few dark fields remain because darkness is integral to these movements,
   // not because every regional family shares one museum-like palette.
