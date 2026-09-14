@@ -11,6 +11,7 @@ export {
   parseDuckDuckGoHtml,
   parseWikiOpenSearch,
   stripTags,
+  extractPageImages,
   unwrapBingHref,
   unwrapDuckHref,
 } from './html.ts'

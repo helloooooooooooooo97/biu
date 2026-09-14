@@ -5,7 +5,7 @@ import * as tools from '@biu/host-tools'
 import { runWithToolProgress } from '@biu/host-tools'
 import * as systemPrompt from '@biu/host-system-prompt'
 import * as web from './index.ts'
-import { parseBingHtml, parseDuckDuckGoHtml, stripTags, unwrapBingHref, unwrapDuckHref, WebError, WebService } from './index.ts'
+import { extractPageImages, parseBingHtml, parseDuckDuckGoHtml, stripTags, unwrapBingHref, unwrapDuckHref, WebError, WebService } from './index.ts'
 
 const SAMPLE = `
 <html><body>
@@ -15,6 +15,14 @@ const SAMPLE = `
   <a class="result__snippet" href="#">Web platform reference.</a>
 </body></html>
 `
+
+test('extracts og:image and img urls from a page', () => {
+  const images = extractPageImages(
+    `<html><meta property="og:image" content="https://cdn.example.com/a.png"><img src="/rel.jpg"></html>`,
+    'https://news.example.com/post',
+  )
+  assert.deepEqual(images, ['https://cdn.example.com/a.png', 'https://news.example.com/rel.jpg'])
+})
 
 test('parses duckduckgo html results and unwraps uddg redirects', () => {
   const hits = parseDuckDuckGoHtml(SAMPLE)
@@ -51,7 +59,16 @@ test('web_search / web_fetch match Claude/DSH: query in, sources + fetch text ou
     if (url.includes('www.bing.com/search')) throw new TypeError('fetch failed')
     if (url.includes('html.duckduckgo.com')) return new Response(SAMPLE, { status: 200 })
     if (url.includes('example.com/docs')) {
-      return new Response('<html><script>x</script><p>Hello docs</p></html>', { status: 200, headers: { 'content-type': 'text/html' } })
+      return new Response(
+        '<html><script>x</script><p>Hello docs</p><meta property="og:image" content="https://cdn.example.com/hero.png"><img src="/pic.jpg"></html>',
+        { status: 200, headers: { 'content-type': 'text/html' } },
+      )
+    }
+    if (url.includes('cdn.example.com/hero.png') || url.endsWith('/pic.jpg')) {
+      return new Response(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]), {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      })
     }
     if (url.includes('example.com/missing')) {
       return new Response('not found', { status: 404, headers: { 'content-type': 'text/plain' } })
@@ -70,14 +87,27 @@ test('web_search / web_fetch match Claude/DSH: query in, sources + fetch text ou
     assert.ok(searched.sources.length >= 2)
     assert.equal(searched.sources[0]?.title, 'TypeScript Handbook')
     assert.match(ctx.systemPrompt.assemble(), /web_search/)
+    assert.match(ctx.systemPrompt.assemble(), /file\.path/)
 
     const fetched = (await ctx.tools.invoke('web_fetch', { url: 'https://example.com/docs' })) as {
       text: string
       status: number
+      images?: string[]
     }
     assert.equal(fetched.status, 200)
     assert.match(fetched.text, /Hello docs/)
     assert.doesNotMatch(fetched.text, /script/)
+    assert.ok(fetched.images?.includes('https://cdn.example.com/hero.png'))
+    assert.ok(fetched.images?.includes('https://example.com/pic.jpg'))
+
+    const image = (await ctx.tools.invoke('web_fetch', { url: 'https://cdn.example.com/hero.png' })) as {
+      file?: { path: string; mime: string; bytes: number }
+      text: string
+    }
+    assert.equal(image.file?.mime, 'image/png')
+    assert.ok((image.file?.bytes ?? 0) >= 4)
+    assert.match(image.file?.path ?? '', /biu-web/)
+    assert.match(image.text, /saved image/)
 
     const missing = (await ctx.tools.invoke('web_fetch', { url: 'https://example.com/missing' })) as { status: number }
     assert.equal(missing.status, 404)

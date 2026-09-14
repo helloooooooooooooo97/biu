@@ -31,11 +31,16 @@ export function presentSearch(queries: string[], batches: WebSearchResult[]) {
 }
 
 export function presentFetch(result: WebFetchResult) {
+  const file = result.body.kind === 'file'
+    ? { path: result.body.path, mime: result.body.mime, bytes: result.body.bytes }
+    : undefined
   return {
     url: result.url,
     status: result.statusCode,
     title: hostnameOf(result.url),
     text: result.body.content,
+    ...(file ? { file } : {}),
+    ...(result.images?.length ? { images: [...result.images] } : {}),
     truncated: result.truncated,
   }
 }

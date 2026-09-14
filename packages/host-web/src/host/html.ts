@@ -110,6 +110,71 @@ export function fetchHeaders(extra?: Record<string, string>) {
   return { ...BROWSER_HEADERS, ...extra }
 }
 
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|avif|bmp)(\?|#|$)/i
+
+export function looksLikeImageUrl(raw: string) {
+  try {
+    return IMAGE_EXT.test(new URL(raw).pathname)
+  } catch {
+    return IMAGE_EXT.test(raw)
+  }
+}
+
+export function isImageContentType(type: string) {
+  return type.toLowerCase().startsWith('image/')
+}
+
+export function extForImage(type: string, url: string) {
+  const mime = type.toLowerCase()
+  if (mime.includes('png')) return '.png'
+  if (mime.includes('jpeg') || mime.includes('jpg')) return '.jpg'
+  if (mime.includes('gif')) return '.gif'
+  if (mime.includes('webp')) return '.webp'
+  if (mime.includes('svg')) return '.svg'
+  if (mime.includes('avif')) return '.avif'
+  if (mime.includes('bmp')) return '.bmp'
+  const match = /\.(png|jpe?g|gif|webp|svg|avif|bmp)$/i.exec(url.split('?')[0] ?? '')
+  return match ? match[0].toLowerCase().replace('jpeg', 'jpg') : '.bin'
+}
+
+export function extractPageImages(html: string, pageUrl: string, limit = 12) {
+  const out: string[] = []
+  const seen = new Set<string>()
+  const push = (raw: string) => {
+    const href = decodeEntities(raw.trim())
+    if (!href || href.startsWith('data:')) return
+    let url: URL
+    try {
+      url = new URL(href, pageUrl)
+    } catch {
+      return
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return
+    if (seen.has(url.href)) return
+    seen.add(url.href)
+    out.push(url.href)
+  }
+  for (const match of html.matchAll(/<meta[^>]+(?:property|name)="(?:og:image|twitter:image)"[^>]+content="([^"]+)"/gi)) {
+    push(match[1] ?? '')
+    if (out.length >= limit) return out
+  }
+  for (const match of html.matchAll(/<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="(?:og:image|twitter:image)"/gi)) {
+    push(match[1] ?? '')
+    if (out.length >= limit) return out
+  }
+  for (const match of html.matchAll(/<img[^>]+src="([^"]+)"/gi)) {
+    push(match[1] ?? '')
+    if (out.length >= limit) return out
+  }
+  if (out.length < limit) {
+    for (const match of html.matchAll(/<img[^>]+src='([^']+)'/gi)) {
+      push(match[1] ?? '')
+      if (out.length >= limit) break
+    }
+  }
+  return out
+}
+
 export function combineSignals(signal?: AbortSignal, timeoutMs = 12_000) {
   const timeout = AbortSignal.timeout(timeoutMs)
   return signal ? AbortSignal.any([signal, timeout]) : timeout

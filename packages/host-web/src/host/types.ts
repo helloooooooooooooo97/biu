@@ -33,12 +33,14 @@ export type WebFetchRequest = {
 export type WebFetchBody =
   | { readonly kind: 'html'; readonly content: string }
   | { readonly kind: 'text'; readonly content: string }
+  | { readonly kind: 'file'; readonly content: string; readonly path: string; readonly mime: string; readonly bytes: number }
 
 export type WebFetchResult = {
   readonly url: string
   readonly statusCode: number
   readonly body: WebFetchBody
   readonly truncated: boolean
+  readonly images?: readonly string[]
 }
 
 export type WebSearchProvider = {
