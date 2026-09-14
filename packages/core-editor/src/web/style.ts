@@ -7,7 +7,8 @@ export const PAGE_EDITOR_STYLE = `
 .page-source .cm-editor{background:transparent}
 .page-source .cm-focused{outline:none}
 .page-source .cm-editor.cm-focused>.cm-scroller>.cm-selectionLayer .cm-selectionBackground,.page-source .cm-selectionLayer .cm-selectionBackground{background:color-mix(in srgb,var(--dsw-pick) 40%,transparent)}
-.page-editor .tiptap{outline:none;min-height:240px}
+.page-editor .collaboration-carets__caret{position:relative;margin-left:-1px;margin-right:-1px;border-left:1px solid;border-right:1px solid;word-break:normal;pointer-events:none}
+.page-editor .collaboration-carets__label{position:absolute;top:-1.4em;left:-1px;padding:1px 6px;border-radius:3px 3px 3px 0;color:#fff;font-size:11px;font-weight:700;white-space:nowrap}
 .page-block-handle{position:absolute;z-index:6;width:28px;display:flex;flex-direction:column;align-items:center;pointer-events:auto}
 .page-block-handle-grip{flex:none;display:flex;align-items:center;justify-content:center;width:22px;height:26px;margin:0;border:0;border-radius:6px;padding:0;background:transparent;color:#EFEEEC;cursor:grab}
 .page-block-handle-grip:hover,.page-block-handle-grip:focus-visible{background:var(--dsw-hover);color:#EFEEEC}

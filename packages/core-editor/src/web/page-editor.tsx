@@ -9,6 +9,7 @@ import type { Editor } from '@tiptap/core'
 import { Selection } from '@tiptap/pm/state'
 import type { FsContentProps } from '@biu/type-file-system/ui'
 import { pageEditorExtensions } from './kit.ts'
+import { usePageCollab } from './use-page-collab.ts'
 import { PageBlockHandle } from './page-block-handle.tsx'
 import { editorHostIsLive } from './editor-live.ts'
 import { FOCUS_RECORD_CONTENT, FOCUS_RECORD_TITLE, handleContentTitleNav, shouldLeaveContentForTitle, focusRecordTitleNear, isDocStartSelection } from './title-content-nav.ts'
@@ -289,6 +290,7 @@ function TableBar({ editor }: { editor: Editor }) {
 }
 
 export function PageEditor({ record, value, writable, onChange, path }: FsContentProps) {
+  const collab = usePageCollab(record.id)
   const source = usePageSourceMode(record.id)
   const saved = useRef(asMarkdown(value))
   const sourceMode = useRef(source)
@@ -313,8 +315,12 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
     {
       immediatelyRender: false,
       shouldRerenderOnTransaction: false,
-      editable: writable !== false,
-      extensions: pageEditorExtensions(),
+      editable: writable !== false && collab.member?.role !== 'viewer',
+      extensions: pageEditorExtensions(
+        collab.provider
+          ? { ydoc: collab.ydoc, provider: collab.provider, user: collab.member ?? { name: '用户' } }
+          : undefined,
+      ),
       content: asMarkdown(value),
       contentType: 'markdown',
       editorProps: {
@@ -380,7 +386,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
         })
       },
     },
-    [record.id],
+    [record.id, collab.provider, collab.member?.role],
   )
   editorRef.current = editor ?? null
 

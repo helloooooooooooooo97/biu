@@ -2,8 +2,22 @@ import { render, waitFor } from '@testing-library/react'
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { Context } from 'cordis'
+import * as Y from 'yjs'
 import { PageEditor } from './page-editor.tsx'
 import { PageEditorService } from './service.ts'
+import { pageEditorExtensions } from './kit.ts'
+
+test('collab kit adds yjs extensions and drops local undo', () => {
+  const names = pageEditorExtensions({
+    ydoc: new Y.Doc(),
+    provider: { on() {}, off() {} },
+    user: { name: '甲' },
+  }).map((ext) => ext.name)
+  assert.ok(names.includes('collaboration'))
+  assert.ok(names.includes('collaborationCaret'))
+  assert.equal(pageEditorExtensions().some((ext) => ext.name === 'collaboration'), false)
+})
+
 
 test('page editor paints markdown headings without a chrome toolbar', async () => {
   const { container, rerender } = render(

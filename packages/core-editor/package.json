@@ -24,6 +24,10 @@
     "@lezer/highlight": "^1.2.3",
     "@biu/core-pick": "0.1.0",
     "@biu/public-ui": "0.1.0",
-    "@biu/type-file-system": "0.1.0"
+    "@biu/type-file-system": "0.1.0",
+    "@hocuspocus/provider": "^4.7.0",
+    "@tiptap/extension-collaboration": "3.30.5",
+    "@tiptap/extension-collaboration-caret": "3.30.5",
+    "yjs": "^13.6.31"
   }
 }

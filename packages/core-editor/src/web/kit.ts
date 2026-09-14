@@ -16,7 +16,10 @@ import { pageFind } from './find-plugin.ts'
 import { pageAgentEdit } from './agent-edit-plugin.ts'
 import { slashCommand } from './slash.ts'
 import { pageMention } from './mention.ts'
+import Collaboration from '@tiptap/extension-collaboration'
+import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import { openMathPop } from './math-pop.ts'
+import type { Doc } from 'yjs'
 
 function latexFromMarkdown(raw: unknown) {
   return String(raw ?? '').trim().replace(/\\([`*_[\]~])/g, '$1')
@@ -196,12 +199,13 @@ const pageMathematics = Mathematics.extend({
   },
 })
 
-export function pageEditorExtensions() {
+export function pageEditorExtensions(collab?: { ydoc: Doc; provider?: unknown; user?: { name: string; color?: string } }) {
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
       codeBlock: false,
       paragraph: false,
+      undoRedo: collab?.ydoc ? false : undefined,
     }),
     pageParagraph,
     pageCodeBlock,
@@ -229,5 +233,18 @@ export function pageEditorExtensions() {
     pageAgentEdit,
     slashCommand,
     pageMention,
+    ...(collab?.ydoc
+      ? [
+          Collaboration.configure({ document: collab.ydoc }),
+          ...(collab.provider
+            ? [
+                CollaborationCaret.configure({
+                  provider: collab.provider,
+                  user: { name: collab.user?.name ?? '用户', color: collab.user?.color ?? '#2563eb' },
+                }),
+              ]
+            : []),
+        ]
+      : []),
   ]
 }

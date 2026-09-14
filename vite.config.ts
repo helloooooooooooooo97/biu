@@ -21,7 +21,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': 'http://127.0.0.1:3141',
-      '/ws': { target: 'ws://127.0.0.1:3141', ws: true },
+      '/collaboration': { target: 'ws://127.0.0.1:3141', ws: true },
     },
   },
   test: {

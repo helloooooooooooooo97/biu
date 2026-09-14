@@ -125,6 +125,16 @@
       "web": "@biu/core-page/web",
       "togglable": false,
       "enabled": true
+    },
+    {
+      "id": "core-collab",
+      "name": "Core-Collab",
+      "layer": "core",
+      "blurb": "成员表 /members 与页面 Yjs 协同。邀请同事一起改同一页。",
+      "package": "@biu/core-collab/host",
+      "web": "@biu/core-collab/web",
+      "togglable": false,
+      "enabled": true
     }
   ]
 }
