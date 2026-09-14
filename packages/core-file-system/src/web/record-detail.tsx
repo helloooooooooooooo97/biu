@@ -28,9 +28,27 @@ function DetailTitleIcon({
   record: DbRecord
   Icon?: CollectionChrome['Icon']
   onChange: (next: string) => void
+  locked?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  if (locked) {
+    return (
+      <span className="fsdb-detail-title-icon-wrap">
+        <span className="fsdb-detail-title-icon">
+          {emoji ? (
+            <span className="fsdb-record-emoji">{emoji}</span>
+          ) : Icon ? (
+            <span className="fsdb-record-mark is-lg">
+              <Icon record={record} />
+            </span>
+          ) : (
+            <TableGlyph icon={tableIcon} className="size-8" />
+          )}
+        </span>
+      </span>
+    )
+  }
   return (
     <span className="fsdb-detail-title-icon-wrap">
       <button
@@ -169,6 +187,7 @@ export function RecordDetail({
   toolbar,
   collectionPath,
   onDelete,
+  readOnly = false,
 }: {
   selected: DbRecord
   schema: CollectionSchema
@@ -190,6 +209,7 @@ export function RecordDetail({
   toolbar?: ReactNode
   collectionPath?: string
   onDelete?: () => void
+  readOnly?: boolean
 }) {
   const mainRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -226,7 +246,7 @@ export function RecordDetail({
               <div className="fsdb-detail-main" ref={mainRef}>
                 <PageBanner
                   value={selected.banner}
-                  writable
+                  writable={!readOnly}
                   path={collectionPath ? `${collectionPath}/${selected.id}` : undefined}
                   title={labelOf(selected)}
                   onChange={(next) => {
@@ -247,6 +267,7 @@ export function RecordDetail({
                       window.dispatchEvent(new Event('fsdb:change'))
                     })
                   }}
+                  locked={readOnly}
                 />
                 <div className="fsdb-detail-title-block">
                 {schema.labelField && schema.fields[schema.labelField]?.writable ? (
@@ -398,10 +419,10 @@ export function RecordDetail({
           </div>
           <HeadingOutline enabled={headingOutline} />
           {(() => {
-            const showMore = Boolean(
+            const showMore = !readOnly && Boolean(
               chrome?.DetailTools || onDelete || chrome?.Actions || placedActions(schema, 'detail').length,
             )
-            if (!onPrev && !onNext && !showMore) return null
+            if (readOnly || (!onPrev && !onNext && !showMore)) return null
             return (
             <nav className="fsdb-detail-float-nav" aria-label="按视图顺序切换记录">
               {onPrev || onNext ? (
