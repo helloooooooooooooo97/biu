@@ -163,8 +163,10 @@ test('slash insert for excalidraw only puts a file pointer in the node', async (
   const from = editor.state.selection.from - 1
   item!.command({ editor, range: { from: Math.max(1, from), to: editor.state.selection.from } })
   const block = editor.getJSON().content?.find((node) => node.type === 'pageBlock')
+  const data = block?.attrs?.data as { file?: string; title?: string }
   assert.equal(block?.attrs?.plugin, 'page-excalidraw')
-  assert.deepEqual(block?.attrs?.data, { file: 'assets/excalidraw-new.json' })
+  assert.equal(data?.file, 'assets/excalidraw-new.json')
+  assert.equal(data?.title, '画板')
   assert.doesNotMatch(editor.getMarkdown(), /elements/)
   editor.destroy()
   await fiber.dispose()

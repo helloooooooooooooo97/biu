@@ -32,6 +32,14 @@ export function pageBlockRecordId(pageId: string, blockId: string) {
   return `${pageId}::${blockId}`
 }
 
+/** 未手写 title 时：页面名 + 组件类型名。块 id 有单独一列，不拼进标题。 */
+export function defaultPageBlockTitle(pageName: string, kindName: string) {
+  const page = String(pageName ?? '').trim()
+  const kind = String(kindName ?? '').trim()
+  if (page && kind) return `${page} ${kind}`
+  return kind || page
+}
+
 export function parsePageBlockRecordId(id: string) {
   const raw = String(id ?? '')
   const at = raw.indexOf('::')

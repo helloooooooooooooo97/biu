@@ -73,7 +73,11 @@ export function PageBlockView({ node, updateAttributes, editor, getPos }: NodeVi
   const pickId = blockId || `${plugin || 'page-block'}:${kind}`
   const pickLabel = spec?.label || kind
   const update = (patch: Record<string, unknown>, opts?: { replace?: boolean }) => {
-    updateAttributes({ data: opts?.replace ? patch : { ...data, ...patch } })
+    const next = opts?.replace ? { ...patch } : { ...data, ...patch }
+    if (!Object.prototype.hasOwnProperty.call(patch, 'title') && typeof data.title === 'string') {
+      next.title = data.title
+    }
+    updateAttributes({ data: next })
   }
   const View = spec?.View
   const hostRef = useRef<HTMLElement | null>(null)

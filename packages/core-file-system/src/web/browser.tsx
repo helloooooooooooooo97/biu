@@ -137,7 +137,7 @@ import { listCollection, readJson } from './db-client.ts'
 import { savedViewRecordPath } from '../paths.ts'
 import { findViewNeighbor, indexOnPage } from './view-adjacent.ts'
 import { rememberPreviewTotal, viewTotalKey } from './sidebar-preview.ts'
-import { isReadOnlyViewId, mergeTableViews } from '../catalog-views.ts'
+import { catalogLockFilters, isReadOnlyViewId, mergeTableViews, stubBuiltinBlockKindView } from '../catalog-views.ts'
 import { SAVED_VIEW_EVENT, showRecordInInspector } from './inspector-db-route.ts'
 import { SchemaChips, SchemaFieldEditor, schemaTagTone } from './schema-field.tsx'
 import { CellPop, cellUsesPop } from './cell-pop.tsx'
@@ -581,9 +581,7 @@ export function CollectionBrowser({
   const [activeViewId, setActiveViewId] = useState<string | null>(initialView?.id ?? null)
   const catalogLocks = useMemo(() => {
     if (sheet) return lockedFilters
-    const current = views.find((view) => view.id === activeViewId)
-    if (!current?.builtin) return lockedFilters
-    return { ...current.filters, ...lockedFilters }
+    return { ...catalogLockFilters(activeViewId, views), ...lockedFilters }
   }, [activeViewId, lockedFilters, sheet, views])
   const queryFilters = useMemo(
     () => encodeListFilter(catalogLocks, filterTree),
@@ -592,6 +590,11 @@ export function CollectionBrowser({
   const queryFiltersKey = JSON.stringify(queryFilters)
   const lockedFilterKeys = Object.keys(catalogLocks)
   const lockedSource = catalogLocks.tablePath ?? ''
+  const lockedKind = String(catalogLocks.blockKind ?? '').trim()
+  const lockedKindLabel =
+    views.find((view) => view.id === activeViewId)?.name ||
+    stubBuiltinBlockKindView(activeViewId ?? '')?.name ||
+    lockedKind
   useEffect(() => {
     if (!lockedSource) return
     setMode('table')
@@ -1405,7 +1408,10 @@ export function CollectionBrowser({
   }
 
   function applyView(view: SavedView) {
-    const next = normalizeSavedView(view)
+    const next = normalizeSavedView({
+      ...view,
+      filters: { ...catalogLockFilters(view.id, [view]), ...view.filters },
+    })
     const nextColumns = pinLabelColumn(
       schema,
       next.columns.length ? next.columns.filter((key) => allColumnKeys.includes(key)) : schemaDefaultKeys,
@@ -2843,6 +2849,11 @@ export function CollectionBrowser({
                 {tables.find((item) => item.path === lockedSource)?.view?.title ??
                   tables.find((item) => item.path === lockedSource)?.label ??
                   lockedSource}
+              </span>
+            ) : null}
+            {lockedKind ? (
+              <span className="fsdb-locked-filter" data-testid="fsdb-locked-kind" title="按组件类型筛选，不可更改">
+                {lockedKindLabel}
               </span>
             ) : null}
           </div>

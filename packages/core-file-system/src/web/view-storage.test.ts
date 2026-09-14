@@ -18,6 +18,7 @@ import {
 test('views collection still resolves catalog stubs from the route', () => {
   assert.equal(viewForPath(VIEWS_COLLECTION_PATH, 'builtin:/events')?.filters.tablePath, '/events')
   assert.equal(viewForPath(VIEWS_COLLECTION_PATH, builtinCatalogViewId('/events'))?.id, builtinCatalogViewId('/events'))
+  assert.equal(viewForPath('/page-blocks', 'builtin-block:terminal')?.filters.blockKind, 'terminal')
 })
 
 test('tables default to the builtin 全部xx view', () => {
