@@ -105,7 +105,7 @@ Any capability can register a table; the File System never hard-codes the set. T
 
 The same paths back the UI: opening a table view, an inspector panel, or a page is navigating that address space. There is no import/export step between "the app's data" and "the workspace's files" — they are the same thing.
 
-**Two layers, one truth.** A page's body is a real Markdown file in `.page/<id>.md` (YAML front matter + body); a SQLite index sits beside it for listing and search. Table rows live in File System SQLite stores. Whatever a capability needs, it stores through the same contract and shows up in the same tree.
+**Two layers, one truth.** A page's body is a real Markdown file in `.biu/page/<id>.md` (YAML front matter + body); a SQLite index sits beside it for listing and search. Table rows live in File System SQLite stores. Whatever a capability needs, it stores through the same contract and shows up in the same tree.
 
 ### Blocks: page content you can install
 

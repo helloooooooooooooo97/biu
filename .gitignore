@@ -25,5 +25,5 @@ web/**/*.js.map
 .plugin-dev/**/*.js.map
 .plugin-dev/**/node_modules/
 
-# 页面数据（.page Markdown 存储），本地数据不纳入版本控制
+# 页面数据已迁入 .biu；保留 .page/ 以免旧工作区误提交
 .page/

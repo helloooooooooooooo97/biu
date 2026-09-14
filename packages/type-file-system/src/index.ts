@@ -168,7 +168,7 @@ function asLocalHref(text: string) {
   const value = text.trim()
   if (/^https?:\/\//i.test(value)) return value
   if (/^\/(?!\/)[^\s]+$/.test(value)) return value
-  if (/^(?:\.page\/)?assets\/[^\s/]+$/.test(value)) return value
+  if (/^(?:(?:\.page|\.biu\/page)\/)?assets\/[^\s/]+$/.test(value)) return value
   return ''
 }
 
