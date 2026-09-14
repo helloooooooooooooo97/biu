@@ -112,6 +112,20 @@ test('chip caption keeps line span off the truncated preview', () => {
   assert.match(chipLabel(ref), /\(1-12\)$/)
 })
 
+test('html pick chip uses the inner node label, not the page title', () => {
+  assert.equal(
+    chipLabel({
+      kind: 'html',
+      id: 'html:0-d981a47f:0/0/2',
+      label: '从民歌运动到流媒体时代 · 半世纪的声音地图',
+      route: '/p/p002',
+      title: '华语流行简史',
+      path: '/pages/p002',
+    }),
+    '从民歌运动到流媒体时代 · 半世纪的声音地图',
+  )
+})
+
 test('chip label puts line span in parentheses after the name', () => {
   assert.equal(
     chipLabel({

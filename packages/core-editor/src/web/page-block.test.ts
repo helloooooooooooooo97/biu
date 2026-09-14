@@ -298,6 +298,7 @@ test('pageBlock capture includes every registered block shell', async () => {
   assert.match(view, /data-page-block-id=\{blockId \|\| undefined\}/)
   assert.match(view, /data-biu-id=\{pickId\}/)
   assert.match(view, /setNodeSelection\(pos\)/)
+  assert.match(view, /classList\.contains\('pick-mode'\)/)
   assert.doesNotMatch(src, /addKeyboardShortcuts/)
   assert.doesNotMatch(src, /deleteSelection/)
   assert.doesNotMatch(view, /onKeyDownCapture/)

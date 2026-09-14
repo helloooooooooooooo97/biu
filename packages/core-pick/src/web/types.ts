@@ -220,6 +220,7 @@ export function chipSpanLabel(ref: PickRef) {
 }
 
 function pickChipName(ref: PickRef) {
+  if (ref.kind === 'html' && ref.label?.trim()) return ref.label.trim()
   if (ref.title?.trim()) return ref.title.trim()
   const file = ref.path?.split('/').filter(Boolean).pop() ?? ''
   if (file.includes('.')) return file
