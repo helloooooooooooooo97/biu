@@ -38,6 +38,7 @@ import {
 } from '@biu/type-file-system'
 import { parsePageBanner, type PageBanner } from '../page-banner.ts'
 import { SavedViewsStore, clientViewFromDbRow, viewsCollection, type StoredView } from './saved-views.ts'
+import { publicShareUrl } from './share-origin.ts'
 import { FacetStore } from './facets-store.ts'
 import { SharesStore } from './shares-store.ts'
 import { buildShareSnapshot } from './share-payload.ts'
@@ -1711,15 +1712,10 @@ export function apply(ctx: Context) {
     if (query) return query
     return String(body?.password ?? '')
   }
-  const publicShareUrl = (route: { req: IncomingMessage }, token: string) => {
-    const host = String(route.req.headers.host ?? '127.0.0.1:3141')
-    const proto = String(route.req.headers['x-forwarded-proto'] ?? 'http')
-    return `${proto}://${host}/share/${encodeURIComponent(token)}`
-  }
   ctx.http.route('GET', '/api/db/shares', (route) => {
     const kind = route.query.get('kind') === 'record' ? 'record' : 'view'
     const share = shares.find(kind, route.query.get('collection') || '', route.query.get('viewId') || '', route.query.get('recordId') || '')
-    route.send(200, share ? { share: { ...share, url: publicShareUrl(route, share.token) } } : { share: null })
+    route.send(200, share ? { share: { ...share, url: publicShareUrl(route.req, share.token) } } : { share: null })
   })
   ctx.http.route('POST', '/api/db/shares', async (route) => {
     try {
@@ -1744,7 +1740,7 @@ export function apply(ctx: Context) {
         recordId: body.recordId,
         password: body.password,
       })
-      route.send(200, { share: { ...share, url: publicShareUrl(route, share.token) } })
+      route.send(200, { share: { ...share, url: publicShareUrl(route.req, share.token) } })
     } catch (error) {
       route.send(400, { error: String(error) })
     }

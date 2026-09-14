@@ -449,7 +449,10 @@ export CHAT_MODEL=deepseek-chat # 可选
 
 | 变量 | 默认 | |
 |------|------|--|
-| `PORT` / `HTTP_HOST` | `3141` / `127.0.0.1` | host 监听 |
+| `PORT` / `HTTP_HOST` | `3141` / `127.0.0.1` | 本机工作台（不要改成 `0.0.0.0`，否则整站进局域网） |
+| `SHARE_PORT` / `SHARE_HOST` | 关闭 / `0.0.0.0` | 局域网只读分享口，只放行 `/share` 与 `/api/share` |
+| `SHARE_PUBLIC_URL` | 自动探测局域网 IPv4 | 复制链接用的 origin，例如 `http://192.168.1.8:3142` |
+| `SHARE_PROXY_UI` | 关闭 | 开发时把分享页 HTML/JS 反代到 Vite，例如 `http://127.0.0.1:5173` |
 | `CORDIS_WORKSPACE` | `.workspace` | 默认工作区 |
 | `DEEPSEEK_API_KEY` 等 | | 也可只在 UI 里存 |
 

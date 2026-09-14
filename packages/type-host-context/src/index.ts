@@ -59,6 +59,7 @@ declare module 'cordis' {
 
   interface Events {
     'http/ready'(info: { port: number }): void
+    'http/share-ready'(info: { port: number }): void
     'hub/change'(): void
     'agent/status'(payload: { sessionId: string; status: 'idle' | 'running'; step?: number }): void
     'agent/inbox'(payload: {

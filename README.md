@@ -450,7 +450,10 @@ Alternatively: `npm run dev:host` and `npm run dev:web`.
 
 | Variable | Default | |
 | --- | --- | --- |
-| `PORT` / `HTTP_HOST` | `3141` / `127.0.0.1` | host listen address |
+| `PORT` / `HTTP_HOST` | `3141` / `127.0.0.1` | workstation (keep loopback; `0.0.0.0` exposes the whole app) |
+| `SHARE_PORT` / `SHARE_HOST` | off / `0.0.0.0` | LAN share-only listener (`/share` and `/api/share` only) |
+| `SHARE_PUBLIC_URL` | first LAN IPv4 | origin copied into share links, e.g. `http://192.168.1.8:3142` |
+| `SHARE_PROXY_UI` | off | dev: proxy share HTML/JS to Vite, e.g. `http://127.0.0.1:5173` |
 | `CORDIS_WORKSPACE` | `.workspace` | default workspace |
 | `DEEPSEEK_API_KEY` etc. | | or store in the UI only |
 
