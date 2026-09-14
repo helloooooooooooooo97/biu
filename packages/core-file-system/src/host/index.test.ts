@@ -1302,3 +1302,34 @@ test('tables without records.create/delete reject create and delete', async () =
     /必须提供 create/,
   )
 })
+
+test('page list drops records the current person cannot see', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.facets.open(':memory:')
+  const pages = new Map([
+    ['mine', { id: 'mine', title: '我的' }],
+    ['theirs', { id: 'theirs', title: '别人的' }],
+  ])
+  db.register({
+    id: 'pages',
+    path: '/pages',
+    schema: {
+      labelField: 'title',
+      fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } },
+    },
+    list: () => [...pages.values()],
+    get: (id) => pages.get(id) ?? null,
+  })
+  db.facets.writeRecordMeta('/pages', 'mine', { createdBy: { kind: 'user', name: '甲', memberId: 'm1' } })
+  db.facets.writeRecordMeta('/pages', 'theirs', { createdBy: { kind: 'user', name: '乙', memberId: 'm2' } })
+  db.setPageAccess({
+    canSeePage: async (_pageId, ownerMemberId) => ownerMemberId === 'm1',
+    resolveOwnerMemberId: async () => 'm1',
+  })
+  const listed = await db.list('/pages')
+  assert.equal(listed.kind, 'collection')
+  if (listed.kind !== 'collection') return
+  assert.deepEqual(listed.items.map((row) => row.id), ['mine'])
+  await assert.rejects(() => db.read('/pages/theirs'), /unknown record/)
+})

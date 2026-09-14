@@ -10,7 +10,6 @@ import { createCollabServer, incomingToRequest } from './collab-server.ts'
 import { YjsStore } from './yjs-store.ts'
 import { isShareRole, SharesStore } from './shares-store.ts'
 import { PRESENCE_CHANNEL, PresenceStore } from './presence.ts'
-import { setPageAccess } from '@biu/type-file-system'
 import { createPageVisibility, createPageOwnership, withUnrestrictedPageAccess } from './page-visibility.ts'
 
 export const name = 'core-collab'
@@ -67,7 +66,7 @@ export function apply(ctx: Context) {
   }
   const pageOwnership = createPageOwnership(members, secret, sessionsOf)
   const pageVisibility = createPageVisibility(members, shares, pageOwnership)
-  setPageAccess(ctx, {
+  ctx.database.setPageAccess?.({
     canSeePage: (pageId, ownerMemberId) => pageVisibility.canSeePage(pageId, ownerMemberId),
     resolveOwnerMemberId: () => pageOwnership.resolveOwnerMemberId(),
   })

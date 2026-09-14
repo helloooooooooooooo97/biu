@@ -34,7 +34,7 @@ import {
   type ListPage,
   type PersonValue,
   parseContentJump,
-  getPageAccess,
+  type PageAccess,
 } from '@biu/type-file-system'
 import { parsePageBanner, type PageBanner } from '../page-banner.ts'
 import { SavedViewsStore, clientViewFromDbRow, viewsCollection, type StoredView } from './saved-views.ts'
@@ -528,11 +528,16 @@ export class DatabaseService extends Service implements Database {
   private collections = new Map<string, CollectionSpec>()
   facets = new FacetStore()
   assets = new FileSystemAssets()
+  private pageAccess: PageAccess | undefined
 
   private bumpQueued = false
 
   constructor(ctx: Context) {
     super(ctx, 'database')
+  }
+
+  setPageAccess(access: PageAccess) {
+    this.pageAccess = access
   }
 
   register(spec: CollectionSpec) {
@@ -571,13 +576,11 @@ export class DatabaseService extends Service implements Database {
   }
 
   private visibility() {
-    const access = getPageAccess(this.ctx)
-    return access ? { canSeePage: access.canSeePage } : undefined
+    return this.pageAccess
   }
 
   private ownership() {
-    const access = getPageAccess(this.ctx)
-    return access ? { resolveOwnerMemberId: access.resolveOwnerMemberId } : undefined
+    return this.pageAccess
   }
 
   private pageIdOf(spec: CollectionSpec, record: { id: string } & Record<string, unknown>) {

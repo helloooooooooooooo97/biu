@@ -675,6 +675,11 @@ export type ListPage = {
   columns?: string[]
 }
 
+export type PageAccess = {
+  canSeePage: (pageId: string, ownerMemberId?: string) => boolean | Promise<boolean>
+  resolveOwnerMemberId: () => Promise<string>
+}
+
 /** File System 实现必须满足的服务面。换实现时只要还叫 ctx.database 并遵守这套方法。 */
 export interface Database {
   register(spec: CollectionSpec): unknown
@@ -688,6 +693,7 @@ export interface Database {
   /** 单独读写记录正文（content 字段），不走 list/read。 */
   content(path: string): Promise<unknown>
   writeContent(path: string, value: unknown): Promise<unknown>
+  setPageAccess?(access: PageAccess): void
 }
 
 declare module 'cordis' {
@@ -697,19 +703,4 @@ declare module 'cordis' {
   interface Events {
     'database/change'(): void
   }
-}
-
-export type PageAccess = {
-  canSeePage: (pageId: string, ownerMemberId?: string) => boolean | Promise<boolean>
-  resolveOwnerMemberId: () => Promise<string>
-}
-
-const pageAccessByCtx = new WeakMap<object, PageAccess>()
-
-export function setPageAccess(ctx: object, access: PageAccess) {
-  pageAccessByCtx.set(ctx, access)
-}
-
-export function getPageAccess(ctx: object) {
-  return pageAccessByCtx.get(ctx)
 }
