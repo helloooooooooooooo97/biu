@@ -88,6 +88,20 @@ function walkFiles(root: string, dir: string, out: Array<{ name: string; data: U
   }
 }
 
+export function readSharePluginWebJs(cwd: string, id: string): string | null {
+  if (!isSharePluginId(id)) return null
+  const cwdResolved = resolve(cwd)
+  for (const file of [
+    resolve(join(cwd, '.plugin', id, 'web.js')),
+    resolve(join(cwd, '.plugin-dev', id, 'web.js')),
+  ]) {
+    if (!file.startsWith(cwdResolved + sep) && file !== cwdResolved) continue
+    if (!existsSync(file)) continue
+    return readFileSync(file, 'utf8')
+  }
+  return null
+}
+
 export function zipSharePluginSource(cwd: string, id: string): Uint8Array | null {
   if (!isSharePluginId(id)) return null
   const root = pluginRoot(cwd, id)

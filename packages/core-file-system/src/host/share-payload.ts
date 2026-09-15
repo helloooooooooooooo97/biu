@@ -36,7 +36,7 @@ function withResources(
   return {
     ...snap,
     resources: { pages: resources.pages, plugins: resources.plugins, collections: resources.collections },
-    pluginIds: share.sharePlugins ? resources.pluginIds : [],
+    pluginIds: resources.pluginIds,
     sharePlugins: share.sharePlugins,
     allowCopy: share.allowCopy,
   }

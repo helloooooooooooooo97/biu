@@ -39,7 +39,7 @@ import {
 import { parsePageBanner, type PageBanner } from '../page-banner.ts'
 import { SavedViewsStore, clientViewFromDbRow, viewsCollection, type StoredView } from './saved-views.ts'
 import { publicShareUrl } from './share-origin.ts'
-import { zipSharePluginSource } from './share-plugin-pack.ts'
+import { readSharePluginWebJs, zipSharePluginSource } from './share-plugin-pack.ts'
 import { collectShareResources } from '../share-resources.ts'
 import { FacetStore } from './facets-store.ts'
 import { SharesStore } from './shares-store.ts'
@@ -1860,6 +1860,39 @@ export function apply(ctx: Context) {
         etag: `"${etag}"`,
       })
       route.res.end(bytes)
+    } catch {
+      route.send(404, { error: 'not found' })
+    }
+  })
+  ctx.http.route('GET', '/api/share/:token/plugin/:id/web.js', async (route) => {
+    const token = route.params.token ?? ''
+    const share = shares.get(token)
+    if (!share) {
+      route.send(404, { error: 'not found' })
+      return
+    }
+    if (share.hasPassword && !shares.verifyPassword(token, sharePasswordOf(route))) {
+      route.send(401, { needsPassword: true })
+      return
+    }
+    const id = String(route.params.id ?? '')
+    try {
+      const snapshot = await buildShareSnapshot(db, savedViews, share)
+      if (!snapshot.pluginIds.includes(id)) {
+        route.send(404, { error: 'not found' })
+        return
+      }
+      const body = readSharePluginWebJs(process.cwd(), id)
+      if (!body) {
+        route.send(404, { error: 'not found' })
+        return
+      }
+      route.res.writeHead(200, {
+        'content-type': 'text/javascript; charset=utf-8',
+        'cache-control': 'no-store',
+        'Access-Control-Allow-Origin': '*',
+      })
+      route.res.end(body)
     } catch {
       route.send(404, { error: 'not found' })
     }

@@ -91,3 +91,29 @@ test('record snapshot only includes the shared row', async () => {
   assert.equal(snap.allowCopy, true)
   assert.equal(snap.sharePlugins, false)
 })
+
+test('snapshot lists page plugins even when source zip is off', async () => {
+  const fence = ':::pageBlock {kind=html plugin=page-html-blocks id=ab12}\n<div>x</div>\n:::\n'
+  const spec: CollectionSpec = {
+    id: 'notes',
+    path: '/notes',
+    label: '笔记',
+    schema: {
+      labelField: 'title',
+      contentField: 'notes',
+      fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true }, notes: { type: 'file', writable: true } },
+    },
+    records: {},
+    list: () => [{ id: 'open', title: '公开', notes: fence }],
+    get: (id) => (id === 'open' ? { id: 'open', title: '公开', notes: fence } : null),
+  }
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.register(spec)
+  const views = new SavedViewsStore().open(':memory:')
+  const shares = new SharesStore().open(':memory:')
+  const share = shares.upsert({ kind: 'record', collection: '/notes', recordId: 'open' })
+  const snap = await buildShareSnapshot(db, views, share)
+  assert.equal(snap.sharePlugins, false)
+  assert.deepEqual(snap.pluginIds, ['page-html-blocks'])
+})

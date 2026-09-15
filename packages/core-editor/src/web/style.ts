@@ -60,7 +60,6 @@ export const PAGE_EDITOR_STYLE = `
 .page-editor .tiptap pre[data-language]::before{content:attr(data-language);display:block;margin:0 0 6px;color:#7B7B79;font-size:11px;font-weight:600;line-height:1;letter-spacing:.02em}
 .page-editor .tiptap pre code,.page-editor .tiptap pre code.hljs{display:block;padding:0;background:transparent;color:inherit;font-size:13px;line-height:1.6;white-space:inherit}
 .page-editor pre.page-block-missing-source{margin:0;max-height:220px;overflow:auto;padding:10px 12px;border:1px solid var(--dsw-border);border-radius:8px;background:var(--dsw-chat-code-bg,var(--dsw-sidebar));color:var(--dsw-label-2);font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
-.page-editor .page-block-html-preview{min-width:0;overflow:auto}
 .page-editor .tiptap a{color:var(--dsw-business);text-underline-offset:2px}
 .page-editor .tiptap span.mention,.page-editor .tiptap span.mention:has(.biu-tag){display:inline;padding:0;background:transparent;color:inherit}
 .page-editor .tiptap span.mention .biu-tag,.page-editor .tiptap span.mention .composer-tool-chip.is-pick,.page-editor .tiptap span[data-type=mention].biu-tag{height:1.7em;line-height:1.7em;cursor:pointer}
