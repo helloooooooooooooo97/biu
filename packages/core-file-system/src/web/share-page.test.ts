@@ -9,6 +9,7 @@ test('share page uses matching side padding on small screens', () => {
   assert.match(src, /fsdb-share-list/)
   assert.match(src, /collapseToLeaf/)
   assert.match(src, /fsdb-share-record-nav/)
+  assert.match(src, /collectionPath=\{snapshot\.collection\}/)
   assert.match(src, /^\s*readOnly$/m)
   assert.match(css, /@media \(max-width:720px\)\{/)
   assert.match(css, /--fsdb-share-pad:24px/)
