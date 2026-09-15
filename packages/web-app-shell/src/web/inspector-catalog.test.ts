@@ -62,6 +62,8 @@ test('plus menu can add another database tab', () => {
   assert.match(inspector, /inspector-tab-close-\$\{item.id\}/)
   assert.match(inspector, /inspector-tab-main/)
   assert.match(css, /\.inspector-crumb-tab\.is-active \.inspector-crumb-full \.fsdb-crumb:not\(:last-child\)/)
+  assert.match(css, /\.inspector-crumb-tab\.is-active \.fsdb-crumb svg/)
+  assert.match(css, /\.inspector-crumb-tab\.is-active \.fsdb-crumb svg[\s\S]*?color:\s*var\(--dsw-icon-active\)/)
   assert.doesNotMatch(css, /is-crumb-open/)
   assert.doesNotMatch(css, /inspector-crumb-toggle/)
   assert.match(css, /\.inspector-add-close/)

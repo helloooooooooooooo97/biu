@@ -1157,6 +1157,13 @@ body {
   display: inline;
 }
 
+.inspector-crumb-tab.is-active .fsdb-crumb svg,
+.inspector-crumb-tab.is-active .fsdb-crumb-btn svg,
+.inspector-crumb-tab.is-active .chat-view-project-icon,
+.inspector-crumb-tab.is-active .fsdb-record-mark {
+  color: var(--dsw-icon-active);
+}
+
 .inspector-crumb-actions {
   display: none;
   align-items: center;

@@ -13,7 +13,9 @@ const CSS = `
 .fsdb-crumb-btn:hover,.fsdb-crumb-btn.is-open{background:var(--dsw-hover);color:var(--dsw-sidebar-fg)}
 .fsdb-crumb:last-child .fsdb-crumb-btn,.fsdb-crumb:last-child .fsdb-crumb-btn:hover,.fsdb-crumb:last-child .fsdb-crumb-btn.is-open{color:var(--dsw-sidebar-fg-active)}
 .fsdb-crumb-btn.is-open{anchor-name:--fsdb-crumb}
-.fsdb-crumb svg,.fsdb-crumb-btn svg{color:var(--dsw-icon)}
+.fsdb-crumb svg,.fsdb-crumb-btn svg,.fsdb-crumb .chat-view-project-icon,.fsdb-crumb .fsdb-record-mark{color:var(--dsw-icon)}
+.chat-view-header .fsdb-crumb svg,.chat-view-header .fsdb-crumb-btn svg,.chat-view-header .fsdb-crumb .chat-view-project-icon,.chat-view-header .fsdb-crumb .fsdb-record-mark{color:var(--dsw-icon-active)}
+.inspector-crumb-tab.is-active .fsdb-crumb svg,.inspector-crumb-tab.is-active .fsdb-crumb-btn svg,.inspector-crumb-tab.is-active .fsdb-crumb .chat-view-project-icon,.inspector-crumb-tab.is-active .fsdb-crumb .fsdb-record-mark{color:var(--dsw-icon-active)}
 .fsdb-crumb-btn .chat-view-project-name,.fsdb-crumb-option .chat-view-project-name{font-size:14px;font-weight:500;color:inherit}
 .fsdb-crumb-pick{position:relative;flex:none}
 .fsdb-crumb-menu{position:absolute;left:0;top:calc(100% + 4px);z-index:80;display:flex;flex-direction:column;min-width:220px;max-width:280px;max-height:280px;overflow:hidden;border:1px solid var(--dsw-border);border-radius:8px;background:var(--dsw-surface);padding:4px;box-shadow:var(--dsw-shadow)}
