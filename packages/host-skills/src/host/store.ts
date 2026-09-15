@@ -29,6 +29,7 @@ export type SkillImportInput = {
 const ID_PATTERN = /^[a-z][a-z0-9-]{1,63}$/
 const MAX_FILES = 500
 const MAX_TOTAL_CHARS = 5_000_000
+const SKIP_DIR = new Set(['node_modules', '.git', '__pycache__'])
 
 export function skillRoot(cwd = process.cwd()) {
   return process.env.BIU_SKILL_ROOT || dataPath(cwd, 'skill')
@@ -54,6 +55,14 @@ export function assertSkillId(id: string) {
     throw new Error(`invalid skill id: ${id} (expected lowercase letters, digits and dashes, 2-64 chars)`)
   }
   return wanted
+}
+
+export function assertSkillRelPath(path: string) {
+  const rel = posix.normalize(String(path ?? '').replaceAll('\\', '/')).replace(/^\/+/, '')
+  if (!rel || rel === '.' || rel.startsWith('../') || rel.includes('/../') || rel.endsWith('/..')) {
+    throw new Error(`invalid skill file path: ${path}`)
+  }
+  return rel
 }
 
 function unquote(value: string) {
@@ -119,21 +128,44 @@ function normalizeImportPath(path: string) {
   return posix.normalize(String(path ?? '').replaceAll('\\', '/')).replace(/^\.\/+/, '')
 }
 
-function stripRoot(path: string) {
-  const parts = normalizeImportPath(path).split('/').filter(Boolean)
-  if (parts.length > 1) return parts.slice(1).join('/')
-  return parts[0] || ''
+function stripSharedRoot(paths: string[]) {
+  const firsts = new Set(paths.map((path) => path.split('/').filter(Boolean)[0] ?? ''))
+  firsts.delete('')
+  if (firsts.size !== 1) return paths
+  const wrapped = paths.some((path) => /^[^/]+\/skill\.md$/i.test(path))
+  if (!wrapped) return paths
+  return paths.map((path) => path.split('/').slice(1).join('/') || path)
 }
 
-export function filesToNotes(files: SkillImportFile[]) {
+function walkFiles(dir: string, prefix = ''): string[] {
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) return []
+  const out: string[] = []
+  for (const name of readdirSync(dir)) {
+    if (SKIP_DIR.has(name)) continue
+    const full = join(dir, name)
+    const rel = prefix ? posix.join(prefix, name) : name
+    if (statSync(full).isDirectory()) {
+      out.push(...walkFiles(full, rel))
+      continue
+    }
+    out.push(rel)
+  }
+  return out.sort()
+}
+
+export function packSkillImport(files: SkillImportFile[]) {
   if (!Array.isArray(files) || !files.length) throw new Error('skill import requires files')
   if (files.length > MAX_FILES) throw new Error(`skill import has too many files (max ${MAX_FILES})`)
   let total = 0
-  const normalized = files.map((file) => {
-    const path = stripRoot(file.path) || posix.basename(normalizeImportPath(file.path))
-    const content = String(file.content ?? '')
-    total += path.length + content.length
-    return { path, content }
+  const raw = files.map((file) => ({
+    path: normalizeImportPath(file.path),
+    content: String(file.content ?? ''),
+  }))
+  const stripped = stripSharedRoot(raw.map((file) => file.path))
+  const normalized = raw.map((file, index) => {
+    const path = assertSkillRelPath(stripped[index] || posix.basename(file.path))
+    total += path.length + file.content.length
+    return { path, content: file.content }
   })
   if (total > MAX_TOTAL_CHARS) throw new Error('skill import is too large')
   const entry =
@@ -141,12 +173,11 @@ export function filesToNotes(files: SkillImportFile[]) {
     normalized.find((file) => file.path.toLowerCase().endsWith('.md')) ??
     normalized[0]!
   const parsed = parseFrontmatter(entry.content)
-  const extras = normalized
-    .filter((file) => file.path !== entry.path)
-    .map((file) => `## ${file.path}\n\n${file.content.trim()}`)
-    .filter((block) => block.trim())
-  const notes = [parsed.body, ...extras].filter(Boolean).join('\n\n')
-  return { parsed, notes, entryPath: entry.path }
+  return {
+    parsed,
+    notes: parsed.body,
+    files: normalized.filter((file) => file.path !== entry.path),
+  }
 }
 
 export class SkillsStore {
@@ -155,6 +186,43 @@ export class SkillsStore {
   private ensureRoot() {
     mkdirSync(this.root, { recursive: true })
     return this.root
+  }
+
+  filesDir(id: string) {
+    return join(this.ensureRoot(), assertSkillId(id))
+  }
+
+  listFiles(id: string) {
+    this.require(id)
+    return walkFiles(this.filesDir(id))
+  }
+
+  readFile(id: string, rel: string) {
+    this.require(id)
+    const safe = assertSkillRelPath(rel)
+    const full = join(this.filesDir(id), ...safe.split('/'))
+    if (!existsSync(full) || !statSync(full).isFile()) throw new Error(`unknown skill file: ${id}/${safe}`)
+    return { path: safe, text: readFileSync(full, 'utf8') }
+  }
+
+  writeFile(id: string, rel: string, content: string) {
+    this.require(id)
+    const safe = assertSkillRelPath(rel)
+    const dest = join(this.filesDir(id), ...safe.split('/'))
+    mkdirSync(join(dest, '..'), { recursive: true })
+    writeFileSync(dest, content)
+    return { path: safe }
+  }
+
+  replaceFiles(id: string, files: SkillImportFile[]) {
+    const dir = this.filesDir(id)
+    if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
+    for (const file of files) this.writeFile(id, file.path, file.content)
+    return this.listFiles(id)
+  }
+
+  private require(id: string) {
+    if (!this.get(id)) throw new Error(`unknown skill: ${id}`)
   }
 
   list(): SkillRecord[] {
@@ -169,7 +237,7 @@ export class SkillsStore {
   get(id: string) {
     try {
       const file = skillFile(this.root, id)
-      if (!existsSync(file)) return null
+      if (!existsSync(file) || !statSync(file).isFile()) return null
       return loadSkill(id, readFileSync(file, 'utf8'))
     } catch {
       return null
@@ -197,6 +265,7 @@ export class SkillsStore {
     enabled?: boolean
     notes?: string
     draft?: boolean
+    files?: SkillImportFile[]
   }) {
     const name = String(input.name ?? '').trim() || '新技能'
     const description = String(input.description ?? '').trim()
@@ -204,7 +273,7 @@ export class SkillsStore {
     const id = assertSkillId(requested || slugify(name) || `skill-${Date.now().toString(36)}`)
     if (this.get(id)) throw new Error(`skill already exists: ${id}`)
     const now = Date.now()
-    return this.put({
+    const created = this.put({
       id,
       name,
       description,
@@ -213,16 +282,19 @@ export class SkillsStore {
       createdAt: now,
       updatedAt: now,
     })
+    if (input.files?.length) this.replaceFiles(id, input.files)
+    return created
   }
 
   import(input: SkillImportInput) {
-    const packed = filesToNotes(input.files ?? [])
+    const packed = packSkillImport(input.files ?? [])
     return this.create({
       id: input.id || slugify(packed.parsed.meta.name || '') || undefined,
       name: input.name || packed.parsed.meta.name,
       description: input.description || packed.parsed.meta.description,
       enabled: input.enabled,
       notes: packed.notes,
+      files: packed.files,
       draft: input.draft,
     })
   }
@@ -241,23 +313,31 @@ export class SkillsStore {
 
   remove(id: string) {
     const file = skillFile(this.root, id)
-    if (!existsSync(file)) return false
-    rmSync(file)
-    return true
+    const dir = join(this.root, assertSkillId(id))
+    let removed = false
+    if (existsSync(file)) {
+      rmSync(file)
+      removed = true
+    }
+    if (existsSync(dir)) {
+      rmSync(dir, { recursive: true, force: true })
+      removed = true
+    }
+    return removed
   }
 }
 
-function walkMarkdown(dir: string, prefix = ''): SkillImportFile[] {
+function walkImportFiles(dir: string, prefix = ''): SkillImportFile[] {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) return []
   const out: SkillImportFile[] = []
   for (const name of readdirSync(dir)) {
+    if (SKIP_DIR.has(name)) continue
     const full = join(dir, name)
     const rel = posix.join(prefix, name)
     if (statSync(full).isDirectory()) {
-      out.push(...walkMarkdown(full, rel))
+      out.push(...walkImportFiles(full, rel))
       continue
     }
-    if (!name.toLowerCase().endsWith('.md')) continue
     out.push({ path: rel, content: readFileSync(full, 'utf8') })
   }
   return out
@@ -270,7 +350,7 @@ export function legacySkillImports(cwd = process.cwd()): SkillImportInput[] {
   for (const name of readdirSync(root)) {
     const folder = join(root, name)
     if (!statSync(folder).isDirectory()) continue
-    const files = walkMarkdown(folder)
+    const files = walkImportFiles(folder)
     if (!files.some((file) => /(^|\/)skill\.md$/i.test(file.path))) continue
     out.push({ id: slugify(name) || name, files, draft: false })
   }

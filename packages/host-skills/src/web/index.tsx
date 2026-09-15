@@ -80,7 +80,7 @@ function SkillsLibraryView({ rows, onOpen }: FsViewProps) {
         <div>
           <h2 style={{ margin: 0, fontSize: 18 }}>Skill 仓库</h2>
           <p style={{ margin: '4px 0 0', color: 'var(--dsw-label-3)', fontSize: 13 }}>
-            Skill 内容存在本表，和页面分开。
+            Skill 内容存在本表，和页面分开。脚本按技能 id 存在自己的目录里。
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

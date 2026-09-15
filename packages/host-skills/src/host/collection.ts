@@ -30,8 +30,11 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
       blurb:
         'Skill 是独立的一张表，不挂到 /pages。每条记录自己的名字、何时使用、开关和正文。' +
         '列表 db_list /skills。新建 db_create /skills。改名字/说明/开关 db_update /skills/<id>。正文 db_content /skills/<id>。删除 db_delete。' +
+        '脚本等文件按技能 id 存在自己的目录里，不进全局 assets。' +
+        '读文件 db_action path=/skills/<id> action=read-files（不传 path 就列出；带 path 读一个）。' +
+        '写文件 db_action path=/skills/<id> action=write-files，args.path + args.content。' +
         '每次对话只注入已启用且写了说明的摘要；需要时用 skill_read 或 db_content 读正文。' +
-        '本表动作只有 enable / disable。',
+        '本表动作还有 enable / disable。',
       order: 50,
       icon: 'academic-cap',
     },
@@ -99,6 +102,34 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
         label: '停用',
         when: { enabled: true },
         run: (id) => skills.setEnabled(id, false),
+      },
+      {
+        id: 'read-files',
+        label: '读文件',
+        for: 'agent',
+        placement: [],
+        description: '读这条技能 id 目录里的文件。不传 path 列出相对路径；args.path 读一个文件的文本。',
+        parameters: {
+          type: 'object',
+          properties: { path: { type: 'string' } },
+        },
+        run: (id, _record, args = {}) => skills.readFiles(id, args),
+      },
+      {
+        id: 'write-files',
+        label: '写文件',
+        for: 'agent',
+        placement: [],
+        description: '往这条技能 id 目录写一个文件。必填 args.path、args.content。',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string' },
+            content: { type: 'string' },
+          },
+          required: ['path', 'content'],
+        },
+        run: (id, _record, args = {}) => skills.writeFiles(id, args),
       },
     ],
   }

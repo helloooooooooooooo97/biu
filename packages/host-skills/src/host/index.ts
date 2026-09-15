@@ -68,6 +68,20 @@ export class SkillsService extends Service {
     }
   }
 
+  readFiles(id: string, args: Record<string, unknown> = {}) {
+    const path = String(args.path ?? '').trim()
+    if (!path) return { files: this.store.listFiles(id) }
+    return this.store.readFile(id, path)
+  }
+
+  writeFiles(id: string, args: Record<string, unknown> = {}) {
+    const path = String(args.path ?? '').trim()
+    if (!path) throw new Error('write-files needs path')
+    const written = this.store.writeFile(id, path, String(args.content ?? ''))
+    this.changed()
+    return written
+  }
+
   create(input: Parameters<SkillsStore['create']>[0]) {
     const created = this.store.create(input)
     this.changed()
@@ -120,6 +134,7 @@ export class SkillsService extends Service {
       '<available_skills>',
       '这些技能存在 /skills，这里只列摘要，不展开正文。',
       '相关时用 skill_read 或 db_content /skills/<id> 读取正文。',
+      '脚本在技能 id 目录里：db_action action=read-files / write-files。',
       ...lines,
       '</available_skills>',
     ].join('\n')
@@ -161,7 +176,7 @@ export function apply(ctx: Context) {
 
   ctx.tools.register({
     name: 'skill_import',
-    description: '把带 SKILL.md 的目录收成 /skills 里的一条记录。其它 md 会按章节附在正文后面。',
+    description: '把带 SKILL.md 的目录收成 /skills 里的一条记录。SKILL.md 进正文；其它文件写进该技能 id 目录。',
     parameters: {
       type: 'object',
       properties: {

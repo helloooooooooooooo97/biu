@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, test } from 'vitest'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context, Service } from 'cordis'
@@ -8,7 +8,7 @@ import * as tools from '@biu/host-tools'
 import * as systemPrompt from '@biu/host-system-prompt'
 import type { CollectionSpec, Database } from '@biu/type-file-system'
 import * as skills from './index.ts'
-import { filesToNotes, parseFrontmatter, SkillsStore } from './store.ts'
+import { packSkillImport, parseFrontmatter, SkillsStore } from './store.ts'
 
 let dir = ''
 
@@ -86,11 +86,11 @@ test('frontmatter keeps discovery metadata separate from body', () => {
   assert.equal(parsed.body, '先阅读能力一。')
 })
 
-test('directory import becomes one Skill record with extra files in notes', () => {
-  const packed = filesToNotes(fixture.files)
-  assert.match(packed.notes, /先阅读能力一/)
-  assert.match(packed.notes, /## cap\/cap1.md/)
-  assert.match(packed.notes, /能力一/)
+test('directory import keeps SKILL.md as notes and other files on disk', () => {
+  const packed = packSkillImport(fixture.files)
+  assert.equal(packed.notes, '先阅读能力一。')
+  assert.equal(packed.files.length, 1)
+  assert.equal(packed.files[0]?.path, 'cap/cap1.md')
 })
 
 test('store writes markdown under its own directory, not /pages', () => {
@@ -110,7 +110,8 @@ test('each conversation sees summaries while skill_read loads the body on demand
   assert.doesNotMatch(prompt, /先阅读/)
   const read = await ctx.tools.invoke('skill_read', { id: 'abc' }) as { body: string }
   assert.match(read.body, /先阅读能力一/)
-  assert.match(read.body, /能力一/)
+  const listed = ctx.skills.readFiles('abc') as { files: string[] }
+  assert.deepEqual(listed.files, ['cap/cap1.md'])
 })
 
 test('/skills rows are Skill records, not Page pointers', async () => {
@@ -124,7 +125,8 @@ test('/skills rows are Skill records, not Page pointers', async () => {
   assert.equal(rows[0]?.enabled, true)
   assert.equal(rows[0]?.rootPageId, undefined)
   assert.equal(spec.schema.contentField, 'notes')
-  assert.equal(spec.actions?.map((item) => item.id).join(','), 'enable,disable')
+  assert.equal(spec.schema.fields.files, undefined)
+  assert.equal(spec.actions?.map((item) => item.id).join(','), 'enable,disable,read-files,write-files')
 })
 
 test('/skills new button creates a disabled draft before description is filled', async () => {
@@ -153,7 +155,10 @@ test('startup migrates legacy .biu/skills directories once', async () => {
   const record = new SkillsStore().get('abc')
   assert.ok(record)
   assert.match(record.notes, /读取能力/)
-  assert.match(record.notes, /能力正文/)
+  assert.doesNotMatch(record.notes, /能力正文/)
+  const store = new SkillsStore()
+  assert.deepEqual(store.listFiles('abc'), ['cap/one.md'])
+  assert.match(store.readFile('abc', 'cap/one.md').text, /能力正文/)
 
   assert.equal(first.ctx.skills.migrateLegacyDirectories(), 0)
 })
@@ -172,6 +177,50 @@ test('runtime rescan discovers a Skill directory added after startup', async () 
 
   assert.equal(ctx.skills.migrateLegacyDirectories(), 1)
   assert.equal(new SkillsStore().get('late-skill')?.name, 'Late Skill')
+})
+
+test('import writes extra files under the skill id directory', () => {
+  const store = new SkillsStore()
+  const record = store.import({
+    files: [
+      {
+        path: 'pretty-mermaid/SKILL.md',
+        content: '---\nname: Pretty Mermaid\ndescription: 画 Mermaid 图时使用\n---\n\n先读脚本。',
+      },
+      { path: 'pretty-mermaid/scripts/render.mjs', content: 'export const render = () => {}' },
+      { path: 'pretty-mermaid/package.json', content: '{"name":"pretty-mermaid"}' },
+    ],
+  })
+  assert.equal(record.id, 'pretty-mermaid')
+  assert.equal(record.notes, '先读脚本。')
+  assert.deepEqual(store.listFiles(record.id), ['package.json', 'scripts/render.mjs'])
+  assert.match(store.readFile(record.id, 'scripts/render.mjs').text, /export const render/)
+})
+
+test('read-files and write-files actions use the skill id directory', async () => {
+  const { ctx } = await boot()
+  const spec = (ctx.database as FakeDatabase).specs.find((item) => item.path === '/skills')!
+  await spec.create!([{ title: 'Pretty', description: '画图时用', notes: '正文' }])
+  const write = spec.actions?.find((item) => item.id === 'write-files')
+  const read = spec.actions?.find((item) => item.id === 'read-files')
+  await write?.run('pretty', { id: 'pretty' }, { path: 'scripts/render.mjs', content: 'export const ok = 1' })
+  assert.deepEqual(await read?.run('pretty', { id: 'pretty' }, {}), { files: ['scripts/render.mjs'] })
+  const file = await read?.run('pretty', { id: 'pretty' }, { path: 'scripts/render.mjs' }) as { text: string }
+  assert.match(file.text, /export const ok/)
+})
+
+test('remove deletes the skill markdown and its files directory', () => {
+  const store = new SkillsStore()
+  const record = store.import({
+    files: [
+      { path: 'gone/SKILL.md', content: '---\nname: Gone\ndescription: 删掉时用\n---\n\n正文' },
+      { path: 'gone/scripts/a.mjs', content: '1' },
+    ],
+  })
+  const dir = store.filesDir(record.id)
+  assert.equal(store.remove(record.id), true)
+  assert.equal(store.get(record.id), null)
+  assert.equal(existsSync(dir), false)
 })
 
 test('db_content can update Skill notes without touching pages', async () => {
