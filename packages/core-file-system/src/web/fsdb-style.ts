@@ -83,7 +83,7 @@ const CSS = `
 @keyframes fsdb-spin{to{transform:rotate(360deg)}}
 .fsdb-refresh-toast{position:absolute;top:calc(100% + 8px);right:0;z-index:50;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;border-radius:8px;padding:7px 10px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);box-shadow:var(--dsw-shadow);color:var(--dsw-label);font-size:14px;font-weight:600}
 .fsdb-refresh-toast svg{color:var(--dsw-ok,#2f7d4c)}
-.fsdb-page .tasks-sort-btn.is-active,.fsdb-page .tasks-refresh.is-active{color:var(--dsw-icon-active);background:var(--dsw-hover)}
+.fsdb-page .tasks-sort-btn.is-active,.fsdb-page .tasks-refresh.is-active{color:var(--dsw-icon-active)}
 .fsdb-page .tasks-sort-btn.is-custom{color:var(--dsw-icon-active)}
 .fsdb-page .tasks-sort-dot{position:absolute;top:4px;right:4px;width:5px;height:5px;border-radius:50%;background:var(--dsw-business)}
 .fsdb-page .tasks-viewdd-wrap,.fsdb-page .tasks-sort-wrap,.fsdb-page .tasks-filter-btn-wrap{position:relative;display:inline-flex}

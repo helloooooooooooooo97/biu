@@ -1137,9 +1137,6 @@ export function CollectionBrowser({
   const groupFields = useMemo(() => groupableFields(schema), [schema])
   const activeGroup = groupField(schema, groupBy)
   const grouping = Boolean(activeGroup)
-  const columnCustom =
-    columnKeys.length > 0 &&
-    (columnKeys.length !== schemaDefaultKeys.length || columnKeys.some((key, index) => key !== schemaDefaultKeys[index]))
   const filterFields = useMemo(
     () =>
       entries.filter(
@@ -3065,12 +3062,13 @@ export function CollectionBrowser({
             <div className="tasks-sort-wrap" ref={groupRef}>
               <button
                 type="button"
-                className={`tasks-sort-btn${groupOpen || grouping ? ' is-active' : ''}`}
+                className={`tasks-sort-btn${groupOpen ? ' is-active' : ''}${grouping ? ' is-custom' : ''}`}
                 aria-label="分组"
                 title={activeGroup ? `分组：${activeGroup.field.label ?? activeGroup.key}` : '分组'}
                 onClick={() => toggleMenu('group')}
               >
                 <RectangleStackIcon aria-hidden className="size-[14px]" />
+                {grouping ? <span className="tasks-sort-dot" aria-hidden /> : null}
               </button>
               {groupOpen ? (
                 <HeadlessDismiss onDismiss={() => setGroupOpen(false)} insideRef={groupRef}>
@@ -3108,13 +3106,12 @@ export function CollectionBrowser({
             <div className="tasks-sort-wrap" ref={columnRef}>
               <button
                 type="button"
-                className={`tasks-sort-btn${columnMenuOpen ? ' is-active' : ''}${columnCustom ? ' is-custom' : ''}`}
+                className={`tasks-sort-btn${columnMenuOpen ? ' is-active' : ''}`}
                 aria-label="可见列"
                 title="可见列"
                 onClick={() => toggleMenu('columns')}
               >
                 <EyeIcon aria-hidden className="size-[14px]" />
-                {columnCustom ? <span className="tasks-sort-dot" aria-hidden /> : null}
               </button>
               {columnMenuOpen ? (
                 <HeadlessDismiss
@@ -3146,15 +3143,12 @@ export function CollectionBrowser({
             <div className="tasks-filter-btn-wrap" ref={configRef}>
               <button
                 type="button"
-                className={`tasks-refresh tasks-rbar-btn${configOpen || wrapCells || !truncateCells || (treeable && !showTree) ? ' is-active' : ''}`}
+                className={`tasks-refresh tasks-rbar-btn${configOpen ? ' is-active' : ''}`}
                 aria-label="表格配置"
                 title="表格配置"
                 onClick={() => toggleMenu('config')}
               >
                 <AdjustmentsHorizontalIcon aria-hidden className="size-[14px]" />
-                {wrapCells || !truncateCells || (treeable && !showTree) ? (
-                  <span className="tasks-filter-dot" aria-hidden />
-                ) : null}
               </button>
               {configOpen ? (
                 <HeadlessDismiss onDismiss={() => setConfigOpen(false)} insideRef={configRef}>

@@ -53,7 +53,6 @@ export function ShareViewQueryBar({
   const sortCustom = isCustomSorts(state.sorts, schema.labelField)
   const defaults = allColumnKeys(schema)
   const visible = (state.columns.length ? state.columns : defaults).filter((key) => schema.fields[key])
-  const columnCustom = visible.join('\0') !== defaults.join('\0')
   const searchRef = useRef<HTMLDivElement>(null)
   const modeRef = useRef<HTMLDivElement>(null)
   const sortRef = useRef<HTMLDivElement>(null)
@@ -206,13 +205,12 @@ export function ShareViewQueryBar({
         <div className="tasks-sort-wrap" ref={columnRef}>
           <button
             type="button"
-            className={`tasks-sort-btn${columnOpen ? ' is-active' : ''}${columnCustom ? ' is-custom' : ''}`}
+            className={`tasks-sort-btn${columnOpen ? ' is-active' : ''}`}
             aria-label="可见列"
             title="可见列"
             onClick={() => setColumnOpen((open) => !open)}
           >
             <EyeIcon aria-hidden className="size-[14px]" />
-            {columnCustom ? <span className="tasks-sort-dot" aria-hidden /> : null}
           </button>
           {columnOpen ? (
             <HeadlessDismiss onDismiss={() => setColumnOpen(false)} insideRef={columnRef}>
@@ -237,13 +235,12 @@ export function ShareViewQueryBar({
         <div className="tasks-filter-btn-wrap" ref={configRef}>
           <button
             type="button"
-            className={`tasks-refresh tasks-rbar-btn${configOpen || state.wrap || !state.truncate ? ' is-active' : ''}`}
+            className={`tasks-refresh tasks-rbar-btn${configOpen ? ' is-active' : ''}`}
             aria-label="表格配置"
             title="表格显示"
             onClick={() => setConfigOpen((open) => !open)}
           >
             <AdjustmentsHorizontalIcon aria-hidden className="size-[14px]" />
-            {state.wrap || !state.truncate ? <span className="tasks-filter-dot" aria-hidden /> : null}
           </button>
           {configOpen ? (
             <HeadlessDismiss onDismiss={() => setConfigOpen(false)} insideRef={configRef}>

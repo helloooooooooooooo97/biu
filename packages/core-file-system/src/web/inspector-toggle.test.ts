@@ -397,6 +397,13 @@ test('creating a record opens a new inspector pane instead of covering the view'
 
 test('create record sits at the right of the toolbar with a blue label', () => {
   assert.match(browser, /aria-label="排序"[\s\S]*aria-label="筛选"[\s\S]*aria-label="分组"/)
+  assert.match(browser, /sortCustom \? <span className="tasks-sort-dot"/)
+  assert.match(browser, /filterActive \? <span className="tasks-filter-dot"/)
+  assert.match(browser, /grouping \? <span className="tasks-sort-dot"/)
+  const columnsBtn = browser.slice(browser.indexOf('aria-label="可见列"'), browser.indexOf('aria-label="表格配置"'))
+  const configBtn = browser.slice(browser.indexOf('aria-label="表格配置"'), browser.indexOf('aria-label="刷新"'))
+  assert.doesNotMatch(columnsBtn, /tasks-sort-dot|tasks-filter-dot/)
+  assert.doesNotMatch(configBtn, /tasks-sort-dot|tasks-filter-dot/)
   assert.match(browser, /className="fsdb-create-btn"/)
   assert.match(browser, /新建记录/)
   assert.match(browser, /<PlusIcon[\s\S]*新建/)

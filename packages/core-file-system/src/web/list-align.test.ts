@@ -15,6 +15,8 @@ test('list and detail share the chat column max width with side padding', () => 
   assert.match(css, /\.fsdb-page \.tasks-refresh,\.fsdb-page \.tasks-sort-btn\{[^}]*color:var\(--dsw-icon\)/)
   assert.match(css, /\.fsdb-page \.tasks-refresh:hover,\.fsdb-page \.tasks-sort-btn:hover\{[^}]*color:var\(--dsw-icon-active\)/)
   assert.match(css, /\.fsdb-page \.tasks-sort-btn\.is-active,\.fsdb-page \.tasks-refresh\.is-active\{[^}]*color:var\(--dsw-icon-active\)/)
+  assert.doesNotMatch(css, /\.fsdb-page \.tasks-sort-btn\.is-active,\.fsdb-page \.tasks-refresh\.is-active\{[^}]*background:var\(--dsw-hover\)/)
+  assert.match(css, /\.fsdb-page \.tasks-refresh:hover,\.fsdb-page \.tasks-sort-btn:hover\{[^}]*background:var\(--dsw-hover\)/)
   assert.match(css, /\.fsdb-page \.tasks-table thead \.tasks-th svg/)
   assert.match(css, /\.fsdb-page \.tasks-table thead \.tasks-th\.is-on svg/)
   assert.match(css, /\.fsdb-page \.tasks-toolbar-right \.tasks-sort-btn:not\(\.is-active\):not\(\.is-custom\)/)
