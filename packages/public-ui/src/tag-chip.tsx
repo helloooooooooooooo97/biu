@@ -4,7 +4,7 @@ const STYLE_ID = 'biu-public-ui-tag-chip'
 const CSS = `
 .biu-tag-wrap{border:0;background:transparent;padding:0;cursor:pointer;font:inherit}
 .biu-tags{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0;max-width:100%}
-.biu-tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:4px;font-size:13px;font-weight:400;line-height:20px;background:color-mix(in srgb,var(--biu-tag,#5b9fd6) 22%,transparent);color:color-mix(in srgb,var(--biu-tag,#5b9fd6) 8%,var(--dsw-tag-ink,#2c2c2b));max-width:160px}
+.biu-tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:4px;font-size:13px;font-weight:400;line-height:20px;background:color-mix(in srgb,var(--biu-tag,#5b9fd6) 38%,transparent);color:var(--dsw-tag-ink,#2c2c2b);max-width:160px}
 .biu-tag.is-btn{cursor:pointer}
 .biu-tag.is-on{background:color-mix(in srgb,var(--biu-tag,#5b9fd6) 34%,transparent)}
 .biu-tag-icon{display:inline-flex;width:12px;height:12px;flex:none;align-items:center;justify-content:center}
