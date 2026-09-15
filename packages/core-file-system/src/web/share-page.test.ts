@@ -18,6 +18,9 @@ test('share page uses matching side padding on small screens', () => {
   assert.match(css, /\.fsdb-share-record-nav\{display:none/)
   assert.match(css, /\.fsdb-share-page \.fsdb-detail-float-nav\{display:none\}/)
   assert.match(css, /\.heading-outline-host\.is-sheet/)
+  assert.match(css, /\.fsdb-share-loading\{/)
+  assert.match(css, /\.fsdb-share-spinner\{/)
+  assert.doesNotMatch(src, /正在打开/)
 })
 
 test('share header crumbs use collectionLabel not the path id', () => {

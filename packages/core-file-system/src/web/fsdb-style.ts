@@ -735,6 +735,8 @@ html.share .fsdb-detail-float-nav,html.share .heading-outline-host:not(.is-sheet
 .fsdb-share-list tr{cursor:pointer}
 .fsdb-share-page .tasks-table tr{cursor:pointer}
 .fsdb-share-gate{margin:auto;text-align:center}
+.fsdb-share-loading{align-items:center;justify-content:center}
+.fsdb-share-spinner{width:28px;height:28px;border:2px solid var(--dsw-border);border-top-color:var(--dsw-label);border-radius:50%;animation:fsdb-spin .7s linear infinite}
 @media (max-width:720px){
 .fsdb-share-page{--fsdb-share-pad:24px;--fsdb-check-gutter:0px}
 .fsdb-share-page .fsdb-main > :not(.fsdb-page-banner),

@@ -297,8 +297,8 @@ function SharePage({
 
   if (!snapshot || !pluginsReady) {
     return (
-      <div className="fsdb-share-page" data-testid="fsdb-share-page">
-        <p className="fsdb-empty">正在打开…</p>
+      <div className="fsdb-share-page fsdb-share-loading" data-testid="fsdb-share-page">
+        <span className="fsdb-share-spinner" role="status" aria-label="加载中" />
       </div>
     )
   }
