@@ -679,13 +679,14 @@ button.fsdb-detail-title-icon:hover{background:var(--dsw-hover);color:var(--dsw-
 .fsdb-share-toggle.is-on span{transform:translateX(14px)}
 .fsdb-share-toggle:focus-visible{outline:2px solid var(--dsw-pick,#2383e2);outline-offset:2px}
 .fsdb-share-pin{display:flex;height:34px;align-items:center;justify-content:space-between;margin:0 0 8px;border-radius:7px;background:var(--dsw-input);padding:0 8px 0 10px;color:var(--dsw-label-2);font-size:12px}
+.fsdb-share-pin.is-collapsed{display:none}
 .fsdb-share-pin strong{margin-left:5px;color:var(--dsw-label);font-size:13px;font-weight:700;letter-spacing:.12em}
 .fsdb-share-pin button{display:inline-flex;align-items:center;gap:4px;border:0;border-radius:6px;background:transparent;padding:5px 7px;color:var(--dsw-label);font:inherit;font-size:12px;font-weight:650;cursor:pointer}
 .fsdb-share-pin button:hover{background:var(--dsw-hover)}
 .fsdb-share-footer{border-top:1px solid var(--dsw-border);padding:10px 16px 14px}
 .fsdb-share-stop{width:100%;height:34px;border:1px solid var(--dsw-border);border-radius:7px;background:transparent;color:var(--dsw-danger);font:inherit;font-size:13px;font-weight:650;cursor:pointer}
 .fsdb-share-stop:hover{border-color:var(--dsw-danger);background:color-mix(in srgb,var(--dsw-danger) 8%,transparent)}
-.fsdb-share-panel button:disabled{opacity:.5;cursor:default;filter:none}
+.fsdb-share-publish:disabled,.fsdb-share-panel .fsdb-share-copy:disabled,.fsdb-share-stop:disabled{opacity:.5;cursor:default;filter:none}
 .fsdb-share-error{margin:0 16px 12px;color:var(--dsw-danger);font-size:12px}
 .fsdb-share-copy{border:0;border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;font-weight:650;cursor:pointer;background:transparent;color:var(--dsw-label)}
 .fsdb-share-copy:hover{background:var(--dsw-hover)}

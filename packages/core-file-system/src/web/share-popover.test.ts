@@ -15,6 +15,15 @@ test('share panel copies link and password together, without a separate pin copy
   assert.doesNotMatch(src, /复制链接和密码/)
 })
 
+test('share setting patches stay quiet and do not emit a database reload', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './share-popover.tsx'), 'utf8')
+  const host = readFileSync(resolve(import.meta.dirname, '../host/index.ts'), 'utf8')
+  assert.match(src, /quiet: true/)
+  assert.match(src, /flagsOnly: true/)
+  const sharesPost = host.slice(host.indexOf("POST', '/api/db/shares'"), host.indexOf("GET', '/api/share/:token'"))
+  assert.doesNotMatch(sharesPost, /database\/change/)
+})
+
 test('share panel uses a settings section and custom toggles', () => {
   const src = readFileSync(resolve(import.meta.dirname, './share-popover.tsx'), 'utf8')
   const css = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')

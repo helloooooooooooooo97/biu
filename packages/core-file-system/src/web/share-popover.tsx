@@ -143,17 +143,21 @@ function SharePanel({ target }: { target: ShareTarget }) {
     }
   }, [target.kind, target.collection, target.viewId, target.recordId])
 
-  function applyPayload(data: SharePayload, nextPin?: string) {
-    setShare(data.share)
-    if (data.resources) setResources(data.resources)
-    const locked = Boolean(data.share?.hasPassword)
-    setUsePassword(locked)
+  function applyPayload(data: SharePayload, nextPin?: string, flagsOnly = false) {
+    if (data.share === undefined) return
     if (!data.share) {
+      setShare(null)
+      setUsePassword(false)
       setPin('')
       return
     }
-    const remembered = nextPin ?? rememberedPin(data.share.token)
+    setShare(data.share)
+    if (data.resources) setResources(data.resources)
+    if (flagsOnly) return
+    const locked = Boolean(data.share.hasPassword)
+    setUsePassword(locked)
     if (locked) {
+      const remembered = nextPin ?? rememberedPin(data.share.token)
       setPin(remembered)
       if (nextPin) rememberPin(data.share.token, nextPin)
     } else {
@@ -162,14 +166,19 @@ function SharePanel({ target }: { target: ShareTarget }) {
     }
   }
 
-  async function publish(patch: {
-    password?: string | null
-    enabled?: boolean
-    sharePlugins?: boolean
-    allowCopy?: boolean
-  }) {
-    setBusy(true)
-    setError('')
+  async function publish(
+    patch: {
+      password?: string | null
+      enabled?: boolean
+      sharePlugins?: boolean
+      allowCopy?: boolean
+    },
+    opts: { quiet?: boolean; pin?: string; flagsOnly?: boolean } = {},
+  ) {
+    if (!opts.quiet) {
+      setBusy(true)
+      setError('')
+    }
     try {
       const data = await readJson<SharePayload>('/api/db/shares', {
         method: 'POST',
@@ -182,7 +191,7 @@ function SharePanel({ target }: { target: ShareTarget }) {
           ...patch,
         }),
       })
-      applyPayload(data, typeof patch.password === 'string' && patch.password ? patch.password : undefined)
+      applyPayload(data, opts.pin, opts.flagsOnly)
       if (patch.enabled === false && data.share == null && share) rememberPin(share.token, '')
       window.dispatchEvent(new Event('fsdb:shares-change'))
       return data.share
@@ -190,7 +199,7 @@ function SharePanel({ target }: { target: ShareTarget }) {
       setError(String(err instanceof Error ? err.message : err))
       return null
     } finally {
-      setBusy(false)
+      if (!opts.quiet) setBusy(false)
     }
   }
 
@@ -201,7 +210,7 @@ function SharePanel({ target }: { target: ShareTarget }) {
     if (!live) {
       live = await publish({})
     } else if ((usePassword || live.hasPassword) && pin.length === 6 && pin !== rememberedPin(live.token)) {
-      live = (await publish({ password: pin })) ?? live
+      live = (await publish({ password: pin }, { quiet: true, pin })) ?? live
       livePin = pin
     }
     if (!live) return
@@ -225,13 +234,13 @@ function SharePanel({ target }: { target: ShareTarget }) {
       setPin('')
       if (share) {
         rememberPin(share.token, '')
-        void publish({ password: '' })
+        void publish({ password: '' }, { quiet: true })
       }
       return
     }
     const next = mintSharePin()
     setPin(next)
-    void publish({ password: next }).then((live) => {
+    void publish({ password: next }, { quiet: true, pin: next }).then((live) => {
       if (live) rememberPin(live.token, next)
     })
   }
@@ -307,7 +316,6 @@ function SharePanel({ target }: { target: ShareTarget }) {
               </span>
               <ShareToggle
                 on={usePassword}
-                disabled={busy}
                 label="密码保护"
                 testId="fsdb-share-password-toggle"
                 onChange={togglePassword}
@@ -319,17 +327,14 @@ function SharePanel({ target }: { target: ShareTarget }) {
                   密码
                   <strong data-testid="fsdb-share-password">{pin || '······'}</strong>
                 </span>
-                <button
-                  type="button"
-                  disabled={busy}
-                  data-testid="fsdb-share-rotate-pin"
-                  onClick={() => togglePassword(true)}
-                >
+                <button type="button" data-testid="fsdb-share-rotate-pin" onClick={() => togglePassword(true)}>
                   <ArrowPathIcon aria-hidden className="size-4" />
                   换一组
                 </button>
               </div>
-            ) : null}
+            ) : (
+              <div className="fsdb-share-pin is-collapsed" hidden />
+            )}
             <div className="fsdb-share-setting">
               <span className="fsdb-share-setting-copy">
                 <strong>分享插件</strong>
@@ -337,10 +342,12 @@ function SharePanel({ target }: { target: ShareTarget }) {
               </span>
               <ShareToggle
                 on={share.sharePlugins}
-                disabled={busy}
                 label="分享插件"
                 testId="fsdb-share-plugins"
-                onChange={(on) => void publish({ sharePlugins: on })}
+                onChange={(on) => {
+                  setShare({ ...share, sharePlugins: on })
+                  void publish({ sharePlugins: on }, { quiet: true, flagsOnly: true })
+                }}
               />
             </div>
             <div className="fsdb-share-setting">
@@ -350,10 +357,12 @@ function SharePanel({ target }: { target: ShareTarget }) {
               </span>
               <ShareToggle
                 on={share.allowCopy !== false}
-                disabled={busy}
                 label="允许复制"
                 testId="fsdb-share-allow-copy"
-                onChange={(on) => void publish({ allowCopy: on })}
+                onChange={(on) => {
+                  setShare({ ...share, allowCopy: on })
+                  void publish({ allowCopy: on }, { quiet: true, flagsOnly: true })
+                }}
               />
             </div>
           </section>

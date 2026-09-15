@@ -1829,7 +1829,6 @@ export function apply(ctx: Context) {
       const kind = body.kind === 'record' ? 'record' as const : 'view' as const
       if (body.enabled === false) {
         shares.revokeTarget(kind, String(body.collection ?? ''), body.viewId ?? '', body.recordId ?? '')
-        ctx.emit('database/change')
         route.send(200, { share: null })
         return
       }
@@ -1842,7 +1841,6 @@ export function apply(ctx: Context) {
         sharePlugins: body.sharePlugins,
         allowCopy: body.allowCopy,
       })
-      ctx.emit('database/change')
       route.send(200, { share: { ...share, url: publicShareUrl(route.req, share.token) } })
     } catch (error) {
       route.send(400, { error: String(error) })
