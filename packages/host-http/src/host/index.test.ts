@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -100,4 +101,10 @@ test('share listener serves /api/share but not the workstation APIs', async () =
   } finally {
     await fiber.dispose()
   }
+})
+
+test('host prefers dist after vite build unless BIU_PUBLIC_DIR is set', () => {
+  const src = readFileSync(join(import.meta.dirname, 'index.ts'), 'utf8')
+  assert.match(src, /BIU_PUBLIC_DIR/)
+  assert.match(src, /existsSync\(join\(dist, 'index.html'\)\)/)
 })

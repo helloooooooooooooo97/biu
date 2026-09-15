@@ -15,7 +15,8 @@ ctx.logger.exporter({
   },
 })
 ctx.on('http/ready', ({ port: ready }) => {
-  ctx.logger('boot').info(`api http://127.0.0.1:${ready}  ·  ui http://127.0.0.1:5173`)
+  const ui = process.env.SHARE_PROXY_UI ? 'http://127.0.0.1:5173' : `http://127.0.0.1:${ready}`
+  ctx.logger('boot').info(`api http://127.0.0.1:${ready}  ·  ui ${ui}`)
 })
 
 async function boot() {
