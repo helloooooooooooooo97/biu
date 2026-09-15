@@ -106,6 +106,9 @@ describe('terminal store plugins', () => {
     // 历史写回块数据的 history 字段
     assert.match(web, /update\(\{ history: next \}\)/)
     assert.match(web, /HISTORY_MAX/)
+    assert.match(web, /function parseHistory/)
+    assert.match(web, /pt-history-out/)
+    assert.doesNotMatch(web, /entry\.out \? \(\s*<pre/)
     // 后端会话池：按 session key 复用，断开不杀进程
     assert.match(host, /pool/)
     assert.match(host, /maxSessions/)
@@ -122,6 +125,8 @@ describe('terminal store plugins', () => {
     assert.match(web, /biu:plugin:global-terminal:history/)
     assert.match(web, /biu:plugin:global-terminal:sid/)
     assert.match(web, /localStorage/)
+    assert.match(web, /pt-history-out/)
+    assert.match(web, /function parseHistory/)
     assert.match(host, /session/)
     assert.match(host, /buffer/)
   })

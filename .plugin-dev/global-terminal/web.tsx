@@ -29,15 +29,25 @@ function loadSid() {
   }
 }
 
+function historyOut(item: Record<string, unknown>): string {
+  const raw = item.out ?? item.output ?? item.stdout
+  if (typeof raw === 'string') return raw
+  if (Array.isArray(raw)) return raw.map((line) => String(line)).join('\n')
+  return ''
+}
+
 function parseHistory(raw: unknown): HistoryEntry[] {
   if (!Array.isArray(raw)) return []
   return raw
     .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-    .map((item) => ({
-      cmd: String(item.cmd ?? ''),
-      at: Number(item.at) || 0,
-      ...(typeof item.out === 'string' && item.out ? { out: item.out } : {}),
-    }))
+    .map((item) => {
+      const out = historyOut(item)
+      return {
+        cmd: String(item.cmd ?? item.command ?? ''),
+        at: Number(item.at) || 0,
+        ...(out ? { out } : {}),
+      }
+    })
     .filter((item) => item.cmd)
 }
 
@@ -274,7 +284,7 @@ function HistoryPanel({ history, onClear }: { history: HistoryEntry[]; onClear: 
       style={{
         flex: 'none',
         borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-        background: 'color-mix(in srgb, var(--dsw-bg, #191919) 70%, transparent)',
+        background: 'rgba(0,0,0,0.28)',
       }}
     >
       <div
@@ -284,7 +294,7 @@ function HistoryPanel({ history, onClear }: { history: HistoryEntry[]; onClear: 
           gap: 8,
           height: 26,
           padding: '0 10px',
-          color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
+          color: 'rgba(242,241,237,0.45)',
           font: '11px ui-sans-serif, system-ui, sans-serif',
           userSelect: 'none',
         }}
@@ -337,7 +347,7 @@ function HistoryPanel({ history, onClear }: { history: HistoryEntry[]; onClear: 
             fontFamily: mono,
             fontSize: 12,
             lineHeight: 1.45,
-            color: 'var(--dsw-label-2, rgba(242,241,237,0.72))',
+            color: 'rgba(242,241,237,0.82)',
           }}
         >
           {history.map((entry, index) => (
@@ -347,18 +357,19 @@ function HistoryPanel({ history, onClear }: { history: HistoryEntry[]; onClear: 
                 <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{entry.cmd}</span>
               </div>
               {entry.out ? (
-                <pre
+                <div
+                  className="pt-history-out"
                   style={{
                     margin: '2px 0 0',
                     paddingLeft: 14,
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-all',
-                    color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
+                    color: 'rgba(242,241,237,0.48)',
                     font: 'inherit',
                   }}
                 >
                   {entry.out}
-                </pre>
+                </div>
               ) : null}
             </div>
           ))}
