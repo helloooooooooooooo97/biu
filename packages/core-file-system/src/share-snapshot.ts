@@ -28,6 +28,7 @@ export type ShareSnapshot = {
   records: DbRecord[]
   contents: Record<string, unknown>
   assets: string[]
+  banner?: unknown
   resources: {
     pages: number
     plugins: number

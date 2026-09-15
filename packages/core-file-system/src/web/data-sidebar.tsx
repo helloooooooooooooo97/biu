@@ -7,6 +7,7 @@ import {
   ChevronRightIcon,
   PencilSquareIcon,
   PlusIcon,
+  ShareIcon,
   Squares2X2Icon,
   StarIcon,
 } from '@heroicons/react/16/solid'
@@ -70,6 +71,15 @@ type PreviewState = {
 }
 
 type PreviewCache = { items: DbRecord[]; total: number; schema?: CollectionSchema }
+
+type SidebarShare = {
+  token: string
+  kind: 'view' | 'record'
+  collection: string
+  viewId: string
+  recordId: string
+  title: string
+}
 
 const previewCache = new Map<string, PreviewCache>()
 
@@ -487,6 +497,14 @@ export const DataSidebar = memo(function DataSidebar({
   useSyncExternalStore(subscribeStarredRecords, getStarredRecordsVersion, () => 0)
   const starredViews = getStarredViews()
   const starredRecords = getStarredRecords()
+  const [shareOpen, setShareOpen] = useState(() => {
+    try {
+      return localStorage.getItem('fsdb.shareOpen') !== '0'
+    } catch {
+      return true
+    }
+  })
+  const [shares, setShares] = useState<SidebarShare[]>([])
   const [favOpen, setFavOpen] = useState(() => {
     try {
       return localStorage.getItem('fsdb.favOpen') !== '0'
@@ -518,6 +536,31 @@ export const DataSidebar = memo(function DataSidebar({
     return [{ table, item }]
   })
   const favCount = starredRows.length + starredRecordRows.length
+  const shareCount = shares.length
+
+  useEffect(() => {
+    let cancelled = false
+    const load = () => {
+      void readJson<{ shares?: SidebarShare[] }>('/api/db/shares').then(
+        (data) => {
+          if (cancelled) return
+          setShares(Array.isArray(data.shares) ? data.shares : [])
+        },
+        () => {
+          if (!cancelled) setShares([])
+        },
+      )
+    }
+    load()
+    const onChange = () => load()
+    window.addEventListener('fsdb:shares-change', onChange)
+    window.addEventListener('fsdb:change', onChange)
+    return () => {
+      cancelled = true
+      window.removeEventListener('fsdb:shares-change', onChange)
+      window.removeEventListener('fsdb:change', onChange)
+    }
+  }, [])
 
   const countJobs = useMemo(() => {
     const jobs: Array<{ path: string; view: SavedView }> = []
@@ -804,6 +847,96 @@ export const DataSidebar = memo(function DataSidebar({
   const body = (
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3">
         <div className="mt-2 space-y-1.5">
+          <section className="min-w-0">
+            <div className="sidebar-section-head min-w-0">
+              <div className="flex min-h-8 min-w-0 flex-1 items-center">
+                <button
+                  type="button"
+                  className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
+                  aria-expanded={shareOpen}
+                  onClick={() => {
+                    const next = !shareOpen
+                    setShareOpen(next)
+                    try {
+                      localStorage.setItem('fsdb.shareOpen', next ? '1' : '0')
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate tracking-normal">分享</span>
+                </button>
+              </div>
+              <ChatCount count={shareCount} />
+            </div>
+            <SidebarFold open={shareOpen}>
+              <div className="min-w-0 pt-0.5" data-testid="sidebar-shares">
+                {shares.length ? shares.map((share) => {
+                  const table = listedTables.find((row) => row.path === share.collection)
+                  const tableName = table?.view?.title ?? table?.label ?? share.collection.replace(/^\//, '')
+                  const view = viewsFor(share.collection).find((row) => row.id === share.viewId)
+                    ?? viewsFor(share.collection).find((row) => row.id === builtinAllViewId(share.collection))
+                    ?? viewsFor(share.collection)[0]
+                  const isRecord = share.kind === 'record' && share.recordId
+                  const previewKey = `share:${share.token}`
+                  const active = isRecord
+                    ? false
+                    : share.collection === collectionPath && view?.id === activeViewId && share.viewId === activeViewId
+                  const emoji = peekRecord(share.collection, share.recordId)?.emoji
+                  const chromeIcon = table ? getDatabaseUi()?.chrome(table.path).Icon : undefined
+                  const label = share.title || (isRecord ? share.recordId : view?.name) || '分享'
+                  return (
+                    <div key={previewKey} className="min-w-0">
+                      <div
+                        className={`chat-session-row group${active ? ' is-active' : ''}`}
+                        {...pickDomAttrs(isRecord ? recordPickKind(table?.view?.moduleId || table?.id || 'page') : 'view', isRecord ? share.recordId : viewPickId(share.collection, share.viewId || view?.id || ''), label)}
+                      >
+                        <div className="chat-session-row-main flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-[14px] leading-5">
+                          <span className="grid size-6 shrink-0 place-items-center" aria-hidden>
+                            {isRecord ? (
+                              <RecordMark
+                                record={recordMarkStub({ id: share.recordId, emoji, mascot: peekRecord(share.collection, share.recordId)?.mascot })}
+                                tableIcon={table?.view?.icon}
+                                Icon={chromeIcon}
+                              />
+                            ) : view ? (
+                              <ViewModeGlyph mode={view.mode} />
+                            ) : (
+                              <ShareIcon className="size-4 shrink-0 opacity-80" />
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-left font-medium text-inherit"
+                            title={label}
+                            onClick={() => {
+                              if (isRecord && view) {
+                                openRecord(share.collection, view, share.recordId, {
+                                  id: share.recordId,
+                                  title: label,
+                                  emoji,
+                                })
+                                return
+                              }
+                              if (view) openView(share.collection, view.id)
+                              else onOpenTable?.(share.collection)
+                            }}
+                          >
+                            {label}
+                          </button>
+                        </div>
+                        <span className="grid size-6 shrink-0 place-items-center" title={tableName} aria-label={tableName}>
+                          {table?.view?.icon ? <TableGlyph icon={table.view.icon} /> : <ShareIcon className="size-4 shrink-0 opacity-70" />}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                }) : (
+                  <div className="px-1 py-1 text-[12px] text-(--dsw-label-3)">还没有分享</div>
+                )}
+              </div>
+            </SidebarFold>
+          </section>
           {favCount ? (
             <section className="min-w-0">
               <div className="sidebar-section-head min-w-0">

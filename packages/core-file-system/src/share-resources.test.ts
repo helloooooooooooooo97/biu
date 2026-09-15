@@ -25,3 +25,12 @@ test('collectShareResources splits page files, plugins and facets', () => {
   assert.equal(stats.collections >= 1, true)
   assert.equal(shareResourceTypeCount(stats), 3)
 })
+
+test('view shares count every record as a page', () => {
+  const stats = collectShareResources(
+    [{ id: 'p000' }, { id: 'p001' }, { id: 'p002' }],
+    { p000: '', p001: '', p002: '' },
+    { includeRecords: true },
+  )
+  assert.equal(stats.pages, 3)
+})

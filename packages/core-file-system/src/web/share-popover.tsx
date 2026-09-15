@@ -105,6 +105,7 @@ function SharePanel({ target }: { target: ShareTarget }) {
         setPin('')
         setUsePassword(false)
       }
+      window.dispatchEvent(new Event('fsdb:shares-change'))
     } catch (err) {
       setError(String(err instanceof Error ? err.message : err))
     } finally {
