@@ -13,4 +13,13 @@ test('headless dismiss uses radix dismissable layer', () => {
   assert.match(menu, /HeadlessDismiss/)
   assert.match(menu, /zIndex = 200/)
   assert.match(menu, /minWidth = 220/)
+  assert.match(menu, /overlayZ/)
+  assert.match(menu, /overlayPortalRoot/)
+})
+
+test('share overlay portal helper lifts z-index', () => {
+  const overlay = readFileSync(resolve(import.meta.dirname, './overlay-portal.ts'), 'utf8')
+  assert.match(overlay, /SHARE_OVERLAY_Z = 360/)
+  assert.match(overlay, /\.fsdb-share-page/)
+  assert.match(overlay, /classList\.contains\('share'\)/)
 })

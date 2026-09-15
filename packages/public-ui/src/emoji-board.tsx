@@ -1,6 +1,7 @@
 import { useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { HeadlessDismiss } from './headless-dismiss.tsx'
+import { overlayPortalRoot } from './overlay-portal.ts'
 
 const RECORD_EMOJI_PRESETS = [
   '📄', '📝', '📚', '🗂️', '📁', '📦', '🔖', '🧩',
@@ -76,6 +77,6 @@ export function RecordEmojiBoard({
       </div>
     </div>
     </HeadlessDismiss>,
-    document.body,
+    overlayPortalRoot() ?? document.body,
   )
 }

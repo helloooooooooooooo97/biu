@@ -16,6 +16,7 @@ import { PlusIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import type { FieldSpec, FieldType } from '@biu/type-file-system'
 import { CellSelect } from '@biu/database-ui'
+import { overlayZ } from '@biu/public-ui'
 import { FieldGlyph } from './fsdb-cells.tsx'
 import { DndGrip } from './dnd-grip.tsx'
 import {
@@ -173,7 +174,7 @@ export function SortQueryMenu({
               )
             })}
           </SortableContext>
-          <DragOverlay zIndex={280}>
+          <DragOverlay zIndex={overlayZ(280)}>
             {active ? (
               <div className="fsdb-query-drag-overlay" data-fsdb-sort-overlay>
                 <div className="fsdb-query-row">

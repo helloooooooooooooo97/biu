@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, 
 import { createPortal } from 'react-dom'
 import { CheckCircleIcon } from '@heroicons/react/16/solid'
 import { CellMulti } from '@biu/database-ui'
+import { overlayPortalRoot } from '@biu/public-ui'
 
 export { CellSelect } from '@biu/database-ui'
 
@@ -159,7 +160,7 @@ export function AppDialog({
       </div>
     </div>
   )
-  return createPortal(dialog, document.body)
+  return createPortal(dialog, overlayPortalRoot() ?? document.body)
 }
 
 /** 详情正文/文本列：输入只更新自己，失焦才回传，避免整张表跟着每个按键重绘。 */
