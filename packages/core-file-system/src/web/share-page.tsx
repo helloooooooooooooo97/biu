@@ -386,6 +386,36 @@ function SharePage({
           )}
         </div>
         <div className="chat-view-header-right">
+          {viewNav && shown ? (
+            <div className="fsdb-share-record-nav" data-testid="fsdb-share-record-nav">
+              <button
+                type="button"
+                className="chat-view-header-expand"
+                title="上一条"
+                aria-label="上一条"
+                disabled={viewIndex <= 0}
+                onClick={() => {
+                  const prev = listed[Math.max(0, viewIndex - 1)]
+                  if (prev) navigate(sharePublicPath(token, prev.id))
+                }}
+              >
+                <ChevronLeftIcon aria-hidden className="size-4" />
+              </button>
+              <button
+                type="button"
+                className="chat-view-header-expand"
+                title="下一条"
+                aria-label="下一条"
+                disabled={viewIndex < 0 || viewIndex >= listed.length - 1}
+                onClick={() => {
+                  const next = listed[Math.min(listed.length - 1, viewIndex + 1)]
+                  if (next) navigate(sharePublicPath(token, next.id))
+                }}
+              >
+                <ChevronRightIcon aria-hidden className="size-4" />
+              </button>
+            </div>
+          ) : null}
           <div className="fsdb-layout-wrap" ref={layoutRef}>
             <button
               type="button"
