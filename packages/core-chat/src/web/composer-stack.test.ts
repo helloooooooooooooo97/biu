@@ -221,7 +221,7 @@ describe('composer dock stacking above sticky user', () => {
   it('paints inspector trajectory and usage on the same sidebar token as the left rail', () => {
     const css = readFileSync(resolve(root, 'web/style.css'), 'utf8')
     expect(css).toMatch(/\.traj-root\s*\{[^}]*background:\s*var\(--dsw-sidebar\)/s)
-    expect(css).toMatch(/\[data-testid='session-inspector'\] \.usage-panel\s*\{[^}]*background:\s*var\(--dsw-sidebar\)/s)
+    expect(css).toMatch(/\[data-testid='session-inspector'\] \.usage-panel\s*\{[^}]*background:\s*var\(--dsw-bg\)/s)
     expect(css).toMatch(/\.session-inspector\s*\{[^}]*background:\s*var\(--dsw-bg\)/s)
     expect(css).toMatch(/\.session-inspector \.app-side-bar-head\s*\{[^}]*background:\s*var\(--dsw-bg\)/s)
     expect(css).toMatch(/\[data-testid='session-inspector'\] \.traj-root[\s\S]*background:\s*var\(--dsw-sidebar\)/)
