@@ -2642,6 +2642,18 @@ export function CollectionBrowser({
             />
           </div>
           <div className="chat-view-header-right">
+            {activeViewId && !selected ? (
+              <button
+                type="button"
+                className={`chat-view-header-expand${viewStarred ? ' is-active' : ''}`}
+                title={viewStarred ? '取消收藏视图' : '收藏视图'}
+                aria-label={viewStarred ? '取消收藏视图' : '收藏视图'}
+                aria-pressed={viewStarred}
+                onClick={() => persistStarredViews(toggleStarredView(getStarredViews(), collectionPath, activeViewId))}
+              >
+                <StarIcon aria-hidden className={`size-4${viewStarred ? ' text-[#f5b700]' : ''}`} />
+              </button>
+            ) : null}
             {nested ? null : (
               <ShareButton
                 target={
@@ -2664,18 +2676,6 @@ export function CollectionBrowser({
                 }
               />
             )}
-            {activeViewId && !selected ? (
-              <button
-                type="button"
-                className={`chat-view-header-expand${viewStarred ? ' is-active' : ''}`}
-                title={viewStarred ? '取消收藏视图' : '收藏视图'}
-                aria-label={viewStarred ? '取消收藏视图' : '收藏视图'}
-                aria-pressed={viewStarred}
-                onClick={() => persistStarredViews(toggleStarredView(getStarredViews(), collectionPath, activeViewId))}
-              >
-                <StarIcon aria-hidden className={`size-4${viewStarred ? ' text-[#f5b700]' : ''}`} />
-              </button>
-            ) : null}
             <div className="fsdb-layout-wrap" ref={layoutRef}>
               <button
                 type="button"

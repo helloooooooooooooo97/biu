@@ -45,6 +45,7 @@ describe('顶栏三级标题', () => {
     expect(trail).not.toContain('data-testid="crumb-expand"')
     expect(style).not.toContain('.fsdb-crumb-expand{position:absolute')
     expect(browser).toContain('<CrumbTrail')
+    expect(browser.indexOf('收藏视图')).toBeLessThan(browser.indexOf('<ShareButton'))
   })
 
   it('中间顶栏面包屑字重和颜色与侧栏标题对齐', () => {
