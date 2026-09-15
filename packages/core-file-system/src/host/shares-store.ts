@@ -187,4 +187,9 @@ export class SharesStore {
       'DELETE FROM shares WHERE kind = ? AND collection = ? AND view_id = ? AND record_id = ?',
     ).run(kind, normalizeCollectionPath(collection), viewId, recordId)
   }
+
+  list(): ShareRecord[] {
+    const rows = this.conn().prepare('SELECT * FROM shares ORDER BY updated_at DESC, token DESC').all() as ShareRow[]
+    return rows.map(publicShare)
+  }
 }

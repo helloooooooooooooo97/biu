@@ -3,6 +3,7 @@ import { collectAssetNames } from './assets-store.ts'
 import type { SavedViewsStore } from './saved-views.ts'
 import { freezeSchema, type ShareSnapshot } from '../share-snapshot.ts'
 import { collectShareResources } from '../share-resources.ts'
+import { savedViewRecordPath } from '../paths.ts'
 import type { ShareRecord } from './shares-store.ts'
 import { encodeListFilter, resolveViewFilterTree } from '../query-logic.ts'
 
@@ -28,7 +29,10 @@ function withResources(
   snap: Omit<ShareSnapshot, 'resources' | 'pluginIds' | 'sharePlugins' | 'allowCopy'>,
   share: ShareRecord,
 ): ShareSnapshot {
-  const resources = collectShareResources(snap.records, snap.contents, snap.records.map((row) => String(row.id)))
+  const resources = collectShareResources(snap.records, snap.contents, {
+    skipIds: snap.records.map((row) => String(row.id)),
+    includeRecords: share.kind === 'view',
+  })
   return {
     ...snap,
     resources: { pages: resources.pages, plugins: resources.plugins, collections: resources.collections },
@@ -67,7 +71,8 @@ export async function buildShareSnapshot(
       schema,
       records: [{ ...record, [schema.contentField ?? 'notes']: undefined }],
       contents,
-      assets: [...collectAssetNames(record, content)],
+      assets: [...collectAssetNames(record, content, record.banner)],
+      banner: record.banner ?? null,
     }, share)
   }
   const stored = savedViews.viewsFor(share.collection).find((item) => item.id === share.viewId)
@@ -98,6 +103,7 @@ export async function buildShareSnapshot(
       contents[row.id] = null
     }
   }
+  const banner = await readShareBanner(db, share.collection, share.viewId)
   return withResources({
     kind: 'view',
     collection: share.collection,
@@ -108,6 +114,21 @@ export async function buildShareSnapshot(
     view,
     records,
     contents,
-    assets: [...collectAssetNames(...records, ...Object.values(contents))],
+    assets: [...collectAssetNames(...records, ...Object.values(contents), banner)],
+    banner,
   }, share)
+}
+
+async function readShareBanner(
+  db: Pick<Database, 'read'>,
+  collection: string,
+  viewId: string,
+) {
+  const path = savedViewRecordPath(collection, viewId)
+  if (!path) return null
+  try {
+    return asRecordRead(await db.read(path)).value?.banner ?? null
+  } catch {
+    return null
+  }
 }

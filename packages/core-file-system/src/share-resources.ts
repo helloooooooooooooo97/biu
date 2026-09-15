@@ -38,12 +38,19 @@ function eatMatches(text: string, re: RegExp, into: Set<string>) {
 export function collectShareResources(
   records: Array<Record<string, unknown>>,
   contents: Record<string, unknown>,
-  selfIds: Iterable<string> = [],
+  opts: { skipIds?: Iterable<string>; includeRecords?: boolean } | Iterable<string> = {},
 ): ShareResourceStats {
-  const skipPages = new Set([...selfIds].map(String))
+  const options = isSkipList(opts) ? { skipIds: opts } : opts
+  const skipPages = new Set([...(options.skipIds ?? [])].map(String))
   const pages = new Set<string>()
   const plugins = new Set<string>()
   const collections = new Set<string>()
+  if (options.includeRecords) {
+    for (const row of records) {
+      const id = String(row.id ?? '').trim()
+      if (id) pages.add(id)
+    }
+  }
   const blobs: unknown[] = [...records, ...Object.values(contents)]
   for (const name of collectAssetNames(...blobs)) pages.add(name)
   for (const blob of blobs) {
@@ -54,7 +61,9 @@ export function collectShareResources(
     eatMatches(text, FACET_MENTION_RE, collections)
     eatMatches(text, COLLECTION_PATH_RE, collections)
   }
-  for (const id of skipPages) pages.delete(id)
+  if (!options.includeRecords) {
+    for (const id of skipPages) pages.delete(id)
+  }
   collections.delete('pages')
   collections.delete('plugins')
   const pluginIds = [...plugins].filter(isSharePluginId).sort()
@@ -64,4 +73,8 @@ export function collectShareResources(
     collections: collections.size,
     pluginIds,
   }
+}
+
+function isSkipList(value: unknown): value is Iterable<string> {
+  return Array.isArray(value)
 }

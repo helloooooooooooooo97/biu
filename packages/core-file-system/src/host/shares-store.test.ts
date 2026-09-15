@@ -42,6 +42,15 @@ test('share flags persist plugin source and copy', () => {
   const again = store.upsert({ kind: 'record', collection: '/pages', recordId: 'p1' })
   assert.equal(again.sharePlugins, true)
   assert.equal(again.allowCopy, false)
+  assert.equal(store.list().length, 1)
+})
+
+test('list returns every share', () => {
+  const store = new SharesStore().open(':memory:')
+  store.upsert({ kind: 'view', collection: '/pages', viewId: 'older' })
+  store.upsert({ kind: 'record', collection: '/pages', recordId: 'p1' })
+  const keys = store.list().map((item) => item.kind + ':' + (item.viewId || item.recordId)).sort()
+  assert.deepEqual(keys, ['record:p1', 'view:older'])
 })
 
 test('parseSharePath only accepts /share tokens', () => {
