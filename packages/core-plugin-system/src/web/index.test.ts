@@ -285,6 +285,14 @@ test('algorithm card drafts locally and saves on blur like html source', async (
   assert.doesNotMatch(src, /data-biu-plugin=\{name\}/)
 })
 
+test('code runner and terminals share a trash icon for clear', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const { resolve } = await import('node:path')
+  const runner = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-code-runner/web.tsx'), 'utf8')
+  assert.match(runner, /aria-label="清空"/)
+  assert.doesNotMatch(runner, />\s*清空\s*</)
+})
+
 test('page-browser is both a page block and the inspector browser', async () => {
   const { readFile } = await import('node:fs/promises')
   const { resolve } = await import('node:path')

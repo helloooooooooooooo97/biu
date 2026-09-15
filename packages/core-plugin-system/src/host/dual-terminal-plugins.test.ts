@@ -109,6 +109,8 @@ describe('terminal store plugins', () => {
     assert.match(web, /function parseHistory/)
     assert.match(web, /pt-history-out/)
     assert.match(web, /className="pt-card"/)
+    assert.match(web, /aria-label="清空"/)
+    assert.doesNotMatch(web, />\s*清空\s*</)
     assert.doesNotMatch(web, /className="pt-dots"/)
     assert.doesNotMatch(web, /entry\.out \? \(\s*<pre/)
     // 后端会话池：按 session key 复用，断开不杀进程
@@ -129,6 +131,8 @@ describe('terminal store plugins', () => {
     assert.match(web, /localStorage/)
     assert.match(web, /pt-history-out/)
     assert.match(web, /function parseHistory/)
+    assert.match(web, /aria-label="清空"/)
+    assert.doesNotMatch(web, />\s*清空\s*</)
     assert.doesNotMatch(web, /gt-dots/)
     assert.match(host, /session/)
     assert.match(host, /buffer/)
