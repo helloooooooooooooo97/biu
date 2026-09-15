@@ -4,6 +4,7 @@ import type { SavedViewsStore } from './saved-views.ts'
 import { freezeSchema, type ShareSnapshot } from '../share-snapshot.ts'
 import { collectShareResources } from '../share-resources.ts'
 import { savedViewRecordPath } from '../paths.ts'
+import { isReadOnlyViewId } from '../catalog-views.ts'
 import type { ShareRecord } from './shares-store.ts'
 import { encodeListFilter, resolveViewFilterTree } from '../query-logic.ts'
 
@@ -126,6 +127,10 @@ async function readShareBanner(
   collection: string,
   viewId: string,
 ) {
+  // The host deliberately has no banner for built-in/read-only views.
+  // Keep the share page on the same rule even if an old banner overlay
+  // still exists for that synthetic /views row.
+  if (isReadOnlyViewId(viewId)) return null
   const path = savedViewRecordPath(collection, viewId)
   if (!path) return null
   try {
