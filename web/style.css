@@ -5444,12 +5444,8 @@ html:not(.dark) .hljs-meta .hljs-string {
   border: 1px solid var(--dsw-border);
   border-radius: 999px;
   background: var(--dsw-sidebar);
-  box-shadow: var(--dsw-shadow-lv2);
-  transition: border-radius 0.12s ease;
-}
-
-html:not(.dark) .composer-pill {
   box-shadow: none;
+  transition: border-radius 0.12s ease;
 }
 
 html:not(.dark) .composer-plus {
