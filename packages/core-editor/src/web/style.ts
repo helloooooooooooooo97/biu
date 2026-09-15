@@ -1,7 +1,7 @@
 import { TAG_TONE_ROSE } from '@biu/public-ui'
 
 export const PAGE_EDITOR_STYLE = `
-.page-editor{position:relative;overflow:visible;min-width:0;width:100%;padding:6px 0 48px;padding-left:0;color:var(--dsw-label);font-family:var(--font-sans);font-size:15px;line-height:1.7;letter-spacing:-.003em}
+.page-editor{position:relative;overflow:visible;min-width:0;width:100%;padding:6px 0 48px;padding-left:0;color:var(--dsw-label);font-family:var(--font-sans);font-size:var(--fsdb-body-size,15px);line-height:var(--fsdb-body-leading,1.7);letter-spacing:-.003em}
 .page-editor.is-source{font-family:var(--font-mono);font-size:14px;letter-spacing:0}
 .page-source{min-width:0;width:100%}
 .page-source .cm-editor{background:transparent}
@@ -134,4 +134,12 @@ html:not(.dark) .page-bubble{box-shadow:none}
 .page-blocks-view .page-block{margin:0}
 .page-blocks-view .page-block iframe{pointer-events:auto}
 .page-blocks-detail{padding:0 0 32px}
+html[data-body-size=sm]{--fsdb-body-size:14px}
+html[data-body-size=lg]{--fsdb-body-size:17.5px}
+html[data-body-gap=sm]{--fsdb-body-leading:1.5}
+html[data-body-gap=lg]{--fsdb-body-leading:1.9}
+html[data-body-gap=sm] .page-editor .tiptap p,html[data-body-gap=sm] .page-editor .tiptap h1,html[data-body-gap=sm] .page-editor .tiptap h2,html[data-body-gap=sm] .page-editor .tiptap h3,html[data-body-gap=sm] .page-editor .tiptap ul,html[data-body-gap=sm] .page-editor .tiptap ol,html[data-body-gap=sm] .page-editor .tiptap blockquote,html[data-body-gap=sm] .page-editor .tiptap pre{margin:0}
+html[data-body-gap=lg] .page-editor .tiptap p,html[data-body-gap=lg] .page-editor .tiptap h1,html[data-body-gap=lg] .page-editor .tiptap h2,html[data-body-gap=lg] .page-editor .tiptap h3,html[data-body-gap=lg] .page-editor .tiptap ul,html[data-body-gap=lg] .page-editor .tiptap ol,html[data-body-gap=lg] .page-editor .tiptap blockquote,html[data-body-gap=lg] .page-editor .tiptap pre{margin:8px 0}
+html[data-body-gap=sm] .page-editor .tiptap p{min-height:1.45em}
+html[data-body-gap=lg] .page-editor .tiptap p{min-height:2em}
 `

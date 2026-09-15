@@ -2,10 +2,12 @@ import { Context } from 'cordis'
 import './types.ts'
 import './style.css'
 import { applyStoredTheme } from '@biu/web-app-shell/theme'
+import { applyPagePrefs } from '../packages/core-file-system/src/web/page-width.ts'
 import { webRuntimeLoaders } from 'virtual:cordis-web-runtime'
 import { isShareHref, mountShareApp } from './share-mount.tsx'
 
 applyStoredTheme()
+applyPagePrefs()
 
 const el = document.querySelector<HTMLElement>('#app')
 if (!el) throw new Error('#app missing')

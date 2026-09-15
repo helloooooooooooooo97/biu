@@ -4839,7 +4839,8 @@ html.dark .chat-overlay-panel {
 }
 
 .chat-outline:hover,
-.chat-outline:focus-within {
+.chat-outline:focus-within,
+html[data-outline-pin="1"] .chat-outline {
   opacity: 1;
 }
 
@@ -4914,9 +4915,9 @@ html.dark .chat-overlay-panel {
   max-height: min(56vh, 420px);
   overflow: auto;
   transform: translateY(-50%);
-  border: 0;
+  border: 1px solid var(--dsw-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--dsw-sidebar) 88%, transparent);
   padding: 6px;
   box-shadow: var(--dsw-shadow-lv2);
   backdrop-filter: blur(16px) saturate(1.2);
@@ -4953,7 +4954,7 @@ html.dark .chat-overlay-panel {
 
 .chat-outline-item:hover,
 .chat-outline-item.is-active {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--dsw-hover);
   color: var(--dsw-sidebar-fg-active);
 }
 
@@ -6015,6 +6016,19 @@ html:not(.dark) .composer-plus {
 html:not(.dark) .composer-send,
 html:not(.dark) .composer-send:disabled {
   color: #5f5e5a;
+}
+
+html.dark .chat-outline-tick::after {
+  opacity: 0.5;
+}
+
+html.dark .chat-outline-tick.is-robot::after {
+  opacity: 0.32;
+}
+
+html.dark .chat-outline-tick:hover::after,
+html.dark .chat-outline-tick.is-active::after {
+  opacity: 0.92;
 }
 
 html.dark .composer-send,

@@ -4,8 +4,6 @@ import type { CollectionChrome } from '@biu/type-file-system/ui'
 import {
   AdjustmentsHorizontalIcon,
   ArrowDownTrayIcon,
-  ArrowsPointingInIcon,
-  ArrowsPointingOutIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CubeTransparentIcon,
@@ -31,7 +29,8 @@ import { applyShareQuery, loadShareQuery, saveShareQuery, shareQueryFromView, ty
 import { collectQueryFields } from '../query-logic.ts'
 import { ShareViewQueryBar } from './share-view-bar.tsx'
 import { ShareCell, ShareListTable } from './share-table.tsx'
-import { getPageWidth, persistPageWidth, subscribePageWidth } from './page-width.ts'
+import { getPagePrefs, subscribePageWidth } from './page-width.ts'
+import { LayoutPrefsMenu } from './layout-prefs-menu.tsx'
 import { PagerSizeControl } from './pager-size.tsx'
 import { normalizePageSize } from './saved-view.ts'
 
@@ -169,11 +168,12 @@ function SharePage({
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [ownerOpen, setOwnerOpen] = useState(false)
   const [pluginsReady, setPluginsReady] = useState(false)
-  const [pageWidth, setPageWidth] = useState(getPageWidth)
+  const [pagePrefs, setPagePrefs] = useState(getPagePrefs)
+  const pageWidth = pagePrefs.wide ? 'full' : 'max'
   const [theme, setTheme] = useState(readShareTheme)
   const [reload, setReload] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
-  useEffect(() => subscribePageWidth(() => setPageWidth(getPageWidth())), [])
+  useEffect(() => subscribePageWidth(() => setPagePrefs(getPagePrefs())), [])
   const layoutRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -431,32 +431,7 @@ function SharePage({
             </button>
             {layoutOpen ? (
               <HeadlessDismiss onDismiss={() => setLayoutOpen(false)} insideRef={layoutRef}>
-                <div className="fsdb-layout-menu" role="menu" data-testid="fsdb-share-layout-menu">
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    className={`fsdb-layout-opt${pageWidth === 'max' ? ' is-active' : ''}`}
-                    title="最大宽度"
-                    aria-label="最大宽度"
-                    aria-checked={pageWidth === 'max'}
-                    data-testid="fsdb-share-layout-max"
-                    onClick={() => persistPageWidth('max')}
-                  >
-                    <ArrowsPointingInIcon aria-hidden className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    className={`fsdb-layout-opt${pageWidth === 'full' ? ' is-active' : ''}`}
-                    title="全宽"
-                    aria-label="全宽"
-                    aria-checked={pageWidth === 'full'}
-                    data-testid="fsdb-share-layout-full"
-                    onClick={() => persistPageWidth('full')}
-                  >
-                    <ArrowsPointingOutIcon aria-hidden className="size-4" />
-                  </button>
-                </div>
+                <LayoutPrefsMenu prefs={pagePrefs} testPrefix="fsdb-share-layout" />
               </HeadlessDismiss>
             ) : null}
           </div>

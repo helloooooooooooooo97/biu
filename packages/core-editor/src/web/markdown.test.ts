@@ -118,7 +118,7 @@ test('slash suggestion uses a fixed high stacking context', async () => {
   assert.match(src, /MENU_HEIGHT = 280|Math.min\(280/)
   assert.match(src, /width: Math.max\(rects.floating.width, 240\)/)
   assert.match(css, /\.page-editor\{[^}]*font-family:var\(--font-sans\)/)
-  assert.match(css, /\.page-editor\{[^}]*font-size:15px/)
+  assert.match(css, /\.page-editor\{[^}]*font-size:var\(--fsdb-body-size,15px\)/)
   assert.match(css, /\.page-editor \.page-block\{[^}]*isolation:isolate/)
   assert.match(css, /\.page-editor \.tiptap ul\{list-style-type:disc\}/)
   assert.match(css, /\.page-editor \.tiptap ol\{list-style-type:decimal\}/)

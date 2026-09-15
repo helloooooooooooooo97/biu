@@ -49,8 +49,21 @@ export function OutlineNav({
     }, 140)
   }
 
+  function outlineExpandOn() {
+    return typeof document === 'undefined' || document.documentElement.getAttribute('data-outline-expand') !== '0'
+  }
+
+  useEffect(() => {
+    const onPrefs = () => {
+      if (!outlineExpandOn()) setHoverId(null)
+    }
+    window.addEventListener('biu:page-prefs', onPrefs)
+    return () => window.removeEventListener('biu:page-prefs', onPrefs)
+  }, [])
+
   function hoverTick(id: string) {
     keepOpen()
+    if (!outlineExpandOn()) return
     setHoverId(id)
   }
 
