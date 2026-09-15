@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowPathIcon, CpuChipIcon, UserIcon } from '@heroicons/react/16/solid'
+import { ArrowPathIcon, CpuChipIcon, UserIcon } from '@heroicons/react/24/outline'
 import { SidebarMascot, resolveSessionMascot } from '@biu/public-mascot'
 import { asPerson, asPersonList, personKey, type PersonValue } from '@biu/type-file-system'
 import { listCollection } from './db-client.ts'

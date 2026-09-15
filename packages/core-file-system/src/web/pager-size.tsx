@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bars3BottomLeftIcon, CheckIcon } from '@heroicons/react/16/solid'
+import { Bars3BottomLeftIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { HeadlessPopover } from '@biu/public-ui'
 import { normalizePageSize, PAGE_SIZES } from './saved-view.ts'
 

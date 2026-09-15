@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Image } from 'antd'
-import { ArrowUpTrayIcon, PaperClipIcon, XMarkIcon, ArrowDownTrayIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/16/solid'
+import { ArrowUpTrayIcon, PaperClipIcon, XMarkIcon, ArrowDownTrayIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import { asAttachmentList, asHttpHref, asImageSrcList, commitAttachments } from '@biu/type-file-system'
 import { LocalText } from './controls.tsx'
 

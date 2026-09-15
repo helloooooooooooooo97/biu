@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { Context } from 'cordis'
-import { MapIcon } from '@heroicons/react/16/solid'
+import { MapIcon } from '@heroicons/react/24/outline'
 import '@biu/type-host-context'
 import * as slots from '@biu/web-slots'
 import * as appModules from '@biu/web-app-modules'

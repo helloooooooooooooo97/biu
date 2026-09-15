@@ -8,7 +8,7 @@ import {
   CircleStackIcon,
   Cog6ToothIcon,
   MagnifyingGlassIcon,
-} from '@heroicons/react/16/solid'
+} from '@heroicons/react/24/outline'
 import { AnchorMenu } from '@biu/public-ui'
 import { setChatOverlay } from './chat-overlay.ts'
 import { chromeIcon } from './chrome-icon.ts'
