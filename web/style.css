@@ -4850,8 +4850,8 @@ html[data-outline-pin="1"] .chat-outline {
   flex: none;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  min-width: 12px;
+  gap: 2px;
+  min-width: 22px;
   max-height: min(72vh, 640px);
   overflow-x: visible;
   overflow-y: auto;
@@ -4860,10 +4860,11 @@ html[data-outline-pin="1"] .chat-outline {
 }
 
 .chat-outline-tick {
-  display: block;
+  display: flex;
   flex: none;
-  width: 14px;
-  height: 5px;
+  align-items: center;
+  width: 22px;
+  height: 16px;
   margin: 0;
   border: 0;
   background: transparent;
