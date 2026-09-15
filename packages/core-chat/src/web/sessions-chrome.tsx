@@ -26,9 +26,9 @@ function sessionMascot(record: DbRecord) {
   }
 }
 
-function SessionIcon({ record }: { record: DbRecord }) {
+function SessionIcon({ record, size = 20 }: { record: DbRecord; size?: number }) {
   const identity = resolveSessionMascot(String(record.id), sessionMascot(record))
-  return <SidebarMascot size={20} sessionId={String(record.id)} identity={identity} animate={false} title="" />
+  return <SidebarMascot size={size} sessionId={String(record.id)} identity={identity} animate={false} title="" />
 }
 
 function SessionTitle({ label }: { record: DbRecord; label: string }) {

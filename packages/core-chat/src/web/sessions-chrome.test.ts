@@ -11,7 +11,7 @@ test('session table uses mascot as the standalone icon property, title is just t
   assert.equal(typeof chrome.Icon, 'function')
   const src = readFileSync(resolve(import.meta.dirname, './sessions-chrome.tsx'), 'utf8')
   assert.match(src, /function SessionIcon/)
-  assert.match(src, /size=\{20\}/)
+  assert.match(src, /size=\{size\}/)
   assert.match(src, /SidebarMascot/)
   assert.match(src, /resolveSessionMascot/)
   assert.match(src, /sessions-title-label/)

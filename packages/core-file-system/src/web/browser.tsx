@@ -102,7 +102,7 @@ import {
 import { ShareButton } from './share-popover.tsx'
 import { ensureFsdbStyle } from './fsdb-style.ts'
 import { RecordDetail } from './record-detail.tsx'
-import { PageBanner } from './page-banner.tsx'
+import { PageBanner, BannerTitleActions } from './page-banner.tsx'
 import { TableGlyph, ViewModeGlyph } from './nav-glyphs.tsx'
 import { countFittingViewTabs, splitVisibleViews } from './view-tabs.ts'
 import { getPick } from '@biu/core-pick/web'
@@ -2750,8 +2750,30 @@ export function CollectionBrowser({
         />
         <div className="fsdb-detail-icon-slot">
           <span className="fsdb-detail-title-icon" aria-hidden>
-            <TableGlyph icon={currentTable?.view?.icon} className="size-8" />
+            <TableGlyph icon={currentTable?.view?.icon} className="size-16" />
           </span>
+          {activeViewId ? (
+            <BannerTitleActions
+              value={viewBanner}
+              writable
+              path={savedViewRecordPath(collectionPath, activeViewId)}
+              title={activeView?.name ?? title}
+              onChange={(next) => {
+                const path = savedViewRecordPath(collectionPath, activeViewId)
+                if (!path) return
+                setViewBanner(next)
+                void readJson<{ value?: { banner?: unknown } }>('/api/db/update', {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ path, content: { banner: next } }),
+                }).then((data) => {
+                  setViewBanner(data.value?.banner ?? next)
+                }).catch(() => {
+                  setViewBanner(next)
+                })
+              }}
+            />
+          ) : null}
         </div>
         <div className="fsdb-detail-title-row">
           <div className="fsdb-detail-title-block">
