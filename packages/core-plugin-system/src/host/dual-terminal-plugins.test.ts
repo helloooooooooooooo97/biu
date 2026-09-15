@@ -98,6 +98,10 @@ describe('terminal store plugins', () => {
       assert.match(web, /binaryType = 'arraybuffer'/)
       assert.doesNotMatch(web, /setProperty\('clip-path'/)
     }
+    const page = await readFile(pluginFile('page-terminal', 'web.tsx'), 'utf8')
+    assert.match(page, /pt-xterm-style-v3/)
+    assert.match(page, /\.pt-pane \.xterm-viewport::-webkit-scrollbar/)
+    assert.match(page, /overflow-y: scroll !important/)
   })
 
   it('page terminal persists history into block data and keeps sessions alive', async () => {
