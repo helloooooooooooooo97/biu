@@ -162,7 +162,7 @@ const SessionRow = memo(function SessionRow({
           onPin(item)
         }}
       >
-        <StarIcon className={chromeIconClass(pinned ? 'text-[#f5b700]' : undefined)} />
+        <StarIcon {...chromeIcon} />
       </button>
     </div>
   )
@@ -409,7 +409,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                                   <span className="sidebar-rail-icon sidebar-group-fold" aria-hidden>
                                     <span className="sidebar-group-fold-face">
                                       {group.kind === 'pinned' ? (
-                                        <StarIcon className={chromeIconClass('text-[#f5b700]')} />
+                                        <StarIcon {...chromeIcon} />
                                       ) : group.key === UNGROUPED_PROJECT_KEY ? (
                                         <FolderMinusIcon className={chromeIconClass('opacity-80')} />
                                       ) : group.key === UNGROUPED_TAG_KEY ? (

@@ -367,7 +367,7 @@ function ViewRecordPreview({
                 toggleRecordStar(row)
               }}
             >
-              <StarIcon className={`size-4 shrink-0${starred ? ' text-[#f5b700]' : ''}`} />
+              <StarIcon className="size-4 shrink-0" />
             </button>
           </div>
           <SidebarFold open={expanded}>
@@ -815,7 +815,7 @@ export const DataSidebar = memo(function DataSidebar({
                       title={starred ? '取消收藏' : '收藏'}
                       onClick={() => toggleStar(table.path, view.id)}
                     >
-                      <StarIcon className={`size-4 shrink-0${starred ? ' text-[#f5b700]' : ''}`} />
+                      <StarIcon className="size-4 shrink-0" />
                     </button>
                   </div>
                   <SidebarFold open={expanded}>
@@ -1069,7 +1069,7 @@ export const DataSidebar = memo(function DataSidebar({
                             title="取消收藏"
                             onClick={() => persistStarredRecords(toggleStarredRecord(getStarredRecords(), table.path, item.recordId))}
                           >
-                            <StarIcon className="size-4 shrink-0 text-[#f5b700]" />
+                            <StarIcon className="size-4 shrink-0" />
                           </button>
                         </div>
                         {nested && view ? (
@@ -1140,7 +1140,7 @@ export const DataSidebar = memo(function DataSidebar({
                             title="取消收藏"
                             onClick={() => toggleStar(table.path, view.id)}
                           >
-                            <StarIcon className="size-4 shrink-0 text-[#f5b700]" />
+                            <StarIcon className="size-4 shrink-0" />
                           </button>
                         </div>
                         <SidebarFold open={expanded}>
