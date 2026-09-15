@@ -6,6 +6,7 @@ import { Service, type Context } from 'cordis'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { HUB_CHANGE } from '@biu/type-http'
 import type { Method, RouteContext, RouteHandler } from '@biu/type-http'
+import { isShareApiPath, isSharePublicPath } from './share-gate.ts'
 
 interface Route {
   method: Method
@@ -57,13 +58,26 @@ export type HttpListenConfig = {
   port?: number
   host?: string
   publicDir?: string
+  /** LAN listener that only serves share pages. 0 = off. */
+  sharePort?: number
+  shareHost?: string
+}
+
+function defaultSharePort() {
+  const raw = process.env.SHARE_PORT
+  if (raw !== undefined && raw !== '') return Number(raw)
+  if (process.env.VITEST) return 0
+  return 3142
 }
 
 function resolveListenConfig(config?: HttpListenConfig) {
+  const sharePortRaw = config?.sharePort ?? defaultSharePort()
   return {
     port: Number(config?.port ?? process.env.PORT ?? 3141),
     host: config?.host ?? process.env.HTTP_HOST ?? '127.0.0.1',
     publicDir: config?.publicDir ?? join(process.cwd(), 'public'),
+    sharePort: Number.isFinite(sharePortRaw) ? sharePortRaw : 0,
+    shareHost: config?.shareHost ?? process.env.SHARE_HOST ?? '0.0.0.0',
   }
 }
 
@@ -82,11 +96,11 @@ export class HttpService extends Service {
   /** 同一 HTTP server 上只能有一条 upgrade 路由；多挂几个 `ws.Server({ server })` 会互相 abort 握手。 */
   private wsServers = new Map<string, WebSocketServer>()
 
-  constructor(ctx: Context, public config: { port: number; host: string; publicDir: string }) {
+  constructor(ctx: Context, public config: { port: number; host: string; publicDir: string; sharePort: number; shareHost: string }) {
     super(ctx, 'http')
     ctx.effect(() => {
       const server = createServer((req, res) => {
-        void this.dispatch(req, res)
+        void this.dispatch(req, res, false)
       })
       this.server = server
       const hub = new WebSocketServer({ noServer: true })
@@ -123,7 +137,7 @@ export class HttpService extends Service {
       const host = config.host ?? '127.0.0.1'
       server.listen(config.port, host, () => {
         ctx.emit('http/ready', { port: config.port })
-        ctx.logger('http').info(`listening on http://${host}:${config.port}${host === '0.0.0.0' ? ' (内网可达)' : ''}`)
+        ctx.logger('http').info(`listening on http://${host}:${config.port}${host === '0.0.0.0' ? ' (内网可达，整站暴露)' : ''}`)
       })
       return () =>
         new Promise<void>((resolve) => {
@@ -135,6 +149,37 @@ export class HttpService extends Service {
           server.close(() => resolve())
         })
     }, 'http.listen')
+    const sharePort = config.sharePort
+    if (sharePort > 0 && sharePort !== config.port) {
+      ctx.effect(() => {
+        const shareHost = config.shareHost ?? '0.0.0.0'
+        const shareServer = createServer((req, res) => {
+          void this.dispatch(req, res, true)
+        })
+        shareServer.on('upgrade', (_req, socket) => {
+          socket.destroy()
+        })
+        shareServer.on('error', (error: NodeJS.ErrnoException) => {
+          if (error.code === 'EADDRINUSE') {
+            ctx.logger('http').error(
+              `分享端口 ${sharePort} 已被占用。换 SHARE_PORT，或 lsof -ti:${sharePort} | xargs kill`,
+            )
+          } else {
+            ctx.logger('http').error(error)
+          }
+        })
+        shareServer.listen(sharePort, shareHost, () => {
+          ctx.emit('http/share-ready', { port: sharePort })
+          ctx.logger('http').info(
+            `share-only listening on http://${shareHost}:${sharePort} （仅 /share 与 /api/share，不暴露本机工作台）`,
+          )
+        })
+        return () =>
+          new Promise<void>((resolve) => {
+            shareServer.close(() => resolve())
+          })
+      }, 'http.share.listen')
+    }
   }
 
   route(method: Method, pattern: string, handler: RouteHandler) {
@@ -175,24 +220,35 @@ export class HttpService extends Service {
     return this.routes.map(({ method, pattern }) => ({ method, pattern }))
   }
 
-  private async dispatch(req: IncomingMessage, res: ServerResponse) {
+  private async dispatch(req: IncomingMessage, res: ServerResponse, shareOnly: boolean) {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`)
     const method = (req.method ?? 'GET').toUpperCase() as Method
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Share-Password',
       'Access-Control-Max-Age': '86400',
     }
     // CORS 预检：跨内网机器的浏览器请求，先给 OPTIONS 放行
     if ((req.method ?? '').toUpperCase() === 'OPTIONS') {
+      if (shareOnly && !isSharePublicPath(url.pathname)) {
+        res.writeHead(404, { 'content-type': 'application/json; charset=utf-8', ...corsHeaders })
+        res.end(JSON.stringify({ error: 'share-only listener' }))
+        return
+      }
       res.writeHead(204, corsHeaders)
       res.end()
+      return
+    }
+    if (shareOnly && !isSharePublicPath(url.pathname)) {
+      res.writeHead(404, { 'content-type': 'application/json; charset=utf-8', ...corsHeaders })
+      res.end(JSON.stringify({ error: 'share-only listener — workstation stays on localhost' }))
       return
     }
     // 静态段优先于 :param，避免 `/api/approvals/mode` 被 `/api/approvals/:id` 吃掉
     const match = this.routes
       .filter((route) => route.method === method && route.regexp.test(url.pathname))
+      .filter((route) => !shareOnly || isShareApiPath(url.pathname))
       .sort((a, b) => a.keys.length - b.keys.length || b.pattern.length - a.pattern.length)[0]
     if (match) {
       const result = url.pathname.match(match.regexp)
@@ -231,14 +287,36 @@ export class HttpService extends Service {
       return
     }
     if (method === 'GET') {
-      await this.serveStatic(url.pathname, res)
+      if (shareOnly && isShareApiPath(url.pathname)) {
+        res.writeHead(404, { 'content-type': 'application/json; charset=utf-8', ...corsHeaders })
+        res.end(JSON.stringify({ error: 'not found' }))
+        return
+      }
+      const proxied = shareOnly ? await this.proxyShareUi(url.pathname, res) : false
+      if (proxied) return
+      await this.serveStatic(url.pathname, res, shareOnly)
       return
     }
     res.writeHead(404, { 'content-type': 'application/json; charset=utf-8', ...corsHeaders })
     res.end(JSON.stringify({ error: 'not found' }))
   }
 
-  private async serveStatic(pathname: string, res: ServerResponse) {
+  private async proxyShareUi(pathname: string, res: ServerResponse) {
+    const base = process.env.SHARE_PROXY_UI?.replace(/\/$/, '')
+    if (!base) return false
+    try {
+      const upstream = await fetch(`${base}${pathname}`)
+      const buf = Buffer.from(await upstream.arrayBuffer())
+      const type = upstream.headers.get('content-type') ?? MIME[extname(pathname)] ?? 'application/octet-stream'
+      res.writeHead(upstream.status, { 'content-type': type })
+      res.end(buf)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private async serveStatic(pathname: string, res: ServerResponse, shareOnly = false) {
     const relative = (pathname === '/' ? '/index.html' : pathname).replace(/\.\./g, '')
     try {
       const data = await readFile(join(this.config.publicDir, relative))
@@ -250,7 +328,11 @@ export class HttpService extends Service {
         res.end(JSON.stringify({ error: 'not found — 对应插件可能已卸载' }))
         return
       }
-      // SPA fallback：前端 History 路由（/s/:id…）回落到 index.html
+      if (shareOnly && !pathname.startsWith('/share')) {
+        res.writeHead(404).end('not found')
+        return
+      }
+      // SPA fallback：前端 History 路由（/s/:id… 或 /share/:token）回落到 index.html
       try {
         const data = await readFile(join(this.config.publicDir, 'index.html'))
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })

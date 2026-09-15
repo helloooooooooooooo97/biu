@@ -24,6 +24,7 @@ describe('顶栏三级标题', () => {
     const page = readFileSync(resolve(import.meta.dirname, './index.tsx'), 'utf8')
     expect(page).toMatch(/onOpenView=\{\(viewId\) => go\(\{ collection: currentPath, viewId \}\)/)
     expect(trail).toContain('createPortal')
+    expect(trail).toContain('overlayPortalRoot')
     expect(trail).toContain('data-fsdb-crumb-menu')
     expect(trail).toContain('fsdb-crumb-search')
     expect(trail).toContain('添加视图')

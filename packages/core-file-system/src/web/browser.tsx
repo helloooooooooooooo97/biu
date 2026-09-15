@@ -100,6 +100,7 @@ import {
   visibleActions,
   placedActions,
 } from './fsdb-cells.tsx'
+import { ShareButton } from './share-popover.tsx'
 import { ensureFsdbStyle } from './fsdb-style.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { PageBanner } from './page-banner.tsx'
@@ -2641,6 +2642,28 @@ export function CollectionBrowser({
             />
           </div>
           <div className="chat-view-header-right">
+            {nested ? null : (
+              <ShareButton
+                target={
+                  detailId
+                    ? {
+                        kind: 'record' as const,
+                        collection: collectionPath,
+                        viewId: activeViewId ?? undefined,
+                        recordId: detailId,
+                        title: String(detailRow?.title ?? title),
+                      }
+                    : activeViewId
+                      ? {
+                          kind: 'view' as const,
+                          collection: collectionPath,
+                          viewId: activeViewId,
+                          title: activeView?.name ?? title,
+                        }
+                      : null
+                }
+              />
+            )}
             {activeViewId && !selected ? (
               <button
                 type="button"

@@ -6,6 +6,7 @@ export { listenOutsideDismiss } from './outside-dismiss.ts'
 export { HeadlessDismiss, HEADLESS_DISMISS_IGNORE } from './headless-dismiss.tsx'
 export { HeadlessPopover } from './headless-popover.tsx'
 export { AnchorMenu } from './anchor-menu.tsx'
+export { overlayPortalRoot, overlayZ, SHARE_OVERLAY_Z } from './overlay-portal.ts'
 export { RecordEmojiBoard } from './emoji-board.tsx'
 export {
   TagChip,

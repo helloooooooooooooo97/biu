@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { HeadlessDismiss, HEADLESS_DISMISS_IGNORE } from '@biu/public-ui'
+import { HeadlessDismiss, HEADLESS_DISMISS_IGNORE, overlayPortalRoot, overlayZ } from '@biu/public-ui'
 import type { FieldType } from '@biu/type-file-system'
 
 export function cellUsesPop(kind: FieldType, writable?: boolean) {
@@ -55,11 +55,11 @@ export function CellPop({
         ref={menuRef}
         className={`fsdb-cell-pop${className ? ` ${className}` : ''}`}
         role="dialog"
-        style={{ position: 'fixed', top: box.top, left: box.left, width: box.width, minHeight: box.minHeight, zIndex: 180 }}
+        style={{ position: 'fixed', top: box.top, left: box.left, width: box.width, minHeight: box.minHeight, zIndex: overlayZ(180) }}
       >
         {children}
       </div>
     </HeadlessDismiss>,
-    document.body,
+    overlayPortalRoot() ?? document.body,
   )
 }

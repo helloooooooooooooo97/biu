@@ -33,6 +33,9 @@ test('parseAppPath covers home, session, and registered plugin modules', () => {
   assert.deepEqual(parseAppPath('/unknown'), { kind: 'home' })
   assert.deepEqual(parseAppPath('/tasks'), { kind: 'home' })
   assert.deepEqual(parseAppPath('/database', plugins), { kind: 'module', moduleId: 'database', path: '/database' })
+  assert.deepEqual(parseAppPath('/share/tok'), { kind: 'share', token: 'tok' })
+  assert.deepEqual(parseAppPath('/share/tok/r/p001'), { kind: 'share', token: 'tok', recordId: 'p001' })
+  assert.equal(isKnownAppPath('/share/tok'), true)
 })
 
 test('database nested routes identify view vs record without touching /s/:id', () => {

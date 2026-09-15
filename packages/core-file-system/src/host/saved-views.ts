@@ -97,6 +97,10 @@ export class SavedViewsStore {
     }
   }
 
+  viewsFor(collectionPath: string): StoredView[] {
+    return this.byPath.get(normalizeCollectionPath(collectionPath)) ?? []
+  }
+
   replace(collectionPath: string, views: StoredView[]) {
     const path = normalizeCollectionPath(collectionPath)
     this.byPath.set(

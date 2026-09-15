@@ -8,6 +8,7 @@ import type { CollectionChrome } from '@biu/type-file-system/ui'
 import { isLegacyDatabasePath, parseAppPath } from '@biu/web-session-view'
 import { pathForCenter, pathForCrumbTarget, type CrumbTarget } from './sidebar-nav.ts'
 import { CollectionBrowser } from './browser.tsx'
+import { ShareRoot } from './share-page.tsx'
 import { DatabaseInspectorBrowse, DatabaseInspectorTab, bindInspectorSnapshot, collectionTabIcon } from './inspector-database.tsx'
 import { applyDatabaseChannelPayload } from './inspector-db-route.ts'
 import { InspectorFollowToggle } from './inspector-follow.tsx'
@@ -313,6 +314,7 @@ export function apply(ctx: Context) {
   }
 
   slots.place('root-overlays', RegisterErrorBanner, { key: 'fsdb-nav-errors', order: 80 })
+  slots.place('root-overlays', ShareRoot, { key: 'fsdb-share-root', order: 90 })
   slots.place('header-tools', InspectorFollowToggle, {
     key: 'inspector-follow',
     order: 11,

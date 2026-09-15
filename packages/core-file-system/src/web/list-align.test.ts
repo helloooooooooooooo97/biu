@@ -211,3 +211,15 @@ test('selected table cells use Super Tag blue when writable and gray when locked
   assert.match(css, /\.fsdb-ref-picked\{[^}]*flex-wrap:wrap/)
   assert.match(css, /\.fsdb-ref-picked-row\{[^}]*width:auto/)
 })
+
+test('share page portals sit above the share overlay', () => {
+  assert.match(css, /\.fsdb-share-page\{[^}]*z-index:220/)
+  assert.match(css, /html\.share \.fsdb-crumb-menu\.is-fixed/)
+  assert.match(css, /html\.share \.fsdb-cellselect-menu/)
+  assert.match(css, /z-index:360!important/)
+  assert.match(css, /html\.share \.fsdb-detail-float-nav/)
+  assert.match(css, /html\.share \.fsdb-share-page \.tasks-toolbar\{justify-content:space-between\}/)
+  assert.match(css, /\.fsdb-share-page \.fsdb-main > :not\(\.fsdb-page-banner\)\{[^}]*margin-inline:auto/)
+  assert.match(css, /\.fsdb-share-page \.tasks-table-wrap\{[^}]*display:block/)
+  assert.match(css, /\.fsdb-share-page \.tasks-table\{[^}]*min-width:100%/)
+})

@@ -1,4 +1,4 @@
-import { dataPath } from '@biu/host-plugin-loader/data-dir'
+import { dataPath, migrateLegacyPageDir } from '@biu/host-plugin-loader/data-dir'
 import type { Context } from 'cordis'
 import type { CollectionSpec } from '@biu/type-file-system'
 import { DATABASE_CHANNEL, REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
@@ -20,7 +20,7 @@ export function pagesCollection(store: PagesStore, index: PageBlocksIndex): Coll
       route: '/pages',
       title: '页面',
       inspector: true,
-      blurb: '每页正文在工作区 .page/<id>.md（YAML 头 + Markdown）。.page/pages.sqlite 只做列表索引（无 notes 列），不扫全部文件。正文用 db_content；改标题/标签等用 db_update。合集用 db_update 写 facet：{tags:["facet-2"],values:{导演:"查泽雷"}}。图片不要写 data URL：先 db_asset write name=xxx.png from=本地文件，再 db_content 插入 ![说明](/api/db/file/xxx.png)。附件在 .biu/assets。树用 parentId。新建 db_create，删除 db_delete。本表没有 db_action。',
+      blurb: '每页正文在工作区 .biu/page/<id>.md（YAML 头 + Markdown）。.biu/pages.sqlite 只做列表索引（无 notes 列），不扫全部文件。正文用 db_content；改标题/标签等用 db_update。合集用 db_update 写 facet：{tags:["facet-2"],values:{导演:"查泽雷"}}。图片不要写 data URL：先 db_asset write name=xxx.png from=本地文件，再 db_content 插入 ![说明](/api/db/file/xxx.png)。附件在 .biu/assets。树用 parentId。新建 db_create，删除 db_delete。本表没有 db_action。',
       order: 25,
       icon: 'document',
     },
@@ -104,9 +104,18 @@ export const name = 'page'
 export const inject = ['database', 'fs']
 
 export function apply(ctx: Context) {
-  // 页面固定存到工作区根（defaultRoot），不随 Session 绑定项目路径漂移，
-  // 否则工具调用（绑定项目）与 HTTP 请求（无 Session）会落到不同目录。
-  const store = new PagesStore(ctx.fs.workspace as WorkspaceFs, dataPath(process.cwd(), 'assets'))
+  // 页面落到工作区 `.biu`（与 file-system / sessions 同一数据目录的父目录）。
+  // 用 defaultRoot，不随 Session 绑定项目路径漂移。
+  const workspaceRoot = ctx.fs.workspace.resolve('.')
+  const root = process.env.VITEST ? workspaceRoot : process.cwd()
+  if (root !== workspaceRoot) migrateLegacyPageDir(workspaceRoot, root)
+  const fs: WorkspaceFs = {
+    resolve: (rel) => ctx.fs.resolveIn(root, rel),
+    read: (rel) => ctx.fs.readIn(root, rel),
+    write: (rel, content) => ctx.fs.writeIn(root, rel, content),
+    list: (rel) => ctx.fs.listIn(root, rel ?? '.'),
+  }
+  const store = new PagesStore(fs, dataPath(root, 'assets'))
   const index = new PageBlocksIndex(store)
   ctx.database.register(pagesCollection(store, index))
   ctx.database.register(pageBlocksCollection(store, index))

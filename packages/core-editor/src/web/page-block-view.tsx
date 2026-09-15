@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type MouseEvent } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, type MouseEvent } from 'react'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
 import { PlayIcon } from '@heroicons/react/16/solid'
@@ -62,7 +62,17 @@ export function PageBlockMissing({ kind, plugin, data }: { kind: string; plugin:
   )
 }
 
-export function PageBlockView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
+function samePageBlockProps(prev: NodeViewProps, next: NodeViewProps) {
+  return (
+    prev.node.attrs.kind === next.node.attrs.kind &&
+    prev.node.attrs.plugin === next.node.attrs.plugin &&
+    prev.node.attrs.id === next.node.attrs.id &&
+    JSON.stringify(prev.node.attrs.data) === JSON.stringify(next.node.attrs.data) &&
+    prev.editor.isEditable === next.editor.isEditable
+  )
+}
+
+export const PageBlockView = memo(function PageBlockView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
   usePageEditorVersion()
   const kind = String(node.attrs.kind ?? 'card')
   const plugin = String(node.attrs.plugin ?? '').trim()
@@ -135,4 +145,4 @@ export function PageBlockView({ node, updateAttributes, editor, getPos }: NodeVi
       )}
     </NodeViewWrapper>
   )
-}
+}, samePageBlockProps)

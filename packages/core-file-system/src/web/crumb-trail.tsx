@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/16/solid'
-import { HeadlessDismiss } from '@biu/public-ui'
+import { HeadlessDismiss, overlayPortalRoot } from '@biu/public-ui'
 import { CrumbItemGlyph, TableGlyph } from './nav-glyphs.tsx'
 import { crumbButtonAction, type Crumb, type CrumbTarget } from './sidebar-nav.ts'
 
@@ -256,7 +256,7 @@ export function CrumbTrail({
               canCreateView={canCreateView}
               canCreateRecord={canCreateRecord}
             />,
-            document.body,
+            overlayPortalRoot() ?? document.body,
           )
         : null}
     </nav>

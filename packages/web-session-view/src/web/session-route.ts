@@ -17,6 +17,7 @@ export type InspectorCenterKind = 'session' | 'collection-view' | 'record' | 'ta
 
 export type AppRoute =
   | { kind: 'home' }
+  | { kind: 'share'; token: string; recordId?: string }
   | { kind: 'session'; sessionId: string; view: RouteView }
   | { kind: 'module'; moduleId: string; path: string }
   | { kind: 'collection-view'; moduleId: string; path: string; collection: string; viewId?: string }
@@ -88,6 +89,14 @@ export function parseAppPath(pathname: string, plugins: AppModule[] = []): AppRo
     return { kind: 'module', moduleId: hit.id, path: hit.path }
   }
   if (path === '/') return { kind: 'home' }
+  const share = path.match(/^\/share\/([^/]+)(?:\/r\/([^/]+))?$/)
+  if (share?.[1]) {
+    return {
+      kind: 'share',
+      token: decodeURIComponent(share[1]),
+      ...(share[2] ? { recordId: decodeURIComponent(share[2]) } : {}),
+    }
+  }
   const match = path.match(/^\/s\/([^/]+)(?:\/(chat|debug|trajectory))?$/)
   if (!match?.[1]) return { kind: 'home' }
   const segment = match[2]
@@ -101,12 +110,17 @@ export function parseAppPath(pathname: string, plugins: AppModule[] = []): AppRo
 export function isKnownAppPath(pathname: string, plugins: AppModule[] = []): boolean {
   const path = normalizePath(pathname)
   if (path === '/') return true
+  if (/^\/share\/[^/]+(?:\/r\/[^/]+)?$/.test(path)) return true
   if (matchRegisteredModule(path, plugins)) return true
   return /^\/s\/[^/]+(?:\/(chat|debug|trajectory))?$/.test(path)
 }
 
 export function buildAppPath(route: AppRoute): string {
   if (route.kind === 'home') return '/'
+  if (route.kind === 'share') {
+    const base = `/share/${encodeURIComponent(route.token)}`
+    return route.recordId ? `${base}/r/${encodeURIComponent(route.recordId)}` : base
+  }
   if (route.kind === 'module') return route.path || `/${route.moduleId}`
   if (route.kind === 'collection-view' || route.kind === 'record') {
     const base = route.path || `/${route.moduleId}`

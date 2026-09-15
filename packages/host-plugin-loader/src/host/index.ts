@@ -27,7 +27,7 @@ const RESOLVED_UI = `\0${VIRTUAL_UI}`
 const VIRTUAL_WEB = 'virtual:cordis-web-runtime'
 const RESOLVED_WEB = `\0${VIRTUAL_WEB}`
 
-export { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, dataDir, dataPath, migrateDataDir } from './data-dir.ts'
+export { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, dataDir, dataPath, migrateDataDir, migrateLegacyPageDir, LEGACY_PAGE_ROOT, PAGE_ROOT, PAGE_DB, PAGE_ASSETS } from './data-dir.ts'
 
 export function pluginWebSpecifier(item: CordisPluginEntry): string | undefined {
   return item.web

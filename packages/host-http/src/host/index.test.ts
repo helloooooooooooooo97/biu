@@ -64,3 +64,40 @@ test('extra ws path does not abort the hub /ws handshake', async () => {
     await fiber.dispose()
   }
 })
+
+test('share listener serves /api/share but not the workstation APIs', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'cordis-http-share-'))
+  const publicDir = join(base, 'public')
+  await mkdir(publicDir, { recursive: true })
+  await writeFile(join(publicDir, 'index.html'), '<html>app</html>')
+  const port = await freePort()
+  const sharePort = await freePort()
+  const ctx = new Context()
+  const ready = new Promise<void>((resolve) => {
+    ctx.on('http/ready', () => resolve())
+  })
+  const shareReady = new Promise<void>((resolve) => {
+    ctx.on('http/share-ready', () => resolve())
+  })
+  const fiber = await ctx.plugin(http, { port, host: '127.0.0.1', publicDir, sharePort, shareHost: '127.0.0.1' })
+  await Promise.all([ready, shareReady])
+  ctx.http.route('GET', '/api/db/list', (route) => {
+    route.send(200, { leaked: true })
+  })
+  ctx.http.route('GET', '/api/share/:token', (route) => {
+    route.send(200, { token: route.params.token })
+  })
+  try {
+    const blocked = await fetch(`http://127.0.0.1:${sharePort}/api/db/list`)
+    assert.equal(blocked.status, 404)
+    const share = await fetch(`http://127.0.0.1:${sharePort}/api/share/abc`)
+    assert.equal(share.status, 200)
+    assert.equal((await share.json()).token, 'abc')
+    const local = await fetch(`http://127.0.0.1:${port}/api/db/list`)
+    assert.equal(local.status, 200)
+    const root = await fetch(`http://127.0.0.1:${sharePort}/`)
+    assert.equal(root.status, 404)
+  } finally {
+    await fiber.dispose()
+  }
+})

@@ -180,6 +180,7 @@ test('asPerson reads user, system, and agent session ids', () => {
   assert.deepEqual(asPerson('用户'), { kind: 'user', name: '用户' })
   assert.deepEqual(asPerson('系统'), { kind: 'system', name: '系统' })
   assert.equal(personKey(asPerson({ kind: 'agent', name: '指挥', sessionId: 's1' })), 's1')
+  assert.equal(asPerson({ kind: 'agent', name: '蓝', sessionId: 's1', mascot: { shape: 'blob', color: 'cyan' } })?.mascot?.shape, 'blob')
   assert.equal(asPerson(''), null)
 })
 
