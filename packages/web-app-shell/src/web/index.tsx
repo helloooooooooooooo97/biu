@@ -45,7 +45,7 @@ import { SessionConfigDialog } from '@biu/web-session-view/dialog'
 import { FolderGlyph } from '@biu/web-session-view/folder-glyph'
 import { OverlayChatWindow } from './overlay-window.tsx'
 import { ShellSettingsAbout, ShellSettingsAppearance, ShellSettingsShortcuts, ShellSettingsUpdate } from './shell-chrome.tsx'
-import { ShellSearchPanel } from './shell-search.tsx'
+import { ShellSearchPanel, isGlobalSearchHotkey } from './shell-search.tsx'
 import { useSlotEntries } from '@biu/web-slots'
 import type { SlotsService } from '@biu/web-slots'
 import { chromeIcon } from './chrome-icon.ts'
@@ -353,11 +353,9 @@ function Shell(props: SlotProps) {
   }, [])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing) return
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
-      if (event.key !== 'f' && event.key !== 'F') return
       const target = event.target
-      if (target instanceof Element && target.closest('.page-editor')) return
+      const inPageEditor = target instanceof Element && Boolean(target.closest('.page-editor'))
+      if (!isGlobalSearchHotkey(event, { inPageEditor })) return
       event.preventDefault()
       event.stopPropagation()
       openSearch()

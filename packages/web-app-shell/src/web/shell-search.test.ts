@@ -13,6 +13,7 @@ import {
   pluginRecordEnabled,
   visibleRowActions,
   previewHitRecord,
+  isGlobalSearchHotkey,
 } from './shell-search.tsx'
 
 test('search opens inspector collections, not chat or database routes', () => {
@@ -198,6 +199,14 @@ test('previewHitRecord drops start/stop after uninstall', () => {
     visibleRowActions([start, stop, { id: 'pack', label: '打包', when: { sandbox: true } }], next).map((item) => item.id),
     ['pack'],
   )
+})
+
+test('⌘⇧F always opens global search; ⌘F skips the page editor', () => {
+  assert.equal(isGlobalSearchHotkey({ key: 'f', metaKey: true, ctrlKey: false, altKey: false, shiftKey: true }), true)
+  assert.equal(isGlobalSearchHotkey({ key: 'F', metaKey: false, ctrlKey: true, altKey: false, shiftKey: true }, { inPageEditor: true }), true)
+  assert.equal(isGlobalSearchHotkey({ key: 'f', metaKey: true, ctrlKey: false, altKey: false, shiftKey: false }), true)
+  assert.equal(isGlobalSearchHotkey({ key: 'f', metaKey: true, ctrlKey: false, altKey: false, shiftKey: false }, { inPageEditor: true }), false)
+  assert.equal(isGlobalSearchHotkey({ key: 'f', metaKey: false, ctrlKey: false, altKey: false, shiftKey: true }), false)
 })
 
 test('opening a session on the left closes search and focuses the composer', () => {
