@@ -4,7 +4,6 @@ import type { FieldSpec } from '@biu/type-file-system'
 import type { CollectionChrome } from '@biu/type-file-system/ui'
 import { ArrowDownTrayIcon, CubeTransparentIcon } from '@heroicons/react/16/solid'
 import { parseSharePath, type ShareSnapshot } from '../share-snapshot.ts'
-import { shareResourceTypeCount } from '../share-resources.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { formatField, defaultColumnKeys } from './fields.ts'
 import { contentToMarkdown, markdownFileName, recordToMarkdown, zipMarkdownPack } from './export-markdown.ts'
@@ -215,7 +214,6 @@ function SharePage({ token, recordId, chrome }: { token: string; recordId: strin
                 onClick={() => setResourcesOpen((open) => !open)}
               >
                 <CubeTransparentIcon aria-hidden className="size-4" />
-                <span className="fsdb-share-res-count">{shareResourceTypeCount(snapshot.resources)}</span>
               </button>
               {resourcesOpen ? (
                 <div className="fsdb-share-res-pop" data-testid="fsdb-share-resources-pop">
