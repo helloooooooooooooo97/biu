@@ -4,7 +4,7 @@ import '@xterm/xterm/css/xterm.css'
 import { makeOverlay, relockAncestors, unlockAncestors, watchZoom } from './zoom.ts'
 
 const React = globalThis.React
-const { useEffect, useRef } = React
+const { useEffect, useLayoutEffect, useRef } = React
 
 export const name = 'page-terminal'
 export const inject = ['pageEditor']
@@ -210,7 +210,7 @@ function buryAuxiliaryNodes(root: HTMLElement) {
   }
 }
 
-const STYLE_ID = 'pt-xterm-style-v4'
+const STYLE_ID = 'pt-xterm-style-v5'
 const STYLE_CSS = `
 .pt-card{
   display:flex;flex-direction:column;overflow:hidden;
@@ -226,9 +226,25 @@ const STYLE_CSS = `
 }
 .pt-title{color:rgba(242,241,237,.78);font-weight:600;letter-spacing:-.01em}
 .pt-history{border-bottom:1px solid rgba(255,255,255,.06);background:#161616}
-.pt-pane .xterm { padding: 0 !important; height: 100%; }
+.pt-mount{position:absolute;inset:0;overflow:hidden;box-sizing:border-box}
+.pt-mount .xterm{
+  width:100%;height:100%;
+  padding:9px 8px 5px 10px;
+  overflow:hidden;box-sizing:border-box;
+}
 .pt-pane .xterm-screen { background: transparent !important; }
 .pt-pane canvas { background: transparent !important; }
+.pt-pane .xterm-helper-textarea{
+  position:absolute !important;top:0;left:-9999em;z-index:-5;
+  width:0;height:0;margin:0 !important;padding:0 !important;
+  overflow:hidden;resize:none;border:0 !important;outline:0 !important;
+  opacity:0 !important;background:transparent !important;
+}
+.pt-pane .xterm-char-measure-element,
+.pt-pane .xterm-width-cache-measure-container{
+  position:absolute !important;top:0 !important;left:-9999em !important;
+  visibility:hidden !important;opacity:0 !important;pointer-events:none !important;
+}
 
 /* xterm 的 canvas（.xterm-screen）盖在 viewport 上面，原生滚动条看不见。
    滚轮仍走 viewport；可见滑块用右侧自定义轨道，z-index 盖过 canvas。 */
@@ -318,7 +334,9 @@ const THEME = {
   brightWhite: '#f0efed',
 }
 
-/** 单个终端面：一个块 = 一个 PTY。 */
+/** 单个终端面：一个块 = 一个 PTY。
+   布局按 5456764d 的最终版：外层 contain:strict + 内层 inset:0；
+   padding 打在 .xterm 上让 FitAddon 扣掉；未可见不 open。不要对缓冲区做 clear。 */
 function TerminalSurface({
   height,
   history,
@@ -335,123 +353,45 @@ function TerminalSurface({
   fill?: boolean
 }) {
   useTerminalStyle()
-  const host = useRef<HTMLDivElement | null>(null)
+  const pane = useRef<HTMLDivElement | null>(null)
+  const mount = useRef<HTMLDivElement | null>(null)
+  const instance = useRef<Terminal | null>(null)
 
-  useEffect(() => {
-    const element = host.current
-    if (!element) return
+  useLayoutEffect(() => {
+    const paneEl = pane.current
+    const element = mount.current
+    if (!paneEl || !element) return
 
-    const term = new Terminal({
-      fontFamily: '"SF Mono", Menlo, Monaco, Consolas, monospace',
-      fontSize: 12,
-      lineHeight: 1.2,
-      cursorBlink: true,
-      cursorStyle: 'block',
-      allowTransparency: true,
-      scrollback: 2000,
-      theme: THEME,
-    })
-    const fit = new FitAddon()
-    term.loadAddon(fit)
-    term.open(element)
-
-    buryAuxiliaryNodes(element)
-    const detachScroll = attachScrollRail(term, element)
-    const observer = new MutationObserver(() => buryAuxiliaryNodes(element))
-    observer.observe(element, { childList: true, subtree: true })
-
-    const fitted = () => {
-      try {
-        fit.fit()
-        return true
-      } catch {
-        return false
-      }
-    }
-    fitted()
-
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+    let disposed = false
+    let frame = 0
+    let secondFrame = 0
+    let term: Terminal | null = null
+    let fit: FitAddon | null = null
     let socket: WebSocket | undefined
-    let raf = 0
-    let hasUserInput = false
-    let startupTimer: number | undefined
-    // 连接延后到布局稳定，避免用错误尺寸启动 shell。
-    raf = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        fitted()
-        socket = new WebSocket(
-          `${protocol}//${location.host}/ws/page-terminal` +
-            `?cols=${term.cols}&rows=${term.rows}&session=${encodeURIComponent(sessionKey)}`,
-        )
-        socket.binaryType = 'arraybuffer'
-        socket.addEventListener('open', () => {
-          const sync = () =>
-            socket?.readyState === WebSocket.OPEN &&
-            socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
-          sync()
-          window.setTimeout(sync, 60)
-          window.setTimeout(sync, 220)
-        })
-        // 纯直通：文本或二进制帧都解码后再交给 xterm。Chrome 上 PTY 常走 binary。
-        socket.addEventListener('message', (event) => {
-          decodePtyChunk(event.data, (chunk) => {
-            if (!chunk) return
-            term.write(chunk, () => {
-              // 新建/重连时 PTY 会先按启动尺寸吐出提示符和回放内容。xterm 随后
-              // fit 到真实高度，那些启动行会留在缓冲区顶部，造成“上面空一大片、
-              // 当前光标被挤到下方看不见”。等首轮输出安静后只保留当前光标行。
-              if (hasUserInput) return
-              if (startupTimer) window.clearTimeout(startupTimer)
-              startupTimer = window.setTimeout(() => {
-                if (hasUserInput) return
-                term.clear()
-                term.scrollToBottom()
-                term.refresh(0, term.rows - 1)
-              }, 120)
-            })
-            recordOutput(chunk)
-          })
-        })
-        socket.addEventListener('close', (event) => {
-          if (event.code === 1000) return
-          const why = event.reason?.trim() || `code ${event.code}`
-          term.write(`\r\n\x1b[31m终端未能启动：${why}\x1b[0m\r\n`)
-        })
-      })
-    })
-
-    // ---- 历史记录采集 ----------------------------------------------------
-    // 思路：累积用户按键，遇到回车就认为一条命令输入完毕；
-    // 该命令之后的 PTY 输出先缓存起来，等"输出安静"后取前几行，写回块数据。
-    //
-    // 之所以用 onData（用户输入）而不是解析回显：onData 给的是纯按键，
-    // 不受 shell 提示符格式影响，简单可靠。
-    const historyRef = [...history]
-    let pendingLine = ''            // 当前正在输入的一行
-    let capturing = false           // 是否正在为「上一条命令」收集输出
-    let outBuffer = ''              // 缓存的输出
+    let detachScroll = () => {}
+    let buryObs: MutationObserver | undefined
+    let dataSub: { dispose(): void } | undefined
+    let resizeSub: { dispose(): void } | undefined
     let outTimer: number | undefined
 
+    const historyRef = [...history]
+    let pendingLine = ''
+    let capturing = false
+    let outBuffer = ''
+
     const stripAnsi = (text: string) =>
-      // 去掉 ANSI 转义、回车覆盖、退格等控制符，只留可读文本
       text
         .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
         .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
         .replace(/\x1b[()][0-9A-Za-z]/g, '')
         .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '')
 
-    // 判断一行是否是 shell 提示符（或提示符擦行残渣）。
-    // 提示符没有统一格式，这里用几个常见特征做启发式判断。
     const isPromptLike = (line: string) => {
       const text = line.trim()
       if (!text) return false
-      // 擦行残渣：整行几乎都是 % 或空格
       if (/^[%\s]+$/.test(text)) return true
-      // 常见的 user@host 提示符
       if (/^\S*@\S*\s*[:~\/.]/.test(text)) return true
-      // 以 (env) user@host 开头
       if (/^\([^)]*\)\s*\S*@\S*/.test(text)) return true
-      // 结尾是 % / $ / # 且含有 @ 或路径
       if (/[@~\/]/.test(text) && /[%$#]\s*$/.test(text)) return true
       return false
     }
@@ -466,8 +406,6 @@ function TerminalSurface({
       const clean = stripAnsi(outBuffer)
         .split('\n')
         .map((line) => line.replace(/\s+$/, ''))
-        // shell 在命令跑完后会立刻画出下一条提示符（含擦行序列残渣），
-        // 那些属于"下一条"，从尾部砍掉，避免污染这条命令的输出。
         .filter((line) => !isPromptLike(line))
         .filter((line, index, all) => !(index === all.length - 1 && line === ''))
       outBuffer = ''
@@ -482,7 +420,6 @@ function TerminalSurface({
     const recordOutput = (chunk: string) => {
       if (!capturing) return
       outBuffer += chunk
-      // 输出一直在动就继续等，安静下来才算这条命令跑完。
       if (outTimer) window.clearTimeout(outTimer)
       outTimer = window.setTimeout(flushHistory, OUTPUT_SETTLE_MS)
     }
@@ -505,76 +442,171 @@ function TerminalSurface({
           continue
         }
         if (ch === '\x03' || ch === '\x04' || ch === '\x1b') {
-          // Ctrl-C / Ctrl-D / ESC：放弃当前行
           pendingLine = ''
           continue
         }
         if (ch >= ' ') pendingLine += ch
       }
     }
-    // ---------------------------------------------------------------------
 
-    const dataSub = term.onData((data) => {
-      hasUserInput = true
-      if (startupTimer) {
-        window.clearTimeout(startupTimer)
-        startupTimer = undefined
+    const isVisible = () => {
+      if (disposed || !element.isConnected) return false
+      const bounds = element.getBoundingClientRect()
+      if (bounds.width < 20 || bounds.height < 20) return false
+      const style = window.getComputedStyle(element)
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.contentVisibility !== 'hidden'
+    }
+
+    const send = (message: Record<string, unknown>) => {
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message))
+    }
+
+    const openVisibleTerminal = () => {
+      if (!isVisible()) return
+      if (!term) {
+        term = new Terminal({
+          allowProposedApi: false,
+          convertEol: false,
+          fontFamily: '"SF Mono", Menlo, Monaco, Consolas, monospace',
+          fontSize: 12,
+          lineHeight: 1.18,
+          cursorBlink: true,
+          cursorStyle: 'block',
+          allowTransparency: true,
+          scrollback: 2000,
+          theme: THEME,
+        })
+        fit = new FitAddon()
+        term.loadAddon(fit)
+        term.open(element)
+        instance.current = term
+        if (!term.element || !term.textarea) {
+          instance.current = null
+          term.dispose()
+          term = null
+          fit = null
+          return
+        }
+        term.textarea.setAttribute('aria-label', '页面终端输入')
+        term.textarea.setAttribute('autocomplete', 'off')
+        Object.assign(term.element.style, {
+          width: '100%',
+          height: '100%',
+          padding: '9px 8px 5px 10px',
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+        })
+        buryAuxiliaryNodes(element)
+        buryObs = new MutationObserver(() => buryAuxiliaryNodes(element))
+        buryObs.observe(element, { childList: true, subtree: true })
+        detachScroll = attachScrollRail(term, paneEl)
+        try {
+          fit.fit()
+        } catch {
+          // 字体度量还没好，下一帧再 fit。
+        }
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+        socket = new WebSocket(
+          `${protocol}//${location.host}/ws/page-terminal` +
+            `?cols=${term.cols}&rows=${term.rows}&session=${encodeURIComponent(sessionKey)}`,
+        )
+        socket.binaryType = 'arraybuffer'
+        socket.addEventListener('open', () => {
+          if (disposed || !term) return
+          scheduleFit()
+          send({ type: 'resize', cols: term.cols, rows: term.rows })
+        })
+        socket.addEventListener('message', (event) => {
+          decodePtyChunk(event.data, (chunk) => {
+            if (!chunk || disposed || !term) return
+            term.write(chunk)
+            recordOutput(chunk)
+          })
+        })
+        socket.addEventListener('close', (event) => {
+          if (disposed || event.code === 1000 || !term) return
+          const why = event.reason?.trim() || `code ${event.code}`
+          term.write(`\r\n\x1b[31m终端未能启动：${why}\x1b[0m\r\n`)
+        })
+        dataSub = term.onData((data) => {
+          recordInput(data)
+          send({ type: 'input', data })
+        })
+        resizeSub = term.onResize(({ cols, rows }) => send({ type: 'resize', cols, rows }))
       }
-      recordInput(data)
-      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input', data }))
-    })
-    // xterm 列数一变就同步给 PTY，保证 shell 的擦行宽度和显示宽度一致。
-    const resizeSub = term.onResize(({ cols, rows }) => {
-      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'resize', cols, rows }))
-    })
-
-    const resizeObs = new ResizeObserver(() => {
       try {
-        fit.fit()
+        fit?.fit()
+        term.refresh(0, term.rows - 1)
       } catch {
-        return
+        // Ignore transient zero-size layouts while the page is switching.
       }
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
-      }
-    })
+    }
+
+    const scheduleFit = () => {
+      cancelAnimationFrame(frame)
+      cancelAnimationFrame(secondFrame)
+      frame = requestAnimationFrame(() => {
+        openVisibleTerminal()
+        secondFrame = requestAnimationFrame(openVisibleTerminal)
+      })
+    }
+
+    const resizeObs = new ResizeObserver(scheduleFit)
     resizeObs.observe(element)
+    const intersection = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(scheduleFit)
+    intersection?.observe(element)
+    document.addEventListener('visibilitychange', scheduleFit)
+    scheduleFit()
 
     return () => {
+      disposed = true
       if (outTimer) window.clearTimeout(outTimer)
-      if (startupTimer) window.clearTimeout(startupTimer)
-      cancelAnimationFrame(raf)
-      detachScroll()
-      observer.disconnect()
+      cancelAnimationFrame(frame)
+      cancelAnimationFrame(secondFrame)
+      intersection?.disconnect()
+      document.removeEventListener('visibilitychange', scheduleFit)
       resizeObs.disconnect()
-      resizeSub.dispose()
-      dataSub.dispose()
+      buryObs?.disconnect()
+      detachScroll()
+      dataSub?.dispose()
+      resizeSub?.dispose()
       try {
         socket?.close()
       } catch {
         // 可能还没连上。
       }
-      term.dispose()
+      if (instance.current === term) instance.current = null
+      term?.dispose()
     }
   }, [])
 
   return (
     <div
-      ref={host}
+      ref={pane}
       className="pt-pane"
       onKeyDown={(event) => event.stopPropagation()}
+      onMouseDown={(event) => {
+        event.stopPropagation()
+        instance.current?.focus()
+      }}
+      onWheel={(event) => event.stopPropagation()}
       style={{
         position: 'relative',
+        display: 'block',
         width: '100%',
         height: fill ? undefined : height,
         flex: fill ? 1 : undefined,
+        minWidth: 0,
         minHeight: 0,
-        padding: '8px 18px 8px 10px',
+        padding: 0,
         boxSizing: 'border-box',
         overflow: 'hidden',
         background: '#191919',
+        contain: 'strict',
       }}
-    />
+    >
+      <div ref={mount} className="pt-mount" />
+    </div>
   )
 }
 
