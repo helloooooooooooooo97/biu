@@ -382,6 +382,7 @@ const CSS = `
 .fsdb-detail-split{display:flex;flex-direction:column;flex:none;width:100%;min-height:min-content;overflow:visible}
 .fsdb-detail-main{box-sizing:border-box;width:100%;max-width:none;margin-inline:0;display:flex;flex-direction:column;gap:8px;padding:0 0 24px;min-width:0}
 .fsdb-detail-main > :not(.fsdb-page-banner){box-sizing:border-box;width:100%;max-width:var(--dsw-chat-max-width);margin-inline:auto;padding-left:80px;padding-right:80px}
+.fsdb-detail-main > .fsdb-tag-collect{max-width:none;margin-inline:0;padding-left:0;padding-right:0}
 .fsdb-detail-main:not(:has(> .fsdb-page-banner)){padding-top:80px}
 .fsdb-page-banner{position:relative;flex:none;box-sizing:border-box;width:100%;margin:0 0 16px;height:240px;overflow:hidden;background:var(--dsw-bubble);border-radius:0;z-index:2}
 .fsdb-page-banner.is-empty{height:80px;margin-bottom:0;background:transparent}

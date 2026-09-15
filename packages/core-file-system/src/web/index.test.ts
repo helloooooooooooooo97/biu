@@ -90,6 +90,7 @@ test('tag collect table lives on the record board, not as sidebar views', () => 
   assert.match(css, /\.fsdb-plugin-surface\{[^}]*min-height:0/)
   assert.match(css, /\.fsdb-plugin-surface\{[^}]*overflow:hidden/)
   assert.match(css, /\.fsdb-page\.is-sheet \.tasks-main\{[^}]*padding:0;/)
+  assert.match(css, /\.fsdb-detail-main > \.fsdb-tag-collect\{[^}]*padding-left:0/)
   assert.match(css, /\.fsdb-page\.is-sheet \.tasks-table-wrap\{[^}]*padding-left:0/)
   assert.doesNotMatch(css, /\.fsdb-page\.is-sheet \.tasks-main\{[^}]*padding:0 0 0 var\(--fsdb-check-gutter\)/)
   assert.match(browser, /sheet\?: boolean/)
