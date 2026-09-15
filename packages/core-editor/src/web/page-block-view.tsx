@@ -61,18 +61,6 @@ export function PageBlockMissing({ kind, plugin, data }: { kind: string; plugin:
   )
 }
 
-function HtmlPreview({ html }: { html: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const painted = useRef('')
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el || painted.current === html) return
-    el.innerHTML = html
-    painted.current = html
-  }, [html])
-  return <div ref={ref} className="page-block-html-preview" />
-}
-
 function samePageBlockProps(prev: NodeViewProps, next: NodeViewProps) {
   return (
     prev.node.attrs.kind === next.node.attrs.kind &&
@@ -148,8 +136,6 @@ export const PageBlockView = memo(function PageBlockView({ node, updateAttribute
         <div className="page-block-missing">正在复制附件…</div>
       ) : View ? (
         <View data={data} update={update} writable={editor.isEditable} />
-      ) : kind === 'html' && typeof data.html === 'string' && data.html ? (
-        <HtmlPreview html={data.html} />
       ) : (
         <PageBlockMissing kind={kind} plugin={plugin} data={data} />
       )}

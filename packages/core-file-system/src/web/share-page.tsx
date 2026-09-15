@@ -50,11 +50,17 @@ function rewriteAssetUrls(value: unknown, token: string, password: string): unkn
   return value
 }
 
-export function ShareRoot({ chrome }: { chrome?: CollectionChrome } = {}) {
+export function ShareRoot({
+  chrome,
+  loadPlugins,
+}: {
+  chrome?: CollectionChrome
+  loadPlugins?: (token: string, pluginIds: string[], password: string) => Promise<void>
+} = {}) {
   const location = useLocation()
   const parsed = parseSharePath(location.pathname)
   if (!parsed) return null
-  return <SharePage token={parsed.token} recordId={parsed.recordId} chrome={chrome} />
+  return <SharePage token={parsed.token} recordId={parsed.recordId} chrome={chrome} loadPlugins={loadPlugins} />
 }
 
 function downloadShareFile(blob: Blob, name: string) {
@@ -68,7 +74,17 @@ function downloadShareFile(blob: Blob, name: string) {
   URL.revokeObjectURL(href)
 }
 
-function SharePage({ token, recordId, chrome }: { token: string; recordId: string; chrome?: CollectionChrome }) {
+function SharePage({
+  token,
+  recordId,
+  chrome,
+  loadPlugins,
+}: {
+  token: string
+  recordId: string
+  chrome?: CollectionChrome
+  loadPlugins?: (token: string, pluginIds: string[], password: string) => Promise<void>
+}) {
   ensureFsdbStyle()
   const navigate = useNavigate()
   const [password, setPassword] = useState(() => {
@@ -83,6 +99,7 @@ function SharePage({ token, recordId, chrome }: { token: string; recordId: strin
   const [error, setError] = useState('')
   const [snapshot, setSnapshot] = useState<ShareSnapshot | null>(null)
   const [resourcesOpen, setResourcesOpen] = useState(false)
+  const [pluginsReady, setPluginsReady] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -112,6 +129,25 @@ function SharePage({ token, recordId, chrome }: { token: string; recordId: strin
       alive = false
     }
   }, [token, password])
+
+  useEffect(() => {
+    if (!snapshot) {
+      setPluginsReady(false)
+      return
+    }
+    if (!loadPlugins) {
+      setPluginsReady(true)
+      return
+    }
+    let alive = true
+    setPluginsReady(false)
+    void loadPlugins(token, snapshot.pluginIds ?? [], password).finally(() => {
+      if (alive) setPluginsReady(true)
+    })
+    return () => {
+      alive = false
+    }
+  }, [loadPlugins, password, snapshot, token])
 
   const selected = useMemo(() => {
     if (!snapshot) return null
@@ -160,7 +196,7 @@ function SharePage({ token, recordId, chrome }: { token: string; recordId: strin
     )
   }
 
-  if (!snapshot) {
+  if (!snapshot || !pluginsReady) {
     return (
       <div className="fsdb-share-page" data-testid="fsdb-share-page">
         <p className="fsdb-empty">正在打开…</p>
