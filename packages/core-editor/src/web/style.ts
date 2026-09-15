@@ -23,6 +23,7 @@ export const PAGE_EDITOR_STYLE = `
 .page-editor .tiptap h2{font-size:1.5em;font-weight:650;line-height:1.3;margin-top:.75em}
 .page-editor .tiptap h3{font-size:1.25em;font-weight:650;line-height:1.3;margin-top:.6em}
 .page-editor .tiptap [data-heading-plugin]{border-radius:8px}
+.page-editor .react-renderer.node-pageBlock{overflow:hidden;min-width:0}
 .page-editor .page-block[data-page-block]{margin:12px 0;position:relative;z-index:0;isolation:isolate;overflow:hidden}
 .page-editor .page-block iframe{pointer-events:none}
 .page-editor .page-block.ProseMirror-selectednode iframe{pointer-events:auto}
@@ -46,6 +47,10 @@ export const PAGE_EDITOR_STYLE = `
 .page-editor .tiptap blockquote{margin-left:0;padding-left:14px;border-left:3px solid var(--dsw-border);color:var(--dsw-label-2)}
 .page-editor .tiptap hr{border:0;border-top:1px solid var(--dsw-border);margin:18px 0}
 .page-editor .tiptap img{display:block;max-width:100%;height:auto;margin:8px 0;border-radius:8px}
+.page-editor .page-block[data-page-block=excalidraw] img{margin:0;max-width:none;height:unset;border-radius:0}
+.page-editor .page-block[data-page-block=excalidraw] svg,.page-editor .page-block[data-page-block=excalidraw] canvas{display:block;max-width:none;margin:0;border-radius:0}
+.page-editor .page-block[data-page-block=excalidraw] .welcome-screen-center{display:none}
+.page-editor .page-block[data-page-block=terminal] .pt-scroll-rail{position:absolute;top:4px;right:3px;bottom:4px;width:6px;z-index:12}
 .page-editor .tiptap table{width:100%;margin:8px 0;border-collapse:collapse;table-layout:fixed}
 .page-editor .tiptap th,.page-editor .tiptap td{border:1px solid var(--dsw-border);padding:6px 8px;vertical-align:top}
 .page-editor .tiptap th{background:var(--dsw-hover);font-weight:650;text-align:left}

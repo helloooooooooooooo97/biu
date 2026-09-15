@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { describe, it } from 'vitest'
@@ -11,25 +12,21 @@ function pluginFile(id: string, file: string) {
   return resolve(root, '.plugin-dev', id, file)
 }
 
-describe('terminal store plugins', () => {
-  it('declares one headless page block and one resizable window', async () => {
+describe('page terminal store plugin', () => {
+  it('declares a headless page block and does not ship a global window terminal', async () => {
     const page = parseStoreManifest(JSON.parse(await readFile(pluginFile('page-terminal', 'manifest.json'), 'utf8')))
-    const global = parseStoreManifest(JSON.parse(await readFile(pluginFile('global-terminal', 'manifest.json'), 'utf8')))
 
     assert.equal(page.id, 'page-terminal')
     assert.equal(page.headless, true)
     assert.equal(page.shell, undefined)
-    assert.equal(global.id, 'global-terminal')
-    assert.equal(global.headless, undefined)
-    assert.equal(global.shell?.resizable, true)
-    assert.ok((global.shell?.width ?? 0) >= 560)
+    assert.equal(existsSync(pluginFile('global-terminal', 'manifest.json')), false)
   })
 
   it('node-pty spawn-helper is executable so posix_spawnp can start a shell', async () => {
     if (process.platform === 'win32') return
-    const { chmodSync, existsSync, statSync } = await import('node:fs')
+    const { chmodSync, existsSync: exists, statSync } = await import('node:fs')
     const helper = resolve(root, 'node_modules/node-pty/prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
-    if (!existsSync(helper)) return
+    if (!exists(helper)) return
     if ((statSync(helper).mode & 0o111) === 0) chmodSync(helper, 0o755)
     assert.ok(statSync(helper).mode & 0o111, 'spawn-helper must be executable')
     const pty = await import('node-pty')
@@ -52,23 +49,16 @@ describe('terminal store plugins', () => {
     assert.match(buf, /pty-ok/)
   })
 
-  it('bundles both host and web entries as standalone store plugins', async () => {
-    for (const id of ['page-terminal', 'global-terminal']) {
-      const host = await bundleStoreEntry(pluginFile(id, 'host.ts'), 'host')
-      const web = await bundleStoreEntry(pluginFile(id, 'web.tsx'), 'web')
+  it('bundles host and web entries as a standalone store plugin', async () => {
+    const host = await bundleStoreEntry(pluginFile('page-terminal', 'host.ts'), 'host')
+    const web = await bundleStoreEntry(pluginFile('page-terminal', 'web.tsx'), 'web')
 
-      assert.match(host, new RegExp(`/ws/${id}`))
-      assert.match(host, /node-pty/)
-      if (id === 'global-terminal') {
-        assert.match(host, /session/)
-        assert.match(host, /socket=null/)
-        assert.doesNotMatch(host, /socket\.on\('close', dispose\)/)
-      }
-      assert.match(web, new RegExp(`/ws/${id}`))
-      assert.match(web, /type:"resize"/)
-      assert.match(web, /FitAddon|addon-fit/)
-      assert.doesNotMatch(web, /from"@biu\//)
-    }
+    assert.match(host, /\/ws\/page-terminal/)
+    assert.match(host, /node-pty/)
+    assert.match(web, /\/ws\/page-terminal/)
+    assert.match(web, /type:"resize"/)
+    assert.match(web, /FitAddon|addon-fit/)
+    assert.doesNotMatch(web, /from"@biu\//)
   })
 
   it('installs xterm from the plugin package.json instead of the host', async () => {
@@ -88,22 +78,32 @@ describe('terminal store plugins', () => {
     assert.match(readme, /"height"/)
   })
 
-  it('page terminal keeps the helper textarea focusable and hides the measurement nodes', async () => {
-    for (const id of ['page-terminal', 'global-terminal'] as const) {
-      const web = await readFile(pluginFile(id, 'web.tsx'), 'utf8')
-      assert.match(web, /HELPER_TEXTAREA/)
-      assert.match(web, /removeProperty\('display'\)/)
-      assert.match(web, /setProperty\('opacity', '0'/)
-      assert.match(web, /decodePtyChunk/)
-      assert.match(web, /binaryType = 'arraybuffer'/)
-      assert.doesNotMatch(web, /setProperty\('clip-path'/)
-    }
+  it('page terminal keeps the helper textarea focusable and paints a custom scrollbar', async () => {
+    const web = await readFile(pluginFile('page-terminal', 'web.tsx'), 'utf8')
+    assert.match(web, /HELPER_TEXTAREA/)
+    assert.match(web, /removeProperty\('display'\)/)
+    assert.match(web, /setProperty\('opacity', '0'/)
+    assert.match(web, /decodePtyChunk/)
+    assert.match(web, /binaryType = 'arraybuffer'/)
+    assert.doesNotMatch(web, /setProperty\('clip-path'/)
+    assert.match(web, /pt-xterm-style-v5/)
+    assert.match(web, /function attachScrollRail/)
+    assert.match(web, /\.pt-scroll-rail/)
+    assert.match(web, /term\.scrollToLine/)
+    assert.doesNotMatch(web, /term\.clear\(\)/)
+    assert.match(web, /function fitToVisibleBox/)
+    assert.match(web, /getBoundingClientRect/)
+    assert.match(web, /term\.scrollToBottom/)
+    assert.match(web, /new IntersectionObserver\(scheduleFit\)/)
+    assert.match(web, /Object\.assign\(term\.element\.style/)
+    assert.match(web, /contain: 'strict'/)
+    assert.match(web, /className="pt-mount"/)
+    assert.match(web, /padding: '9px 8px 5px 10px'/)
   })
 
   it('page terminal persists history into block data and keeps sessions alive', async () => {
     const web = await readFile(pluginFile('page-terminal', 'web.tsx'), 'utf8')
     const host = await readFile(pluginFile('page-terminal', 'host.ts'), 'utf8')
-    // 历史写回块数据的 history 字段
     assert.match(web, /update\(\{ history: next \}\)/)
     assert.match(web, /HISTORY_MAX/)
     assert.match(web, /function parseHistory/)
@@ -113,28 +113,11 @@ describe('terminal store plugins', () => {
     assert.doesNotMatch(web, />\s*清空\s*</)
     assert.doesNotMatch(web, /className="pt-dots"/)
     assert.doesNotMatch(web, /entry\.out \? \(\s*<pre/)
-    // 后端会话池：按 session key 复用，断开不杀进程
     assert.match(host, /pool/)
     assert.match(host, /maxSessions/)
     assert.match(host, /session/)
     assert.match(host, /\/bin\/zsh/)
     assert.match(host, /\['-i'\]/)
     assert.doesNotMatch(host, /\['-il'\]/)
-  })
-
-  it('global terminal persists command history in localStorage with a stable session', async () => {
-    const web = await readFile(pluginFile('global-terminal', 'web.tsx'), 'utf8')
-    const host = await readFile(pluginFile('global-terminal', 'host.ts'), 'utf8')
-    assert.match(web, /HISTORY_MAX/)
-    assert.match(web, /biu:plugin:global-terminal:history/)
-    assert.match(web, /biu:plugin:global-terminal:sid/)
-    assert.match(web, /localStorage/)
-    assert.match(web, /pt-history-out/)
-    assert.match(web, /function parseHistory/)
-    assert.match(web, /aria-label="清空"/)
-    assert.doesNotMatch(web, />\s*清空\s*</)
-    assert.doesNotMatch(web, /gt-dots/)
-    assert.match(host, /session/)
-    assert.match(host, /buffer/)
   })
 })
