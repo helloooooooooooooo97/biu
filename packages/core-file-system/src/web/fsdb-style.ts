@@ -229,7 +229,7 @@ const CSS = `
 .fsdb-page .tasks-table tbody tr:hover{position:relative;z-index:6}
 .fsdb-page .tasks-table [data-dock-tip]::after{z-index:80}
 .fsdb-page .tasks-table th{padding:6px 6px;color:var(--dsw-label-2);font-size:14px;font-weight:600;position:sticky;top:0;background:var(--dsw-surface);z-index:5;white-space:nowrap}
-.fsdb-page .tasks-table th.is-facet-col{color:color-mix(in srgb,var(--biu-tag) 8%,#fff);background:color-mix(in srgb,var(--biu-tag) 22%,var(--dsw-surface))}
+.fsdb-page .tasks-table th.is-facet-col{color:color-mix(in srgb,var(--biu-tag) 8%,var(--dsw-tag-ink,#2c2c2b));background:color-mix(in srgb,var(--biu-tag) 22%,var(--dsw-surface))}
 .fsdb-page .tasks-table.is-cols-fixed{table-layout:fixed;width:max-content;min-width:0;max-width:none}
 .fsdb-page .tasks-table.is-cols-fixed.is-wrap{width:max-content;max-width:none;min-width:0}
 .fsdb-page .tasks-table.is-cols-fixed col,.fsdb-page .tasks-table.is-cols-fixed th,.fsdb-page .tasks-table.is-cols-fixed td{box-sizing:border-box}

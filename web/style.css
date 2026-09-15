@@ -1,18 +1,18 @@
 @import "tailwindcss";
 
-/* Light chrome — white canvas #ffffff, light gray rails #f5f5f5 */
+/* Light chrome — canvas #ffffff, sidebar #f9f8f7, hairline #f0efed */
 :root {
   color-scheme: light;
   --dsw-bg: #ffffff;
-  --dsw-sidebar: #f5f5f5;
-  --dsw-label: #1a1a1a;
-  --dsw-label-2: rgba(26, 26, 26, 0.72);
-  --dsw-label-3: rgba(26, 26, 26, 0.45);
-  --dsw-placeholder: #999999;
-  --dsw-border: rgba(0, 0, 0, 0.1);
-  --dsw-bubble: #f0f0f0;
-  --dsw-business: #1a1a1a;
-  --dsw-business-soft: rgba(0, 0, 0, 0.06);
+  --dsw-sidebar: #f9f8f7;
+  --dsw-label: #2c2c2b;
+  --dsw-label-2: rgba(44, 44, 43, 0.72);
+  --dsw-label-3: #8d8b87;
+  --dsw-placeholder: #8d8b87;
+  --dsw-border: #f0efed;
+  --dsw-bubble: #f0efed;
+  --dsw-business: #2c2c2b;
+  --dsw-business-soft: rgba(44, 44, 43, 0.06);
   --dsw-input: var(--dsw-bg);
   --dsw-tool: var(--dsw-bg);
   --dsw-surface: var(--dsw-bg);
@@ -24,13 +24,14 @@
   --dsw-pick-stroke: color-mix(in srgb, #2b7de6 40%, transparent);
   --dsw-hover: #ececec;
   --dsw-hover-strong: #e0e0e0;
-  --dsw-sidebar-fg: #666666;
-  --dsw-sidebar-fg-active: #1a1a1a;
+  --dsw-sidebar-fg: #8d8b87;
+  --dsw-sidebar-fg-active: #2c2c2b;
+  --dsw-tag-ink: #2c2c2b;
   --dsw-muted-fill: rgba(0, 0, 0, 0.03);
   --dsw-overlay: rgba(255, 255, 255, 0.72);
   /* 居中浮层（搜索 / 设置 / 会话配置 / 模型配置）对齐侧栏菜单 */
   --dsw-float: #ffffff;
-  --dsw-float-border: #e0e0e0;
+  --dsw-float-border: #f0efed;
   /* Cursor radii: 8px buttons/cards, softer bubble */
   --dsw-radius-bubble: 8px;
   --dsw-radius-card: 8px;
@@ -88,6 +89,7 @@ html.dark {
   --dsw-hover-strong: #2c2c2c;
   --dsw-sidebar-fg: #bcbab6;
   --dsw-sidebar-fg-active: #f0efed;
+  --dsw-tag-ink: #ffffff;
   --dsw-muted-fill: rgba(242, 241, 237, 0.04);
   --dsw-overlay: rgba(25, 25, 25, 0.72);
   --dsw-float: #202020;
@@ -3334,7 +3336,7 @@ body {
 
 /* 右侧检查器：用量卡片用输入条同色底，不要描边 */
 [data-testid='session-inspector'] .usage-panel {
-  background: var(--dsw-sidebar);
+  background: var(--dsw-bg);
   border: 0;
   box-shadow: none;
 }
@@ -3343,7 +3345,7 @@ body {
 [data-testid='session-inspector'] .traj-meta,
 [data-testid='session-inspector'] .traj-head,
 [data-testid='session-inspector'] .traj-detail {
-  background: var(--dsw-sidebar);
+  background: var(--dsw-bg);
   box-shadow: none;
 }
 

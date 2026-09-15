@@ -13,7 +13,7 @@ test('color palettes follow supertag tones', () => {
     assert.ok(TEXT_COLORS.some((item) => item.value === tagTextColor(tone)))
     assert.ok(HIGHLIGHT_COLORS.some((item) => item.value === tagWashColor(tone)))
   }
-  assert.ok(tagTextColor('#d9730d').includes('#ffffff'))
+  assert.ok(tagTextColor('#d9730d').includes('--dsw-tag-ink'))
   assert.ok(tagWashColor('#5b9fd6').includes('22%'))
   assert.match(tagWashColor('#5b9fd6'), /transparent/)
 })
