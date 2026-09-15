@@ -147,24 +147,27 @@ export function ShellSettingsAppearance() {
 
   return (
     <section data-testid="settings-appearance">
-      <p className="settings-muted m-0 px-2 pb-2">界面颜色。日间是当前浅色，夜间是原来的深色主题。</p>
-      <div className="flex flex-col gap-0.5 px-0">
+      <h3 className="settings-pane-title">外观</h3>
+      <p className="settings-muted settings-pane-lead">界面颜色。日间是浅色，夜间是深色。</p>
+      <div className="settings-theme-grid">
         <button
           type="button"
-          className={`settings-nav-btn${theme === 'light' ? ' is-on' : ' settings-muted'}`}
+          className={`settings-theme-card${theme === 'light' ? ' is-on' : ''}`}
           aria-pressed={theme === 'light'}
           data-testid="settings-theme-light"
           onClick={() => pick('light')}
         >
+          <span className="settings-theme-preview is-light" aria-hidden />
           日间模式
         </button>
         <button
           type="button"
-          className={`settings-nav-btn${theme === 'dark' ? ' is-on' : ' settings-muted'}`}
+          className={`settings-theme-card${theme === 'dark' ? ' is-on' : ''}`}
           aria-pressed={theme === 'dark'}
           data-testid="settings-theme-dark"
           onClick={() => pick('dark')}
         >
+          <span className="settings-theme-preview is-dark" aria-hidden />
           夜间模式
         </button>
       </div>
@@ -175,14 +178,15 @@ export function ShellSettingsAppearance() {
 export function ShellSettingsAbout() {
   return (
     <section data-testid="settings-about">
-      <p className="m-0 px-2 text-[14px] font-semibold text-(--dsw-label)">Biu Agent OS</p>
-      <p className="settings-muted m-0 px-2 pt-2">
+      <h3 className="settings-pane-title">关于</h3>
+      <p className="settings-pane-title" style={{ fontSize: 14, fontWeight: 600, margin: '18px 0 8px' }}>Biu Agent OS</p>
+      <p className="settings-muted m-0">
         Apache License 2.0：免费使用、修改、分发与商用；贡献者授予相关专利许可。再分发须保留 LICENSE 与 NOTICE，改过的文件须标明已修改。Grok Bot 角色素材见 NOTICE.md，不在本许可内。
       </p>
-      <p className="settings-muted m-0 px-2 pt-2">
+      <p className="settings-muted m-0" style={{ marginTop: 12 }}>
         public/grok-bot/ 角色素材归 xAI，不随 Apache-2.0 授权；二次分发与商用有侵权风险。详见 NOTICE.md。
       </p>
-      <p className="settings-muted m-0 px-2 pt-2">此前以 MIT 或 PolyForm Noncommercial 发布的快照条款不变；本版本起适用 Apache-2.0。</p>
+      <p className="settings-muted m-0" style={{ marginTop: 12 }}>此前以 MIT 或 PolyForm Noncommercial 发布的快照条款不变；本版本起适用 Apache-2.0。</p>
     </section>
   )
 }
@@ -190,21 +194,22 @@ export function ShellSettingsAbout() {
 export function ShellSettingsShortcuts() {
   return (
     <section data-testid="settings-shortcuts">
-      <ul className="m-0 list-none p-0">
-        <li className="flex items-center justify-between gap-3 px-2 py-1.5">
+      <h3 className="settings-pane-title">快捷键</h3>
+      <p className="settings-muted settings-pane-lead">Windows 与 Linux 上 ⌘ 用 Ctrl。选取也可用 ⌘Q。编辑器内 ⌘F 为正文查找，⌘⇧F 仍打开全局搜索。</p>
+      <ul className="settings-shortcut-list">
+        <li>
           <span>搜索</span>
-          <span className="settings-muted">⌘F / ⌘⇧F</span>
+          <span className="settings-kbd"><kbd>⌘</kbd><kbd>F</kbd> / <kbd>⌘</kbd><kbd>⇧</kbd><kbd>F</kbd></span>
         </li>
-        <li className="flex items-center justify-between gap-3 px-2 py-1.5">
+        <li>
           <span>快速选取</span>
-          <span className="settings-muted">Ctrl+Q</span>
+          <span className="settings-kbd"><kbd>Ctrl</kbd><kbd>Q</kbd></span>
         </li>
-        <li className="flex items-center justify-between gap-3 px-2 py-1.5">
+        <li>
           <span>选区送到对话</span>
-          <span className="settings-muted">⌘L</span>
+          <span className="settings-kbd"><kbd>⌘</kbd><kbd>L</kbd></span>
         </li>
       </ul>
-      <p className="settings-muted m-0 px-2 pt-1">Windows 与 Linux 上 ⌘ 用 Ctrl。选取也可用 ⌘Q。编辑器内 ⌘F 为正文查找，⌘⇧F 仍打开全局搜索。⌘L 也可从选区气泡进入。</p>
     </section>
   )
 }
@@ -245,7 +250,8 @@ export function ShellSettingsUpdate() {
 
   return (
     <section className="shell-settings-update" data-testid="settings-update">
-      <p className="settings-muted mb-3">
+      <h3 className="settings-pane-title">更新</h3>
+      <p className="settings-muted settings-pane-lead">
         {behind > 0 ? `当前落后主分支 ${badge} 个提交。` : '已与主分支对齐。'}
       </p>
       <button
