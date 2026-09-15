@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type HTMLAttributes, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { HeadlessDismiss } from './headless-dismiss.tsx'
+import { overlayPortalRoot, overlayZ } from './overlay-portal.ts'
 
 export function AnchorMenu({
   anchor,
@@ -56,12 +57,12 @@ export function AnchorMenu({
         ref={menuRef}
         className={className}
         role={role}
-        style={{ position: 'fixed', top: box.top, left: box.left, width: box.width, zIndex }}
+        style={{ position: 'fixed', top: box.top, left: box.left, width: box.width, zIndex: overlayZ(zIndex) }}
         {...rest}
       >
         {children}
       </div>
     </HeadlessDismiss>,
-    document.body,
+    overlayPortalRoot() ?? document.body,
   )
 }
