@@ -10,7 +10,7 @@ export const PAGE_EDITOR_STYLE = `
 .page-editor .tiptap{outline:none;min-height:240px}
 .page-block-handle{position:absolute;z-index:6;width:28px;display:flex;flex-direction:column;align-items:center;pointer-events:auto}
 .page-block-handle-grip{flex:none;display:flex;align-items:center;justify-content:center;width:22px;height:26px;margin:0;border:0;border-radius:6px;padding:0;background:transparent;color:var(--dsw-icon);cursor:grab}
-.page-block-handle-grip:hover,.page-block-handle-grip:focus-visible{background:var(--dsw-hover);color:var(--dsw-icon)}
+.page-block-handle-grip:hover,.page-block-handle-grip:focus-visible{background:var(--dsw-hover);color:var(--dsw-icon-active)}
 .page-block-handle-grip:active{cursor:grabbing}
 .page-block-handle-dots{display:block;width:10px;height:16px;background-image:radial-gradient(circle,currentColor 1.35px,transparent 1.45px);background-size:5px 5.2px;background-position:0 0}
 .page-block-handle-menu{position:absolute;left:26px;top:0;z-index:40;min-width:132px;padding:4px;display:flex;flex-direction:column;gap:1px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:8px;box-shadow:var(--dsw-shadow)}
@@ -34,7 +34,7 @@ export const PAGE_EDITOR_STYLE = `
 .page-editor .page-block-missing-id{font-family:var(--font-mono);font-weight:600;color:var(--dsw-label)}
 .page-editor .page-block-missing-state{color:var(--dsw-sidebar-fg);font-size:13px;font-weight:600}
 .page-editor .page-block-missing-enable{flex:none;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:22px;height:22px;margin:0;border:0;border-radius:5px;padding:0;background:transparent;color:var(--dsw-icon);cursor:pointer}
-.page-editor .page-block-missing-enable:hover{background:var(--dsw-hover);color:var(--dsw-icon)}
+.page-editor .page-block-missing-enable:hover{background:var(--dsw-hover);color:var(--dsw-icon-active)}
 .page-editor .page-block-missing-enable-icon{display:block;width:14px;height:14px}
 .page-editor .tiptap ul,.page-editor .tiptap ol{padding-left:1.6em;list-style-position:outside}
 .page-editor .tiptap ul{list-style-type:disc}
@@ -89,7 +89,7 @@ html:not(.dark) .page-bubble{box-shadow:none}
 .page-find-input{flex:1 1 auto;min-width:0;margin:0;border:0;padding:4px 4px;background:transparent;color:var(--dsw-label);font:inherit;font-size:13px;outline:none}
 .page-find-count{flex:none;min-width:2.4em;color:var(--dsw-sidebar-fg);font-size:12px;font-weight:600;text-align:right}
 .page-find-btn{flex:none;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin:0;border:0;border-radius:5px;padding:0;background:transparent;color:var(--dsw-icon);cursor:pointer}
-.page-find-btn:hover{background:var(--dsw-hover)}
+.page-find-btn:hover{background:var(--dsw-hover);color:var(--dsw-icon-active)}
 @keyframes page-agent-edit-fade{
   0%,55%{color:${TAG_TONE_ROSE};background:color-mix(in srgb,${TAG_TONE_ROSE} 22%,transparent)}
   100%{color:inherit;background:transparent}

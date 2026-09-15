@@ -26,7 +26,8 @@
   --dsw-hover-strong: #e0e0e0;
   --dsw-sidebar-fg: #5f5e5a;
   --dsw-sidebar-fg-active: #2c2c2b;
-  --dsw-icon: #5f5e5a;
+  --dsw-icon: #91918e;
+  --dsw-icon-active: #5f5e5a;
   --dsw-sidebar-icon: var(--dsw-icon);
   --dsw-usage-track-cache: color-mix(in srgb, #448361 22%, #ffffff);
   --dsw-usage-track-hist: color-mix(in srgb, #d9730d 22%, #ffffff);
@@ -95,6 +96,7 @@ html.dark {
   --dsw-sidebar-fg: #bcbab6;
   --dsw-sidebar-fg-active: #f0efed;
   --dsw-icon: #bcbab6;
+  --dsw-icon-active: #bcbab6;
   --dsw-sidebar-icon: var(--dsw-icon);
   --dsw-usage-track-cache: color-mix(in srgb, #448361 22%, #191919);
   --dsw-usage-track-hist: color-mix(in srgb, #d9730d 22%, #191919);
@@ -714,6 +716,7 @@ body {
 
 .shell-search-hit-actions .tasks-icon-btn:hover:not(:disabled) {
   background: var(--dsw-hover);
+  color: var(--dsw-icon-active);
 }
 
 .shell-search-hit-action[data-dock-tip]::after {
@@ -1545,7 +1548,7 @@ body {
 
 .chat-view-header-expand:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
 }
 
 .chat-view-project {
@@ -2277,7 +2280,7 @@ html.dark .chat-overlay-panel {
 
 .app-side-actions-item:hover .app-side-actions-icon,
 .app-side-actions-item.is-active .app-side-actions-icon {
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
 }
 
 /* Session 行：高亮画在 ::before，避免每次 hover 重绘头像 SVG */
@@ -2315,7 +2318,7 @@ html.dark .chat-overlay-panel {
 .chat-session-row > .chat-session-row-delete,
 .chat-session-row > .chat-session-row-star,
 .chat-session-row > .sidebar-add {
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
 }
 
 .chat-session-row::before {
@@ -2362,7 +2365,7 @@ html.dark .chat-overlay-panel {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
   opacity: 0;
   cursor: pointer;
   line-height: 0;
@@ -2374,7 +2377,7 @@ html.dark .chat-overlay-panel {
   display: block;
   width: 16px;
   height: 16px;
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
 }
 
 .chat-session-row:hover .chat-session-row-delete,
@@ -2387,7 +2390,7 @@ html.dark .chat-overlay-panel {
 
 .chat-session-row-star:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
 }
 
 .chat-session-row-delete:hover {
@@ -2409,7 +2412,7 @@ html.dark .chat-overlay-panel {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
   opacity: 0;
   cursor: pointer;
   line-height: 0;
@@ -2432,7 +2435,7 @@ html.dark .chat-overlay-panel {
 
 .sidebar-add:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
 }
 
 .sidebar-trail-icon {
@@ -2443,7 +2446,7 @@ html.dark .chat-overlay-panel {
   min-width: 0;
   height: 24px;
   overflow: hidden;
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
   opacity: 0;
   line-height: 0;
   transition: width 150ms ease, opacity 150ms ease;
@@ -2475,17 +2478,22 @@ html.dark .chat-overlay-panel {
 .app-side-bar .fsdb-record-mark,
 .app-side-bar .fsdb-record-mark svg,
 .app-side-bar .chat-session-row-main > span > svg,
-.app-side-bar .chat-session-row > span svg,
+.app-side-bar .chat-session-row > span svg {
+  color: var(--dsw-icon);
+}
+
 .app-side-bar .chat-session-row-delete svg,
 .app-side-bar .chat-session-row-star svg {
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
 }
 
 .chat-session-row:hover .sidebar-rail-icon,
 .chat-session-row.is-active .sidebar-rail-icon,
 .app-side-actions-item:hover .sidebar-rail-icon,
-.app-side-actions-item.is-active .sidebar-rail-icon {
-  color: var(--dsw-icon);
+.app-side-actions-item.is-active .sidebar-rail-icon,
+.chat-session-row:hover .chat-session-row-main > span > svg,
+.chat-session-row.is-active .chat-session-row-main > span > svg {
+  color: var(--dsw-icon-active);
 }
 
 .sidebar-group-fold {
@@ -2739,7 +2747,7 @@ html.dark .chat-overlay-panel {
   margin: 0;
   padding: 0;
   border-radius: 6px;
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
   font-size: 14px;
   font-weight: 500;
   line-height: 0;
@@ -2803,7 +2811,7 @@ html.dark .chat-overlay-panel {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
   cursor: pointer;
   line-height: 0;
 }
@@ -2816,12 +2824,12 @@ html.dark .chat-overlay-panel {
 
 .sidebar-view-switch-btn:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
 }
 
 .sidebar-view-switch-btn.is-on {
   background: var(--dsw-hover);
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
 }
 
 .sidebar-mascot {
@@ -5177,7 +5185,7 @@ html.dark .chat-overlay-panel {
 
 .chat-assistant-action:hover:not(:disabled) {
   background: var(--dsw-hover);
-  color: var(--dsw-sidebar-fg-active);
+  color: var(--dsw-icon-active);
 }
 
 .chat-assistant-action:disabled {
@@ -5468,7 +5476,7 @@ html:not(.dark) .composer-plus {
 }
 
 .composer-plus:hover {
-  color: var(--dsw-sidebar-fg-active);
+  color: var(--dsw-icon-active);
   background: var(--dsw-hover);
 }
 
@@ -6285,7 +6293,7 @@ html:not(.dark) .composer-send:disabled {
 
 .chat-view-header-expand.is-active {
   background: var(--dsw-hover);
-  color: var(--dsw-icon);
+  color: var(--dsw-icon-active);
 }
 
 /* ===== Mascot Dance Stage（彩蛋）===== */

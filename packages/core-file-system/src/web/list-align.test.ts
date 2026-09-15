@@ -12,7 +12,7 @@ test('list and detail share the chat column max width with side padding', () => 
   assert.match(css, /\.fsdb-page:not\(\.is-sheet\) \.fsdb-main > \.fsdb-detail-title-row,\.fsdb-page:not\(\.is-sheet\) \.fsdb-main > \.tasks-toolbar\{[^}]*padding-left:80px/)
   assert.match(css, /\.fsdb-page \.tasks-search-wrap\{[^}]*color:var\(--dsw-icon\)/)
   assert.match(css, /\.fsdb-page \.tasks-refresh,\.fsdb-page \.tasks-sort-btn\{[^}]*color:var\(--dsw-icon\)/)
-  assert.match(css, /\.fsdb-page \.tasks-sort-btn\.is-active,\.fsdb-page \.tasks-refresh\.is-active\{[^}]*color:var\(--dsw-icon\)/)
+  assert.match(css, /\.fsdb-page \.tasks-sort-btn\.is-active,\.fsdb-page \.tasks-refresh\.is-active\{[^}]*color:var\(--dsw-icon-active\)/)
   assert.match(css, /\.fsdb-detail-title-icon\{[^}]*color:var\(--dsw-icon\)/)
   assert.match(css, /\.fsdb-main > \.fsdb-detail-title-row\{[^}]*flex:none/)
   assert.match(css, /\.fsdb-detail-title-row\{[^}]*padding-bottom:16px/)
@@ -103,7 +103,7 @@ test('list and detail share the chat column max width with side padding', () => 
 
 test('title cell hover icons take the primary label color', () => {
   assert.match(css, /\.fsdb-page \.tasks-title-open\{[^}]*color:var\(--dsw-icon\)/)
-  assert.match(css, /\.fsdb-page \.tasks-title-open:hover\{[^}]*color:var\(--dsw-icon\)/)
+  assert.match(css, /\.fsdb-page \.tasks-title-open:hover\{[^}]*color:var\(--dsw-icon-active\)/)
   assert.match(css, /\.fsdb-page \.tasks-title-aside\{[^}]*gap:2px/)
   assert.match(css, /\.fsdb-page \.tasks-row-tools-slot\{[^}]*gap:2px/)
   assert.match(css, /\.fsdb-page \.tasks-row-actions\{[^}]*gap:2px/)
