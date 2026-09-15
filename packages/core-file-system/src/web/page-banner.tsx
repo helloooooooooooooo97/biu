@@ -151,32 +151,36 @@ export function PageBanner({
           tabIndex={-1}
         />
       ) : null}
-      {story ? (
-        <div className="fsdb-banner-story" data-testid="fsdb-banner-story">
-          <div className="fsdb-banner-story-head">
-            <div className="fsdb-banner-story-title">{story.title}</div>
-            {writable && banner ? (
-              <BannerRemixBtn
-                kind={banner.kind}
-                html={banner.html}
-                name={story.title}
-                style={story.style}
-                path={path}
-                title={title}
-              />
-            ) : null}
-          </div>
-          <div className="fsdb-banner-story-note">{story.note}</div>
+      {(story || (writable && onChange)) ? (
+        <div className="fsdb-banner-right">
+          {story ? (
+            <div className="fsdb-banner-story" data-testid="fsdb-banner-story">
+              <div className="fsdb-banner-story-head">
+                <div className="fsdb-banner-story-title">{story.title}</div>
+                {writable && banner ? (
+                  <BannerRemixBtn
+                    kind={banner.kind}
+                    html={banner.html}
+                    name={story.title}
+                    style={story.style}
+                    path={path}
+                    title={title}
+                  />
+                ) : null}
+              </div>
+              <div className="fsdb-banner-story-note">{story.note}</div>
+            </div>
+          ) : null}
+          {writable && onChange ? (
+            <BannerTitleActions
+              value={value}
+              writable
+              path={path}
+              title={title}
+              onChange={onChange}
+            />
+          ) : null}
         </div>
-      ) : null}
-      {writable && onChange ? (
-        <BannerTitleActions
-          value={value}
-          writable
-          path={path}
-          title={title}
-          onChange={onChange}
-        />
       ) : null}
     </div>
   )
