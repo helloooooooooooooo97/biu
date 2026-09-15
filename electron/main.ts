@@ -417,15 +417,31 @@ async function createWindow() {
 
   // 窗口变化时重新贴合
   const relayout = () => applyBounds()
+  const syncFullscreenClass = () => {
+    const current = win
+    if (!current || current.webContents.isDestroyed()) return
+    const fullscreen = current.isFullScreen()
+    void current.webContents
+      .executeJavaScript(`document.documentElement.classList.toggle('biu-electron-fullscreen', ${fullscreen})`)
+      .catch(() => undefined)
+  }
   win.on('resize', relayout)
   win.on('maximize', relayout)
   win.on('unmaximize', relayout)
-  win.on('enter-full-screen', relayout)
-  win.on('leave-full-screen', relayout)
+  win.on('enter-full-screen', () => {
+    relayout()
+    syncFullscreenClass()
+  })
+  win.on('leave-full-screen', () => {
+    relayout()
+    syncFullscreenClass()
+  })
 
   win.webContents.on('did-finish-load', () => {
     void win?.webContents.insertCSS(ELECTRON_CHROME_CSS)
-    void win?.webContents.executeJavaScript(`document.documentElement.classList.add('biu-electron')`)
+    void win?.webContents.executeJavaScript(
+      `document.documentElement.classList.add('biu-electron');document.documentElement.classList.toggle('biu-electron-fullscreen', ${win?.isFullScreen() === true})`,
+    )
     void ensureBrowserPanel()
   })
 
@@ -437,13 +453,13 @@ async function createWindow() {
   }
 }
 
-/** 红绿灯让位 + 顶栏拖窗；侧栏缩略浮窗贴左，不再为红绿灯留 76px。 */
+/** 窗口模式给红绿灯让位；全屏没有红绿灯，不保留左侧空白。 */
 const ELECTRON_CHROME_CSS = `
-html.biu-electron .app-side-bar-head-brand {
+html.biu-electron:not(.biu-electron-fullscreen) .app-side-bar-head-brand {
   padding-left: 76px !important;
 }
-html.biu-electron .sidebar-flyout-host.is-collapsed.is-flyout-open .app-side-bar-head-brand,
-html.biu-electron .sidebar-flyout-host.is-collapsed:hover .app-side-bar-head-brand {
+html.biu-electron:not(.biu-electron-fullscreen) .sidebar-flyout-host.is-collapsed.is-flyout-open .app-side-bar-head-brand,
+html.biu-electron:not(.biu-electron-fullscreen) .sidebar-flyout-host.is-collapsed:hover .app-side-bar-head-brand {
   padding-left: 12px !important;
 }
 html.biu-electron .app-side-bar-head,
@@ -463,12 +479,13 @@ html.biu-electron .inspector-add {
 html.biu-electron .app-shell {
   position: relative;
 }
-html.biu-electron .app-shell.is-sidebar-collapsed > main,
-html.biu-electron .app-shell.is-left-hidden > main {
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-sidebar-collapsed > main > .app-stage-pane.is-active > .chat-view-header,
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden > main > .app-stage-pane.is-active > .chat-view-header {
   padding-left: 76px;
+  box-sizing: border-box;
 }
-html.biu-electron .app-shell.is-sidebar-collapsed::before,
-html.biu-electron .app-shell.is-left-hidden::before {
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-sidebar-collapsed::before,
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden::before {
   content: "";
   position: absolute;
   left: 0;

@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, type MouseEvent } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, type MouseEvent } from 'react'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
 import { PlayIcon } from '@heroicons/react/16/solid'
+import { RenderBoundary } from '@biu/public-ui'
 import { getPageEditor, usePageEditorVersion } from './service.ts'
 import { formatPageBlockFence, requestEnablePageBlockPlugin } from './page-block-meta.ts'
 import { bindPageBlockPlugin } from './page-block-plugin-host.ts'
@@ -61,7 +62,17 @@ export function PageBlockMissing({ kind, plugin, data }: { kind: string; plugin:
   )
 }
 
-export function PageBlockView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
+function samePageBlockProps(prev: NodeViewProps, next: NodeViewProps) {
+  return (
+    prev.node.attrs.kind === next.node.attrs.kind &&
+    prev.node.attrs.plugin === next.node.attrs.plugin &&
+    prev.node.attrs.id === next.node.attrs.id &&
+    JSON.stringify(prev.node.attrs.data) === JSON.stringify(next.node.attrs.data) &&
+    prev.editor.isEditable === next.editor.isEditable
+  )
+}
+
+export const PageBlockView = memo(function PageBlockView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
   usePageEditorVersion()
   const kind = String(node.attrs.kind ?? 'card')
   const plugin = String(node.attrs.plugin ?? '').trim()
@@ -125,10 +136,13 @@ export function PageBlockView({ node, updateAttributes, editor, getPos }: NodeVi
       {cloneFrom ? (
         <div className="page-block-missing">正在复制附件…</div>
       ) : View ? (
-        <View data={data} update={update} writable={editor.isEditable} />
+        // 文档里的插件块崩了只烂这一块，不该让整个应用白屏。
+        <RenderBoundary label={plugin || kind}>
+          <View data={data} update={update} writable={editor.isEditable} />
+        </RenderBoundary>
       ) : (
         <PageBlockMissing kind={kind} plugin={plugin} data={data} />
       )}
     </NodeViewWrapper>
   )
-}
+}, samePageBlockProps)

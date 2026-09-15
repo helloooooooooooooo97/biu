@@ -8,12 +8,14 @@ import {
   duplicateHandleBlock,
   handleBlockAtPointer,
   handleRailLeft,
+  visibleHandleEl,
   insertParagraphAfter,
   insertParagraphBefore,
   type HandleBlock,
 } from './page-block-handle.ts'
 
 const GRIP_H = 26
+const HIDE_DELAY_MS = 200
 
 type HandleTarget = HandleBlock & { top: number; left: number; height: number; gripTop: number }
 
@@ -30,12 +32,15 @@ function readTarget(editor: Editor, host: HTMLElement, clientX: number, clientY:
   const found = handleBlockAtPointer(editor, clientX, clientY)
   if (!found) return null
   const raw = editor.view.nodeDOM(found.pos)
-  const el = raw instanceof HTMLElement ? raw : raw?.parentElement
-  if (!(el instanceof HTMLElement)) return null
+  const el = visibleHandleEl(raw instanceof Node ? raw : null)
+  if (!el) return null
   const hostBox = host.getBoundingClientRect()
   const box = el.getBoundingClientRect()
   const contentBox = editor.view.dom.getBoundingClientRect()
-  const line = lineCoords(editor, found) ?? { top: box.top, bottom: box.top + GRIP_H }
+  const line =
+    found.node.isAtom || found.node.isLeaf || found.node.type.name === 'pageBlock'
+      ? { top: box.top, bottom: box.top + GRIP_H }
+      : (lineCoords(editor, found) ?? { top: box.top, bottom: box.top + GRIP_H })
   const gripTop = (line.top + line.bottom) / 2 - box.top - GRIP_H / 2
   return {
     ...found,
@@ -51,8 +56,10 @@ export function PageBlockHandle({ editor }: { editor: Editor }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const dragged = useRef(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const hideTimer = useRef<number | undefined>(undefined)
 
   const hide = useCallback(() => {
+    window.clearTimeout(hideTimer.current)
     setMenuOpen(false)
     setTarget(null)
   }, [])
@@ -62,14 +69,34 @@ export function PageBlockHandle({ editor }: { editor: Editor }) {
     const wrap = root.closest('.page-editor')
     if (!(wrap instanceof HTMLElement)) return
 
+    const cancelHide = () => {
+      window.clearTimeout(hideTimer.current)
+      hideTimer.current = undefined
+    }
+    const delayHide = () => {
+      cancelHide()
+      hideTimer.current = window.setTimeout(() => {
+        setTarget(null)
+        hideTimer.current = undefined
+      }, HIDE_DELAY_MS)
+    }
+
     const onMove = (event: MouseEvent) => {
       if (menuOpen) return
       if (!editor.isEditable) {
-        setTarget(null)
+        delayHide()
         return
       }
-      if (event.target instanceof Element && event.target.closest('.page-block-handle')) return
+      if (event.target instanceof Element && event.target.closest('.page-block-handle')) {
+        cancelHide()
+        return
+      }
       const next = readTarget(editor, wrap, event.clientX, event.clientY)
+      if (!next) {
+        delayHide()
+        return
+      }
+      cancelHide()
       setTarget(next)
     }
 
@@ -77,12 +104,13 @@ export function PageBlockHandle({ editor }: { editor: Editor }) {
       if (menuOpen) return
       const to = event.relatedTarget
       if (to instanceof Node && wrap.contains(to)) return
-      setTarget(null)
+      delayHide()
     }
 
     wrap.addEventListener('mousemove', onMove)
     wrap.addEventListener('mouseleave', onLeave)
     return () => {
+      cancelHide()
       wrap.removeEventListener('mousemove', onMove)
       wrap.removeEventListener('mouseleave', onLeave)
     }

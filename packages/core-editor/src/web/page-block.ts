@@ -181,7 +181,7 @@ export const pageBlock = Node.create({
       },
       stopEvent: ({ event }) => {
         const target = event.target as HTMLElement | null
-        return Boolean(target?.closest('.page-block, [data-page-block-capture], textarea, input, select, button, canvas, .excalidraw'))
+        return Boolean(target?.closest('.page-block, [data-page-block-capture], textarea, input, select, button, canvas, .excalidraw, .cm-editor'))
       },
     })
   },

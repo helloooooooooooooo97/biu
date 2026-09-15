@@ -3,7 +3,7 @@ import { AnchorMenu } from '@biu/public-ui'
 
 const STYLE_ID = 'biu-database-ui-search'
 const CSS = `
-.db-search-menu{box-sizing:border-box;padding:6px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);display:flex;flex-direction:column;gap:4px;font-size:14px}
+.db-search-menu{box-sizing:border-box;padding:6px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:10px;box-shadow:var(--dsw-shadow);display:flex;flex-direction:column;gap:4px;font-size:14px}
 .db-search-field{display:flex;align-items:center;gap:6px;border:1px solid var(--dsw-border);border-radius:8px;padding:4px 8px;color:var(--dsw-label-3);background:var(--dsw-input);font-size:14px}
 .db-search-field input{flex:1;min-width:0;border:0;background:transparent;color:var(--dsw-label);font-family:inherit;font-size:14px;font-weight:400;line-height:1.4;outline:none}
 .db-search-field input::placeholder{font-size:14px;color:var(--dsw-label-3)}
@@ -33,7 +33,7 @@ const CSS = `
 .db-datetime{display:inline-flex;align-items:center;gap:4px;position:relative;min-width:0;width:100%;max-width:100%;vertical-align:middle;color:inherit}
 .db-datetime .ant-picker,.db-datetime .ant-picker-focused,.db-datetime .ant-picker:hover,.db-datetime .ant-picker-borderless{width:auto;max-width:100%;padding:0;background:transparent;border:0;box-shadow:none;outline:none}
 .db-datetime .ant-picker-borderless:focus-visible,.db-datetime .ant-picker-borderless:has(input:focus-visible){outline:none}
-.db-datetime .ant-picker-input > input{font-size:14px;font-weight:600;color:inherit;outline:none}
+.db-datetime .ant-picker-input > input{font-size:14px;font-weight:600;color:var(--dsw-label);outline:none}
 .db-datetime .ant-picker-input > input::placeholder{font-size:14px;font-weight:600;color:var(--dsw-label-3)}
 .db-datetime.is-overdue .ant-picker-input > input,.db-datetime.is-overdue{color:var(--dsw-danger)}
 .db-datetime .ant-picker-suffix{display:none}

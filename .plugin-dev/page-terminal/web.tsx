@@ -19,6 +19,28 @@ const OUTPUT_SETTLE_MS = 600 // 输出安静这么久，就认为这条命令跑
 
 type HistoryEntry = { cmd: string; at: number; out?: string }
 
+function historyOut(item: Record<string, unknown>): string {
+  const raw = item.out ?? item.output ?? item.stdout
+  if (typeof raw === 'string') return raw
+  if (Array.isArray(raw)) return raw.map((line) => String(line)).join('\n')
+  return ''
+}
+
+function parseHistory(raw: unknown): HistoryEntry[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => {
+      const out = historyOut(item)
+      return {
+        cmd: String(item.cmd ?? item.command ?? ''),
+        at: Number(item.at) || 0,
+        ...(out ? { out } : {}),
+      }
+    })
+    .filter((item) => item.cmd)
+}
+
 // ---------------------------------------------------------------------------
 // xterm 附带的「辅助节点」处理（踩坑总结，改动前务必读 README）：
 //  1. helper-textarea 是 xterm 接收键盘输入的节点，**不能 display:none**
@@ -96,8 +118,22 @@ function buryAuxiliaryNodes(root: HTMLElement) {
   }
 }
 
-const STYLE_ID = 'pt-xterm-style-v1'
+const STYLE_ID = 'pt-xterm-style-v2'
 const STYLE_CSS = `
+.pt-card{
+  display:flex;flex-direction:column;overflow:hidden;
+  border:1px solid color-mix(in srgb, var(--dsw-border, rgba(242,241,237,0.12)) 80%, #000);
+  border-radius:12px;background:#191919;
+  box-shadow:0 1px 2px rgba(15,15,15,.08), 0 8px 24px rgba(0,0,0,.12);
+}
+.pt-head{
+  display:flex;align-items:center;gap:8px;flex:none;height:34px;padding:0 10px 0 12px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  background:#141414;color:rgba(242,241,237,.5);
+  font:12px/1 ui-sans-serif,system-ui,sans-serif;user-select:none;
+}
+.pt-title{color:rgba(242,241,237,.78);font-weight:600;letter-spacing:-.01em}
+.pt-history{border-bottom:1px solid rgba(255,255,255,.06);background:#161616}
 .pt-pane .xterm { padding: 0 !important; height: 100%; }
 .pt-pane .xterm-viewport { background: transparent !important; }
 .pt-pane .xterm-screen { background: transparent !important; }
@@ -119,6 +155,18 @@ const STYLE_CSS = `
 .pt-pane .scrollbar > .slider:hover,
 .pt-pane .scrollbar > .slider.active {
   background: color-mix(in srgb, var(--dsw-label-2, rgba(242,241,237,0.72)) 70%, transparent) !important;
+}
+
+.pt-history-out {
+  display: block !important;
+  margin: 2px 0 0 !important;
+  padding: 0 0 0 14px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: rgba(242,241,237,0.48) !important;
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  font: inherit !important;
 }
 `
 
@@ -440,12 +488,7 @@ function HistoryPanel({
     : ''
 
   return (
-    <div
-      style={{
-        borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-        background: 'color-mix(in srgb, var(--dsw-bg, #191919) 70%, transparent)',
-      }}
-    >
+    <div className="pt-history">
       <div
         style={{
           display: 'flex',
@@ -453,7 +496,7 @@ function HistoryPanel({
           gap: 8,
           height: 26,
           padding: '0 10px',
-          color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
+          color: 'rgba(242,241,237,0.45)',
           font: '11px ui-sans-serif, system-ui, sans-serif',
           userSelect: 'none',
         }}
@@ -500,16 +543,30 @@ function HistoryPanel({
           <button
             type="button"
             onClick={onClear}
+            aria-label="清空"
+            title="清空"
             style={{
+              flex: '0 0 auto',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 22,
+              height: 22,
               border: 0,
               padding: 0,
+              borderRadius: 5,
               background: 'transparent',
               color: 'inherit',
-              font: 'inherit',
               cursor: 'pointer',
             }}
           >
-            清空
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 14.5h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.71l.275 5.5a.75.75 0 0 1-1.494.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.494-.075l.275-5.5a.75.75 0 0 1 .787-.71Z"
+              />
+            </svg>
           </button>
         ) : null}
       </div>
@@ -522,7 +579,7 @@ function HistoryPanel({
             fontFamily: mono,
             fontSize: 12,
             lineHeight: 1.45,
-            color: 'var(--dsw-label-2, rgba(242,241,237,0.72))',
+            color: 'rgba(242,241,237,0.82)',
           }}
         >
           {history.map((entry, index) => (
@@ -532,18 +589,19 @@ function HistoryPanel({
                 <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{entry.cmd}</span>
               </div>
               {entry.out ? (
-                <pre
+                <div
+                  className="pt-history-out"
                   style={{
                     margin: '2px 0 0',
                     paddingLeft: 14,
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-all',
-                    color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
+                    color: 'rgba(242,241,237,0.48)',
                     font: 'inherit',
                   }}
                 >
                   {entry.out}
-                </pre>
+                </div>
               ) : null}
             </div>
           ))}
@@ -877,16 +935,7 @@ function PageTerminal({
   const height = typeof data.height === 'number' && data.height > 0 ? Math.min(900, data.height) : DEFAULTS.height
 
   // 历史存在块数据里，agent 读页面 markdown 即可看到用户跑过什么。
-  const history: HistoryEntry[] = Array.isArray(data.history)
-    ? (data.history as unknown[])
-        .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-        .map((item) => ({
-          cmd: String(item.cmd ?? ''),
-          at: Number(item.at) || 0,
-          ...(typeof item.out === 'string' && item.out ? { out: item.out } : {}),
-        }))
-        .filter((item) => item.cmd)
-    : []
+  const history: HistoryEntry[] = parseHistory(data.history)
 
   const body = (
     <section
@@ -894,9 +943,8 @@ function PageTerminal({
         zoom.slotRef.current = el
       }}
       data-testid="page-terminal"
+      className="pt-card"
       style={{
-        display: 'flex',
-        flexDirection: 'column',
         ...(zoom.zoomed
           ? {
               position: 'fixed',
@@ -904,29 +952,14 @@ function PageTerminal({
               width: '100%',
               height: '100%',
               zIndex: 2147483647,
+              borderRadius: 0,
+              border: 'none',
             }
           : {}),
-        border: zoom.zoomed ? 'none' : '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-        borderRadius: zoom.zoomed ? 0 : 8,
-        overflow: 'hidden',
-        background: '#191919',
       }}
     >
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          height: 30,
-          padding: '0 8px 0 10px',
-          borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-          background: 'color-mix(in srgb, var(--dsw-label, #f0efed) 4%, transparent)',
-          color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
-          font: '11px ui-sans-serif, system-ui, sans-serif',
-          userSelect: 'none',
-        }}
-      >
-        <span style={{ flex: '0 0 auto', color: 'var(--dsw-label-2, rgba(242,241,237,0.72))' }}>终端</span>
+      <header className="pt-head">
+        <span className="pt-title">终端</span>
         <span style={{ flex: 1 }} />
         <div ref={settingsWrap} style={{ position: 'relative', flex: '0 0 auto' }}>
           <IconButton label="设置" active={settingsOpen} onClick={() => setSettingsOpen((v) => !v)}>

@@ -29,6 +29,13 @@ type SessionsLike = {
   inboxPending?: (id: string) => number
 }
 
+function sessionCreatedAt(row: SessionSummary) {
+  const fromConfig = Number(row.config?.createdAt)
+  if (Number.isFinite(fromConfig) && fromConfig > 0) return fromConfig
+  const fromUpdated = Number(row.updatedAt)
+  return Number.isFinite(fromUpdated) && fromUpdated > 0 ? fromUpdated : 0
+}
+
 function asRecord(row: SessionSummary): DbRecord {
   const mascot =
     row.mascot && isSessionMascot(row.mascot) ? ensureSessionMascot(row.id, row.mascot) : mascotFromSessionId(row.id)
@@ -50,7 +57,7 @@ function asRecord(row: SessionSummary): DbRecord {
     mascotColor: mascot.color,
     mascotEye: mascot.eye,
     ...recordBuiltinValues({
-      createdAt: row.config?.createdAt,
+      createdAt: sessionCreatedAt(row),
       updatedAt: row.updatedAt,
       emoji: row.config?.emoji,
       tags: row.config?.tags,
@@ -140,9 +147,11 @@ export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
     records: { update: true, create: Boolean(sessions.create), delete: true },
     schema: {
       labelField: 'title',
+      contentField: 'events',
       columns: ['title', 'pinned', 'tags', 'eventCount', 'project', 'updatedAt'],
       fields: {
         ...REQUIRED_RECORD_FIELDS,
+        events: { type: 'file', label: '对话', writable: false },
         title: { type: 'string', label: '标题', writable: true },
         pinned: { type: 'boolean', label: '置顶', writable: true },
         tags: { type: 'multi-select', label: '标签', writable: true },
@@ -162,7 +171,17 @@ export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
       },
     },
     list,
-    get: async (id) => (await list()).find((row) => row.id === id) ?? null,
+    get: async (id) => {
+      const row = (await list()).find((item) => item.id === id) ?? null
+      if (!row) return null
+      if (!sessions.require) return row
+      try {
+        const full = await sessions.require(id)
+        return { ...row, events: full.events }
+      } catch {
+        return row
+      }
+    },
     update: async (id, patch) => {
       if (typeof patch.title === 'string') await sessions.rename(id, patch.title)
       const config: SessionConfig = {}

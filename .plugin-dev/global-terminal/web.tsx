@@ -29,15 +29,25 @@ function loadSid() {
   }
 }
 
+function historyOut(item: Record<string, unknown>): string {
+  const raw = item.out ?? item.output ?? item.stdout
+  if (typeof raw === 'string') return raw
+  if (Array.isArray(raw)) return raw.map((line) => String(line)).join('\n')
+  return ''
+}
+
 function parseHistory(raw: unknown): HistoryEntry[] {
   if (!Array.isArray(raw)) return []
   return raw
     .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-    .map((item) => ({
-      cmd: String(item.cmd ?? ''),
-      at: Number(item.at) || 0,
-      ...(typeof item.out === 'string' && item.out ? { out: item.out } : {}),
-    }))
+    .map((item) => {
+      const out = historyOut(item)
+      return {
+        cmd: String(item.cmd ?? item.command ?? ''),
+        at: Number(item.at) || 0,
+        ...(out ? { out } : {}),
+      }
+    })
     .filter((item) => item.cmd)
 }
 
@@ -274,7 +284,7 @@ function HistoryPanel({ history, onClear }: { history: HistoryEntry[]; onClear: 
       style={{
         flex: 'none',
         borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-        background: 'color-mix(in srgb, var(--dsw-bg, #191919) 70%, transparent)',
+        background: 'rgba(0,0,0,0.16)',
       }}
     >
       <div
@@ -284,7 +294,7 @@ function HistoryPanel({ history, onClear }: { history: HistoryEntry[]; onClear: 
           gap: 8,
           height: 26,
           padding: '0 10px',
-          color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
+          color: 'rgba(242,241,237,0.45)',
           font: '11px ui-sans-serif, system-ui, sans-serif',
           userSelect: 'none',
         }}
@@ -323,9 +333,30 @@ function HistoryPanel({ history, onClear }: { history: HistoryEntry[]; onClear: 
         <button
           type="button"
           onClick={onClear}
-          style={{ border: 0, padding: 0, background: 'transparent', color: 'inherit', font: 'inherit', cursor: 'pointer' }}
+          aria-label="清空"
+          title="清空"
+          style={{
+            flex: '0 0 auto',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 22,
+            height: 22,
+            border: 0,
+            padding: 0,
+            borderRadius: 5,
+            background: 'transparent',
+            color: 'inherit',
+            cursor: 'pointer',
+          }}
         >
-          清空
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+            <path
+              fillRule="evenodd"
+              clipRule="evenodd"
+              d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 14.5h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.71l.275 5.5a.75.75 0 0 1-1.494.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.494-.075l.275-5.5a.75.75 0 0 1 .787-.71Z"
+            />
+          </svg>
         </button>
       </div>
       {open ? (
@@ -337,7 +368,7 @@ function HistoryPanel({ history, onClear }: { history: HistoryEntry[]; onClear: 
             fontFamily: mono,
             fontSize: 12,
             lineHeight: 1.45,
-            color: 'var(--dsw-label-2, rgba(242,241,237,0.72))',
+            color: 'rgba(242,241,237,0.82)',
           }}
         >
           {history.map((entry, index) => (
@@ -347,18 +378,19 @@ function HistoryPanel({ history, onClear }: { history: HistoryEntry[]; onClear: 
                 <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{entry.cmd}</span>
               </div>
               {entry.out ? (
-                <pre
+                <div
+                  className="pt-history-out"
                   style={{
                     margin: '2px 0 0',
                     paddingLeft: 14,
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-all',
-                    color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
+                    color: 'rgba(242,241,237,0.48)',
                     font: 'inherit',
                   }}
                 >
                   {entry.out}
-                </pre>
+                </div>
               ) : null}
             </div>
           ))}
@@ -610,29 +642,29 @@ function GlobalTerminal() {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        borderRadius: 10,
-        background: 'color-mix(in srgb, var(--dsw-sidebar, #202020) 30%, transparent)',
-        backdropFilter: 'blur(40px) saturate(1.8)',
-        WebkitBackdropFilter: 'blur(40px) saturate(1.8)',
-        boxShadow: '0 0 0 1px var(--dsw-border, rgba(242,241,237,0.1)), 0 24px 64px rgba(0,0,0,0.42)',
+        borderRadius: 12,
+        background: 'color-mix(in srgb, var(--dsw-sidebar, #202020) 42%, rgba(12,12,12,.72))',
+        backdropFilter: 'blur(40px) saturate(1.6)',
+        WebkitBackdropFilter: 'blur(40px) saturate(1.6)',
+        boxShadow: '0 0 0 1px rgba(255,255,255,.08), 0 24px 64px rgba(0,0,0,0.42)',
         color: 'var(--dsw-label, #f0efed)',
         font: '11px ui-sans-serif, -apple-system, system-ui, sans-serif',
       }}
     >
       <header
         style={{
-          height: 34,
-          flex: '0 0 34px',
+          height: 36,
+          flex: '0 0 36px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           padding: '0 12px',
-          borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-          background: 'color-mix(in srgb, var(--dsw-label, #f0efed) 4%, transparent)',
+          borderBottom: '1px solid rgba(255,255,255,.06)',
+          background: 'rgba(0,0,0,.18)',
           userSelect: 'none',
         }}
       >
-        <span style={{ color: 'var(--dsw-label-3, rgba(242,241,237,0.45))', fontWeight: 500 }}>zsh</span>
+        <span style={{ color: 'rgba(242,241,237,.72)', fontWeight: 600, letterSpacing: '-.01em' }}>终端</span>
       </header>
       <HistoryPanel history={history} onClear={() => onHistory([])} />
       <section

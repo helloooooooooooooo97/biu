@@ -15,7 +15,6 @@ import { CSS as DndCSS } from '@dnd-kit/utilities'
 import {
   ArrowPathIcon,
   ArrowsPointingOutIcon,
-  ArrowsPointingInIcon,
   ArrowsUpDownIcon,
   AdjustmentsHorizontalIcon,
   Bars3BottomLeftIcon,
@@ -100,6 +99,7 @@ import {
   visibleActions,
   placedActions,
 } from './fsdb-cells.tsx'
+import { ShareButton } from './share-popover.tsx'
 import { ensureFsdbStyle } from './fsdb-style.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { PageBanner } from './page-banner.tsx'
@@ -128,11 +128,12 @@ import {
   withViewDisplay,
 } from './view-storage.ts'
 import {
+  getPagePrefs,
   getPageWidth,
   getPageWidthVersion,
-  persistPageWidth,
   subscribePageWidth,
 } from './page-width.ts'
+import { LayoutPrefsMenu } from './layout-prefs-menu.tsx'
 import { listCollection, readJson } from './db-client.ts'
 import { savedViewRecordPath } from '../paths.ts'
 import { findViewNeighbor, indexOnPage } from './view-adjacent.ts'
@@ -146,6 +147,8 @@ import { FieldValuePop } from './field-value-pop.tsx'
 import { loadFacets, pullFacets, subscribeFacets } from './facet-catalog.ts'
 import { FilterQueryMenu, SortQueryMenu } from './query-menus.tsx'
 import {
+  collectQueryFields,
+  isCustomSorts,
   countFilterRules,
   emptyFilterGroup,
   encodeListFilter,
@@ -1134,9 +1137,6 @@ export function CollectionBrowser({
   const groupFields = useMemo(() => groupableFields(schema), [schema])
   const activeGroup = groupField(schema, groupBy)
   const grouping = Boolean(activeGroup)
-  const columnCustom =
-    columnKeys.length > 0 &&
-    (columnKeys.length !== schemaDefaultKeys.length || columnKeys.some((key, index) => key !== schemaDefaultKeys[index]))
   const filterFields = useMemo(
     () =>
       entries.filter(
@@ -1311,6 +1311,11 @@ export function CollectionBrowser({
     window.dispatchEvent(new Event('fsdb:crumb-labels'))
   }, [activeViewId, collectionPath, items, routeViewId, schema?.labelField, selected])
   const filterActive = countFilterRules(filterTree) > 0
+  const sortCustom = isCustomSorts(sorts, schema?.labelField ?? 'title')
+  const queryFields = useMemo(
+    () => collectQueryFields(sorts, filterTree, schema?.labelField ?? 'title'),
+    [filterTree, schema?.labelField, sorts],
+  )
   const activeView = views.find((view) => view.id === activeViewId)
   const [viewBanner, setViewBanner] = useState<unknown>(null)
   useEffect(() => {
@@ -1339,6 +1344,7 @@ export function CollectionBrowser({
   useSyncExternalStore(subscribePageWidth, getPageWidthVersion, () => 0)
   const viewStarred = Boolean(activeViewId && isViewStarred(getStarredViews(), collectionPath, activeViewId))
   const pageWidth = getPageWidth()
+  const pagePrefs = getPagePrefs()
 
   useEffect(() => {
     hydratedDetail.current = ''
@@ -2653,6 +2659,28 @@ export function CollectionBrowser({
                 <StarIcon aria-hidden className={`size-4${viewStarred ? ' text-[#f5b700]' : ''}`} />
               </button>
             ) : null}
+            {nested ? null : (
+              <ShareButton
+                target={
+                  detailId
+                    ? {
+                        kind: 'record' as const,
+                        collection: collectionPath,
+                        viewId: activeViewId ?? undefined,
+                        recordId: detailId,
+                        title: String(detailRow?.title ?? title),
+                      }
+                    : activeViewId
+                      ? {
+                          kind: 'view' as const,
+                          collection: collectionPath,
+                          viewId: activeViewId,
+                          title: activeView?.name ?? title,
+                        }
+                      : null
+                }
+              />
+            )}
             <div className="fsdb-layout-wrap" ref={layoutRef}>
               <button
                 type="button"
@@ -2668,32 +2696,7 @@ export function CollectionBrowser({
               </button>
               {layoutOpen ? (
                 <HeadlessDismiss onDismiss={() => setLayoutOpen(false)} insideRef={layoutRef}>
-                <div className="fsdb-layout-menu" role="menu" data-testid="fsdb-layout-menu">
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    className={`fsdb-layout-opt${pageWidth === 'max' ? ' is-active' : ''}`}
-                    title="最大宽度"
-                    aria-label="最大宽度"
-                    aria-checked={pageWidth === 'max'}
-                    data-testid="fsdb-layout-max"
-                    onClick={() => persistPageWidth('max')}
-                  >
-                    <ArrowsPointingInIcon aria-hidden className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    className={`fsdb-layout-opt${pageWidth === 'full' ? ' is-active' : ''}`}
-                    title="全宽"
-                    aria-label="全宽"
-                    aria-checked={pageWidth === 'full'}
-                    data-testid="fsdb-layout-full"
-                    onClick={() => persistPageWidth('full')}
-                  >
-                    <ArrowsPointingOutIcon aria-hidden className="size-4" />
-                  </button>
-                </div>
+                  <LayoutPrefsMenu prefs={pagePrefs} />
                 </HeadlessDismiss>
               ) : null}
             </div>
@@ -2745,10 +2748,12 @@ export function CollectionBrowser({
             })
           }}
         />
-        <div className="fsdb-detail-title-row">
+        <div className="fsdb-detail-icon-slot">
           <span className="fsdb-detail-title-icon" aria-hidden>
-            <TableGlyph icon={currentTable?.view?.icon} className="size-8" />
+            <TableGlyph icon={currentTable?.view?.icon} className="size-16" />
           </span>
+        </div>
+        <div className="fsdb-detail-title-row">
           <div className="fsdb-detail-title-block">
           <h1 className="fsdb-detail-title">{activeView?.name ?? title}</h1>
           </div>
@@ -2868,7 +2873,7 @@ export function CollectionBrowser({
             <div className={`tasks-search-wrap${searchExpanded ? ' is-open' : ''}`} ref={searchRef}>
               <button
                 type="button"
-                className="tasks-sort-btn"
+                className={`tasks-sort-btn${searchExpanded ? ' is-active' : ''}`}
                 aria-label="搜索"
                 aria-expanded={searchExpanded}
                 title="搜索"
@@ -2972,13 +2977,13 @@ export function CollectionBrowser({
             <div className="tasks-sort-wrap" ref={sortRef}>
               <button
                 type="button"
-                className={`tasks-sort-btn${sortMenuOpen ? ' is-active' : ''}${sorts.length ? ' is-custom' : ''}`}
+                className={`tasks-sort-btn${sortMenuOpen ? ' is-active' : ''}${sortCustom ? ' is-custom' : ''}`}
                 aria-label="排序"
-                title={sorts.length ? `${sorts.length} 个排序` : '排序'}
+                title={sortCustom ? `${sorts.length} 个排序` : '排序'}
                 onClick={() => toggleMenu('sort')}
               >
                 <ArrowsUpDownIcon aria-hidden className="size-[14px]" />
-                {sorts.length ? <span className="tasks-sort-dot" aria-hidden /> : null}
+                {sortCustom ? <span className="tasks-sort-dot" aria-hidden /> : null}
               </button>
               {sortMenuOpen ? (
                 <HeadlessDismiss
@@ -3035,12 +3040,13 @@ export function CollectionBrowser({
             <div className="tasks-sort-wrap" ref={groupRef}>
               <button
                 type="button"
-                className={`tasks-sort-btn${groupOpen || grouping ? ' is-active' : ''}`}
+                className={`tasks-sort-btn${groupOpen ? ' is-active' : ''}${grouping ? ' is-custom' : ''}`}
                 aria-label="分组"
                 title={activeGroup ? `分组：${activeGroup.field.label ?? activeGroup.key}` : '分组'}
                 onClick={() => toggleMenu('group')}
               >
                 <RectangleStackIcon aria-hidden className="size-[14px]" />
+                {grouping ? <span className="tasks-sort-dot" aria-hidden /> : null}
               </button>
               {groupOpen ? (
                 <HeadlessDismiss onDismiss={() => setGroupOpen(false)} insideRef={groupRef}>
@@ -3078,13 +3084,12 @@ export function CollectionBrowser({
             <div className="tasks-sort-wrap" ref={columnRef}>
               <button
                 type="button"
-                className={`tasks-sort-btn${columnMenuOpen ? ' is-active' : ''}${columnCustom ? ' is-custom' : ''}`}
+                className={`tasks-sort-btn${columnMenuOpen ? ' is-active' : ''}`}
                 aria-label="可见列"
                 title="可见列"
                 onClick={() => toggleMenu('columns')}
               >
                 <EyeIcon aria-hidden className="size-[14px]" />
-                {columnCustom ? <span className="tasks-sort-dot" aria-hidden /> : null}
               </button>
               {columnMenuOpen ? (
                 <HeadlessDismiss
@@ -3116,15 +3121,12 @@ export function CollectionBrowser({
             <div className="tasks-filter-btn-wrap" ref={configRef}>
               <button
                 type="button"
-                className={`tasks-refresh tasks-rbar-btn${configOpen || wrapCells || !truncateCells || (treeable && !showTree) ? ' is-active' : ''}`}
+                className={`tasks-refresh tasks-rbar-btn${configOpen ? ' is-active' : ''}`}
                 aria-label="表格配置"
                 title="表格配置"
                 onClick={() => toggleMenu('config')}
               >
                 <AdjustmentsHorizontalIcon aria-hidden className="size-[14px]" />
-                {wrapCells || !truncateCells || (treeable && !showTree) ? (
-                  <span className="tasks-filter-dot" aria-hidden />
-                ) : null}
               </button>
               {configOpen ? (
                 <HeadlessDismiss onDismiss={() => setConfigOpen(false)} insideRef={configRef}>
@@ -3343,7 +3345,7 @@ export function CollectionBrowser({
                       ...(tone ? { ['--biu-tag' as string]: tone } : {}),
                     }}
                   >
-                    <span className="tasks-th">
+                    <span className={`tasks-th${queryFields.has(col.key) ? ' is-on' : ''}`}>
                       <FieldGlyph kind={col.kind} />
                       {facetColumnTitle(col)}
                     </span>

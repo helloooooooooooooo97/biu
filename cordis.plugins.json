@@ -117,6 +117,16 @@
       "enabled": true
     },
     {
+      "id": "skills",
+      "name": "技能",
+      "layer": "capability",
+      "blurb": "技能仓库 /skills：标准目录导入为 /pages Page 树，仓库只登记发现信息。正文不进 system prompt，Agent 相关时才 skill_read 读取入口 Page。",
+      "package": "@biu/host-skills",
+      "web": "@biu/host-skills/web",
+      "togglable": true,
+      "enabled": true
+    },
+    {
       "id": "core-page",
       "name": "Core-Page",
       "layer": "core",

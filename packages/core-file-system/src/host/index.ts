@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises'
+import type { IncomingMessage } from 'node:http'
 import { isAbsolute, resolve } from 'node:path'
 import { dataPath } from '@biu/host-plugin-loader/data-dir'
+import { asPublicProfile, readWorkspaceProfile, writeWorkspaceProfile } from './workspace-profile.ts'
 import { Service, type Context } from 'cordis'
 import {
   DATABASE_CHANNEL,
@@ -37,7 +39,13 @@ import {
 } from '@biu/type-file-system'
 import { parsePageBanner, type PageBanner } from '../page-banner.ts'
 import { SavedViewsStore, clientViewFromDbRow, viewsCollection, type StoredView } from './saved-views.ts'
+import { publicShareUrl } from './share-origin.ts'
+import { readSharePluginWebJs, zipSharePluginSource } from './share-plugin-pack.ts'
+import { collectShareResources } from '../share-resources.ts'
 import { FacetStore } from './facets-store.ts'
+import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
+import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
+import { buildShareSnapshot } from './share-payload.ts'
 import { AssetConflictError, FileSystemAssets, collectAssetNames, isAssetFileName, parseIfMatch } from './assets-store.ts'
 import { facetsCollection } from './facets-collection.ts'
 import { noticesCollection } from './notices-collection.ts'
@@ -302,7 +310,8 @@ function coerce(field: FieldSpec, value: unknown) {
     return list.length === 1 ? list[0] : list
   }
   if (kind === 'file') {
-    if (value == null || value === '') return null
+    if (value == null) return null
+    if (value === '') return ''
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
     if (typeof value === 'object') return value
     throw new Error('expected file')
@@ -526,6 +535,7 @@ export function clampPage(limit?: number, offset?: number) {
 export class DatabaseService extends Service implements Database {
   private collections = new Map<string, CollectionSpec>()
   facets = new FacetStore()
+  shares = new SharesStore()
   assets = new FileSystemAssets()
 
   private bumpQueued = false
@@ -769,7 +779,10 @@ export class DatabaseService extends Service implements Database {
 
   private async currentPerson(): Promise<PersonValue> {
     const sid = currentSessionId()?.trim()
-    if (!sid) return { kind: 'user', name: '用户' }
+    if (!sid) {
+      const name = readWorkspaceProfile().name.trim() || '用户'
+      return { kind: 'user', name }
+    }
     const name = (await this.querySessionName(sid)) || sid.slice(0, 8)
     return { kind: 'agent', name, sessionId: sid }
   }
@@ -1026,7 +1039,17 @@ export class DatabaseService extends Service implements Database {
       await this.ctx.get('contentTurns')?.recordDelete(`${spec.path}/${row.id}`, title, rec)
     }
     await spec.remove({ ids })
-    for (const id of ids) this.facets.removeRecord(spec.path, id)
+    for (const id of ids) {
+      this.facets.removeRecord(spec.path, id)
+      this.shares.revokeRecord(spec.path, id)
+    }
+    if (spec.path === '/views') {
+      for (const row of matched) {
+        const collection = normalizeCollectionPath(String(row.tablePath ?? ''))
+        const viewId = String(row.viewId ?? '').trim()
+        if (collection && collection !== '/' && viewId) this.shares.revokeView(collection, viewId)
+      }
+    }
     this.bump()
     return { kind: 'deleted' as const, path: spec.path, ids }
   }
@@ -1373,6 +1396,8 @@ export function apply(ctx: Context) {
   const assets = db.assets
   const savedViews = new SavedViewsStore()
   savedViews.open(process.env.VITEST ? ':memory:' : dataPath(process.cwd(), 'file-system.sqlite'))
+  const shares = db.shares
+  shares.open(process.env.VITEST ? ':memory:' : dataPath(process.cwd(), 'file-system.sqlite'))
   const facets = db.facets
   db.register(viewsCollection(savedViews, () => db.collectionsList().map((item) => ({
     id: item.id,
@@ -1614,6 +1639,20 @@ export function apply(ctx: Context) {
       route.send(400, { error: String(error) })
     }
   }
+  ctx.http.route('GET', '/api/profile', (route) => {
+    route.send(200, asPublicProfile())
+  })
+  ctx.http.route('POST', '/api/profile', async (route) => {
+    try {
+      const body = (await route.json()) as { name?: unknown; avatar?: unknown }
+      route.send(200, asPublicProfile(writeWorkspaceProfile({
+        name: typeof body.name === 'string' ? body.name : undefined,
+        avatar: typeof body.avatar === 'string' ? body.avatar : undefined,
+      })))
+    } catch (error) {
+      route.send(400, { error: String(error) })
+    }
+  })
   ctx.http.route('GET', '/api/db/list', (route) =>
     send(route, () => {
       let filter: Record<string, unknown> | undefined
@@ -1691,11 +1730,268 @@ export function apply(ctx: Context) {
   ctx.http.route('POST', '/api/db/saved-views', async (route) => {
     try {
       const body = (await route.json()) as { path?: string; views?: StoredView[] }
-      savedViews.replace(String(body?.path ?? ''), Array.isArray(body?.views) ? body.views : [])
+      const path = String(body?.path ?? '')
+      const next = Array.isArray(body.views) ? body.views : []
+      dropSharesForRemovedViews(shares, path, savedViews.viewsFor(path), next)
+      savedViews.replace(path, next)
       ctx.emit('database/change')
       route.send(200, { ok: true })
     } catch (error) {
       route.send(400, { error: String(error) })
+    }
+  })
+  const sharePasswordOf = (route: { req: { headers: IncomingMessage['headers'] }; query: URLSearchParams }, body?: { password?: unknown }) => {
+    const header = String(route.req.headers['x-share-password'] ?? '')
+    if (header) return header
+    const query = route.query.get('password')
+    if (query) return query
+    return String(body?.password ?? '')
+  }
+  const sharePreviewOf = async (kind: 'view' | 'record', collection: string, viewId: string, recordId: string) => {
+    try {
+      const snap = await buildShareSnapshot(db, savedViews, {
+        token: '',
+        kind,
+        collection,
+        viewId,
+        recordId,
+        hasPassword: false,
+        sharePlugins: true,
+        allowCopy: true,
+        createdAt: 0,
+        updatedAt: 0,
+      })
+      return collectShareResources(snap.records, snap.contents, snap.records.map((row) => String(row.id)))
+    } catch {
+      return { pages: 0, plugins: 0, collections: 0, pluginIds: [] as string[] }
+    }
+  }
+  ctx.http.route('GET', '/api/db/shares', async (route) => {
+    const collection = route.query.get('collection') || ''
+    if (!collection) {
+      const items = []
+      for (const share of shares.list()) {
+        let title = share.collection.replace(/^\//, '')
+        if (share.kind === 'record' && share.recordId) {
+          try {
+            const got = (await db.read(`${share.collection}/${share.recordId}`)) as { value?: { title?: unknown; name?: unknown } }
+            title = String(got.value?.title ?? got.value?.name ?? share.recordId)
+          } catch {
+            shares.revoke(share.token)
+            continue
+          }
+        } else {
+          const named = savedViews.viewsFor(share.collection).find((item) => item.id === share.viewId)
+          if (!named && share.viewId && !isReadOnlyViewId(share.viewId)) {
+            shares.revoke(share.token)
+            continue
+          }
+          let collectionLabel = share.collection.replace(/^\//, '')
+          try {
+            const stat = (await db.stat(share.collection)) as { label?: string; view?: { title?: string } | null }
+            collectionLabel = String(stat.view?.title ?? stat.label ?? collectionLabel)
+          } catch {
+            /* keep path slug */
+          }
+          title = displayNameForView(
+            share.viewId,
+            { path: share.collection, label: collectionLabel, view: { title: collectionLabel } },
+            named?.name,
+          )
+        }
+        items.push({ ...share, title, url: publicShareUrl(route.req, share.token) })
+      }
+      route.send(200, { shares: items })
+      return
+    }
+    const kind = route.query.get('kind') === 'record' ? 'record' as const : 'view' as const
+    const viewId = route.query.get('viewId') || ''
+    const recordId = route.query.get('recordId') || ''
+    const share = shares.find(kind, collection, viewId, recordId)
+    const resources = await sharePreviewOf(kind, collection, viewId, recordId)
+    route.send(200, {
+      share: share ? { ...share, url: publicShareUrl(route.req, share.token) } : null,
+      resources,
+    })
+  })
+  ctx.http.route('POST', '/api/db/shares', async (route) => {
+    try {
+      const body = (await route.json()) as {
+        kind?: string
+        collection?: string
+        viewId?: string
+        recordId?: string
+        password?: string | null
+        enabled?: boolean
+        sharePlugins?: boolean
+        allowCopy?: boolean
+      }
+      const kind = body.kind === 'record' ? 'record' as const : 'view' as const
+      if (body.enabled === false) {
+        shares.revokeTarget(kind, String(body.collection ?? ''), body.viewId ?? '', body.recordId ?? '')
+        route.send(200, { share: null })
+        return
+      }
+      const share = shares.upsert({
+        kind,
+        collection: String(body.collection ?? ''),
+        viewId: body.viewId,
+        recordId: body.recordId,
+        password: body.password,
+        sharePlugins: body.sharePlugins,
+        allowCopy: body.allowCopy,
+      })
+      route.send(200, { share: { ...share, url: publicShareUrl(route.req, share.token) } })
+    } catch (error) {
+      route.send(400, { error: String(error) })
+    }
+  })
+  ctx.http.route('GET', '/api/share/:token', async (route) => {
+    const token = route.params.token ?? ''
+    const share = shares.get(token)
+    if (!share) {
+      route.send(404, { error: 'not found' })
+      return
+    }
+    if (share.hasPassword && !shares.verifyPassword(token, sharePasswordOf(route))) {
+      route.send(401, { needsPassword: true })
+      return
+    }
+    try {
+      const snapshot = await buildShareSnapshot(db, savedViews, share)
+      route.send(200, snapshot)
+    } catch (error) {
+      const msg = String(error)
+      if (share.kind === 'record' && /unknown record/.test(msg)) {
+        shares.revoke(token)
+        route.send(404, { error: 'not found' })
+        return
+      }
+      route.send(400, { error: msg })
+    }
+  })
+  ctx.http.route('POST', '/api/share/:token', async (route) => {
+    const token = route.params.token ?? ''
+    const share = shares.get(token)
+    if (!share) {
+      route.send(404, { error: 'not found' })
+      return
+    }
+    const body = (await route.json()) as { password?: string }
+    if (share.hasPassword && !shares.verifyPassword(token, sharePasswordOf(route, body))) {
+      route.send(401, { needsPassword: true })
+      return
+    }
+    try {
+      const snapshot = await buildShareSnapshot(db, savedViews, share)
+      route.send(200, snapshot)
+    } catch (error) {
+      const msg = String(error)
+      if (share.kind === 'record' && /unknown record/.test(msg)) {
+        shares.revoke(token)
+        route.send(404, { error: 'not found' })
+        return
+      }
+      route.send(400, { error: msg })
+    }
+  })
+  ctx.http.route('GET', '/api/share/:token/file/:name', async (route) => {
+    const token = route.params.token ?? ''
+    const share = shares.get(token)
+    if (!share) {
+      route.send(404, { error: 'not found' })
+      return
+    }
+    if (share.hasPassword && !shares.verifyPassword(token, sharePasswordOf(route))) {
+      route.send(401, { needsPassword: true })
+      return
+    }
+    try {
+      const snapshot = await buildShareSnapshot(db, savedViews, share)
+      const name = route.params.name ?? ''
+      if (!snapshot.assets.includes(name)) {
+        route.send(404, { error: 'not found' })
+        return
+      }
+      const { bytes, type, etag } = await assets.read(name)
+      route.res.writeHead(200, {
+        'content-type': type,
+        'cache-control': 'no-store',
+        etag: `"${etag}"`,
+      })
+      route.res.end(bytes)
+    } catch {
+      route.send(404, { error: 'not found' })
+    }
+  })
+  ctx.http.route('GET', '/api/share/:token/plugin/:id/web.js', async (route) => {
+    const token = route.params.token ?? ''
+    const share = shares.get(token)
+    if (!share) {
+      route.send(404, { error: 'not found' })
+      return
+    }
+    if (share.hasPassword && !shares.verifyPassword(token, sharePasswordOf(route))) {
+      route.send(401, { needsPassword: true })
+      return
+    }
+    const id = String(route.params.id ?? '')
+    try {
+      const snapshot = await buildShareSnapshot(db, savedViews, share)
+      if (!snapshot.pluginIds.includes(id)) {
+        route.send(404, { error: 'not found' })
+        return
+      }
+      const body = readSharePluginWebJs(process.cwd(), id)
+      if (!body) {
+        route.send(404, { error: 'not found' })
+        return
+      }
+      route.res.writeHead(200, {
+        'content-type': 'text/javascript; charset=utf-8',
+        'cache-control': 'no-store',
+        'Access-Control-Allow-Origin': '*',
+      })
+      route.res.end(body)
+    } catch {
+      route.send(404, { error: 'not found' })
+    }
+  })
+  ctx.http.route('GET', '/api/share/:token/plugin/:id', async (route) => {
+    const token = route.params.token ?? ''
+    const share = shares.get(token)
+    if (!share) {
+      route.send(404, { error: 'not found' })
+      return
+    }
+    if (share.hasPassword && !shares.verifyPassword(token, sharePasswordOf(route))) {
+      route.send(401, { needsPassword: true })
+      return
+    }
+    if (!share.sharePlugins) {
+      route.send(403, { error: 'plugins are not shared' })
+      return
+    }
+    const id = String(route.params.id ?? '').replace(/\.zip$/i, '')
+    try {
+      const snapshot = await buildShareSnapshot(db, savedViews, share)
+      if (!snapshot.pluginIds.includes(id)) {
+        route.send(404, { error: 'not found' })
+        return
+      }
+      const zip = zipSharePluginSource(process.cwd(), id)
+      if (!zip) {
+        route.send(404, { error: 'not found' })
+        return
+      }
+      route.res.writeHead(200, {
+        'content-type': 'application/zip',
+        'content-disposition': `attachment; filename="${id}.zip"`,
+        'cache-control': 'no-store',
+      })
+      route.res.end(Buffer.from(zip))
+    } catch {
+      route.send(404, { error: 'not found' })
     }
   })
   ctx.http.route('GET', '/api/db/facets', async (route) => {

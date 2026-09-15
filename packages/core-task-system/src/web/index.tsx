@@ -190,7 +190,7 @@ if (typeof document !== 'undefined') {
 .tasks-auto-switch { flex:none; position:relative; display:inline-flex; align-items:center; height:22px; cursor:pointer; }
 .tasks-auto-switch input { position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
 .tasks-auto-switch-track { position:relative; width:34px; height:20px; border-radius:999px; background:color-mix(in srgb, var(--dsw-label-3) 24%, transparent); box-shadow:inset 0 0 0 1px var(--dsw-border); transition:background .2s ease; pointer-events:none; }
-.tasks-auto-switch-knob { position:absolute; top:3px; left:3px; width:14px; height:14px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:left .2s cubic-bezier(.4,0,.2,1); }
+.tasks-auto-switch-knob { position:absolute; top:3px; left:3px; width:14px; height:14px; border-radius:50%; background:#fff; box-shadow:var(--dsw-shadow); transition:left .2s cubic-bezier(.4,0,.2,1); }
 .tasks-auto-switch.is-on .tasks-auto-switch-track { background:var(--dsw-ok); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--dsw-ok) 30%, transparent); }
 .tasks-auto-switch.is-on .tasks-auto-switch-knob { left:17px; }
 .tasks-auto-summary { display:flex; align-items:flex-start; gap:7px; padding:8px 10px; border-radius:8px; background:color-mix(in srgb, var(--dsw-muted-fill) 60%, transparent); border:1px solid var(--dsw-border); font-size:11.5px; line-height:1.5; color:var(--dsw-label); font-weight:500; }
@@ -200,7 +200,7 @@ if (typeof document !== 'undefined') {
 .tasks-auto-seg { display:inline-flex; gap:2px; padding:2px; border-radius:8px; background:color-mix(in srgb, var(--dsw-muted-fill) 70%, transparent); box-shadow:inset 0 0 0 1px var(--dsw-border); }
 .tasks-auto-seg button { border:0; background:transparent; color:var(--dsw-label-3); padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:5px; font-family:inherit; transition:background .15s ease, color .15s ease; }
 .tasks-auto-seg button:hover { color:var(--dsw-label); }
-.tasks-auto-seg button.is-active { background:var(--dsw-surface); color:var(--dsw-label); box-shadow:0 1px 2px rgba(0,0,0,.3); }
+.tasks-auto-seg button.is-active { background:var(--dsw-surface); color:var(--dsw-label); box-shadow:var(--dsw-shadow); }
 .tasks-auto-preset { flex-wrap:wrap; }
 .tasks-auto-then { flex-direction:row; align-items:center; gap:8px; }
 .tasks-auto-then-arrow { display:inline-flex; color:var(--dsw-ok); }

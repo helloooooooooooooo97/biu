@@ -18,6 +18,7 @@ import {
   isBuiltinAllViewForCollection,
   stubBuiltinCatalogView,
   catalogRowOpenTarget,
+  displayNameForView,
   builtinTagViewId,
   isBuiltinTagViewId,
   stampRowOpenTarget,
@@ -76,6 +77,15 @@ test('every registered table gets a read-only 全部xx view', () => {
   assert.equal(merged.filter((view) => view.id === builtinAllViewId('/sessions')).length, 1)
   assert.equal(merged.some((view) => view.id === 'mine'), true)
   assert.equal(stubBuiltinAllView('builtin-all:/pages')?.name, '全部pages')
+})
+
+test('builtin share titles use collection Chinese names instead of path ids', () => {
+  const pages = { path: '/pages', label: '页面', view: { title: '页面' } }
+  assert.equal(displayNameForView(builtinAllViewId('/pages'), pages), '全部页面')
+  assert.equal(displayNameForView(builtinAllViewId('/sessions'), { path: '/sessions', label: '会话', view: { title: '会话' } }), '全部会话')
+  assert.equal(displayNameForView(builtinAllViewId('/mcp'), { path: '/mcp', label: 'MCP', view: { title: 'MCP' } }), '全部MCP')
+  assert.equal(displayNameForView(builtinAllViewId('/page-blocks'), { path: '/page-blocks', label: '组件', view: { title: '组件' } }), '全部组件')
+  assert.equal(displayNameForView('mine', pages, '周报'), '周报')
 })
 
 test('catalog view rows open the source table view instead of a record pane', () => {

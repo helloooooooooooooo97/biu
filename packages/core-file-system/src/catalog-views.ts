@@ -61,6 +61,22 @@ export function collectionNoun(table: TableRef) {
   return (table.view?.title ?? table.label ?? path.replace(/^\//, '')) || '记录'
 }
 
+/** 分享/面包屑用：内置视图不在 saved-views 里，不能把路径 id 当名称。 */
+export function displayNameForView(viewId: string, table: TableRef, storedName?: string) {
+  const named = String(storedName ?? '').trim()
+  if (named) return named
+  const id = String(viewId ?? '').trim()
+  if (isBuiltinAllViewId(id)) return builtinAllView(table).name
+  if (isBuiltinCatalogViewId(id)) {
+    const path = normalizeCollectionPath(id.slice('builtin:'.length))
+    if (normalizeCollectionPath(table.path) === path) return collectionNoun(table)
+    return collectionNoun({ path, label: path.replace(/^\//, '') })
+  }
+  if (isBuiltinTagViewId(id)) return stubBuiltinTagView(id)?.name || collectionNoun(table)
+  if (isBuiltinBlockKindViewId(id)) return stubBuiltinBlockKindView(id)?.name || collectionNoun(table)
+  return collectionNoun(table)
+}
+
 export function builtinAllView(table: TableRef): SavedView {
   const path = normalizeCollectionPath(table.path)
   return normalizeSavedView({

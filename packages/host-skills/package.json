@@ -1,0 +1,20 @@
+{
+  "name": "@biu/host-skills",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Page 化技能仓库：目录导入为 Page 树，按需加载不占上下文",
+  "exports": {
+    ".": "./src/host/index.ts",
+    "./store": "./src/host/store.ts",
+    "./web": "./src/web/index.tsx"
+  },
+  "peerDependencies": {
+    "cordis": "4.0.0-rc.8",
+    "react": "^19.1.1"
+  },
+  "dependencies": {
+    "@biu/host-plugin-loader": "0.1.0",
+    "@biu/type-file-system": "0.1.0"
+  }
+}

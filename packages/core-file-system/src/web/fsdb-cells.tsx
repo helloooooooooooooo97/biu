@@ -3,7 +3,9 @@ import { Image } from 'antd'
 import { BoolBox, TagChip, TagChips } from '@biu/public-ui'
 import {
   ArchiveBoxArrowDownIcon,
+  ArrowDownTrayIcon,
   ArrowPathIcon,
+  ArrowUpTrayIcon,
   Bars3BottomLeftIcon,
   BoltIcon,
   CalendarDaysIcon,
@@ -50,6 +52,8 @@ export function actionIcon(id: string, opts?: { fallback?: boolean; className?: 
   if (id === 'uninstall' || id === 'delete' || id === 'remove') return <TrashGlyph aria-hidden className={cls} />
   if (id === 'edit' || id === 'rename') return <PencilSquareIcon aria-hidden className={cls} />
   if (id === 'refresh') return <ArrowPathIcon aria-hidden className={cls} />
+  if (id === 'sync-from-directory') return <ArrowDownTrayIcon aria-hidden className={cls} />
+  if (id === 'sync-to-directory') return <ArrowUpTrayIcon aria-hidden className={cls} />
   if (id === 'deliver') return <PaperAirplaneIcon aria-hidden className={cls} />
   if (id === 'report' || id === 'progress') return <ChatBubbleLeftRightIcon aria-hidden className={cls} />
   if (opts?.fallback === false) return null
@@ -116,7 +120,7 @@ export function draftFromRecord(schema: CollectionSchema, row: DbRecord, bodyKey
 }
 
 export function FieldGlyph({ kind }: { kind: FieldType }) {
-  const cls = 'size-[14px] shrink-0 opacity-80'
+  const cls = 'size-[14px] shrink-0'
   if (kind === 'boolean') return <span aria-hidden className="fsdb-field-bool-glyph"><BoolBox on={false} /></span>
   if (kind === 'select') return <ListBulletIcon aria-hidden className={cls} />
   if (kind === 'multi-select') return <RectangleStackIcon aria-hidden className={cls} />

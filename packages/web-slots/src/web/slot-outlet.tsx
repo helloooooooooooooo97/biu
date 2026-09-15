@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import type { SlotEntry, SlotKind } from '@biu/type-slots'
+import { RenderBoundary } from '@biu/public-ui'
 import type { SlotsService } from './service.ts'
 import { useSlotEntries } from './use-slots.ts'
 
@@ -24,7 +25,11 @@ export function SlotOutlet({ slots, name, kind }: { slots: SlotsService; name: s
   return (
     <>
       {visible.map((entry) => (
-        <SlotEntryView key={entry.id} slots={slots} entry={entry} />
+        // 圈在 SlotEntryView 外面：entry.props?.() 也是在渲染里调的，
+        // 放里面的话它自己抛错就没人接了。一个缝崩掉不该带走整个界面。
+        <RenderBoundary key={entry.id} label={`${name}/${entry.id}`}>
+          <SlotEntryView slots={slots} entry={entry} />
+        </RenderBoundary>
       ))}
     </>
   )

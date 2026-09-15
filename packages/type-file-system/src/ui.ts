@@ -47,7 +47,7 @@ export type CollectionChrome = {
   /** 详情侧栏「⋯」菜单里的操作（例如源码模式）。 */
   DetailTools?: ComponentType<{ record: DbRecord; onDone?: () => void }>
   /** 记录独立图标属性。有 emoji 用 emoji；不传则详情/侧栏/面包屑用集合 glyph。 */
-  Icon?: ComponentType<{ record: DbRecord }>
+  Icon?: ComponentType<{ record: DbRecord; size?: number }>
   Title?: ComponentType<{ record: DbRecord; label: string }>
   /** 详情标题下的主舞台（例如标签收集表）。不传则走字段概况 + 正文。 */
   Board?: ComponentType<{ record: DbRecord; openRecord?: (recordId: string, collection?: string) => void }>
@@ -101,6 +101,9 @@ export type CollectionViewType = {
   plugin?: string
   View: ComponentType<FsViewProps>
 }
+
+/** 所有表共用的默认 chrome。具体表再 decorate 时后写覆盖。 */
+export const DEFAULT_CHROME_PATH = '/*'
 
 export type CollectionRowViewType = {
   id: string

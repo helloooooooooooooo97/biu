@@ -2,13 +2,13 @@ import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { DATA_DIR_NAME, dataPath } from '@biu/host-plugin-loader/data-dir'
+import { collectAssetNames, isAssetFileName } from '../asset-refs.ts'
+
+export { collectAssetNames, isAssetFileName } from '../asset-refs.ts'
 
 export const FILE_SYSTEM_ASSETS = `${DATA_DIR_NAME}/assets`
 export const FILE_SYSTEM_ASSET_PREFIX = '/api/db/file/'
 export const ASSET_CHANGED_EVENT = 'biu:asset-changed'
-
-const ASSET_FILE_RE = /^[\p{L}\p{N}._-]+$/u
-const ASSET_REF_RE = /(?:(?:\.page\/)?assets\/|\/api\/(?:page|db)\/file\/)([\p{L}\p{N}._-]+)/gu
 
 export class AssetConflictError extends Error {
   readonly etag: string
@@ -17,11 +17,6 @@ export class AssetConflictError extends Error {
     this.name = 'AssetConflictError'
     this.etag = etag
   }
-}
-
-export function isAssetFileName(name: string) {
-  const file = basename(name)
-  return Boolean(file) && file === name.replace(/\\/g, '/') && file !== '.gitkeep' && ASSET_FILE_RE.test(file)
 }
 
 export function assetHref(name: string) {
@@ -48,22 +43,6 @@ export function bytesEtag(bytes: Buffer) {
 export function parseIfMatch(raw: unknown) {
   const text = String(raw ?? '').trim().replace(/^W\//, '').replaceAll('"', '')
   return text && text !== '*' ? text : ''
-}
-
-export function collectAssetNames(...chunks: unknown[]): Set<string> {
-  const names = new Set<string>()
-  const eat = (text: string) => {
-    for (const match of text.matchAll(ASSET_REF_RE)) {
-      const name = basename(match[1] ?? '')
-      if (isAssetFileName(name)) names.add(name)
-    }
-  }
-  for (const chunk of chunks) {
-    if (chunk == null) continue
-    if (typeof chunk === 'string') eat(chunk)
-    else eat(JSON.stringify(chunk))
-  }
-  return names
 }
 
 export class FileSystemAssets {

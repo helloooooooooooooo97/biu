@@ -1,0 +1,15 @@
+{
+  "id": "page-code-runner",
+  "name": "代码运行块",
+  "blurb": "在页面文档中插入可运行的多语言代码块。支持 Python/JavaScript/TypeScript/Java/C/C++/Go/Ruby/Swift/Perl/Bash，编译执行并捕获 stdout/stderr 输出内联显示。鼠标点哪儿光标落在哪儿，高度随内容自适应、可拖动调整或一键收起。斜杠菜单输入 code 或 run 即可插入。",
+  "tags": [
+    "page",
+    "editor",
+    "code",
+    "dev"
+  ],
+  "author": "Biu",
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",
+  "createdAt": 1788900000000,
+  "headless": true
+}

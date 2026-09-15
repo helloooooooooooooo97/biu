@@ -4,11 +4,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "MCP 缝",
+  "description": "MCP 缝：.biu/mcp.json 可插拔挂载，server 级工具选择",
   "exports": {
-    ".": "./src/host/index.ts"
+    ".": "./src/host/index.ts",
+    "./config": "./src/host/config.ts"
   },
   "peerDependencies": {
     "cordis": "4.0.0-rc.8"
+  },
+  "dependencies": {
+    "@biu/host-plugin-loader": "0.1.0",
+    "@biu/type-file-system": "0.1.0",
+    "@modelcontextprotocol/sdk": "^1.30.0"
   }
 }

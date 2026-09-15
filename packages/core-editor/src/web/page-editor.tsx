@@ -18,7 +18,7 @@ import { bindEditorTextHost, getPick } from '@biu/core-pick/web'
 import { markdownLocusFromElement, markdownLocusFromSelection } from './markdown-locus.ts'
 import { FindBar, isFindHotkey } from './find-bar.tsx'
 import { applyEditorFind } from './find-plugin.ts'
-import { EDITOR_TONES, tagTextColor, tagWashColor } from './color-swatches.ts'
+import { EDITOR_TONES, editorHighlightColor, editorTextColor } from './color-swatches.ts'
 import { isSendChatHotkey, pickFromEditor, pickFromLocus } from './editor-ask.ts'
 
 const LOCAL_EDIT_MS = 600
@@ -105,7 +105,7 @@ function ColorMenus({
         <div className="page-color-menu-h">{kind === 'text' ? '文字颜色' : '背景色'}</div>
         <div className="page-color-grid">
           {EDITOR_TONES.map((tone) => {
-            const value = kind === 'text' ? tagTextColor(tone) : tagWashColor(tone)
+            const value = kind === 'text' ? editorTextColor(tone) : editorHighlightColor(tone)
             const on = current.toLowerCase() === value.toLowerCase()
             return (
               <button
@@ -118,8 +118,8 @@ function ColorMenus({
                 data-testid={kind === 'text' ? `page-color-${tone}` : `page-highlight-${tone}`}
                 style={
                   kind === 'text'
-                    ? { color: tagTextColor(tone), background: 'transparent' }
-                    : { background: tagWashColor(tone), color: tagTextColor(tone) }
+                    ? { color: editorTextColor(tone), background: 'transparent' }
+                    : { background: editorHighlightColor(tone), color: '#fff' }
                 }
                 onMouseDown={holdSelection}
                 onClick={() => {
@@ -167,7 +167,7 @@ function ColorMenus({
             aria-expanded={open === 'text'}
             onMouseDown={holdSelection}
           >
-            <span className="page-bubble-letter" style={{ color: color || '#F0EFED' }}>
+            <span className="page-bubble-letter" style={{ color: color || undefined }}>
               A
             </span>
           </button>
@@ -339,6 +339,11 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
             if (!view.dragging?.move || !event.dataTransfer) return false
             event.dataTransfer.dropEffect = 'move'
             return false
+          },
+          mousedown(view, event) {
+            if (view.editable) return false
+            if (!(event.target instanceof Element) || !event.target.closest('.page-block')) return false
+            return true
           },
         },
       },

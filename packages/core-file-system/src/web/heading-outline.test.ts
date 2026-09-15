@@ -1,5 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { blockElBySnippet, headingsFromRoot } from './heading-outline.ts'
 
 test('headingsFromRoot extracts h1–h3 and skips chrome titles', () => {
@@ -98,4 +100,11 @@ test('blockElBySnippet prefers the rendered heading like the outline', () => {
   const found = blockElBySnippet(root, '改动标题')
   assert.equal(found?.tagName, 'H2')
   assert.equal(found?.textContent, '改动标题')
+})
+
+test('share phone outline is a tap button, not a side rail', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './heading-outline.tsx'), 'utf8')
+  assert.match(src, /heading-outline-toggle/)
+  assert.match(src, /is-sheet/)
+  assert.match(src, /useSharePhone/)
 })

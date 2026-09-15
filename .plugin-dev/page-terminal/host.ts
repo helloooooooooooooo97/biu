@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import * as pty from 'node-pty'
 import type { IPty } from 'node-pty'
@@ -77,6 +78,127 @@ function interactiveShell() {
 
 const UNIX_PATH = ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']
 
+const DEFAULT_MYSQL_TIMEOUT = 15_000
+const MAX_MYSQL_TIMEOUT = 60_000
+const MAX_SQL_LENGTH = 20_000
+
+export type MysqlConnection = {
+  host?: string
+  port?: number
+  user?: string
+  password?: string
+  database?: string
+}
+
+export type MysqlResult = {
+  ok: boolean
+  stdout: string
+  stderr: string
+  exitCode: number
+  ms: number
+  bin: string
+}
+
+function mysqlCandidates() {
+  return [
+    process.env.BIU_MYSQL_BIN,
+    '/opt/homebrew/opt/mysql-client/bin/mysql',
+    '/opt/homebrew/opt/mysql@8.0/bin/mysql',
+    '/opt/homebrew/bin/mysql',
+    '/usr/local/bin/mysql',
+    '/usr/bin/mysql',
+  ].filter((candidate): candidate is string => Boolean(candidate))
+}
+
+let mysqlBinCache: string | null = null
+
+function mysqlBin() {
+  if (mysqlBinCache) return mysqlBinCache
+  for (const candidate of mysqlCandidates()) {
+    if (!existsSync(candidate)) continue
+    mysqlBinCache = candidate
+    return candidate
+  }
+  return 'mysql'
+}
+
+function nonEmptyString(value: unknown, fallback = '') {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback
+}
+
+function mysqlPort(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 && parsed < 65_536 ? Math.round(parsed) : 3306
+}
+
+export function isUnsafeMysqlSql(sql: string) {
+  return /(^|\n)\s*\\[!.]/.test(sql) || /(^|\n)\s*system\b/i.test(sql) || /(^|\n)\s*source\b/i.test(sql)
+}
+
+export function buildMysqlArgs(
+  sql: string,
+  connection: Required<Pick<MysqlConnection, 'host' | 'port' | 'user'>> & MysqlConnection,
+) {
+  const args = [
+    '-h',
+    connection.host,
+    '-P',
+    String(connection.port),
+    '-u',
+    connection.user,
+    '--connect-timeout=8',
+    '--batch',
+    '--raw',
+    '--default-character-set=utf8mb4',
+  ]
+  if (connection.database) args.push('-D', connection.database)
+  args.push('-e', sql)
+  return args
+}
+
+function runMysql(sql: string, connection: MysqlConnection, timeoutMs: number): Promise<MysqlResult> {
+  const host = nonEmptyString(connection.host, '127.0.0.1')
+  const port = mysqlPort(connection.port)
+  const user = nonEmptyString(connection.user, 'root')
+  const database = nonEmptyString(connection.database)
+  const bin = mysqlBin()
+  const started = Date.now()
+
+  return new Promise((resolve) => {
+    const child = spawn(bin, buildMysqlArgs(sql, { host, port, user, database }), {
+      env: {
+        ...process.env,
+        ...(typeof connection.password === 'string' && connection.password ? { MYSQL_PWD: connection.password } : {}),
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    let done = false
+    const finish = (exitCode: number) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      resolve({ ok: exitCode === 0, stdout, stderr, exitCode, ms: Date.now() - started, bin })
+    }
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL')
+      finish(-2)
+    }, timeoutMs)
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString()
+    })
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString()
+    })
+    child.on('error', (error) => {
+      stderr += String(error)
+      finish(-1)
+    })
+    child.on('close', (code) => finish(code ?? 0))
+  })
+}
+
 function ptyEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const seen = new Set<string>()
   const parts: string[] = []
@@ -151,6 +273,60 @@ export function apply(ctx: Ctx) {
     // 改小容量后立刻按新上限淘汰。
     evictIfNeeded()
     route.send(200, { settings, sessions: pool.size })
+  })
+
+  ctx.http.route('POST', '/api/page-terminal/mysql', async (route) => {
+    const body = await route.json<{ sql?: unknown; conn?: MysqlConnection; timeoutMs?: unknown }>()
+    const raw = body.conn && typeof body.conn === 'object' ? body.conn : {}
+    const connection: MysqlConnection = {
+      host: nonEmptyString(raw.host, '127.0.0.1'),
+      port: mysqlPort(raw.port),
+      user: nonEmptyString(raw.user, 'root'),
+      password: typeof raw.password === 'string' ? raw.password : '',
+      database: nonEmptyString(raw.database),
+    }
+    const sql = String(body.sql ?? '').trim()
+    if (!sql) {
+      route.send(400, { ok: false, error: 'empty sql' })
+      return
+    }
+    if (sql.length > MAX_SQL_LENGTH) {
+      route.send(413, { ok: false, error: 'sql too long' })
+      return
+    }
+    if (isUnsafeMysqlSql(sql)) {
+      route.send(400, { ok: false, error: '这个接口只转发 SQL，不执行 \\! / system / source' })
+      return
+    }
+    const timeoutMs = dim(body.timeoutMs, DEFAULT_MYSQL_TIMEOUT, 1, MAX_MYSQL_TIMEOUT)
+    try {
+      const result = await runMysql(sql, connection, timeoutMs)
+      route.send(200, {
+        ...result,
+        conn: {
+          host: connection.host,
+          port: connection.port,
+          user: connection.user,
+          database: connection.database,
+        },
+      })
+    } catch (error) {
+      route.send(500, { ok: false, error: String(error) })
+    }
+  })
+
+  ctx.http.route('GET', '/api/page-terminal/mysql/bin', async (route) => {
+    const bin = mysqlBin()
+    const version = await new Promise<string>((resolve) => {
+      const child = spawn(bin, ['--version'], { stdio: ['ignore', 'pipe', 'pipe'] })
+      let stdout = ''
+      child.stdout.on('data', (chunk) => {
+        stdout += chunk.toString()
+      })
+      child.on('error', () => resolve(''))
+      child.on('close', () => resolve(stdout.trim()))
+    })
+    route.send(200, { bin, available: Boolean(version), version })
   })
 
   const kill = (session: PooledSession) => {

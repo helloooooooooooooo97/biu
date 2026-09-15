@@ -8,7 +8,9 @@ import { contentFieldKey, fieldHasValue, formatField, resolveFieldType } from '.
 import { LocalText } from './controls.tsx'
 import { FilePreview, placedActions } from './fsdb-cells.tsx'
 import { PropertyRow } from './property-row.tsx'
+import { FacetPackEditor } from './schema-field.tsx'
 import { TableGlyph } from './nav-glyphs.tsx'
+import { FACETS_COLLECTION_PATH } from './database-path.ts'
 import { normalizeRecordEmoji, recordPreviewEmoji } from './sidebar-preview.ts'
 import { FOCUS_RECORD_CONTENT, FOCUS_RECORD_TITLE, shouldLeaveContentForTitle, shouldLeaveTitleForContent, focusRecordTitleNear } from './title-content-nav.ts'
 import { HeadingOutline } from './heading-outline.tsx'
@@ -21,6 +23,7 @@ function DetailTitleIcon({
   record,
   Icon,
   onChange,
+  locked,
 }: {
   emoji: string
   tableIcon?: string
@@ -28,9 +31,27 @@ function DetailTitleIcon({
   record: DbRecord
   Icon?: CollectionChrome['Icon']
   onChange: (next: string) => void
+  locked?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  if (locked) {
+    return (
+      <span className="fsdb-detail-title-icon-wrap">
+        <span className="fsdb-detail-title-icon">
+          {emoji ? (
+            <span className="fsdb-record-emoji">{emoji}</span>
+          ) : Icon ? (
+            <span className="fsdb-record-mark is-lg">
+              <Icon record={record} size={64} />
+            </span>
+          ) : (
+            <TableGlyph icon={tableIcon} className="size-16" />
+          )}
+        </span>
+      </span>
+    )
+  }
   return (
     <span className="fsdb-detail-title-icon-wrap">
       <button
@@ -54,10 +75,10 @@ function DetailTitleIcon({
           <span className="fsdb-record-emoji">{emoji}</span>
         ) : Icon ? (
           <span className="fsdb-record-mark is-lg">
-            <Icon record={record} />
+            <Icon record={record} size={64} />
           </span>
         ) : (
-          <TableGlyph icon={tableIcon} className="size-8" />
+          <TableGlyph icon={tableIcon} className="size-16" />
         )}
       </button>
       {open && anchor ? (
@@ -169,6 +190,7 @@ export function RecordDetail({
   toolbar,
   collectionPath,
   onDelete,
+  readOnly = false,
 }: {
   selected: DbRecord
   schema: CollectionSchema
@@ -190,6 +212,7 @@ export function RecordDetail({
   toolbar?: ReactNode
   collectionPath?: string
   onDelete?: () => void
+  readOnly?: boolean
 }) {
   const mainRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -212,12 +235,17 @@ export function RecordDetail({
       if (key === 'id' || key === 'emoji' || key === schema.labelField) return false
       if (key === contentFieldKey(schema) && resolveFieldType(field) === 'file') return false
       if (chrome?.panes?.some((pane) => pane.id === key)) return false
+      if (key === 'fields' && collectionPath === FACETS_COLLECTION_PATH && String(selected.id).includes('::')) return false
       const kind = resolveFieldType(field)
       if (kind === 'facet' && !field.writable) return false
       if (field.computed && !fieldHasValue(field, selected[key])) return false
       return true
     })
-    .sort(([, a], [, b]) => Number(resolveFieldType(a) === 'facet') - Number(resolveFieldType(b) === 'facet'))
+    .sort(([keyA, a], [keyB, b]) => {
+      const fold = (key: string, field: FieldSpec) =>
+        resolveFieldType(field) === 'facet' || (key === 'fields' && collectionPath === FACETS_COLLECTION_PATH)
+      return Number(fold(keyA, a)) - Number(fold(keyB, b))
+    })
 
   return (
 <div className="fsdb-detail-stage">
@@ -226,7 +254,7 @@ export function RecordDetail({
               <div className="fsdb-detail-main" ref={mainRef}>
                 <PageBanner
                   value={selected.banner}
-                  writable
+                  writable={!readOnly}
                   path={collectionPath ? `${collectionPath}/${selected.id}` : undefined}
                   title={labelOf(selected)}
                   onChange={(next) => {
@@ -235,7 +263,7 @@ export function RecordDetail({
                     })
                   }}
                 />
-                <div className="fsdb-detail-title-row">
+                <div className="fsdb-detail-icon-slot">
                 <DetailTitleIcon
                   emoji={recordPreviewEmoji(selected)}
                   tableIcon={tableIcon}
@@ -247,15 +275,18 @@ export function RecordDetail({
                       window.dispatchEvent(new Event('fsdb:change'))
                     })
                   }}
+                  locked={readOnly}
                 />
+                </div>
+                <div className="fsdb-detail-title-row">
                 <div className="fsdb-detail-title-block">
-                {schema.labelField && schema.fields[schema.labelField]?.writable ? (
+                {schema.labelField && schema.fields[schema.labelField]?.writable && !readOnly ? (
                   <h1 className="fsdb-detail-title">
                     <LocalText
                       as="textarea"
                       className="fsdb-detail-title-input"
                       value={draft[schema.labelField] ?? ''}
-                      rows={(draft[schema.labelField] ?? '').length > 48 ? 2 : 1}
+                      autoSize
                       onKeyDown={(event) => {
                         const el = event.currentTarget
                         if (!(el instanceof HTMLTextAreaElement)) return
@@ -291,17 +322,23 @@ export function RecordDetail({
                   {propertyEntries.map(([key, field]) => {
                     const kind = resolveFieldType(field)
                     const facet = kind === 'facet'
+                    const packFields = key === 'fields' && collectionPath === FACETS_COLLECTION_PATH
+                    const fold = facet || packFields
                     return (
                       <PropertyRow
                         key={key}
                         field={field}
                         fieldKey={key}
-                        collapsible={facet}
-                        expanded={facet ? facetOpen : undefined}
-                        onToggle={facet ? () => setFacetOpen((open) => !open) : undefined}
+                        collapsible={fold}
+                        expanded={fold ? facetOpen : undefined}
+                        onToggle={fold ? () => setFacetOpen((open) => !open) : undefined}
                       >
-                        <div className={facet ? 'fsdb-prop-val is-schema' : 'fsdb-prop-val'} title={formatField(field, selected[key])}>
-                          {renderCell(selected, key, field)}
+                        <div className={fold ? 'fsdb-prop-val is-schema' : 'fsdb-prop-val'} title={packFields ? undefined : formatField(field, selected[key])}>
+                          {packFields ? (
+                            <FacetPackEditor facetId={selected.id} />
+                          ) : (
+                            renderCell(selected, key, field)
+                          )}
                         </div>
                       </PropertyRow>
                     )
@@ -319,7 +356,7 @@ export function RecordDetail({
                           field={key}
                           spec={spec}
                           value={detailBody}
-                          writable={spec.writable}
+                          writable={Boolean(spec.writable) && !readOnly}
                           path={collectionPath ? `${collectionPath}/${selected.id}` : undefined}
                           onChange={(next) => void writePatch(selected, { [key]: next })}
                         />
@@ -398,7 +435,7 @@ export function RecordDetail({
           </div>
           <HeadingOutline enabled={headingOutline} />
           {(() => {
-            const showMore = Boolean(
+            const showMore = !readOnly && Boolean(
               chrome?.DetailTools || onDelete || chrome?.Actions || placedActions(schema, 'detail').length,
             )
             if (!onPrev && !onNext && !showMore) return null

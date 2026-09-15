@@ -13,7 +13,7 @@ test('ChatPane is the overlay interior: thread, optional composer dock', () => {
   assert.match(src, /aside/)
   assert.match(src, /export function ChatStage/)
   assert.match(src, /export function ChatDockStack/)
-  assert.match(CHAT_STAGE_CENTER, /px-\[80px\]/)
+  assert.match(CHAT_STAGE_CENTER, /px-\[64px\]/)
   assert.match(CHAT_STAGE_CENTER, /pb-72/)
   assert.doesNotMatch(CHAT_STAGE_CENTER, /px-6|md:px-8|lg:px-10/)
   assert.match(CHAT_STAGE_PANE, /px-1 py-1/)

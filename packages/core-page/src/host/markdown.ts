@@ -18,5 +18,5 @@ export function splitMarkdown(raw: string): { matter: Record<string, unknown>; b
 
 export function dumpMarkdown(matter: Record<string, unknown>, body: string): string {
   const yaml = stringifyYaml(matter, { lineWidth: 0 }).trimEnd()
-  return `---\n${yaml}\n---\n${body.replace(/^\n/, '')}`
+  return `---\n${yaml}\n---\n${body}`
 }

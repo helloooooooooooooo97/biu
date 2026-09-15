@@ -7,6 +7,7 @@ import {
   CheckIcon,
   CircleStackIcon,
   Cog6ToothIcon,
+  CameraIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/16/solid'
 import { AnchorMenu } from '@biu/public-ui'
@@ -14,18 +15,177 @@ import { setChatOverlay } from './chat-overlay.ts'
 import { chromeIcon } from './chrome-icon.ts'
 import { applyNoticeClick, noticeIdOf } from './notice-open.ts'
 import { readMainDataRoute } from '@biu/core-file-system/main-data-route'
+import { persistTheme, readTheme, type ThemeMode } from './theme.ts'
+import { persistWorkspaceProfile, useWorkspaceProfile } from '@biu/public-ui'
+
+async function readAvatarFile(file: File) {
+  const url = URL.createObjectURL(file)
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve(img)
+      img.onerror = () => reject(new Error('无法读取图片'))
+      img.src = url
+    })
+    const canvas = document.createElement('canvas')
+    const size = 160
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('无法裁切头像')
+    const edge = Math.min(image.width, image.height)
+    ctx.drawImage(image, (image.width - edge) / 2, (image.height - edge) / 2, edge, edge, 0, 0, size, size)
+    return canvas.toDataURL('image/jpeg', 0.84)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+export function ShellSettingsAccount() {
+  const profile = useWorkspaceProfile()
+  const [name, setName] = useState(profile.name)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setName(profile.name)
+  }, [profile.name])
+
+  const initial = (profile.name.trim() || '用户').slice(0, 1)
+
+  return (
+    <section className="settings-account" data-testid="settings-account">
+      <header className="settings-account-head">
+        <h3 className="settings-account-title">我的账户</h3>
+        <p className="settings-muted settings-account-lead">
+          头像和昵称会出现在左上角、创建人，以及你发出的分享上。
+        </p>
+      </header>
+      <div className="settings-account-row">
+        <div className="settings-account-copy">
+          <p className="settings-account-label">照片</p>
+          <p className="settings-muted settings-account-hint">点击更换。会出现在侧栏和分享页。</p>
+        </div>
+        <div className="settings-account-photo">
+          <button
+            type="button"
+            className="settings-account-avatar"
+            data-testid="settings-account-avatar"
+            title="更换照片"
+            aria-label="更换照片"
+            onClick={() => fileRef.current?.click()}
+          >
+            {profile.avatar ? (
+              <img src={profile.avatar} alt="" />
+            ) : (
+              <span className="settings-account-initial">{initial}</span>
+            )}
+            <span className="settings-account-avatar-veil" aria-hidden>
+              <CameraIcon className="size-4" />
+            </span>
+          </button>
+          {profile.avatar ? (
+            <button
+              type="button"
+              className="settings-account-clear"
+              data-testid="settings-account-clear-avatar"
+              onClick={() => void persistWorkspaceProfile({ name: name.trim(), avatar: '' })}
+            >
+              移除
+            </button>
+          ) : null}
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          hidden
+          data-testid="settings-account-avatar-file"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (!file) return
+            void readAvatarFile(file).then((avatar) => {
+              void persistWorkspaceProfile({ name: name.trim(), avatar })
+            })
+          }}
+        />
+      </div>
+      <div className="settings-account-row">
+        <div className="settings-account-copy">
+          <label className="settings-account-label" htmlFor="settings-account-name">
+            首选名称
+          </label>
+          <p className="settings-muted settings-account-hint">别人看到你时会用这个名字。</p>
+        </div>
+        <input
+          id="settings-account-name"
+          className="settings-account-input"
+          value={name}
+          maxLength={40}
+          placeholder="你的名字"
+          data-testid="settings-account-name"
+          onChange={(event) => setName(event.target.value)}
+          onBlur={() => {
+            void persistWorkspaceProfile({ name: name.trim(), avatar: profile.avatar })
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+          }}
+        />
+      </div>
+    </section>
+  )
+}
+
+export function ShellSettingsAppearance() {
+  const [theme, setTheme] = useState(readTheme)
+
+  const pick = (next: ThemeMode) => {
+    persistTheme(next)
+    setTheme(next)
+  }
+
+  return (
+    <section data-testid="settings-appearance">
+      <h3 className="settings-pane-title">外观</h3>
+      <p className="settings-muted settings-pane-lead">界面颜色。日间是浅色，夜间是深色。</p>
+      <div className="settings-theme-grid">
+        <button
+          type="button"
+          className={`settings-theme-card${theme === 'light' ? ' is-on' : ''}`}
+          data-theme-card="light"
+          aria-pressed={theme === 'light'}
+          data-testid="settings-theme-light"
+          onClick={() => pick('light')}
+        >
+          <span className="settings-theme-preview is-light" aria-hidden />
+          日间模式
+        </button>
+        <button
+          type="button"
+          className={`settings-theme-card${theme === 'dark' ? ' is-on' : ''}`}
+          data-theme-card="dark"
+          aria-pressed={theme === 'dark'}
+          data-testid="settings-theme-dark"
+          onClick={() => pick('dark')}
+        >
+          <span className="settings-theme-preview is-dark" aria-hidden />
+          夜间模式
+        </button>
+      </div>
+    </section>
+  )
+}
 
 export function ShellSettingsAbout() {
   return (
     <section data-testid="settings-about">
-      <p className="m-0 px-2 text-[14px] font-semibold text-(--dsw-label)">Biu Agent OS</p>
-      <p className="settings-muted m-0 px-2 pt-2">
-        Apache License 2.0：免费使用、修改、分发与商用；贡献者授予相关专利许可。再分发须保留 LICENSE 与 NOTICE，改过的文件须标明已修改。Grok Bot 角色素材见 NOTICE.md，不在本许可内。
+      <h3 className="settings-pane-title">关于</h3>
+      <p className="settings-pane-title" style={{ fontSize: 14, fontWeight: 600, margin: '18px 0 8px' }}>Biu Agent OS</p>
+      <p className="settings-muted m-0">Apache License 2.0。</p>
+      <p className="settings-muted m-0" style={{ marginTop: 12 }}>
+        public/grok-bot/ 角色素材归 xAI，不随 Apache-2.0 授权。详见 NOTICE.md。
       </p>
-      <p className="settings-muted m-0 px-2 pt-2">
-        public/grok-bot/ 角色素材归 xAI，不随 Apache-2.0 授权；二次分发与商用有侵权风险。详见 NOTICE.md。
-      </p>
-      <p className="settings-muted m-0 px-2 pt-2">此前以 MIT 或 PolyForm Noncommercial 发布的快照条款不变；本版本起适用 Apache-2.0。</p>
     </section>
   )
 }
@@ -33,21 +193,22 @@ export function ShellSettingsAbout() {
 export function ShellSettingsShortcuts() {
   return (
     <section data-testid="settings-shortcuts">
-      <ul className="m-0 list-none p-0">
-        <li className="flex items-center justify-between gap-3 px-2 py-1.5">
+      <h3 className="settings-pane-title">快捷键</h3>
+      <p className="settings-muted settings-pane-lead">Windows 与 Linux 上 ⌘ 用 Ctrl。选取也可用 ⌘Q。编辑器内 ⌘F 为正文查找，⌘⇧F 仍打开全局搜索。</p>
+      <ul className="settings-shortcut-list">
+        <li>
           <span>搜索</span>
-          <span className="settings-muted">⌘F</span>
+          <span className="settings-kbd"><kbd>⌘</kbd><kbd>F</kbd> / <kbd>⌘</kbd><kbd>⇧</kbd><kbd>F</kbd></span>
         </li>
-        <li className="flex items-center justify-between gap-3 px-2 py-1.5">
+        <li>
           <span>快速选取</span>
-          <span className="settings-muted">Ctrl+Q</span>
+          <span className="settings-kbd"><kbd>Ctrl</kbd><kbd>Q</kbd></span>
         </li>
-        <li className="flex items-center justify-between gap-3 px-2 py-1.5">
+        <li>
           <span>选区送到对话</span>
-          <span className="settings-muted">⌘L</span>
+          <span className="settings-kbd"><kbd>⌘</kbd><kbd>L</kbd></span>
         </li>
       </ul>
-      <p className="settings-muted m-0 px-2 pt-1">Windows 与 Linux 上 ⌘ 用 Ctrl。选取也可用 ⌘Q。编辑器内 ⌘F 为正文查找，⌘L 也可从选区气泡进入。</p>
     </section>
   )
 }
@@ -88,7 +249,8 @@ export function ShellSettingsUpdate() {
 
   return (
     <section className="shell-settings-update" data-testid="settings-update">
-      <p className="settings-muted mb-3">
+      <h3 className="settings-pane-title">更新</h3>
+      <p className="settings-muted settings-pane-lead">
         {behind > 0 ? `当前落后主分支 ${badge} 个提交。` : '已与主分支对齐。'}
       </p>
       <button

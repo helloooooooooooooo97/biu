@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 
 export type OutlineNavItem = {
   id: string
@@ -49,9 +49,45 @@ export function OutlineNav({
     }, 140)
   }
 
+  function outlineExpandOn() {
+    return typeof document === 'undefined' || document.documentElement.getAttribute('data-outline-expand') !== '0'
+  }
+
+  useEffect(() => {
+    const onPrefs = () => {
+      if (!outlineExpandOn()) setHoverId(null)
+    }
+    window.addEventListener('biu:page-prefs', onPrefs)
+    return () => window.removeEventListener('biu:page-prefs', onPrefs)
+  }, [])
+
   function hoverTick(id: string) {
     keepOpen()
+    if (!outlineExpandOn()) return
     setHoverId(id)
+  }
+
+  function hoverRail(event: ReactMouseEvent) {
+    keepOpen()
+    if (!outlineExpandOn() || !items.length) return
+    const rail = railRef.current
+    if (!rail) {
+      hoverTick(items[0]!.id)
+      return
+    }
+    const ticks = rail.querySelectorAll<HTMLElement>('[data-outline-tick]')
+    let bestId = items[0]!.id
+    let best = Infinity
+    ticks.forEach((tick) => {
+      const box = tick.getBoundingClientRect()
+      const dist = Math.abs((box.top + box.bottom) / 2 - event.clientY)
+      const id = tick.getAttribute('data-outline-tick')
+      if (id && dist < best) {
+        best = dist
+        bestId = id
+      }
+    })
+    hoverTick(bestId)
   }
 
   useLayoutEffect(() => {
@@ -71,7 +107,8 @@ export function OutlineNav({
       className="chat-outline"
       aria-label={label}
       data-testid={testId}
-      onMouseEnter={keepOpen}
+      onMouseEnter={hoverRail}
+      onMouseMove={hoverRail}
       onMouseLeave={scheduleClose}
     >
       <div className="chat-outline-rail" ref={railRef} data-testid={`${testId}-rail`}>

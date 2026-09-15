@@ -104,7 +104,7 @@ flowchart TB
 
 同一批路径也支撑界面：打开一个表格视图、一个检查器面板、一个页面，都是在这套地址空间里导航。不存在「应用里的数据」与「工作区里的文件」之间的导入导出——它们本就是同一个东西。
 
-**两层，一份事实。** 页面正文是真实文件 `.page/<id>.md`（YAML 头 + Markdown），旁边的 SQLite 索引只负责列表与检索；表的行落在 File System 的 SQLite 存储里。能力要用什么，就按同一份契约存，然后出现在同一棵树上。
+**两层，一份事实。** 页面正文是真实文件 `.biu/page/<id>.md`（YAML 头 + Markdown），旁边的 SQLite 索引只负责列表与检索；表的行落在 File System 的 SQLite 存储里。能力要用什么，就按同一份契约存，然后出现在同一棵树上。
 
 ### 块：可安装的页面内容
 
@@ -424,6 +424,7 @@ make          # 安装依赖，同时起 host 与 Vite
 |--|------|
 | UI | http://127.0.0.1:5173 |
 | API / WS | http://127.0.0.1:3141 |
+| 局域网只读分享 | `http://<局域网IP>:3142/share/...`（工作台仍只在本机） |
 
 未配置 Key 时，发送消息只会得到本地回声。请点击输入框旁的 **＋ 配置模型**，或：
 
@@ -441,7 +442,7 @@ export CHAT_MODEL=deepseek-chat # 可选
 |------|--|
 | `make` / `make restart` | 安装并起两侧 / 先停再起 |
 | `make host` / `make web` | 只起一侧 |
-| `make stop` | 释放 `3141` / `5173` |
+| `make stop` | 释放 `3141` / `3142` / `5173` |
 | `npm test` | Vitest |
 | `npx tsc --noEmit` | 类型检查 |
 
@@ -449,7 +450,10 @@ export CHAT_MODEL=deepseek-chat # 可选
 
 | 变量 | 默认 | |
 |------|------|--|
-| `PORT` / `HTTP_HOST` | `3141` / `127.0.0.1` | host 监听 |
+| `PORT` / `HTTP_HOST` | `3141` / `127.0.0.1` | 本机工作台（不要改成 `0.0.0.0`，否则整站进局域网） |
+| `SHARE_PORT` / `SHARE_HOST` | `3142` / `0.0.0.0` | `make` / `npm run dev` 默认打开；只放行分享页。`SHARE_PORT=0` 关闭 |
+| `SHARE_PUBLIC_URL` | 自动探测局域网 IPv4 | 复制链接用的 origin，例如 `http://192.168.1.8:3142` |
+| `SHARE_PROXY_UI` | `dev:host` 默认指向 Vite | 开发时分享页走 `5173`；`npm start` 用构建产物 |
 | `CORDIS_WORKSPACE` | `.workspace` | 默认工作区 |
 | `DEEPSEEK_API_KEY` 等 | | 也可只在 UI 里存 |
 

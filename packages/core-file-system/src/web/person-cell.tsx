@@ -3,6 +3,7 @@ import { ArrowPathIcon, CpuChipIcon, UserIcon } from '@heroicons/react/16/solid'
 import { SidebarMascot, resolveSessionMascot } from '@biu/public-mascot'
 import { asPerson, asPersonList, personKey, type PersonValue } from '@biu/type-file-system'
 import { listCollection } from './db-client.ts'
+import { profileDisplayName, useWorkspaceProfile } from '@biu/public-ui'
 
 type ChatPerson = {
   id: string
@@ -62,12 +63,14 @@ export async function loadAgents(): Promise<ChatPerson[]> {
 }
 
 export function PersonFace({ value, empty = '' }: { value: unknown; empty?: string }) {
+  const profile = useWorkspaceProfile()
   const people = asPersonList(value)
   const [sessionNames, setSessionNames] = useState<Map<string, string>>(() => new Map())
   const needAgents = people.some((item) => item.kind === 'agent' && item.sessionId)
+  const shareRuntime = typeof document !== 'undefined' && document.documentElement.classList.contains('share')
 
   useEffect(() => {
-    if (!needAgents) return
+    if (!needAgents || shareRuntime) return
     let cancelled = false
     void loadAgents()
       .then((rows) => {
@@ -80,7 +83,7 @@ export function PersonFace({ value, empty = '' }: { value: unknown; empty?: stri
     return () => {
       cancelled = true
     }
-  }, [needAgents])
+  }, [needAgents, shareRuntime])
 
   if (!people.length) {
     return empty ? (
@@ -94,20 +97,25 @@ export function PersonFace({ value, empty = '' }: { value: unknown; empty?: stri
   return (
     <span className="fsdb-person-list">
       {people.map((person) => {
-        const displayName = resolveAgentName(person, sessionNames) || (person.kind === 'agent' ? '' : person.name)
+        const liveUser = person.kind === 'user' && (person.name === '用户' || person.name === profile.name)
+        const displayName = liveUser
+          ? profileDisplayName(profile)
+          : resolveAgentName(person, sessionNames) || (person.kind === 'agent' ? person.name : person.name)
         const label = displayName || empty
         return (
           <span key={personKey(person) || person.name} className="fsdb-person" title={label || undefined}>
-            {person.kind === 'agent' && person.sessionId ? (
+            {person.kind === 'agent' && (person.sessionId || person.mascot) ? (
               <span className="fsdb-person-face" aria-hidden>
                 <SidebarMascot
                   size={18}
-                  sessionId={person.sessionId}
-                  identity={resolveSessionMascot(person.sessionId)}
+                  sessionId={person.sessionId || person.name}
+                  identity={resolveSessionMascot(person.sessionId || person.name, person.mascot)}
                   animate={false}
                   title={label || person.sessionId}
                 />
               </span>
+            ) : liveUser && profile.avatar ? (
+              <img className="fsdb-person-photo" src={profile.avatar} alt="" />
             ) : (
               <span className="fsdb-person-avatar" aria-hidden>
                 {person.kind === 'system' ? <CpuChipIcon className="size-[14px]" /> : <UserIcon className="size-[14px]" />}
@@ -168,7 +176,7 @@ export function PersonPickPanel({
         <span className="fsdb-person-avatar" aria-hidden>
           <UserIcon className="size-[14px]" />
         </span>
-        <span className="fsdb-person-name">用户</span>
+        <span className="fsdb-person-name">{profileDisplayName()}</span>
       </button>
       <button
         type="button"

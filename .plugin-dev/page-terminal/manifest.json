@@ -1,12 +1,13 @@
 {
   "id": "page-terminal",
   "name": "页面终端",
-  "blurb": "在页面里用 / 插入真实交互终端块。每个块一个独立 PTY，会话在后端常驻（LRU 保留 50 个），关页面重开可接着用；历史写进块数据，agent 读页面源码即可见。",
+  "blurb": "在页面里用 / 插入真实交互终端块。每个块一个独立 PTY，会话在后端常驻；同时提供独立的 MySQL batch API。",
   "tags": [
     "page",
     "editor",
     "terminal",
-    "pty"
+    "pty",
+    "mysql"
   ],
   "author": "Biu",
   "headless": true,

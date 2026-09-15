@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { DatePicker, ConfigProvider, theme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import dayjs from 'dayjs'
@@ -17,6 +18,40 @@ export function formatDateTimeLabel(value: unknown) {
   const d = new Date(n)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+const PICKER_CHROME = {
+  DatePicker: {
+    cellHeight: 28,
+    cellWidth: 32,
+    timeColumnWidth: 48,
+  },
+} as const
+
+const NOTION_LIGHT = {
+  algorithm: theme.defaultAlgorithm,
+  token: {
+    colorBgBase: '#ffffff',
+    colorBgContainer: '#ffffff',
+    colorBgElevated: '#ffffff',
+    colorBgLayout: '#ffffff',
+    colorBorder: '#f0efed',
+    colorBorderSecondary: '#f0efed',
+    colorText: '#2c2c2b',
+    colorTextSecondary: '#8d8b87',
+    colorTextTertiary: '#8d8b87',
+    colorTextPlaceholder: '#8d8b87',
+    colorPrimary: '#2b7de6',
+    colorPrimaryHover: '#4b90ea',
+    colorFillSecondary: '#f0efed',
+    colorFillTertiary: '#f0efed',
+    controlOutline: 'transparent',
+    borderRadius: 6,
+    fontSize: 14,
+    fontFamily: 'inherit',
+    boxShadowSecondary: '0 8px 24px rgba(0, 0, 0, 0.06)',
+  },
+  components: PICKER_CHROME,
 }
 
 const NOTION_DARK = {
@@ -42,13 +77,22 @@ const NOTION_DARK = {
     fontFamily: 'inherit',
     boxShadowSecondary: '0 0 0 1px rgba(242, 241, 237, 0.06), 0 8px 24px rgba(0, 0, 0, 0.35)',
   },
-  components: {
-    DatePicker: {
-      cellHeight: 28,
-      cellWidth: 32,
-      timeColumnWidth: 48,
-    },
-  },
+  components: PICKER_CHROME,
+}
+
+function useDarkChrome() {
+  const [dark, setDark] = useState(() =>
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark'),
+  )
+  useEffect(() => {
+    const root = document.documentElement
+    const sync = () => setDark(root.classList.contains('dark'))
+    sync()
+    const obs = new MutationObserver(sync)
+    obs.observe(root, { attributes: true, attributeFilter: ['class'] })
+    return () => obs.disconnect()
+  }, [])
+  return dark
 }
 
 export function CellDateTime({
@@ -65,6 +109,7 @@ export function CellDateTime({
   writable?: boolean
 }) {
   ensureDbSearchStyle()
+  const dark = useDarkChrome()
   const stamp = asStamp(value)
   return (
     <div
@@ -72,7 +117,7 @@ export function CellDateTime({
       onClick={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
     >
-      <ConfigProvider locale={zhCN} theme={NOTION_DARK} wave={{ disabled: true }}>
+      <ConfigProvider locale={zhCN} theme={dark ? NOTION_DARK : NOTION_LIGHT} wave={{ disabled: true }}>
         <DatePicker
           showTime={{ format: 'HH:mm' }}
           needConfirm={false}

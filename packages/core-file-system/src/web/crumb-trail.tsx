@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/16/solid'
-import { HeadlessDismiss } from '@biu/public-ui'
+import { HeadlessDismiss, overlayPortalRoot } from '@biu/public-ui'
 import { CrumbItemGlyph, TableGlyph } from './nav-glyphs.tsx'
 import { crumbButtonAction, type Crumb, type CrumbTarget } from './sidebar-nav.ts'
 
@@ -145,6 +145,7 @@ export function CrumbTrail({
   label,
   allowMenu = true,
   lockRootCrumb = false,
+  collapseToLeaf = false,
 }: {
   crumbs: Crumb[]
   onPick: (target: CrumbTarget) => void
@@ -159,9 +160,12 @@ export function CrumbTrail({
   allowMenu?: boolean
   /** 右侧检查器：一级只显示图标且不可点选，从第二级开始切换 */
   lockRootCrumb?: boolean
+  /** 宽度不够时只显示最后一级，避免顶栏挤成一排省略号 */
+  collapseToLeaf?: boolean
 }) {
   const trailRef = useRef<HTMLElement | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [leafOnly, setLeafOnly] = useState(false)
   const openCrumb = crumbs.find((item) => item.id === openId)
   const tableCrumb = crumbs.find((item) => item.kind === 'collection')
   const tableIcon = tableCrumb?.icon
@@ -170,9 +174,30 @@ export function CrumbTrail({
     if (!allowMenu) setOpenId(null)
   }, [allowMenu])
 
+  useEffect(() => {
+    if (!collapseToLeaf) {
+      setLeafOnly(false)
+      return
+    }
+    const node = trailRef.current
+    const host = node?.parentElement
+    if (!node || !host) return
+    const measure = () => {
+      setLeafOnly(false)
+      requestAnimationFrame(() => {
+        if (!trailRef.current || !host.isConnected) return
+        setLeafOnly(trailRef.current.scrollWidth > host.clientWidth + 1)
+      })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(host)
+    return () => ro.disconnect()
+  }, [collapseToLeaf, crumbs])
+
   return (
     <nav
-      className={className ?? 'fsdb-crumbs'}
+      className={`${className ?? 'fsdb-crumbs'}${leafOnly ? ' is-leaf-only' : ''}`}
       aria-label={label ?? '位置'}
       ref={(node) => {
         trailRef.current = node
@@ -256,7 +281,7 @@ export function CrumbTrail({
               canCreateView={canCreateView}
               canCreateRecord={canCreateRecord}
             />,
-            document.body,
+            overlayPortalRoot() ?? document.body,
           )
         : null}
     </nav>

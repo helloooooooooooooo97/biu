@@ -36,10 +36,11 @@ test('message outline is a left rail of ticks with a hover menu', () => {
   const shell = readFileSync(resolve(import.meta.dirname, '../../../web-app-shell/src/web/index.tsx'), 'utf8')
   assert.match(css, /\.chat-outline\s*\{[^}]*left:\s*8px/s)
   assert.match(css, /\.chat-outline\s*\{[^}]*opacity:\s*0/s)
-  assert.match(css, /\.chat-outline:hover,\s*\n\.chat-outline:focus-within\s*\{[^}]*opacity:\s*1/s)
-  assert.match(css, /\.chat-outline::before\s*\{[^}]*width:\s*96px/s)
-  assert.match(css, /\.chat-outline-rail\s*\{[^}]*align-items:\s*flex-start/s)
-  assert.match(css, /\.chat-outline-rail\s*\{[^}]*gap:\s*8px/s)
+  assert.match(css, /\.chat-outline:hover,\s*\n\.chat-outline:focus-within,\s*\nhtml\[data-outline-pin="1"\] \.chat-outline\s*\{[^}]*opacity:\s*1/s)
+  assert.match(css, /\.chat-outline::before\s*\{[^}]*width:\s*64px/s)
+  assert.match(css, /\.chat-outline\s*\{[^}]*max-height:\s*min\(40vh,\s*360px\)/s)
+  assert.match(css, /\.chat-outline-rail\s*\{[^}]*max-height:\s*min\(40vh,\s*360px\)/s)
+  assert.match(css, /\.chat-outline-rail\s*\{[^}]*overflow-y:\s*auto/s)
   assert.match(css, /\.chat-outline-tick::after/)
   assert.match(css, /\.chat-outline-panel\s*\{[^}]*left:\s*36px/s)
   assert.match(css, /\.chat-outline-panel\s*\{[^}]*top:\s*50%/s)
@@ -55,7 +56,12 @@ test('message outline is a left rail of ticks with a hover menu', () => {
   assert.doesNotMatch(css, /\.chat-outline-tick\.is-h[23]\s*\{[^}]*padding-left/)
   assert.match(css, /\.chat-outline-item\.is-h2\s*\{[^}]*padding-left:\s*22px/s)
   assert.match(css, /\.chat-outline-item\.is-h3\s*\{[^}]*padding-left:\s*36px/s)
-  assert.match(css, /\.chat-outline-item:hover,\s*\.chat-outline-item\.is-active\s*\{[^}]*background:\s*rgba\(242,\s*241,\s*237,\s*0\.12\)/s)
+  // 悬浮/选中要有一层底和更亮的前景 token，具体色值随主题走，不锁死。
+  assert.match(css, /\.chat-outline-item:hover,\s*\.chat-outline-item\.is-active\s*\{[^}]*background:\s*[^;}]+;/s)
+  assert.match(
+    css,
+    /\.chat-outline-item:hover,\s*\.chat-outline-item\.is-active\s*\{[^}]*color:\s*var\(--dsw-sidebar-fg-active\)/s,
+  )
   assert.match(outline, /chat-outline-tick/)
   assert.match(outline, /hoverTick/)
   assert.match(bound, /OutlineNav/)
