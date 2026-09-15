@@ -2416,6 +2416,13 @@ body {
   color: var(--dsw-sidebar-icon);
 }
 
+.app-side-bar .sidebar-rail-icon svg,
+.app-side-bar .fsdb-record-mark,
+.app-side-bar .fsdb-record-mark svg,
+.app-side-bar .chat-session-row-main > span > svg {
+  color: var(--dsw-icon);
+}
+
 .chat-session-row:hover .sidebar-rail-icon,
 .chat-session-row.is-active .sidebar-rail-icon,
 .app-side-actions-item:hover .sidebar-rail-icon,

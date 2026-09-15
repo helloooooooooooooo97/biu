@@ -49,5 +49,9 @@ export function RecordMark({
       </span>
     )
   }
-  return <TableGlyph icon={tableIcon} className={className ?? (size === 'lg' ? 'size-8' : 'size-4')} />
+  return (
+    <span className={`fsdb-record-mark is-${size}`}>
+      <TableGlyph icon={tableIcon} className={className ?? (size === 'lg' ? 'size-8' : 'size-4')} />
+    </span>
+  )
 }
