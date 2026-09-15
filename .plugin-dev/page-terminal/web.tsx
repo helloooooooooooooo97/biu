@@ -363,7 +363,6 @@ function TerminalSurface({
     const fitted = () => {
       try {
         fit.fit()
-        term.scrollToBottom()
         return true
       } catch {
         return false
@@ -374,6 +373,8 @@ function TerminalSurface({
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
     let socket: WebSocket | undefined
     let raf = 0
+    let hasUserInput = false
+    let startupTimer: number | undefined
     // 连接延后到布局稳定，避免用错误尺寸启动 shell。
     raf = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -395,7 +396,19 @@ function TerminalSurface({
         socket.addEventListener('message', (event) => {
           decodePtyChunk(event.data, (chunk) => {
             if (!chunk) return
-            term.write(chunk)
+            term.write(chunk, () => {
+              // 新建/重连时 PTY 会先按启动尺寸吐出提示符和回放内容。xterm 随后
+              // fit 到真实高度，那些启动行会留在缓冲区顶部，造成“上面空一大片、
+              // 当前光标被挤到下方看不见”。等首轮输出安静后只保留当前光标行。
+              if (hasUserInput) return
+              if (startupTimer) window.clearTimeout(startupTimer)
+              startupTimer = window.setTimeout(() => {
+                if (hasUserInput) return
+                term.clear()
+                term.scrollToBottom()
+                term.refresh(0, term.rows - 1)
+              }, 120)
+            })
             recordOutput(chunk)
           })
         })
@@ -502,6 +515,11 @@ function TerminalSurface({
     // ---------------------------------------------------------------------
 
     const dataSub = term.onData((data) => {
+      hasUserInput = true
+      if (startupTimer) {
+        window.clearTimeout(startupTimer)
+        startupTimer = undefined
+      }
       recordInput(data)
       if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input', data }))
     })
@@ -524,6 +542,7 @@ function TerminalSurface({
 
     return () => {
       if (outTimer) window.clearTimeout(outTimer)
+      if (startupTimer) window.clearTimeout(startupTimer)
       cancelAnimationFrame(raf)
       detachScroll()
       observer.disconnect()

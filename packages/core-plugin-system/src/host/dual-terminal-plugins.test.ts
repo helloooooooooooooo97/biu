@@ -90,7 +90,9 @@ describe('page terminal store plugin', () => {
     assert.match(web, /function attachScrollRail/)
     assert.match(web, /\.pt-scroll-rail/)
     assert.match(web, /term\.scrollToLine/)
+    assert.match(web, /term\.clear\(\)/)
     assert.match(web, /term\.scrollToBottom/)
+    assert.match(web, /hasUserInput/)
   })
 
   it('page terminal persists history into block data and keeps sessions alive', async () => {
