@@ -107,15 +107,25 @@ function rewriteBanner(value: unknown, token: string, password: string) {
 
 export function ShareRoot({
   chrome,
+  chromeFor,
   loadPlugins,
 }: {
   chrome?: CollectionChrome
+  chromeFor?: (collection: string) => CollectionChrome | undefined
   loadPlugins?: (token: string, pluginIds: string[], password: string) => Promise<void>
 } = {}) {
   const location = useLocation()
   const parsed = parseSharePath(location.pathname)
   if (!parsed) return null
-  return <SharePage token={parsed.token} recordId={parsed.recordId} chrome={chrome} loadPlugins={loadPlugins} />
+  return (
+    <SharePage
+      token={parsed.token}
+      recordId={parsed.recordId}
+      chrome={chrome}
+      chromeFor={chromeFor}
+      loadPlugins={loadPlugins}
+    />
+  )
 }
 
 function downloadShareFile(blob: Blob, name: string) {
@@ -133,11 +143,13 @@ function SharePage({
   token,
   recordId,
   chrome,
+  chromeFor,
   loadPlugins,
 }: {
   token: string
   recordId: string
   chrome?: CollectionChrome
+  chromeFor?: (collection: string) => CollectionChrome | undefined
   loadPlugins?: (token: string, pluginIds: string[], password: string) => Promise<void>
 }) {
   ensureFsdbStyle()
@@ -285,8 +297,8 @@ function SharePage({
 
   if (!snapshot || !pluginsReady) {
     return (
-      <div className="fsdb-share-page" data-testid="fsdb-share-page">
-        <p className="fsdb-empty">正在打开…</p>
+      <div className="fsdb-share-page fsdb-share-loading" data-testid="fsdb-share-page">
+        <span className="fsdb-share-spinner" role="status" aria-label="加载中" />
       </div>
     )
   }
@@ -301,6 +313,7 @@ function SharePage({
   const safePage = Math.min(page, lastPage)
   const paged = snapshot.kind === 'view' ? listed.slice(safePage * pageSize, safePage * pageSize + pageSize) : listed
   const shown = selected ?? (snapshot.kind === 'record' ? snapshot.records[0] : null)
+  const detailChrome = chromeFor?.(snapshot.collection) ?? chrome
   if (recordId && !shown) {
     return (
       <div className="fsdb-share-page" data-testid="fsdb-share-page">
@@ -361,13 +374,48 @@ function SharePage({
       <header className="chat-view-header">
         <div className="chat-view-header-left">
           {crumbs.length ? (
-            <CrumbTrail crumbs={crumbs} canCreateView={false} canCreateRecord={false} onPick={openShareTarget} />
+            <CrumbTrail
+              crumbs={crumbs}
+              canCreateView={false}
+              canCreateRecord={false}
+              collapseToLeaf
+              onPick={openShareTarget}
+            />
           ) : (
             <span className="chat-view-project-name">{snapshot.title}</span>
           )}
-          <span className="fsdb-share-badge">只读</span>
         </div>
         <div className="chat-view-header-right">
+          {viewNav && shown ? (
+            <div className="fsdb-share-record-nav" data-testid="fsdb-share-record-nav">
+              <button
+                type="button"
+                className="chat-view-header-expand"
+                title="上一条"
+                aria-label="上一条"
+                disabled={viewIndex <= 0}
+                onClick={() => {
+                  const prev = listed[Math.max(0, viewIndex - 1)]
+                  if (prev) navigate(sharePublicPath(token, prev.id))
+                }}
+              >
+                <ChevronLeftIcon aria-hidden className="size-4" />
+              </button>
+              <button
+                type="button"
+                className="chat-view-header-expand"
+                title="下一条"
+                aria-label="下一条"
+                disabled={viewIndex < 0 || viewIndex >= listed.length - 1}
+                onClick={() => {
+                  const next = listed[Math.min(listed.length - 1, viewIndex + 1)]
+                  if (next) navigate(sharePublicPath(token, next.id))
+                }}
+              >
+                <ChevronRightIcon aria-hidden className="size-4" />
+              </button>
+            </div>
+          ) : null}
           <div className="fsdb-layout-wrap" ref={layoutRef}>
             <button
               type="button"
@@ -493,7 +541,7 @@ function SharePage({
         <RecordDetail
           selected={{ ...shown, banner: rewriteBanner(shown.banner, token, password) ?? shown.banner }}
           schema={schema}
-          chrome={chrome}
+          chrome={detailChrome}
           draft={{}}
           detailBody={rewriteAssetUrls(snapshot.contents[shown.id], token, password)}
           labelOf={(row) => crumbRecordLabel(row, schema.labelField)}
@@ -505,7 +553,7 @@ function SharePage({
               records={listed}
               collection={snapshot.collection}
               schema={schema}
-              chrome={chrome}
+              chrome={detailChrome}
             />
           )}
           setDraft={() => undefined}
@@ -564,7 +612,7 @@ function SharePage({
                 view={snapshot.view}
                 records={paged}
                 collection={snapshot.collection}
-                chrome={chrome}
+                chrome={detailChrome}
                 columns={queryState?.columns}
                 wrap={queryState?.wrap}
                 truncate={queryState?.truncate}

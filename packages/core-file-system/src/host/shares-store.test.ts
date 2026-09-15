@@ -171,6 +171,39 @@ test('snapshot lists page plugins even when source zip is off', async () => {
   assert.deepEqual(snap.pluginIds, ['page-html-blocks'])
 })
 
+test('session snapshot uses db_content events, not page markdown', async () => {
+  const events = [
+    { type: 'user/message', text: 'hi', seq: 0, ts: 1, turn: 1, kind: 'user' },
+    { type: 'assistant/message', text: 'hello', seq: 1, ts: 2, turn: 1 },
+  ]
+  const spec: CollectionSpec = {
+    id: 'sessions',
+    path: '/sessions',
+    label: '会话',
+    schema: {
+      labelField: 'title',
+      contentField: 'events',
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+        events: { type: 'file', writable: false },
+      },
+    },
+    records: {},
+    list: () => [{ id: 's1', title: '对话' }],
+    get: async (id) => (id === 's1' ? { id: 's1', title: '对话', events } : null),
+  }
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.register(spec)
+  const views = new SavedViewsStore().open(':memory:')
+  const shares = new SharesStore().open(':memory:')
+  const share = shares.upsert({ kind: 'record', collection: '/sessions', recordId: 's1' })
+  const snap = await buildShareSnapshot(db, views, share)
+  assert.equal(snap.contents.s1, events)
+  assert.equal(snap.schema.contentField, 'events')
+})
+
 test('builtin view snapshot titles use 全部 plus the collection label', async () => {
   const spec: CollectionSpec = {
     id: 'pages',

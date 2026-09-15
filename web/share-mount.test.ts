@@ -11,9 +11,20 @@ test('share hrefs skip the full workstation boot', () => {
   assert.equal(parseSharePath('/'), null)
 })
 
+test('share mount picks content chrome by collection', () => {
+  const mount = readFileSync(resolve(import.meta.dirname, './share-mount.tsx'), 'utf8')
+  assert.match(mount, /shareChromeFor/)
+  assert.doesNotMatch(mount, /chrome=\{\{ Content: PageEditor \}\}/)
+  const chrome = readFileSync(resolve(import.meta.dirname, './share-chrome.ts'), 'utf8')
+  assert.match(chrome, /collection === '\/sessions'/)
+  assert.match(chrome, /sessionsChrome/)
+  assert.match(chrome, /PageBlockContent/)
+  assert.match(chrome, /SkillsContent/)
+  assert.match(chrome, /PageEditor/)
+})
+
 test('share mount loads page plugins without booting the workstation', () => {
   const mount = readFileSync(resolve(import.meta.dirname, './share-mount.tsx'), 'utf8')
-  assert.match(mount, /PageEditor/)
   assert.match(mount, /applyStoredTheme/)
   assert.match(mount, /bootShareRuntime/)
   assert.match(mount, /loadSharePagePlugins/)
@@ -43,7 +54,6 @@ test('share mount loads page plugins without booting the workstation', () => {
   assert.doesNotMatch(page, /clipboard\.writeText/)
   const style = readFileSync(resolve(import.meta.dirname, '../packages/core-file-system/src/web/fsdb-style.ts'), 'utf8')
   assert.match(style, /html\.share \.fsdb-detail-float-nav/)
-  assert.doesNotMatch(style, /\.fsdb-share-page \.fsdb-main > :not\(\.fsdb-page-banner\)/)
   const table = readFileSync(resolve(import.meta.dirname, '../packages/core-file-system/src/web/share-table.tsx'), 'utf8')
   assert.match(table, /tasks-table-stage/)
   assert.match(table, /fsdb-check-rail/)

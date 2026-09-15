@@ -1,10 +1,10 @@
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { PageEditor } from '@biu/core-editor/web'
 import { parseSharePath } from '../packages/core-file-system/src/share-snapshot.ts'
 import { ShareRoot } from '../packages/core-file-system/src/web/share-page.tsx'
 import { applyStoredTheme } from '@biu/web-app-shell/theme'
 import { bootShareRuntime, loadSharePagePlugins } from './share-plugins.ts'
+import { shareChromeFor } from './share-chrome.ts'
 
 export function isShareHref(pathname = window.location.pathname) {
   return Boolean(parseSharePath(pathname))
@@ -17,7 +17,7 @@ export function mountShareApp(el: HTMLElement) {
   bootShareRuntime()
   createRoot(el).render(
     <BrowserRouter>
-      <ShareRoot chrome={{ Content: PageEditor }} loadPlugins={loadSharePagePlugins} />
+      <ShareRoot chromeFor={shareChromeFor} loadPlugins={loadSharePagePlugins} />
     </BrowserRouter>,
   )
 }

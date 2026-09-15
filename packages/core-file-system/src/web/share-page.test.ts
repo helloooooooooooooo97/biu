@@ -3,19 +3,37 @@ import { resolve } from 'node:path'
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 
-test('share page uses tight side padding on small screens', () => {
+test('share page uses matching side padding on small screens', () => {
   const css = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
   const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
   assert.match(src, /fsdb-share-list/)
+  assert.match(src, /collapseToLeaf/)
+  assert.match(src, /fsdb-share-record-nav/)
+  assert.match(src, /^\s*readOnly$/m)
   assert.match(css, /@media \(max-width:720px\)\{/)
-  assert.match(css, /\.fsdb-share-page \.fsdb-detail-main > :not\(\.fsdb-page-banner\)\{padding-left:16px;padding-right:16px\}/)
-  assert.match(css, /\.fsdb-share-list\{padding:16px\}/)
+  assert.match(css, /--fsdb-share-pad:24px/)
+  assert.match(css, /\.fsdb-share-page \.fsdb-detail-main > :not\(\.fsdb-page-banner\)\{padding-left:var\(--fsdb-share-pad\);padding-right:var\(--fsdb-share-pad\)\}/)
+  assert.match(css, /\.fsdb-share-list\{padding:var\(--fsdb-share-pad\) 0\}/)
+  assert.match(css, /\.fsdb-crumbs\.is-leaf-only \.fsdb-crumb:not\(:last-child\)\{display:none\}/)
+  assert.match(css, /\.fsdb-share-record-nav\{display:none/)
+  assert.match(css, /\.fsdb-share-page \.fsdb-detail-float-nav\{display:none\}/)
+  assert.match(css, /\.heading-outline-host\.is-sheet/)
+  assert.match(css, /\.fsdb-share-loading\{/)
+  assert.match(css, /\.fsdb-share-spinner\{/)
+  assert.doesNotMatch(src, /正在打开/)
 })
 
 test('share header crumbs use collectionLabel not the path id', () => {
   const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
   assert.match(src, /snapshot\.collectionLabel/)
   assert.doesNotMatch(src, /snapshot\.collection\.replace/)
+})
+
+test('share header has no 只读 badge', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
+  assert.doesNotMatch(src, /只读/)
+  assert.doesNotMatch(src, /fsdb-share-badge/)
+  assert.match(src, /chromeFor\?\.\(snapshot\.collection\)/)
 })
 
 test('share header has a theme toggle that writes biu.theme', () => {

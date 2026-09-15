@@ -5,7 +5,7 @@ import type { DatabaseUi, FsContentProps } from '@biu/type-file-system/ui'
 export const name = 'host-skills-ui'
 export const inject = ['databaseUi']
 
-function SkillsContent(props: FsContentProps) {
+export function SkillsContent(props: FsContentProps) {
   if (props.record.kind !== 'file') {
     return (
       <p className="fsdb-muted" style={{ margin: '12px 0 0', color: 'var(--dsw-label-3)' }}>

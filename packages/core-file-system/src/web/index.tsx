@@ -314,7 +314,13 @@ export function apply(ctx: Context) {
   }
 
   slots.place('root-overlays', RegisterErrorBanner, { key: 'fsdb-nav-errors', order: 80 })
-  slots.place('root-overlays', ShareRoot, { key: 'fsdb-share-root', order: 90 })
+  slots.place('root-overlays', ShareRoot, {
+    key: 'fsdb-share-root',
+    order: 90,
+    props: () => ({
+      chromeFor: (collection: string) => getDatabaseUi()?.chrome(collection),
+    }),
+  })
   slots.place('header-tools', InspectorFollowToggle, {
     key: 'inspector-follow',
     order: 11,

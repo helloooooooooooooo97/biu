@@ -52,10 +52,33 @@ function MascotEyeCell({ value }: FsCellProps) {
   return <span>{name}</span>
 }
 
-function SessionRecordChat({ record }: FsContentProps) {
+function eventsFromContent(value: unknown): SessionEvent[] | null {
+  if (Array.isArray(value)) return value as SessionEvent[]
+  if (value && typeof value === 'object' && Array.isArray((value as { events?: unknown }).events)) {
+    return (value as { events: SessionEvent[] }).events
+  }
+  return null
+}
+
+function usageFromContent(value: unknown): Record<string, TrajectoryUsage> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const raw = (value as { dispatchedUsageByTurn?: unknown }).dispatchedUsageByTurn
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  return raw as Record<string, TrajectoryUsage>
+}
+
+function nodesFromContent(value: unknown): ChatNode[] | null {
+  const events = eventsFromContent(value)
+  if (!events) return null
+  return mergeDispatchedUsageIntoNodes(projectNodes(events), usageFromContent(value))
+}
+
+function SessionRecordChat({ record, value }: FsContentProps) {
   const sessionId = String(record.id)
-  const [nodes, setNodes] = useState<ChatNode[]>([])
+  const [nodes, setNodes] = useState<ChatNode[]>(() => nodesFromContent(value) ?? [])
   useEffect(() => {
+    const seeded = nodesFromContent(value)
+    if (seeded) setNodes(seeded)
     const ac = new AbortController()
     void fetch(`/api/sessions/${sessionId}?turns=${SESSION_LOAD_TURNS}`, { signal: ac.signal })
       .then((res) => (res.ok ? res.json() : null))
@@ -70,7 +93,7 @@ function SessionRecordChat({ record }: FsContentProps) {
       })
       .catch(() => undefined)
     return () => ac.abort()
-  }, [sessionId])
+  }, [sessionId, value])
   return (
     <ChatPane
       embed
