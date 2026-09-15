@@ -3062,21 +3062,21 @@ body {
   padding: 0;
   border: 1px solid var(--dsw-border);
   border-radius: 999px;
-  background: var(--dsw-hover-strong);
-  color: var(--dsw-icon);
+  background: var(--dsw-bubble);
+  color: var(--dsw-label);
   cursor: pointer;
   box-shadow: none;
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 
 .dock-icon-btn:hover:not(:disabled) {
-  color: var(--dsw-icon);
+  color: var(--dsw-sidebar-fg-active);
 }
 
 .dock-icon-btn.is-active {
-  border-color: var(--dsw-border);
-  background: var(--dsw-hover-strong);
-  color: var(--dsw-icon);
+  border-color: var(--dsw-pick-stroke);
+  background: var(--dsw-pick-fill);
+  color: var(--dsw-sidebar-fg-active);
 }
 
 .dock-icon-btn:disabled {
@@ -5383,7 +5383,7 @@ html:not(.dark) .composer-plus {
   margin: 0;
   border: 1px solid var(--dsw-border);
   border-radius: 999px;
-  background: transparent;
+  background: var(--dsw-bubble);
   color: var(--dsw-label);
   cursor: pointer;
 }
