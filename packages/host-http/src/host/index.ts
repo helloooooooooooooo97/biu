@@ -314,7 +314,10 @@ export class HttpService extends Service {
           .replace(/<script\b[^>]*\bsrc=["']\/@vite\/client["'][^>]*><\/script>\s*/gi, '')
         buf = Buffer.from(html)
       }
-      res.writeHead(upstream.status, { 'content-type': type })
+      res.writeHead(upstream.status, {
+        'content-type': type,
+        ...(type.includes('text/html') ? { 'cache-control': 'no-store' } : {}),
+      })
       res.end(buf)
       return true
     } catch {
