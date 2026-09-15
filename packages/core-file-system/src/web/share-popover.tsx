@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CheckIcon, LinkIcon, ShareIcon } from '@heroicons/react/16/solid'
+import { ArrowPathIcon, CheckIcon, LinkIcon, ShareIcon } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
 import { readJson } from './db-client.ts'
 import { mintSharePin, shareClipboardText, type ShareResourceStats } from '../share-resources.ts'
@@ -47,6 +47,44 @@ function rememberPin(token: string, pin: string) {
   } catch {
     /* ignore */
   }
+}
+
+function shareStatsLine(resources: ShareResourceStats) {
+  const parts = [
+    resources.pages ? `${resources.pages} 个页面` : '',
+    resources.plugins ? `${resources.plugins} 个插件` : '',
+    resources.collections ? `${resources.collections} 个合集` : '',
+  ].filter(Boolean)
+  return parts.length ? `包含：${parts.join(' · ')}` : ''
+}
+
+function ShareToggle({
+  on,
+  disabled,
+  label,
+  testId,
+  onChange,
+}: {
+  on: boolean
+  disabled?: boolean
+  label: string
+  testId: string
+  onChange: (on: boolean) => void
+}) {
+  return (
+    <button
+      type="button"
+      className={`fsdb-share-toggle${on ? ' is-on' : ''}`}
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      data-testid={testId}
+      onClick={() => onChange(!on)}
+    >
+      <span />
+    </button>
+  )
 }
 
 export function ShareButton({ target }: { target: ShareTarget | null }) {
@@ -177,7 +215,7 @@ function SharePanel({ target }: { target: ShareTarget }) {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1600)
     } catch {
-      setError('无法复制')
+      setError('无法复制，请重试')
     }
   }
 
@@ -198,124 +236,140 @@ function SharePanel({ target }: { target: ShareTarget }) {
     })
   }
 
-  const copyLabel = usePassword && pin ? '复制链接和密码' : '复制链接'
   const copyReady = !usePassword || Boolean(pin)
+  const stats = shareStatsLine(resources)
 
   return (
     <div className="fsdb-share-panel" role="dialog" aria-label="分享" data-testid="fsdb-share-panel">
-      <div className="fsdb-share-head">
+      <header className="fsdb-share-head">
         <strong>分享</strong>
-        <p>{usePassword ? '复制时会带上链接和密码，对方打开再输入即可。' : '有链接的人可以只读查看这一份内容。'}</p>
-      </div>
-      <div className="fsdb-share-stats" data-testid="fsdb-share-resources">
-        <span>页面 {resources.pages}</span>
-        <span>插件 {resources.plugins}</span>
-        <span>合集 {resources.collections}</span>
-      </div>
-      {!share ? (
-        <button
-          type="button"
-          className="fsdb-share-publish"
-          disabled={busy}
-          data-testid="fsdb-share-enable"
-          onClick={() => void copyShare()}
-        >
-          {copied ? '已复制' : '生成并复制链接'}
-        </button>
-      ) : (
-        <>
-          <div className="fsdb-share-link">
-            <LinkIcon aria-hidden className="size-4" />
-            <input readOnly value={share.url} data-testid="fsdb-share-url" onFocus={(event) => event.currentTarget.select()} />
+        <p>通过链接邀请他人查看此内容。</p>
+      </header>
+      <section className="fsdb-share-link-section">
+        {!share ? (
+          <div className="fsdb-share-empty">
+            <p className="fsdb-share-empty-title">链接分享尚未开启</p>
+            <p className="fsdb-share-empty-copy">开启后，任何获得链接的人都可以查看。</p>
             <button
               type="button"
-              className="fsdb-share-copy"
-              disabled={busy || !copyReady}
-              title={copyReady ? copyLabel : '换一组密码后即可复制'}
-              data-testid="fsdb-share-copy"
+              className="fsdb-share-publish"
+              disabled={busy}
+              data-testid="fsdb-share-enable"
               onClick={() => void copyShare()}
             >
-              {copied ? <CheckIcon aria-hidden className="size-4" /> : copyLabel}
+              {busy ? '正在生成…' : copied ? '已生成并复制' : '生成并复制链接'}
             </button>
           </div>
-          <label className="fsdb-share-switch">
-            <span>
-              <strong>密码保护</strong>
-              <em>打开后自动生成 6 位密码，复制链接时一并带上</em>
-            </span>
-            <input
-              type="checkbox"
-              checked={usePassword}
-              disabled={busy}
-              data-testid="fsdb-share-password-toggle"
-              onChange={(event) => togglePassword(event.target.checked)}
-            />
-          </label>
-          {usePassword ? (
-            <div className="fsdb-share-password">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={pin}
-                placeholder={share.hasPassword && !pin ? '已设置，换一组即可复制' : '6 位密码'}
-                data-testid="fsdb-share-password"
-                onChange={(event) => {
-                  const next = event.target.value.replace(/\D/g, '').slice(0, 6)
-                  setPin(next)
-                  if (share && next.length === 6) rememberPin(share.token, next)
-                }}
-                onBlur={() => {
-                  if (pin.length === 6) void publish({ password: pin })
-                }}
-              />
+        ) : (
+          <>
+            <div className="fsdb-share-link-row">
+              <div className="fsdb-share-link-field">
+                <LinkIcon aria-hidden className="size-4" />
+                <input
+                  readOnly
+                  value={share.url}
+                  aria-label="分享链接"
+                  data-testid="fsdb-share-url"
+                  onFocus={(event) => event.currentTarget.select()}
+                />
+              </div>
               <button
                 type="button"
                 className="fsdb-share-copy"
-                disabled={busy}
-                data-testid="fsdb-share-rotate-pin"
-                onClick={() => togglePassword(true)}
+                disabled={busy || !copyReady}
+                title={copyReady ? '复制链接' : '换一组密码后即可复制'}
+                data-testid="fsdb-share-copy"
+                onClick={() => void copyShare()}
               >
-                换一组
+                {copied ? <CheckIcon aria-hidden className="size-4" /> : null}
+                {copied ? '已复制' : '复制链接'}
               </button>
             </div>
-          ) : null}
-          <label className="fsdb-share-switch">
-            <span>
-              <strong>分享插件</strong>
-              <em>把用到的插件源码交给对方下载</em>
-            </span>
-            <input
-              type="checkbox"
-              checked={share.sharePlugins}
+            {usePassword ? <p className="fsdb-share-copy-note">复制时会同时包含链接和密码。</p> : null}
+          </>
+        )}
+        {stats ? (
+          <p className="fsdb-share-stats" data-testid="fsdb-share-resources">
+            {stats}
+          </p>
+        ) : (
+          <p className="fsdb-share-stats" data-testid="fsdb-share-resources" hidden />
+        )}
+      </section>
+      {share ? (
+        <>
+          <section className="fsdb-share-settings">
+            <h3>链接设置</h3>
+            <div className="fsdb-share-setting">
+              <span className="fsdb-share-setting-copy">
+                <strong>密码保护</strong>
+                <em>开启后自动生成 6 位密码</em>
+              </span>
+              <ShareToggle
+                on={usePassword}
+                disabled={busy}
+                label="密码保护"
+                testId="fsdb-share-password-toggle"
+                onChange={togglePassword}
+              />
+            </div>
+            {usePassword ? (
+              <div className="fsdb-share-pin">
+                <span>
+                  密码
+                  <strong data-testid="fsdb-share-password">{pin || '······'}</strong>
+                </span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  data-testid="fsdb-share-rotate-pin"
+                  onClick={() => togglePassword(true)}
+                >
+                  <ArrowPathIcon aria-hidden className="size-4" />
+                  换一组
+                </button>
+              </div>
+            ) : null}
+            <div className="fsdb-share-setting">
+              <span className="fsdb-share-setting-copy">
+                <strong>分享插件</strong>
+                <em>允许对方下载此内容使用的插件</em>
+              </span>
+              <ShareToggle
+                on={share.sharePlugins}
+                disabled={busy}
+                label="分享插件"
+                testId="fsdb-share-plugins"
+                onChange={(on) => void publish({ sharePlugins: on })}
+              />
+            </div>
+            <div className="fsdb-share-setting">
+              <span className="fsdb-share-setting-copy">
+                <strong>允许复制</strong>
+                <em>允许对方复制或下载页面内容</em>
+              </span>
+              <ShareToggle
+                on={share.allowCopy !== false}
+                disabled={busy}
+                label="允许复制"
+                testId="fsdb-share-allow-copy"
+                onChange={(on) => void publish({ allowCopy: on })}
+              />
+            </div>
+          </section>
+          <footer className="fsdb-share-footer">
+            <button
+              type="button"
+              className="fsdb-share-stop"
               disabled={busy}
-              data-testid="fsdb-share-plugins"
-              onChange={(event) => void publish({ sharePlugins: event.target.checked })}
-            />
-          </label>
-          <label className="fsdb-share-switch">
-            <span>
-              <strong>允许拷贝</strong>
-              <em>对方可下载页面内容</em>
-            </span>
-            <input
-              type="checkbox"
-              checked={share.allowCopy !== false}
-              disabled={busy}
-              data-testid="fsdb-share-allow-copy"
-              onChange={(event) => void publish({ allowCopy: event.target.checked })}
-            />
-          </label>
-          <button
-            type="button"
-            className="fsdb-share-stop"
-            disabled={busy}
-            data-testid="fsdb-share-stop"
-            onClick={() => void publish({ enabled: false })}
-          >
-            停止分享
-          </button>
+              data-testid="fsdb-share-stop"
+              onClick={() => void publish({ enabled: false })}
+            >
+              停止分享
+            </button>
+          </footer>
         </>
-      )}
+      ) : null}
       {error ? <p className="fsdb-share-error">{error}</p> : null}
     </div>
   )
