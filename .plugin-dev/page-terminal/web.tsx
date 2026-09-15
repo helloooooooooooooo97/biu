@@ -101,6 +101,23 @@ function styleHelperTextarea(el: HTMLElement) {
   s.removeProperty('display')
 }
 
+function fitToVisibleBox(term: Terminal, host: HTMLElement) {
+  if (!term.element) return false
+  const core = (term as unknown as {
+    _core?: { _renderService?: { dimensions?: { css?: { cell?: { width: number; height: number } } } } }
+  })._core
+  const cell = core?._renderService?.dimensions?.css?.cell
+  if (!cell?.width || !cell?.height) return false
+  const box = host.getBoundingClientRect()
+  const style = window.getComputedStyle(term.element)
+  const padX = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0)
+  const padY = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0)
+  const cols = Math.max(2, Math.floor((box.width - padX) / cell.width))
+  const rows = Math.max(1, Math.floor((box.height - padY) / cell.height))
+  if (term.cols !== cols || term.rows !== rows) term.resize(cols, rows)
+  return true
+}
+
 function attachScrollRail(term: Terminal, pane: HTMLElement) {
   const rail = document.createElement('div')
   rail.className = 'pt-scroll-rail'
@@ -501,7 +518,8 @@ function TerminalSurface({
         buryObs.observe(element, { childList: true, subtree: true })
         detachScroll = attachScrollRail(term, paneEl)
         try {
-          fit.fit()
+          if (!fitToVisibleBox(term, element)) fit.fit()
+          term.scrollToBottom()
         } catch {
           // 字体度量还没好，下一帧再 fit。
         }
@@ -535,7 +553,8 @@ function TerminalSurface({
         resizeSub = term.onResize(({ cols, rows }) => send({ type: 'resize', cols, rows }))
       }
       try {
-        fit?.fit()
+        if (!term || !fit) return
+        if (!fitToVisibleBox(term, element)) fit.fit()
         term.refresh(0, term.rows - 1)
       } catch {
         // Ignore transient zero-size layouts while the page is switching.

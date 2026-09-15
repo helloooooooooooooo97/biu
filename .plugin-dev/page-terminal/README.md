@@ -84,4 +84,4 @@ xterm 在编辑器容器里跑，比独立页面麻烦得多：
 7. **向 head 注入 `<style>` 不要写「已存在同 id 就 return」** —— 旧版本留下的同 id 标签会一直挡着，新样式永远不生效。每次覆盖内容，并清理旧标签。
 8. **改完代码要 pack + 重载** —— 宿主不会自动重新 import 已挂载的插件。
 9. **可见纵向滑块不能靠 viewport 原生条** —— `.xterm-screen` 的 canvas 盖住滚动条。滚轮仍走 viewport；右侧 `.pt-scroll-rail` 是叠在 canvas 上的自定义滑块，跟 `buffer.viewportY` 同步。
-10. **不要用 term.clear() 清启动空行** —— 中间试过，会把提示符一起清掉。最终版（5456764d）是：padding 打在 `.xterm` 上让 FitAddon 扣掉；宿主 `contain:strict` + 内层 `inset:0`；**看不见就不 open**（IntersectionObserver + 宽高 < 20 直接 return）。测量节点用 `left:-9999em`，不要 clip-path / width:0。
+10. **不要用 term.clear() 清启动空行** —— 中间试过，会把提示符一起清掉。最终版（5456764d）是：padding 打在 `.xterm` 上让 FitAddon 扣掉；宿主 `contain:strict` + 内层 `inset:0`；**看不见就不 open**。把手对齐时 overflow 收到了 `[data-page-block]`，TipTap 外层 `react-renderer` 不再裁切，FitAddon 会按被撑高的 CSS height 多算行。外壳要自己 overflow:hidden；行数按 **getBoundingClientRect** 算，写完滚到底。
