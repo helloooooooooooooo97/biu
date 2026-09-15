@@ -362,6 +362,12 @@ function SharePage({
             <span className="chat-view-project-name">{snapshot.title}</span>
           )}
           <span className="fsdb-share-badge">只读</span>
+          {snapshot.owner?.name ? (
+            <span className="fsdb-share-owner" data-testid="fsdb-share-owner">
+              {snapshot.owner.avatar ? <img src={snapshot.owner.avatar} alt="" /> : null}
+              来自 {snapshot.owner.name}
+            </span>
+          ) : null}
         </div>
         <div className="chat-view-header-right">
           <div className="fsdb-layout-wrap" ref={layoutRef}>

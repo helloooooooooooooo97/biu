@@ -7,6 +7,7 @@ import {
   CheckIcon,
   CircleStackIcon,
   Cog6ToothIcon,
+  CameraIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/16/solid'
 import { AnchorMenu } from '@biu/public-ui'
@@ -15,6 +16,126 @@ import { chromeIcon } from './chrome-icon.ts'
 import { applyNoticeClick, noticeIdOf } from './notice-open.ts'
 import { readMainDataRoute } from '@biu/core-file-system/main-data-route'
 import { persistTheme, readTheme, type ThemeMode } from './theme.ts'
+import { persistWorkspaceProfile, useWorkspaceProfile } from '@biu/public-ui'
+
+async function readAvatarFile(file: File) {
+  const url = URL.createObjectURL(file)
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve(img)
+      img.onerror = () => reject(new Error('无法读取图片'))
+      img.src = url
+    })
+    const canvas = document.createElement('canvas')
+    const size = 160
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('无法裁切头像')
+    const edge = Math.min(image.width, image.height)
+    ctx.drawImage(image, (image.width - edge) / 2, (image.height - edge) / 2, edge, edge, 0, 0, size, size)
+    return canvas.toDataURL('image/jpeg', 0.84)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+export function ShellSettingsAccount() {
+  const profile = useWorkspaceProfile()
+  const [name, setName] = useState(profile.name)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setName(profile.name)
+  }, [profile.name])
+
+  const initial = (profile.name.trim() || '用户').slice(0, 1)
+
+  return (
+    <section className="settings-account" data-testid="settings-account">
+      <header className="settings-account-head">
+        <h3 className="settings-account-title">我的账户</h3>
+        <p className="settings-muted settings-account-lead">
+          头像和昵称会出现在左上角、创建人，以及你发出的分享上。
+        </p>
+      </header>
+      <div className="settings-account-row">
+        <div className="settings-account-copy">
+          <p className="settings-account-label">照片</p>
+          <p className="settings-muted settings-account-hint">点击更换。会出现在侧栏和分享页。</p>
+        </div>
+        <div className="settings-account-photo">
+          <button
+            type="button"
+            className="settings-account-avatar"
+            data-testid="settings-account-avatar"
+            title="更换照片"
+            aria-label="更换照片"
+            onClick={() => fileRef.current?.click()}
+          >
+            {profile.avatar ? (
+              <img src={profile.avatar} alt="" />
+            ) : (
+              <span className="settings-account-initial">{initial}</span>
+            )}
+            <span className="settings-account-avatar-veil" aria-hidden>
+              <CameraIcon className="size-4" />
+            </span>
+          </button>
+          {profile.avatar ? (
+            <button
+              type="button"
+              className="settings-account-clear"
+              data-testid="settings-account-clear-avatar"
+              onClick={() => void persistWorkspaceProfile({ name: name.trim(), avatar: '' })}
+            >
+              移除
+            </button>
+          ) : null}
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          hidden
+          data-testid="settings-account-avatar-file"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (!file) return
+            void readAvatarFile(file).then((avatar) => {
+              void persistWorkspaceProfile({ name: name.trim(), avatar })
+            })
+          }}
+        />
+      </div>
+      <div className="settings-account-row">
+        <div className="settings-account-copy">
+          <label className="settings-account-label" htmlFor="settings-account-name">
+            首选名称
+          </label>
+          <p className="settings-muted settings-account-hint">别人看到你时会用这个名字。</p>
+        </div>
+        <input
+          id="settings-account-name"
+          className="settings-account-input"
+          value={name}
+          maxLength={40}
+          placeholder="你的名字"
+          data-testid="settings-account-name"
+          onChange={(event) => setName(event.target.value)}
+          onBlur={() => {
+            void persistWorkspaceProfile({ name: name.trim(), avatar: profile.avatar })
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+          }}
+        />
+      </div>
+    </section>
+  )
+}
 
 export function ShellSettingsAppearance() {
   const [theme, setTheme] = useState(readTheme)

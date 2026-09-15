@@ -1,6 +1,16 @@
 export { RenderBoundary } from './render-boundary.tsx'
 export { SidebarFold } from './sidebar-fold.tsx'
 export { ChatCount } from './chat-count.tsx'
+export {
+  readWorkspaceProfile,
+  writeWorkspaceProfile,
+  subscribeWorkspaceProfile,
+  hydrateWorkspaceProfile,
+  persistWorkspaceProfile,
+  profileDisplayName,
+  type WorkspaceProfile,
+} from './workspace-profile.ts'
+export { useWorkspaceProfile } from './use-workspace-profile.ts'
 export { BoolBox } from './bool-box.tsx'
 export { listenOutsideDismiss } from './outside-dismiss.ts'
 export { HeadlessDismiss, HEADLESS_DISMISS_IGNORE } from './headless-dismiss.tsx'

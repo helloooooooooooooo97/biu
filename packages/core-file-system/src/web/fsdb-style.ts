@@ -683,6 +683,8 @@ html.share .fsdb-detail-float-nav,html.share .heading-outline-host .chat-outline
 .fsdb-share-page.fsdb-page{flex-direction:column;overflow:hidden}
 .fsdb-share-page .chat-view-header{flex:none}
 .fsdb-share-badge{margin-left:8px;border-radius:8px;padding:2px 8px;background:var(--dsw-hover);color:var(--dsw-label-2);font-size:11px;font-weight:700}
+.fsdb-share-owner{display:inline-flex;align-items:center;gap:6px;margin-left:8px;color:var(--dsw-label-2);font-size:13px;font-weight:600}
+.fsdb-share-owner img,.fsdb-person-photo{width:18px;height:18px;border-radius:50%;object-fit:cover;flex:none}
 .fsdb-share-page .fsdb-dlg{margin:auto}
 .fsdb-share-body{min-width:0;min-height:0;flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
 .fsdb-share-page .fsdb-detail-stage{flex:1 0 auto;height:auto;overflow:visible}

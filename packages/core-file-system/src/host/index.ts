@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import type { IncomingMessage } from 'node:http'
 import { isAbsolute, resolve } from 'node:path'
 import { dataPath } from '@biu/host-plugin-loader/data-dir'
+import { asPublicProfile, readWorkspaceProfile, writeWorkspaceProfile } from './workspace-profile.ts'
 import { Service, type Context } from 'cordis'
 import {
   DATABASE_CHANNEL,
@@ -777,7 +778,10 @@ export class DatabaseService extends Service implements Database {
 
   private async currentPerson(): Promise<PersonValue> {
     const sid = currentSessionId()?.trim()
-    if (!sid) return { kind: 'user', name: '用户' }
+    if (!sid) {
+      const name = readWorkspaceProfile().name.trim() || '用户'
+      return { kind: 'user', name }
+    }
     const name = (await this.querySessionName(sid)) || sid.slice(0, 8)
     return { kind: 'agent', name, sessionId: sid }
   }
@@ -1634,6 +1638,20 @@ export function apply(ctx: Context) {
       route.send(400, { error: String(error) })
     }
   }
+  ctx.http.route('GET', '/api/profile', (route) => {
+    route.send(200, asPublicProfile())
+  })
+  ctx.http.route('POST', '/api/profile', async (route) => {
+    try {
+      const body = (await route.json()) as { name?: unknown; avatar?: unknown }
+      route.send(200, asPublicProfile(writeWorkspaceProfile({
+        name: typeof body.name === 'string' ? body.name : undefined,
+        avatar: typeof body.avatar === 'string' ? body.avatar : undefined,
+      })))
+    } catch (error) {
+      route.send(400, { error: String(error) })
+    }
+  })
   ctx.http.route('GET', '/api/db/list', (route) =>
     send(route, () => {
       let filter: Record<string, unknown> | undefined

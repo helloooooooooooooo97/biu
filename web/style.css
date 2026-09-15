@@ -939,14 +939,179 @@ body {
 .sidebar-brand-lockup {
   display: inline-flex;
   min-width: 0;
-  max-width: 100%;
+  max-width: calc(100% - 36px);
   align-items: center;
   gap: 8px;
 }
 
-.sidebar-brand-mascot {
+.sidebar-brand-mascot,
+.sidebar-brand-avatar {
   flex-shrink: 0;
   display: block;
+  overflow: hidden;
+}
+
+.sidebar-brand-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--dsw-hover);
+}
+
+.sidebar-brand-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-sidebar-fg-active);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-account {
+  padding: 10px 14px 18px;
+}
+
+.settings-account-head {
+  margin-bottom: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--dsw-float-border);
+}
+
+.settings-account-title {
+  margin: 0;
+  color: var(--dsw-label);
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.settings-account-lead {
+  margin: 6px 0 0;
+  font-weight: 500;
+}
+
+.settings-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--dsw-float-border);
+}
+
+.settings-account-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 4px;
+}
+
+.settings-account-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-account-label {
+  margin: 0;
+  color: var(--dsw-label);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-account-hint {
+  margin: 4px 0 0;
+  font-weight: 500;
+}
+
+.settings-account-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.settings-account-avatar {
+  position: relative;
+  display: grid;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+  overflow: hidden;
+  margin: 0;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  background: var(--dsw-hover);
+  color: var(--dsw-label);
+  cursor: pointer;
+}
+
+.settings-account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.settings-account-initial {
+  font-size: 24px;
+  font-weight: 650;
+}
+
+.settings-account-avatar-veil {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--dsw-sidebar) 42%, transparent);
+  color: var(--dsw-icon-active);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.settings-account-avatar:hover .settings-account-avatar-veil,
+.settings-account-avatar:focus-visible .settings-account-avatar-veil {
+  opacity: 1;
+}
+
+.settings-account-input {
+  width: min(220px, 42%);
+  height: 32px;
+  flex: none;
+  border: 1px solid var(--dsw-border);
+  border-radius: 6px;
+  background: var(--dsw-input);
+  padding: 0 10px;
+  color: var(--dsw-label);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  outline: none;
+}
+
+.settings-account-input:focus {
+  border-color: color-mix(in srgb, var(--dsw-pick, #2b7de6) 55%, var(--dsw-border));
+  background: var(--dsw-bg);
+}
+
+.settings-account-clear {
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 2px 4px;
+  color: var(--dsw-label-3);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-account-clear:hover {
+  color: var(--dsw-danger);
+}
+
+.sidebar-brand-mascot {
   overflow: visible;
 }
 

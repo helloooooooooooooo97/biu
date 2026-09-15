@@ -6,6 +6,7 @@ import { collectShareResources } from '../share-resources.ts'
 import { savedViewRecordPath } from '../paths.ts'
 import { isReadOnlyViewId } from '../catalog-views.ts'
 import type { ShareRecord } from './shares-store.ts'
+import { asPublicProfile } from './workspace-profile.ts'
 import { encodeListFilter, resolveViewFilterTree } from '../query-logic.ts'
 
 const SHARE_LIMIT = 200
@@ -40,6 +41,10 @@ function withResources(
     pluginIds: resources.pluginIds,
     sharePlugins: share.sharePlugins,
     allowCopy: share.allowCopy,
+    owner: (() => {
+      const profile = asPublicProfile()
+      return profile.name || profile.avatar ? { name: profile.displayName, avatar: profile.avatar } : undefined
+    })(),
   }
 }
 

@@ -37,6 +37,7 @@ export type ShareSnapshot = {
   pluginIds: string[]
   sharePlugins: boolean
   allowCopy: boolean
+  owner?: { name: string; avatar: string }
 }
 
 export function freezeSchema(schema: CollectionSchema): CollectionSchema {

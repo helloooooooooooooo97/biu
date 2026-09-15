@@ -11,4 +11,5 @@ test('share header has a theme toggle that writes biu.theme', () => {
   assert.match(src, /SunIcon/)
   assert.match(src, /夜间模式/)
   assert.match(src, /日间模式/)
+  assert.match(src, /data-testid="fsdb-share-owner"/)
 })
