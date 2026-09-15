@@ -25,6 +25,7 @@ import { crumbRecordLabel, recordPreviewEmoji } from './sidebar-preview.ts'
 import { PageBanner } from './page-banner.tsx'
 import { TableGlyph } from './table-glyph.tsx'
 import { applyShareQuery, loadShareQuery, saveShareQuery, shareQueryFromView, type ShareQueryState } from './share-query.ts'
+import { collectQueryFields } from '../query-logic.ts'
 import { ShareViewQueryBar } from './share-view-bar.tsx'
 import { ShareCell, ShareListTable } from './share-table.tsx'
 import { getPageWidth, persistPageWidth, subscribePageWidth } from './page-width.ts'
@@ -226,6 +227,10 @@ function SharePage({
   useEffect(() => {
     setPage(0)
   }, [token, pageSize, queryState?.q, queryState?.sorts, queryState?.filterTree])
+  const queryFields = useMemo(
+    () => collectQueryFields(queryState?.sorts, queryState?.filterTree),
+    [queryState?.sorts, queryState?.filterTree],
+  )
 
   const selected = useMemo(() => {
     if (!snapshot) return null
@@ -559,6 +564,7 @@ function SharePage({
                 columns={queryState?.columns}
                 wrap={queryState?.wrap}
                 truncate={queryState?.truncate}
+                queryFields={queryFields}
                 onOpen={(id) => navigate(sharePublicPath(token, id))}
               />
               {paged.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}

@@ -130,6 +130,25 @@ export function countFilterRules(node: FilterNode | undefined): number {
   return node.children.reduce((sum, child) => sum + countFilterRules(child), 0)
 }
 
+export function collectFilterFields(node: FilterNode | undefined, into = new Set<string>()): Set<string> {
+  if (!node) return into
+  if (node.kind === 'rule') {
+    if (countFilterRules(node)) into.add(node.field)
+    return into
+  }
+  for (const child of node.children) collectFilterFields(child, into)
+  return into
+}
+
+export function collectQueryFields(sorts: Array<Pick<SortRule, 'field'>> | undefined, tree?: FilterNode): Set<string> {
+  const keys = collectFilterFields(tree)
+  for (const rule of sorts ?? []) {
+    const field = String(rule.field ?? '').trim()
+    if (field) keys.add(field)
+  }
+  return keys
+}
+
 function filterNodeState(node: FilterNode): unknown {
   if (node.kind === 'rule') return { kind: 'rule', field: node.field, op: node.op, value: node.value }
   return { kind: 'group', combinator: node.combinator, children: node.children.map(filterNodeState) }

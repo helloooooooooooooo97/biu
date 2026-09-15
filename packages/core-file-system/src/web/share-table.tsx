@@ -78,6 +78,7 @@ export function ShareListTable({
   columns,
   wrap,
   truncate,
+  queryFields,
 }: {
   schema: CollectionSchema
   view?: Partial<SavedView>
@@ -88,6 +89,7 @@ export function ShareListTable({
   columns?: string[]
   wrap?: boolean
   truncate?: boolean
+  queryFields?: Set<string>
 }) {
   ensureTagChipStyle()
   const listed = shareTableColumns(schema, view, columns)
@@ -106,7 +108,7 @@ export function ShareListTable({
           <tr>
             {listed.map((col) => (
               <th key={col.key}>
-                <span className="tasks-th">
+                <span className={`tasks-th${queryFields?.has(col.key) ? ' is-on' : ''}`}>
                   <FieldGlyph kind={col.kind} />
                   {String(col.field.label ?? col.key)}
                 </span>

@@ -147,6 +147,7 @@ import { FieldValuePop } from './field-value-pop.tsx'
 import { loadFacets, pullFacets, subscribeFacets } from './facet-catalog.ts'
 import { FilterQueryMenu, SortQueryMenu } from './query-menus.tsx'
 import {
+  collectQueryFields,
   countFilterRules,
   emptyFilterGroup,
   encodeListFilter,
@@ -1312,6 +1313,7 @@ export function CollectionBrowser({
     window.dispatchEvent(new Event('fsdb:crumb-labels'))
   }, [activeViewId, collectionPath, items, routeViewId, schema?.labelField, selected])
   const filterActive = countFilterRules(filterTree) > 0
+  const queryFields = useMemo(() => collectQueryFields(sorts, filterTree), [sorts, filterTree])
   const activeView = views.find((view) => view.id === activeViewId)
   const [viewBanner, setViewBanner] = useState<unknown>(null)
   useEffect(() => {
@@ -3366,7 +3368,7 @@ export function CollectionBrowser({
                       ...(tone ? { ['--biu-tag' as string]: tone } : {}),
                     }}
                   >
-                    <span className="tasks-th">
+                    <span className={`tasks-th${queryFields.has(col.key) ? ' is-on' : ''}`}>
                       <FieldGlyph kind={col.kind} />
                       {facetColumnTitle(col)}
                     </span>

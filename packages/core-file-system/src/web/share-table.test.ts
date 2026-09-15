@@ -12,5 +12,6 @@ test('share list table reuses host cell chrome', () => {
   assert.match(table, /fsdb-title-host/)
   assert.match(table, /className="fsdb-cell"/)
   assert.match(table, /tasks-th/)
+  assert.match(table, /queryFields\?\.has\(col\.key\)/)
   assert.doesNotMatch(table, /formatField\(schema\.fields/)
 })
