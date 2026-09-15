@@ -660,7 +660,7 @@ button.fsdb-detail-title-icon:hover{background:var(--dsw-hover);color:var(--dsw-
 .fsdb-share-res-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:60;min-width:180px;padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:10px;box-shadow:0 8px 24px rgba(15,15,15,.2)}
 .fsdb-share-res-pop p{margin:0;color:var(--dsw-label);font-size:13px;font-weight:600}
 .fsdb-share-plugin-list{margin:4px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
-.fsdb-share-page{position:fixed;inset:0;z-index:220;display:flex;flex-direction:column;overflow:hidden;background:var(--dsw-bg,#191919);color:var(--dsw-label,#f0efed)}
+.fsdb-share-page{position:fixed;inset:0;z-index:220;display:flex;flex-direction:column;overflow:hidden;background:var(--dsw-bg,#ffffff);color:var(--dsw-label,#2c2c2b)}
 html.share .fsdb-crumb-menu.is-fixed,html.share .fsdb-cellselect-menu,html.share .fsdb-query-drag-overlay,html.share .fsdb-cell-pop,html.share .fsdb-emoji-picker.is-fixed,html.share .fsdb-pager-size-menu,html.share .db-search-menu,html.share .fsdb-dlg-backdrop{z-index:360!important}
 html.share .fsdb-detail-float-nav,html.share .heading-outline-host .chat-outline{opacity:1}
 .fsdb-share-page .fsdb-right{min-height:0;flex:1}
