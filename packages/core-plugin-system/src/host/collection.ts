@@ -219,17 +219,6 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
         run: async (id) => store.pack(id),
       },
       {
-        id: 'reload',
-        label: '重载',
-        when: { installed: true },
-        description:
-          '重新挂载已安装插件，让前端丢弃旧模块并重新加载 web.js —— 改完代码立即生效。' +
-          '改动源码后：先 pack，再 reload（比 uninstall + start 更省事，不会中断运行中的窗口太久）。',
-        run: async (id) => {
-          await store.reload(id)
-        },
-      },
-      {
         id: 'uninstall',
         label: '卸载',
         tone: 'danger',

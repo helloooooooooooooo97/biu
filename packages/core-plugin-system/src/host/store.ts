@@ -278,7 +278,7 @@ export class PluginStoreService extends Service {
     const sandboxReadme = join(sandbox, README_FILE)
     if (existsSync(sandboxReadme)) await writeFile(join(dest, README_FILE), await readFile(sandboxReadme))
     else await this.ensureReadme(dest, manifest.name, manifest.blurb)
-    // 运行中才重新挂载（保持原有语义）；停止状态下的重载请用 reload。
+    // 运行中才重新挂载；停着的下次 start 会从磁盘再挂。
     if (this.isEnabled(manifest.id)) await this.mountFromDisk(manifest, dest)
     return { id: manifest.id, sandboxPath: sandbox, pluginPath: dest }
   }
@@ -364,20 +364,6 @@ export class PluginStoreService extends Service {
     const manifest = await readManifest(hit)
     this.setEnabled(manifest.id, true)
     this.touchLastRun(manifest.id)
-    await this.mountFromDisk(manifest, hit)
-    this.invalidateList()
-    return (await this.list()).find((item) => item.id === manifest.id)
-  }
-
-  /**
-   * 重载：重新挂载已安装的插件，让 snapshot 里的 web 入口带上最新内容 hash，
-   * 前端据此 dispose 旧模块并重新 import —— 改完代码即可生效，无需反复 start。
-   */
-  async reload(id: string) {
-    if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
-    const hit = await this.findPluginDir(id)
-    if (!hit) throw new Error(`unknown store plugin: ${id}`)
-    const manifest = await readManifest(hit)
     await this.mountFromDisk(manifest, hit)
     this.invalidateList()
     return (await this.list()).find((item) => item.id === manifest.id)
