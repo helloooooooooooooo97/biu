@@ -290,7 +290,12 @@ test('code runner and terminals share a trash icon for clear', async () => {
   const { resolve } = await import('node:path')
   const runner = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-code-runner/web.tsx'), 'utf8')
   assert.match(runner, /aria-label="清空"/)
+  assert.match(runner, /aria-label=\{running \? '运行中' : '运行'\}/)
+  assert.match(runner, /justifyContent: 'space-between'/)
+  assert.match(runner, /aria-label="语言"/)
   assert.doesNotMatch(runner, />\s*清空\s*</)
+  assert.doesNotMatch(runner, />\{running \? '运行中' : '运行'\}</)
+  assert.doesNotMatch(runner, /Ctrl\+Enter/)
 })
 
 test('page-browser is both a page block and the inspector browser', async () => {
