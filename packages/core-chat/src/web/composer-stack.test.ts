@@ -31,6 +31,7 @@ describe('composer dock stacking above sticky user', () => {
     expect(shell).toContain('pb-[calc(1rem+5px)]')
     expect(shell).not.toMatch(/md:px-8|lg:px-10/)
     expect(shell).not.toMatch(/bottom-0 z-\[2\]/)
+    expect(css).toMatch(/html:not\(\.dark\) \.composer-send,\s*\nhtml:not\(\.dark\) \.composer-send:disabled\s*\{[^}]*color:\s*#2c2c2b/s)
   })
 
   it('compose-only overlay hides the reply thread until send', () => {

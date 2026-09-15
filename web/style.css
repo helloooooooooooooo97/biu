@@ -5818,6 +5818,11 @@ html:not(.dark) .composer-plus {
   color: var(--dsw-bg);
 }
 
+html:not(.dark) .composer-send,
+html:not(.dark) .composer-send:disabled {
+  color: #2c2c2b;
+}
+
 .composer-send:disabled {
   background: var(--dsw-bubble);
   color: var(--dsw-bg);
