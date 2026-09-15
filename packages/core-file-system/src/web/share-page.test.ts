@@ -18,6 +18,13 @@ test('share header crumbs use collectionLabel not the path id', () => {
   assert.doesNotMatch(src, /snapshot\.collection\.replace/)
 })
 
+test('share header has no 只读 badge', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
+  assert.doesNotMatch(src, /只读/)
+  assert.doesNotMatch(src, /fsdb-share-badge/)
+  assert.match(src, /chromeFor\?\.\(snapshot\.collection\)/)
+})
+
 test('share header has a theme toggle that writes biu.theme', () => {
   const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
   assert.match(src, /data-testid="fsdb-share-theme"/)

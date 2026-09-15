@@ -107,15 +107,25 @@ function rewriteBanner(value: unknown, token: string, password: string) {
 
 export function ShareRoot({
   chrome,
+  chromeFor,
   loadPlugins,
 }: {
   chrome?: CollectionChrome
+  chromeFor?: (collection: string) => CollectionChrome | undefined
   loadPlugins?: (token: string, pluginIds: string[], password: string) => Promise<void>
 } = {}) {
   const location = useLocation()
   const parsed = parseSharePath(location.pathname)
   if (!parsed) return null
-  return <SharePage token={parsed.token} recordId={parsed.recordId} chrome={chrome} loadPlugins={loadPlugins} />
+  return (
+    <SharePage
+      token={parsed.token}
+      recordId={parsed.recordId}
+      chrome={chrome}
+      chromeFor={chromeFor}
+      loadPlugins={loadPlugins}
+    />
+  )
 }
 
 function downloadShareFile(blob: Blob, name: string) {
@@ -133,11 +143,13 @@ function SharePage({
   token,
   recordId,
   chrome,
+  chromeFor,
   loadPlugins,
 }: {
   token: string
   recordId: string
   chrome?: CollectionChrome
+  chromeFor?: (collection: string) => CollectionChrome | undefined
   loadPlugins?: (token: string, pluginIds: string[], password: string) => Promise<void>
 }) {
   ensureFsdbStyle()
@@ -301,6 +313,7 @@ function SharePage({
   const safePage = Math.min(page, lastPage)
   const paged = snapshot.kind === 'view' ? listed.slice(safePage * pageSize, safePage * pageSize + pageSize) : listed
   const shown = selected ?? (snapshot.kind === 'record' ? snapshot.records[0] : null)
+  const detailChrome = chromeFor?.(snapshot.collection) ?? chrome
   if (recordId && !shown) {
     return (
       <div className="fsdb-share-page" data-testid="fsdb-share-page">
@@ -365,7 +378,6 @@ function SharePage({
           ) : (
             <span className="chat-view-project-name">{snapshot.title}</span>
           )}
-          <span className="fsdb-share-badge">只读</span>
         </div>
         <div className="chat-view-header-right">
           <div className="fsdb-layout-wrap" ref={layoutRef}>
@@ -493,7 +505,7 @@ function SharePage({
         <RecordDetail
           selected={{ ...shown, banner: rewriteBanner(shown.banner, token, password) ?? shown.banner }}
           schema={schema}
-          chrome={chrome}
+          chrome={detailChrome}
           draft={{}}
           detailBody={rewriteAssetUrls(snapshot.contents[shown.id], token, password)}
           labelOf={(row) => crumbRecordLabel(row, schema.labelField)}
@@ -505,7 +517,7 @@ function SharePage({
               records={listed}
               collection={snapshot.collection}
               schema={schema}
-              chrome={chrome}
+              chrome={detailChrome}
             />
           )}
           setDraft={() => undefined}
@@ -564,7 +576,7 @@ function SharePage({
                 view={snapshot.view}
                 records={paged}
                 collection={snapshot.collection}
-                chrome={chrome}
+                chrome={detailChrome}
                 columns={queryState?.columns}
                 wrap={queryState?.wrap}
                 truncate={queryState?.truncate}

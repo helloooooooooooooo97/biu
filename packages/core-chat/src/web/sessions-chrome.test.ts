@@ -34,6 +34,8 @@ test('session table uses mascot as the standalone icon property, title is just t
   assert.match(src, /\.fsdb-detail-main:has\(\.chat-pane-embed\) \.chat-stage>\*\{[^}]*max-width:100%/)
   assert.match(src, /\.fsdb-fileview:has\(\.chat-pane-embed\)\{[^}]*flex:none/)
   assert.doesNotMatch(src, /sessionView\.load/)
+  assert.match(src, /eventsFromContent/)
+  assert.match(src, /nodesFromContent\(value\)/)
   assert.doesNotMatch(src, /SlotOutlet/)
   assert.doesNotMatch(src, /ChatDockStack/)
   assert.doesNotMatch(src, /name="composer"/)
