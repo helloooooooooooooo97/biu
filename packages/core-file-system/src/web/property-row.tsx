@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import type { FieldSpec } from '@biu/type-file-system'
-import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
+import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/solid'
 import { resolveFieldType } from './fields.ts'
 import { FieldGlyph } from './fsdb-cells.tsx'
 

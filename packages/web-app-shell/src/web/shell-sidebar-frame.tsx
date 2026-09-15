@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from '@heroicons/react/24/outline'
+import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from '@heroicons/react/24/solid'
 import { SidebarBrandLockup } from '@biu/public-mascot'
 import { chromeIcon } from './chrome-icon.ts'
 import { ShellSidePlaces } from './shell-chrome.tsx'

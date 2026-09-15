@@ -8,7 +8,7 @@ import {
   EyeIcon,
   FunnelIcon,
   MagnifyingGlassIcon,
-} from '@heroicons/react/24/outline'
+} from '@heroicons/react/24/solid'
 import { HeadlessDismiss, HEADLESS_DISMISS_IGNORE } from '@biu/public-ui'
 import type { CollectionSchema, DbRecord, FieldType } from '@biu/type-file-system'
 import { countFilterRules } from '../query-logic.ts'

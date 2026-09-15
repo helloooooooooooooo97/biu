@@ -2,7 +2,7 @@ import {
   CircleStackIcon,
   ShareIcon,
   TableCellsIcon,
-} from '@heroicons/react/24/outline'
+} from '@heroicons/react/24/solid'
 import type { ViewMode } from './fields.ts'
 import type { CrumbKind } from './sidebar-nav.ts'
 import { RecordMark, recordMarkStub } from './record-mark.tsx'

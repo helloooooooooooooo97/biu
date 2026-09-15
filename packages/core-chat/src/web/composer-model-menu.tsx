@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CheckIcon, ChevronRightIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { CheckIcon, ChevronRightIcon, MagnifyingGlassIcon } from '@heroicons/react/24/solid'
 import {
   inferModelCapabilities,
   type ModelCapabilities,
