@@ -31,7 +31,7 @@ describe('composer dock stacking above sticky user', () => {
     expect(shell).toContain('pb-[calc(1rem+5px)]')
     expect(shell).not.toMatch(/md:px-8|lg:px-10/)
     expect(shell).not.toMatch(/bottom-0 z-\[2\]/)
-    expect(css).toMatch(/html:not\(\.dark\) \.composer-send,\s*\nhtml:not\(\.dark\) \.composer-send:disabled\s*\{[^}]*color:\s*#2c2c2b/s)
+    expect(css).toMatch(/html:not\(\.dark\) \.composer-send,\s*\nhtml:not\(\.dark\) \.composer-send:disabled\s*\{[^}]*color:\s*#5f5e5a/s)
   })
 
   it('compose-only overlay hides the reply thread until send', () => {
@@ -130,11 +130,11 @@ describe('composer dock stacking above sticky user', () => {
     expect(css).toMatch(/\.project-chip-hist-bar\s*\{[^}]*color-mix\(in srgb, var\(--biu-tag, #d9730d\) 22%, transparent\)/s)
     expect(css).toMatch(/\.composer-plus\s*\{[^}]*background:\s*var\(--dsw-bubble\)/s)
     // 加号 / 模型入口 / 芯片 / dock 按钮与项目文件夹同一套底和字色。
-    expect(css).toMatch(/\.composer-plus\s*\{[^}]*color:\s*var\(--dsw-label\)/s)
-    expect(css).toMatch(/\.composer-model-trigger\s*\{[^}]*color:\s*var\(--dsw-label\)/s)
+    expect(css).toMatch(/\.composer-plus\s*\{[^}]*color:\s*var\(--dsw-icon-active\)/s)
+    expect(css).toMatch(/\.composer-model-trigger\s*\{[^}]*color:\s*var\(--dsw-icon-active\)/s)
     expect(css).toMatch(/\.project-chip\s*\{[^}]*color:\s*var\(--dsw-label\)/s)
     expect(css).toMatch(/\.project-chip\s*\{[^}]*background:\s*var\(--dsw-bubble\)/s)
-    expect(css).toMatch(/\.dock-icon-btn\s*\{[^}]*color:\s*var\(--dsw-label\)/s)
+    expect(css).toMatch(/\.dock-icon-btn\s*\{[^}]*color:\s*var\(--dsw-icon-active\)/s)
     expect(css).toMatch(/\.dock-icon-btn\s*\{[^}]*background:\s*var\(--dsw-bubble\)/s)
     expect(css).toMatch(/\.dock-icon-btn\.is-active\s*\{[^}]*background:\s*var\(--dsw-pick-fill\)/s)
     expect(approvals).toMatch(/<BrandCornerMascot[\s\S]*size=\{28\}/)
