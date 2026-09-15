@@ -367,7 +367,7 @@ const CSS = `
 .heading-outline-host{position:absolute;inset:0 auto 0 0;width:40px;z-index:20;pointer-events:none;overflow:visible}
 .fsdb-right:has(.heading-outline-host),.fsdb-right-body:has(.heading-outline-host),.fsdb-detail-stage:has(.heading-outline-host){position:relative}
 .heading-outline-host .chat-outline{left:8px;top:50%;pointer-events:auto}
-.heading-outline-host .chat-outline::before{inset:-32px auto -24px -8px;width:40px}
+.heading-outline-host .chat-outline::before{inset:-16px auto -16px -8px;width:40px}
 .fsdb-detail-screen{display:flex;min-width:0;width:100%;min-height:min-content;flex:1;flex-direction:column;overflow:visible}
 .fsdb-detail-screen .fsdb-detail-split,.fsdb-detail-screen > :not(header){flex:none;width:100%;min-height:min-content;overflow:visible}
 .fsdb-detail-screen > .fsdb-detail-actionbar{height:0;min-height:0}

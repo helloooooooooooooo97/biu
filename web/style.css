@@ -4823,7 +4823,7 @@ html.dark .chat-overlay-panel {
   z-index: 8;
   display: flex;
   align-items: stretch;
-  max-height: min(72vh, 640px);
+  max-height: min(40vh, 360px);
   transform: translateY(-50%);
   pointer-events: none;
   opacity: 0;
@@ -4833,7 +4833,7 @@ html.dark .chat-overlay-panel {
 .chat-outline::before {
   content: '';
   position: absolute;
-  inset: -96px auto -96px -24px;
+  inset: -16px auto -16px -24px;
   width: 96px;
   pointer-events: auto;
 }
@@ -4852,8 +4852,8 @@ html[data-outline-pin="1"] .chat-outline {
   align-items: flex-start;
   gap: 2px;
   min-width: 22px;
-  max-height: min(72vh, 640px);
-  overflow-x: visible;
+  max-height: min(40vh, 360px);
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 8px 8px 8px 2px;
   scrollbar-width: thin;
@@ -4913,7 +4913,7 @@ html[data-outline-pin="1"] .chat-outline {
   display: flex;
   flex-direction: column;
   width: 280px;
-  max-height: min(56vh, 420px);
+  max-height: min(40vh, 360px);
   overflow: auto;
   transform: translateY(-50%);
   border: 1px solid var(--dsw-border);
