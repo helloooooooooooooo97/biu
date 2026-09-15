@@ -340,6 +340,11 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
             event.dataTransfer.dropEffect = 'move'
             return false
           },
+          mousedown(view, event) {
+            if (view.editable) return false
+            if (!(event.target instanceof Element) || !event.target.closest('.page-block')) return false
+            return true
+          },
         },
       },
       onSelectionUpdate: ({ editor: current }) => {

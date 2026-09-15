@@ -27,6 +27,7 @@ export const PAGE_EDITOR_STYLE = `
 .page-editor .page-block iframe{pointer-events:none}
 .page-editor .page-block.ProseMirror-selectednode iframe{pointer-events:auto}
 .page-editor .page-block.ProseMirror-selectednode{outline:none;box-shadow:none}
+.page-editor .ProseMirror[contenteditable=false] .ProseMirror-selectednode{outline:none;box-shadow:none;background:transparent}
 .page-editor .page-block[data-page-block=excalidraw]{outline:none;box-shadow:none;border:0;border-radius:8px}
 .page-editor .page-block-missing{display:flex;flex-direction:column;gap:0;padding:12px 14px;border:1px dashed var(--dsw-border);border-radius:8px;color:var(--dsw-label-3);font-size:13px}
 .page-editor .page-block-missing-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 0 10px;margin:0 0 10px;border-bottom:1px solid var(--dsw-border)}

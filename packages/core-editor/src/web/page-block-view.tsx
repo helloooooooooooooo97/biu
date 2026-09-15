@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type MouseEvent } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, type MouseEvent } from 'react'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
 import { PlayIcon } from '@heroicons/react/16/solid'
@@ -61,7 +61,29 @@ export function PageBlockMissing({ kind, plugin, data }: { kind: string; plugin:
   )
 }
 
-export function PageBlockView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
+function HtmlPreview({ html }: { html: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const painted = useRef('')
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || painted.current === html) return
+    el.innerHTML = html
+    painted.current = html
+  }, [html])
+  return <div ref={ref} className="page-block-html-preview" />
+}
+
+function samePageBlockProps(prev: NodeViewProps, next: NodeViewProps) {
+  return (
+    prev.node.attrs.kind === next.node.attrs.kind &&
+    prev.node.attrs.plugin === next.node.attrs.plugin &&
+    prev.node.attrs.id === next.node.attrs.id &&
+    JSON.stringify(prev.node.attrs.data) === JSON.stringify(next.node.attrs.data) &&
+    prev.editor.isEditable === next.editor.isEditable
+  )
+}
+
+export const PageBlockView = memo(function PageBlockView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
   usePageEditorVersion()
   const kind = String(node.attrs.kind ?? 'card')
   const plugin = String(node.attrs.plugin ?? '').trim()
@@ -127,10 +149,10 @@ export function PageBlockView({ node, updateAttributes, editor, getPos }: NodeVi
       ) : View ? (
         <View data={data} update={update} writable={editor.isEditable} />
       ) : kind === 'html' && typeof data.html === 'string' && data.html ? (
-        <div className="page-block-html-preview" dangerouslySetInnerHTML={{ __html: data.html }} />
+        <HtmlPreview html={data.html} />
       ) : (
         <PageBlockMissing kind={kind} plugin={plugin} data={data} />
       )}
     </NodeViewWrapper>
   )
-}
+}, samePageBlockProps)

@@ -98,6 +98,7 @@ test('page editor bridges cursor to the record title', async () => {
   assert.doesNotMatch(src, /tryContentJump\([^)]+navigate/)
   assert.match(src, /editorHostIsLive\(editor\)/)
   assert.match(src, /bindEditorTextHost/)
+  assert.match(src, /closest\('\.page-block'\)/)
   assert.match(src, /markdownLocusFromSelection/)
   assert.match(src, /usePageSourceMode/)
   assert.match(src, /SourceEditor/)
