@@ -12,7 +12,7 @@ const CSS = `
 .fsdb-crumb-btn{display:inline-flex;min-width:0;max-width:180px;align-items:center;gap:6px;height:26px;border:0;border-radius:6px;background:transparent;padding:0 4px;color:var(--dsw-label);font-size:14px;font-weight:600;cursor:pointer}
 .fsdb-crumb-btn:hover,.fsdb-crumb-btn.is-open{background:var(--dsw-hover);color:var(--dsw-label)}
 .fsdb-crumb-btn.is-open{anchor-name:--fsdb-crumb}
-.fsdb-crumb svg,.fsdb-crumb-btn svg{color:var(--dsw-icon)}
+.fsdb-crumb svg,.fsdb-crumb-btn svg{color:var(--dsw-label)}
 .fsdb-crumb-btn .chat-view-project-name,.fsdb-crumb-option .chat-view-project-name{font-size:14px;font-weight:600;color:inherit}
 .fsdb-crumb-pick{position:relative;flex:none}
 .fsdb-crumb-menu{position:absolute;left:0;top:calc(100% + 4px);z-index:80;display:flex;flex-direction:column;min-width:220px;max-width:280px;max-height:280px;overflow:hidden;border:1px solid var(--dsw-border);border-radius:8px;background:var(--dsw-surface);padding:4px;box-shadow:var(--dsw-shadow)}

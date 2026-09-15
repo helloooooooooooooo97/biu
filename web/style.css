@@ -1525,13 +1525,13 @@ body {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-icon);
+  color: var(--dsw-label);
   cursor: pointer;
 }
 
 .chat-view-header-expand:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-icon);
+  color: var(--dsw-label);
 }
 
 .chat-view-project {
@@ -1547,7 +1547,7 @@ body {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  color: var(--dsw-icon);
+  color: var(--dsw-label);
 }
 
 .chat-view-project-name {
