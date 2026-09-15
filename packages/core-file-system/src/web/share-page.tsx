@@ -542,6 +542,7 @@ function SharePage({
           selected={{ ...shown, banner: rewriteBanner(shown.banner, token, password) ?? shown.banner }}
           schema={schema}
           chrome={detailChrome}
+          collectionPath={snapshot.collection}
           draft={{}}
           detailBody={rewriteAssetUrls(snapshot.contents[shown.id], token, password)}
           labelOf={(row) => crumbRecordLabel(row, schema.labelField)}

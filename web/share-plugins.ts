@@ -6,6 +6,7 @@ import { createRoot, hydrateRoot } from 'react-dom/client'
 import { flushSync } from 'react-dom'
 import * as ReactJSXRuntime from 'react/jsx-runtime'
 import { PageEditorService } from '@biu/core-editor/web'
+import { installShareCollectionChrome } from './share-chrome.ts'
 
 let shareCtx: Context | null = null
 const loaded = new Set<string>()
@@ -41,7 +42,7 @@ export function shareWebPluginOf(loaded: unknown): Plugin | undefined {
 
 export function sharePluginInjectOk(inject: unknown) {
   const list = Array.isArray(inject) ? inject.map((item) => String(item)) : []
-  return list.every((item) => item === 'pageEditor')
+  return list.every((item) => item === 'pageEditor' || item === 'databaseUi')
 }
 
 function installShareReactGlobals() {
@@ -60,6 +61,7 @@ export function bootShareRuntime() {
   installShareReactGlobals()
   shareCtx = new Context()
   new PageEditorService(shareCtx)
+  installShareCollectionChrome(shareCtx)
   return shareCtx
 }
 
