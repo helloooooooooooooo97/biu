@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { FieldSpec } from '@biu/type-file-system'
 import type { CollectionChrome } from '@biu/type-file-system/ui'
-import { ArrowDownTrayIcon, CubeTransparentIcon } from '@heroicons/react/16/solid'
+import {
+  AdjustmentsHorizontalIcon,
+  ArrowDownTrayIcon,
+  ArrowsPointingInIcon,
+  ArrowsPointingOutIcon,
+  CubeTransparentIcon,
+} from '@heroicons/react/16/solid'
+import { HeadlessDismiss } from '@biu/public-ui'
 import { parseSharePath, sharePublicPath, type ShareSnapshot } from '../share-snapshot.ts'
 import { parsePageBanner } from '../page-banner.ts'
 import { RecordDetail } from './record-detail.tsx'
@@ -15,6 +22,7 @@ import { crumbRecordLabel, recordPreviewEmoji } from './sidebar-preview.ts'
 import { PageBanner } from './page-banner.tsx'
 import { applyShareQuery, loadShareQuery, saveShareQuery, shareQueryFromView, type ShareQueryState } from './share-query.ts'
 import { ShareViewQueryBar } from './share-view-bar.tsx'
+import { getPageWidth, persistPageWidth, subscribePageWidth } from './page-width.ts'
 
 function passwordKey(token: string) {
   return `fsdb.share.pw:${token}`
@@ -110,7 +118,11 @@ function SharePage({
   const [error, setError] = useState('')
   const [snapshot, setSnapshot] = useState<ShareSnapshot | null>(null)
   const [resourcesOpen, setResourcesOpen] = useState(false)
+  const [layoutOpen, setLayoutOpen] = useState(false)
   const [pluginsReady, setPluginsReady] = useState(false)
+  const [pageWidth, setPageWidth] = useState(getPageWidth)
+  useEffect(() => subscribePageWidth(() => setPageWidth(getPageWidth())), [])
+  const layoutRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let alive = true
@@ -266,6 +278,8 @@ function SharePage({
     navigate(sharePublicPath(token))
   }
 
+  const viewIndex = shown && snapshot.kind === 'view' ? listed.findIndex((row) => row.id === shown.id) : -1
+  const viewNav = snapshot.kind === 'view' && listed.length > 1
   const tableLabel = snapshot.collection.replace(/^\//, '') || snapshot.title
   const crumbs = snapshot.kind === 'view'
     ? buildCrumbs({
@@ -286,7 +300,10 @@ function SharePage({
     : []
 
   return (
-    <div className="fsdb-share-page fsdb-page" data-testid="fsdb-share-page">
+    <div
+      className={`fsdb-share-page fsdb-page${pageWidth === 'full' ? ' is-full-width' : ''}`}
+      data-testid="fsdb-share-page"
+    >
       <header className="chat-view-header">
         <div className="chat-view-header-left">
           {crumbs.length ? (
@@ -297,6 +314,50 @@ function SharePage({
           <span className="fsdb-share-badge">只读</span>
         </div>
         <div className="chat-view-header-right">
+          <div className="fsdb-layout-wrap" ref={layoutRef}>
+            <button
+              type="button"
+              className={`chat-view-header-expand${layoutOpen ? ' is-active' : ''}`}
+              title="配置"
+              aria-label="配置"
+              aria-haspopup="menu"
+              aria-expanded={layoutOpen}
+              data-testid="fsdb-share-layout"
+              onClick={() => setLayoutOpen((open) => !open)}
+            >
+              <AdjustmentsHorizontalIcon aria-hidden className="size-4" />
+            </button>
+            {layoutOpen ? (
+              <HeadlessDismiss onDismiss={() => setLayoutOpen(false)} insideRef={layoutRef}>
+                <div className="fsdb-layout-menu" role="menu" data-testid="fsdb-share-layout-menu">
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    className={`fsdb-layout-opt${pageWidth === 'max' ? ' is-active' : ''}`}
+                    title="最大宽度"
+                    aria-label="最大宽度"
+                    aria-checked={pageWidth === 'max'}
+                    data-testid="fsdb-share-layout-max"
+                    onClick={() => persistPageWidth('max')}
+                  >
+                    <ArrowsPointingInIcon aria-hidden className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    className={`fsdb-layout-opt${pageWidth === 'full' ? ' is-active' : ''}`}
+                    title="全宽"
+                    aria-label="全宽"
+                    aria-checked={pageWidth === 'full'}
+                    data-testid="fsdb-share-layout-full"
+                    onClick={() => persistPageWidth('full')}
+                  >
+                    <ArrowsPointingOutIcon aria-hidden className="size-4" />
+                  </button>
+                </div>
+              </HeadlessDismiss>
+            ) : null}
+          </div>
           {snapshot.resources ? (
             <div className="fsdb-share-res-wrap">
               <button
@@ -357,7 +418,8 @@ function SharePage({
           ) : null}
         </div>
       </header>
-      <div className="fsdb-share-body">
+      <div className="fsdb-right">
+      <div className="fsdb-share-body fsdb-right-body">
       {shown ? (
         <RecordDetail
           selected={{ ...shown, banner: rewriteBanner(shown.banner, token, password) ?? shown.banner }}
@@ -372,6 +434,25 @@ function SharePage({
           writePatch={() => undefined}
           onOpenRecord={undefined}
           readOnly
+          headingOutline
+          onPrev={
+            viewNav
+              ? () => {
+                  const prev = listed[Math.max(0, viewIndex - 1)]
+                  if (prev) navigate(sharePublicPath(token, prev.id))
+                }
+              : undefined
+          }
+          onNext={
+            viewNav
+              ? () => {
+                  const next = listed[Math.min(listed.length - 1, viewIndex + 1)]
+                  if (next) navigate(sharePublicPath(token, next.id))
+                }
+              : undefined
+          }
+          canPrev={viewIndex > 0}
+          canNext={viewIndex >= 0 && viewIndex < listed.length - 1}
         />
       ) : (
         <div className="tasks-main fsdb-main" data-testid="fsdb-share-list">
@@ -384,6 +465,7 @@ function SharePage({
               onChange={setQueryState}
             />
           ) : null}
+          <div className="tasks-table-wrap">
           <table className="tasks-table">
             <thead>
               <tr>
@@ -406,9 +488,11 @@ function SharePage({
               ))}
             </tbody>
           </table>
+          </div>
           {listed.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}
         </div>
       )}
+      </div>
       </div>
     </div>
   )
