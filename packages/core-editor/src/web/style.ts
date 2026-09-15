@@ -49,6 +49,9 @@ export const PAGE_EDITOR_STYLE = `
 .page-editor .page-block[data-page-block=excalidraw] img{margin:0;max-width:none;height:unset;border-radius:0}
 .page-editor .page-block[data-page-block=excalidraw] svg,.page-editor .page-block[data-page-block=excalidraw] canvas{display:block;max-width:none;margin:0;border-radius:0}
 .page-editor .page-block[data-page-block=excalidraw] .welcome-screen-center{display:none}
+.page-editor .page-block[data-page-block=terminal] .xterm-viewport{overflow-y:scroll!important;scrollbar-width:thin;scrollbar-color:rgba(242,241,237,.42) transparent}
+.page-editor .page-block[data-page-block=terminal] .xterm-viewport::-webkit-scrollbar{width:8px;height:8px;display:block}
+.page-editor .page-block[data-page-block=terminal] .xterm-viewport::-webkit-scrollbar-thumb{background:rgba(242,241,237,.38);border:0;border-radius:999px;min-height:24px}
 .page-editor .tiptap table{width:100%;margin:8px 0;border-collapse:collapse;table-layout:fixed}
 .page-editor .tiptap th,.page-editor .tiptap td{border:1px solid var(--dsw-border);padding:6px 8px;vertical-align:top}
 .page-editor .tiptap th{background:var(--dsw-hover);font-weight:650;text-align:left}

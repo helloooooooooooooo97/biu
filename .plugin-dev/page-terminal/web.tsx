@@ -118,7 +118,7 @@ function buryAuxiliaryNodes(root: HTMLElement) {
   }
 }
 
-const STYLE_ID = 'pt-xterm-style-v2'
+const STYLE_ID = 'pt-xterm-style-v3'
 const STYLE_CSS = `
 .pt-card{
   display:flex;flex-direction:column;overflow:hidden;
@@ -135,26 +135,34 @@ const STYLE_CSS = `
 .pt-title{color:rgba(242,241,237,.78);font-weight:600;letter-spacing:-.01em}
 .pt-history{border-bottom:1px solid rgba(255,255,255,.06);background:#161616}
 .pt-pane .xterm { padding: 0 !important; height: 100%; }
-.pt-pane .xterm-viewport { background: transparent !important; }
 .pt-pane .xterm-screen { background: transparent !important; }
 .pt-pane canvas { background: transparent !important; }
 
-/* 无需滚动时把滚动条彻底藏掉 */
-.pt-pane .scrollbar.invisible { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
-.pt-pane .scrollbar.invisible > .slider { opacity: 0 !important; height: 0 !important; background: transparent !important; }
-
-/* xterm 自绘滚动条：细条 + 圆角 + 半透明 */
-.pt-pane .scrollbar { width: 12px !important; min-width: 12px !important; max-width: 12px !important; }
-.pt-pane .scrollbar > .slider {
-  width: 8px !important; min-width: 8px !important; max-width: 8px !important;
-  left: 2px !important; right: auto !important;
-  border-radius: 999px !important;
-  background: color-mix(in srgb, var(--dsw-label-3, rgba(242,241,237,0.45)) 55%, transparent) !important;
-  border: 0 !important;
+/* 现行 xterm 用 .xterm-viewport 的原生滚动条，不是旧版 .scrollbar 滑块。
+   全局细条 + 透明轨道在深色画布上几乎看不见，macOS overlay 还会被 canvas 盖住。 */
+.pt-pane .xterm-viewport {
+  overflow-y: scroll !important;
+  background: transparent !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(242,241,237,0.42) transparent;
 }
-.pt-pane .scrollbar > .slider:hover,
-.pt-pane .scrollbar > .slider.active {
-  background: color-mix(in srgb, var(--dsw-label-2, rgba(242,241,237,0.72)) 70%, transparent) !important;
+.pt-pane .xterm-viewport::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+  display: block !important;
+}
+.pt-pane .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+.pt-pane .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(242,241,237,0.38) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  min-height: 24px !important;
+  background-clip: padding-box !important;
+}
+.pt-pane .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(242,241,237,0.55) !important;
 }
 
 .pt-history-out {
