@@ -26,7 +26,7 @@
   --dsw-hover-strong: #e0e0e0;
   --dsw-sidebar-fg: #5f5e5a;
   --dsw-sidebar-fg-active: #2c2c2b;
-  --dsw-icon: #91918e;
+  --dsw-icon: #5f5e5a;
   --dsw-sidebar-icon: var(--dsw-icon);
   --dsw-usage-track-cache: color-mix(in srgb, #448361 22%, #ffffff);
   --dsw-usage-track-hist: color-mix(in srgb, #d9730d 22%, #ffffff);
