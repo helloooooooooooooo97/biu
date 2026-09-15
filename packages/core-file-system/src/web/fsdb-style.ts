@@ -685,6 +685,7 @@ html.share .fsdb-detail-float-nav,html.share .heading-outline-host .chat-outline
 .fsdb-share-badge{margin-left:8px;border-radius:8px;padding:2px 8px;background:var(--dsw-hover);color:var(--dsw-label-2);font-size:11px;font-weight:700}
 .fsdb-person-photo{width:18px;height:18px;border-radius:50%;object-fit:cover;flex:none}
 .fsdb-share-owner-corner{position:absolute;right:16px;bottom:16px;z-index:8}
+.fsdb-share-owner-face{display:block;width:36px;height:36px;border-radius:50%;object-fit:cover}
 .fsdb-share-owner-card{position:absolute;right:0;bottom:calc(100% + 10px);width:260px;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:12px;box-shadow:var(--dsw-shadow)}
 .fsdb-share-owner-card-head{display:flex;align-items:center;gap:10px;min-width:0}
 .fsdb-share-owner-card-photo,.fsdb-share-owner-card-initial{width:40px;height:40px;border-radius:50%;flex:none;object-fit:cover}

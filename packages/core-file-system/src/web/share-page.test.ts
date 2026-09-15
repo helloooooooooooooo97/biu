@@ -14,14 +14,15 @@ test('share header has a theme toggle that writes biu.theme', () => {
   assert.match(src, /ShareOwnerCorner/)
 })
 
-test('share corner keeps the brand icon and opens an owner card', () => {
+test('share corner uses the owner photo when set, else the brand icon', () => {
   const src = readFileSync(resolve(import.meta.dirname, './share-owner-corner.tsx'), 'utf8')
   const css = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
+  assert.match(src, /owner\?\.avatar/)
+  assert.match(src, /fsdb-share-owner-face/)
   assert.match(src, /BrandMascot/)
   assert.match(src, /data-testid="fsdb-share-owner-toggle"/)
   assert.match(src, /data-dock-tip/)
   assert.match(src, /data-share-owner-extras/)
   assert.match(src, /registerShareOwnerExtra/)
-  assert.doesNotMatch(src, /sidebar-brand-avatar/)
-  assert.match(css, /\.fsdb-share-owner-corner\{/)
+  assert.match(css, /\.fsdb-share-owner-face\{/)
 })

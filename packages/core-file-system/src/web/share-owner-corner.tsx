@@ -60,7 +60,11 @@ export function ShareOwnerCorner({
         data-testid="fsdb-share-owner-toggle"
         onClick={() => onOpenChange(!open)}
       >
-        <BrandMascot className="size-9" />
+        {owner?.avatar ? (
+          <img className="fsdb-share-owner-face" src={owner.avatar} alt="" data-testid="fsdb-share-owner-face" />
+        ) : (
+          <BrandMascot className="size-9" />
+        )}
       </button>
       {open ? (
         <HeadlessDismiss onDismiss={close}>
