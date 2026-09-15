@@ -14,6 +14,9 @@ import {
   SunIcon,
 } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
+import { ShareOwnerCorner } from './share-owner-corner.tsx'
+
+export { registerShareOwnerExtra } from './share-owner-corner.tsx'
 import { parseSharePath, sharePublicPath, type ShareSnapshot } from '../share-snapshot.ts'
 import { parsePageBanner } from '../page-banner.ts'
 import { RecordDetail } from './record-detail.tsx'
@@ -152,6 +155,7 @@ function SharePage({
   const [snapshot, setSnapshot] = useState<ShareSnapshot | null>(null)
   const [resourcesOpen, setResourcesOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
+  const [ownerOpen, setOwnerOpen] = useState(false)
   const [pluginsReady, setPluginsReady] = useState(false)
   const [pageWidth, setPageWidth] = useState(getPageWidth)
   const [theme, setTheme] = useState(readShareTheme)
@@ -362,12 +366,6 @@ function SharePage({
             <span className="chat-view-project-name">{snapshot.title}</span>
           )}
           <span className="fsdb-share-badge">只读</span>
-          {snapshot.owner?.name ? (
-            <span className="fsdb-share-owner" data-testid="fsdb-share-owner">
-              {snapshot.owner.avatar ? <img src={snapshot.owner.avatar} alt="" /> : null}
-              来自 {snapshot.owner.name}
-            </span>
-          ) : null}
         </div>
         <div className="chat-view-header-right">
           <div className="fsdb-layout-wrap" ref={layoutRef}>
@@ -613,6 +611,7 @@ function SharePage({
       </div>
       </div>
       </div>
+      <ShareOwnerCorner owner={snapshot.owner} open={ownerOpen} onOpenChange={setOwnerOpen} />
     </div>
   )
 }
