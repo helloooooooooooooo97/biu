@@ -38,8 +38,8 @@
   --dsw-radius-bubble: 8px;
   --dsw-radius-card: 8px;
   /* Hairline-first depth (Cursor prefers border rings over heavy elevation) */
-  --dsw-shadow: 0 8px 24px #eeeceb;
-  --dsw-shadow-lv2: 0 0 0 1px #eeeceb, 0 8px 24px #eeeceb;
+  --dsw-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  --dsw-shadow-lv2: 0 8px 24px rgba(0, 0, 0, 0.06);
   --dsw-chat-width: 748px;
   /* 右侧对话正文字号 */
   --dsw-chat-font-size: 14px;
@@ -5334,6 +5334,14 @@ html:not(.dark) .hljs-meta .hljs-string {
   background: var(--dsw-sidebar);
   box-shadow: var(--dsw-shadow-lv2);
   transition: border-radius 0.12s ease;
+}
+
+html:not(.dark) .composer-pill {
+  box-shadow: none;
+}
+
+html:not(.dark) .composer-plus {
+  border-color: color-mix(in srgb, var(--dsw-border) 65%, transparent);
 }
 
 .composer-pill.is-expanded {
