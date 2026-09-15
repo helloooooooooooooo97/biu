@@ -26,6 +26,7 @@
   --dsw-hover-strong: #e0e0e0;
   --dsw-sidebar-fg: #5f5e5a;
   --dsw-sidebar-fg-active: #2c2c2b;
+  --dsw-sidebar-icon: #91918e;
   --dsw-tag-ink: #2c2c2b;
   --dsw-muted-fill: rgba(0, 0, 0, 0.03);
   --dsw-overlay: rgba(255, 255, 255, 0.72);
@@ -89,6 +90,7 @@ html.dark {
   --dsw-hover-strong: #2c2c2c;
   --dsw-sidebar-fg: #bcbab6;
   --dsw-sidebar-fg-active: #f0efed;
+  --dsw-sidebar-icon: #bcbab6;
   --dsw-tag-ink: #ffffff;
   --dsw-muted-fill: rgba(242, 241, 237, 0.04);
   --dsw-overlay: rgba(25, 25, 25, 0.72);
@@ -2232,7 +2234,7 @@ body {
   height: 16px;
   flex-shrink: 0;
   place-items: center;
-  color: inherit;
+  color: var(--dsw-sidebar-icon);
 }
 
 .app-side-actions-label {
@@ -2243,7 +2245,8 @@ body {
   white-space: nowrap;
 }
 
-.app-side-actions-item:hover .app-side-actions-icon {
+.app-side-actions-item:hover .app-side-actions-icon,
+.app-side-actions-item.is-active .app-side-actions-icon {
   color: var(--dsw-sidebar-fg-active);
 }
 
@@ -2406,6 +2409,14 @@ body {
   height: 16px;
   flex-shrink: 0;
   place-items: center;
+  color: var(--dsw-sidebar-icon);
+}
+
+.chat-session-row:hover .sidebar-rail-icon,
+.chat-session-row.is-active .sidebar-rail-icon,
+.app-side-actions-item:hover .sidebar-rail-icon,
+.app-side-actions-item.is-active .sidebar-rail-icon {
+  color: var(--dsw-sidebar-fg-active);
 }
 
 .sidebar-group-fold {

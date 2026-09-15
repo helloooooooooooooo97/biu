@@ -130,6 +130,7 @@ test('settings appearance toggles day and night themes', () => {
   assert.match(css, /:root \{[^}]*--dsw-border: #f0efed/)
   assert.match(css, /:root \{[^}]*--dsw-sidebar-fg: #5f5e5a/)
   assert.match(css, /:root \{[^}]*--dsw-sidebar-fg-active: #2c2c2b/)
+  assert.match(css, /:root \{[^}]*--dsw-sidebar-icon: #91918e/)
   assert.match(css, /:root \{[^}]*--dsw-tag-ink: #2c2c2b/)
   assert.match(css, /html\.dark \{[^}]*--dsw-bg: #191919/)
   assert.match(css, /html:not\(\.dark\) \.hljs/)
