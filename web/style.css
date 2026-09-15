@@ -2312,6 +2312,12 @@ html.dark .chat-overlay-panel {
   cursor: pointer;
 }
 
+.chat-session-row > .chat-session-row-delete,
+.chat-session-row > .chat-session-row-star,
+.chat-session-row > .sidebar-add {
+  color: var(--dsw-icon);
+}
+
 .chat-session-row::before {
   content: '';
   position: absolute;
@@ -2368,6 +2374,7 @@ html.dark .chat-overlay-panel {
   display: block;
   width: 16px;
   height: 16px;
+  color: var(--dsw-icon);
 }
 
 .chat-session-row:hover .chat-session-row-delete,
@@ -2468,7 +2475,9 @@ html.dark .chat-overlay-panel {
 .app-side-bar .fsdb-record-mark,
 .app-side-bar .fsdb-record-mark svg,
 .app-side-bar .chat-session-row-main > span > svg,
-.app-side-bar .chat-session-row > span svg {
+.app-side-bar .chat-session-row > span svg,
+.app-side-bar .chat-session-row-delete svg,
+.app-side-bar .chat-session-row-star svg {
   color: var(--dsw-icon);
 }
 
