@@ -101,6 +101,98 @@ function styleHelperTextarea(el: HTMLElement) {
   s.removeProperty('display')
 }
 
+function attachScrollRail(term: Terminal, pane: HTMLElement) {
+  const rail = document.createElement('div')
+  rail.className = 'pt-scroll-rail'
+  rail.setAttribute('aria-hidden', 'true')
+  const thumb = document.createElement('div')
+  thumb.className = 'pt-scroll-thumb'
+  rail.appendChild(thumb)
+  pane.appendChild(rail)
+
+  const metrics = () => {
+    const buf = term.buffer.active
+    const rows = Math.max(1, term.rows)
+    const total = Math.max(rows, buf.length)
+    const maxY = Math.max(0, total - rows)
+    const y = Math.min(maxY, Math.max(0, buf.viewportY))
+    return { rows, total, maxY, y }
+  }
+
+  const sync = () => {
+    const { rows, total, maxY, y } = metrics()
+    const trackH = Math.max(1, rail.clientHeight)
+    const thumbH = Math.max(28, Math.round((rows / total) * trackH))
+    const travel = Math.max(0, trackH - thumbH)
+    const top = maxY === 0 ? 0 : Math.round((y / maxY) * travel)
+    thumb.style.height = `${thumbH}px`
+    thumb.style.transform = `translateY(${top}px)`
+    rail.classList.toggle('is-idle', maxY === 0)
+  }
+
+  let dragging = false
+  let startY = 0
+  let startViewport = 0
+
+  const onPointerDown = (event: PointerEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const { maxY, y } = metrics()
+    if (event.target !== thumb) {
+      if (maxY === 0) return
+      const rect = rail.getBoundingClientRect()
+      const ratio = (event.clientY - rect.top) / Math.max(1, rect.height)
+      term.scrollToLine(Math.round(ratio * maxY))
+      return
+    }
+    dragging = true
+    startY = event.clientY
+    startViewport = y
+    rail.classList.add('is-dragging')
+    thumb.setPointerCapture(event.pointerId)
+  }
+  const onPointerMove = (event: PointerEvent) => {
+    if (!dragging) return
+    const { rows, total, maxY } = metrics()
+    if (maxY === 0) return
+    const trackH = Math.max(1, rail.clientHeight)
+    const thumbH = Math.max(28, Math.round((rows / total) * trackH))
+    const travel = Math.max(1, trackH - thumbH)
+    const next = startViewport + ((event.clientY - startY) / travel) * maxY
+    term.scrollToLine(Math.max(0, Math.min(maxY, Math.round(next))))
+  }
+  const onPointerUp = (event: PointerEvent) => {
+    dragging = false
+    rail.classList.remove('is-dragging')
+    try {
+      thumb.releasePointerCapture(event.pointerId)
+    } catch {
+      // 可能没捕获过。
+    }
+  }
+  const onWheel = (event: WheelEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    term.scrollLines(event.deltaY > 0 ? 3 : -3)
+  }
+
+  rail.addEventListener('pointerdown', onPointerDown)
+  rail.addEventListener('pointermove', onPointerMove)
+  rail.addEventListener('pointerup', onPointerUp)
+  rail.addEventListener('pointercancel', onPointerUp)
+  rail.addEventListener('wheel', onWheel, { passive: false })
+
+  const scrollSub = term.onScroll(() => sync())
+  const renderSub = term.onRender(() => sync())
+  requestAnimationFrame(sync)
+
+  return () => {
+    scrollSub.dispose()
+    renderSub.dispose()
+    rail.remove()
+  }
+}
+
 function buryAuxiliaryNodes(root: HTMLElement) {
   for (const node of root.querySelectorAll(MEASURE_SELECTORS)) {
     const s = (node as HTMLElement).style
@@ -118,7 +210,7 @@ function buryAuxiliaryNodes(root: HTMLElement) {
   }
 }
 
-const STYLE_ID = 'pt-xterm-style-v3'
+const STYLE_ID = 'pt-xterm-style-v4'
 const STYLE_CSS = `
 .pt-card{
   display:flex;flex-direction:column;overflow:hidden;
@@ -138,31 +230,40 @@ const STYLE_CSS = `
 .pt-pane .xterm-screen { background: transparent !important; }
 .pt-pane canvas { background: transparent !important; }
 
-/* 现行 xterm 用 .xterm-viewport 的原生滚动条，不是旧版 .scrollbar 滑块。
-   全局细条 + 透明轨道在深色画布上几乎看不见，macOS overlay 还会被 canvas 盖住。 */
+/* xterm 的 canvas（.xterm-screen）盖在 viewport 上面，原生滚动条看不见。
+   滚轮仍走 viewport；可见滑块用右侧自定义轨道，z-index 盖过 canvas。 */
 .pt-pane .xterm-viewport {
-  overflow-y: scroll !important;
+  overflow-y: auto !important;
   background: transparent !important;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(242,241,237,0.42) transparent;
+  scrollbar-width: none;
 }
-.pt-pane .xterm-viewport::-webkit-scrollbar {
-  width: 8px !important;
-  height: 8px !important;
-  display: block !important;
+.pt-pane .xterm-viewport::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+
+.pt-scroll-rail {
+  position: absolute;
+  top: 8px;
+  right: 4px;
+  bottom: 8px;
+  width: 8px;
+  z-index: 12;
+  border-radius: 999px;
+  background: rgba(242,241,237,0.10);
+  pointer-events: auto;
 }
-.pt-pane .xterm-viewport::-webkit-scrollbar-track {
-  background: transparent !important;
+.pt-scroll-thumb {
+  position: absolute;
+  left: 0;
+  width: 8px;
+  border-radius: 999px;
+  background: rgba(242,241,237,0.42);
+  cursor: pointer;
 }
-.pt-pane .xterm-viewport::-webkit-scrollbar-thumb {
-  background: rgba(242,241,237,0.38) !important;
-  border: 0 !important;
-  border-radius: 999px !important;
-  min-height: 24px !important;
-  background-clip: padding-box !important;
+.pt-scroll-thumb:hover,
+.pt-scroll-rail.is-dragging .pt-scroll-thumb {
+  background: rgba(242,241,237,0.62);
 }
-.pt-pane .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: rgba(242,241,237,0.55) !important;
+.pt-scroll-rail.is-idle .pt-scroll-thumb {
+  background: rgba(242,241,237,0.28);
 }
 
 .pt-history-out {
@@ -255,6 +356,7 @@ function TerminalSurface({
     term.open(element)
 
     buryAuxiliaryNodes(element)
+    const detachScroll = attachScrollRail(term, element)
     const observer = new MutationObserver(() => buryAuxiliaryNodes(element))
     observer.observe(element, { childList: true, subtree: true })
 
@@ -271,6 +373,8 @@ function TerminalSurface({
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
     let socket: WebSocket | undefined
     let raf = 0
+    let hasUserInput = false
+    let startupTimer: number | undefined
     // 连接延后到布局稳定，避免用错误尺寸启动 shell。
     raf = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -292,7 +396,19 @@ function TerminalSurface({
         socket.addEventListener('message', (event) => {
           decodePtyChunk(event.data, (chunk) => {
             if (!chunk) return
-            term.write(chunk)
+            term.write(chunk, () => {
+              // 新建/重连时 PTY 会先按启动尺寸吐出提示符和回放内容。xterm 随后
+              // fit 到真实高度，那些启动行会留在缓冲区顶部，造成“上面空一大片、
+              // 当前光标被挤到下方看不见”。等首轮输出安静后只保留当前光标行。
+              if (hasUserInput) return
+              if (startupTimer) window.clearTimeout(startupTimer)
+              startupTimer = window.setTimeout(() => {
+                if (hasUserInput) return
+                term.clear()
+                term.scrollToBottom()
+                term.refresh(0, term.rows - 1)
+              }, 120)
+            })
             recordOutput(chunk)
           })
         })
@@ -399,6 +515,11 @@ function TerminalSurface({
     // ---------------------------------------------------------------------
 
     const dataSub = term.onData((data) => {
+      hasUserInput = true
+      if (startupTimer) {
+        window.clearTimeout(startupTimer)
+        startupTimer = undefined
+      }
       recordInput(data)
       if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input', data }))
     })
@@ -421,7 +542,9 @@ function TerminalSurface({
 
     return () => {
       if (outTimer) window.clearTimeout(outTimer)
+      if (startupTimer) window.clearTimeout(startupTimer)
       cancelAnimationFrame(raf)
+      detachScroll()
       observer.disconnect()
       resizeObs.disconnect()
       resizeSub.dispose()
@@ -446,7 +569,7 @@ function TerminalSurface({
         height: fill ? undefined : height,
         flex: fill ? 1 : undefined,
         minHeight: 0,
-        padding: '8px 10px',
+        padding: '8px 18px 8px 10px',
         boxSizing: 'border-box',
         overflow: 'hidden',
         background: '#191919',
