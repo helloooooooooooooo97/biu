@@ -42,6 +42,7 @@ test('sessionsCollection maps summaries and writes title/pinned/tags', async () 
   assert.equal(rows[0]?.mascotEye, 1)
   assert.equal(rows[0]?.mascotName, '橙石美')
   assert.deepEqual(rows[0]?.tags, ['a'])
+  assert.equal(rows[0]?.createdAt, 100)
   await spec.update?.('s1', {
     title: 'renamed',
     pinned: true,

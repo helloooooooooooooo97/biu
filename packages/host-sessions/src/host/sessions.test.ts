@@ -16,6 +16,7 @@ test('append-only log projects model history; version is 1', async () => {
   await ctx.plugin(sessions)
   const record = await ctx.sessions.create()
   assert.equal(record.version, SESSION_FORMAT_VERSION)
+  assert.ok(Number(record.config?.createdAt) > 0)
   await ctx.sessions.append(record.id, { type: 'system/prompt', text: 'sys' })
   await ctx.sessions.append(record.id, { type: 'user/message', text: 'hi', kind: 'wake' })
   await ctx.sessions.append(record.id, { type: 'assistant/message', text: 'yo' })
@@ -64,6 +65,7 @@ test('sqlite session store round-trips and listSummaries skips full reload', asy
   assert.match(summaries[0]?.title ?? '', /^[墨栗赤橙金翠青蓝紫玫灰]/)
   assert.notEqual(summaries[0]?.title, 'sql1')
   assert.equal(summaries[0]?.eventCount, 4)
+  assert.ok(Number(summaries[0]?.config?.createdAt) > 0)
 
   const ctx2 = new Context()
   await ctx2.plugin(sessionStore, { driver: 'sqlite', path })

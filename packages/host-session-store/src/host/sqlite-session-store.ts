@@ -29,6 +29,7 @@ type SessionRow = {
   event_count: number
   title: string
   updated_at: number
+  first_event_at?: number
 }
 
 function tableColumns(db: DatabaseSync, table: string) {
@@ -234,13 +235,20 @@ export class SqliteSessionStore implements SessionStore {
   async listSummaries(): Promise<SessionSummary[]> {
     const rows = this.db
       .prepare(
-        'SELECT id, version, project_json, mascot_json, config_json, event_count, title, updated_at FROM sessions ORDER BY updated_at DESC',
+        'SELECT id, version, project_json, mascot_json, config_json, event_count, title, updated_at, (SELECT MIN(ts) FROM events WHERE session_id = sessions.id) AS first_event_at FROM sessions ORDER BY updated_at DESC',
       )
       .all() as SessionRow[]
     return rows.map((row) => {
       const project = parseProject(row.project_json)
       const mascot = parseMascot(row.mascot_json)
       const config = parseConfig(row.config_json)
+      const createdAt = Number(config?.createdAt)
+      const stamp =
+        Number.isFinite(createdAt) && createdAt > 0
+          ? createdAt
+          : Number(row.first_event_at) > 0
+            ? Number(row.first_event_at)
+            : row.updated_at
       return {
         id: row.id,
         version: row.version,
@@ -254,7 +262,7 @@ export class SqliteSessionStore implements SessionStore {
         updatedAt: row.updated_at,
         ...(project ? { project } : {}),
         ...(mascot ? { mascot } : {}),
-        ...(config ? { config } : {}),
+        ...(config || stamp ? { config: { ...(config ?? {}), createdAt: stamp } } : {}),
       }
     })
   }

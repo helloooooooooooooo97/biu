@@ -29,6 +29,13 @@ type SessionsLike = {
   inboxPending?: (id: string) => number
 }
 
+function sessionCreatedAt(row: SessionSummary) {
+  const fromConfig = Number(row.config?.createdAt)
+  if (Number.isFinite(fromConfig) && fromConfig > 0) return fromConfig
+  const fromUpdated = Number(row.updatedAt)
+  return Number.isFinite(fromUpdated) && fromUpdated > 0 ? fromUpdated : 0
+}
+
 function asRecord(row: SessionSummary): DbRecord {
   const mascot =
     row.mascot && isSessionMascot(row.mascot) ? ensureSessionMascot(row.id, row.mascot) : mascotFromSessionId(row.id)
@@ -50,7 +57,7 @@ function asRecord(row: SessionSummary): DbRecord {
     mascotColor: mascot.color,
     mascotEye: mascot.eye,
     ...recordBuiltinValues({
-      createdAt: row.config?.createdAt,
+      createdAt: sessionCreatedAt(row),
       updatedAt: row.updatedAt,
       emoji: row.config?.emoji,
       tags: row.config?.tags,
