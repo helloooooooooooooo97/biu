@@ -3,24 +3,23 @@ import assert from 'node:assert/strict'
 import { Editor } from '@tiptap/core'
 import { TAG_TONES } from '@biu/public-ui'
 import { pageEditorExtensions } from './kit.ts'
-import { EDITOR_TONES, HIGHLIGHT_COLORS, TEXT_COLORS, tagTextColor, tagWashColor } from './color-swatches.ts'
+import { EDITOR_TONES, HIGHLIGHT_COLORS, TEXT_COLORS, editorHighlightColor, editorTextColor } from './color-swatches.ts'
 
 test('color palettes follow supertag tones', () => {
   assert.deepEqual([...EDITOR_TONES], [...TAG_TONES])
   assert.ok(TEXT_COLORS.some((item) => item.value === ''))
   assert.ok(HIGHLIGHT_COLORS.some((item) => item.value === ''))
   for (const tone of TAG_TONES) {
-    assert.ok(TEXT_COLORS.some((item) => item.value === tagTextColor(tone)))
-    assert.ok(HIGHLIGHT_COLORS.some((item) => item.value === tagWashColor(tone)))
+    assert.ok(TEXT_COLORS.some((item) => item.value === editorTextColor(tone)))
+    assert.ok(HIGHLIGHT_COLORS.some((item) => item.value === editorHighlightColor(tone)))
+    assert.equal(editorTextColor(tone), tone)
+    assert.equal(editorHighlightColor(tone), tone)
   }
-  assert.ok(tagTextColor('#d9730d').includes('--dsw-tag-ink'))
-  assert.ok(tagWashColor('#5b9fd6').includes('22%'))
-  assert.match(tagWashColor('#5b9fd6'), /transparent/)
 })
 
 test('tiptap Color and Highlight apply tag tones', () => {
-  const text = tagTextColor(TAG_TONES[0]!)
-  const wash = tagWashColor(TAG_TONES[0]!)
+  const text = editorTextColor(TAG_TONES[0]!)
+  const wash = editorHighlightColor(TAG_TONES[0]!)
   const editor = new Editor({
     extensions: pageEditorExtensions(),
     content: '你好世界',
