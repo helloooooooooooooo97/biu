@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Page 化技能仓库：目录导入为 Page 树，按需加载不占上下文",
+  "description": "Skill 仓库：独立 /skills 表，正文不进 /pages",
   "exports": {
     ".": "./src/host/index.ts",
     "./store": "./src/host/store.ts",

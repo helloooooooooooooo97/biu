@@ -1,40 +1,19 @@
 import { Service, type Context } from 'cordis'
 import { skillsCollection } from './collection.ts'
-import {
-  importSkillPages,
-  legacySkillImports,
-  readSkillDirectory,
-  resolveSkillPage,
-  skillFilesFromPages,
-  skillFilesHash,
-  skillPageHash,
-  SkillRegistry,
-  skillsRegistryFile,
-  syncSkillPagesFromFiles,
-  writeSkillDirectory,
-  type SkillImportInput,
-  type SkillRecord,
-} from './store.ts'
+import { legacySkillImports, SkillsStore, type SkillImportInput, type SkillRecord } from './store.ts'
 
 export type SkillSummary = {
   id: string
   name: string
   description: string
-  rootPageId: string
-  entryPageId: string
-  entryPath: string
-}
-
-type PageContentResult = {
-  value?: unknown
 }
 
 export class SkillsService extends Service {
-  private registry: SkillRegistry
+  private store: SkillsStore
 
   constructor(ctx: Context) {
     super(ctx, 'skills')
-    this.registry = new SkillRegistry(skillsRegistryFile())
+    this.store = new SkillsStore()
     ctx.inject(['systemPrompt'], (inner) => {
       inner.systemPrompt.register('skills', () => this.promptSection())
     })
@@ -48,12 +27,12 @@ export class SkillsService extends Service {
     try {
       this.ctx.emit('database/change')
     } catch {
-      // File System 尚未挂载时不影响注册表本身。
+      // File System 尚未挂载时不影响仓库本身。
     }
   }
 
   list(): SkillRecord[] {
-    return this.registry.list()
+    return this.store.list()
   }
 
   listEnabled() {
@@ -65,149 +44,60 @@ export class SkillsService extends Service {
       id: skill.id,
       name: skill.name,
       description: skill.description,
-      rootPageId: skill.rootPageId,
-      entryPageId: skill.entryPageId,
-      entryPath: skill.entryPath,
     }))
   }
 
+  recordOrNull(id: string) {
+    return this.store.get(id)
+  }
+
   record(id: string) {
-    const skill = this.registry.get(id)
+    const skill = this.store.get(id)
     if (!skill) throw new Error(`unknown skill: ${id}`)
     return skill
   }
 
-  async read(id: string, target = '', from = '') {
+  read(id: string) {
     const skill = this.record(id)
-    const resolved = resolveSkillPage(skill, target, from)
-    const content = await this.ctx.database.content(`/pages/${resolved.pageId}`) as PageContentResult
     return {
       id: skill.id,
       name: skill.name,
       description: skill.description,
       enabled: skill.enabled,
-      rootPageId: skill.rootPageId,
-      entryPageId: skill.entryPageId,
-      entryPath: skill.entryPath,
-      pageId: resolved.pageId,
-      relativePath: resolved.path,
-      body: String(content.value ?? ''),
-      pages: skill.pages,
+      body: skill.notes,
     }
   }
 
-  async import(input: SkillImportInput) {
-    const wanted = String(input.id ?? '').trim()
-    if (wanted && this.registry.get(wanted)) throw new Error(`skill already exists: ${wanted}`)
-    let imported = await importSkillPages(this.ctx.database, input)
-    if (this.registry.get(imported.id)) throw new Error(`skill already exists: ${imported.id}`)
-    if (input.source !== 'legacy-directory-migration') {
-      const files = await skillFilesFromPages(this.ctx.database, imported)
-      writeSkillDirectory(imported.directory, files)
-      imported = { ...imported, folderHash: skillFilesHash(files) }
-    }
-    this.registry.put(imported)
+  create(input: Parameters<SkillsStore['create']>[0]) {
+    const created = this.store.create(input)
     this.changed()
-    return imported
+    return created
   }
 
-  private async syncHashes(skill: SkillRecord) {
-    const files = readSkillDirectory(skill.directory)
-    return {
-      files,
-      folderHash: skillFilesHash(files),
-      pageHash: await skillPageHash(this.ctx.database, skill),
-    }
-  }
-
-  async syncFromDirectory(id: string) {
-    const skill = this.record(id)
-    const current = await this.syncHashes(skill)
-    if (!skill.folderHash || !skill.pageHash) {
-      const initialized = {
-        ...skill,
-        folderHash: current.folderHash,
-        pageHash: current.pageHash,
-        syncedAt: Date.now(),
-      }
-      this.registry.put(initialized)
-      return { direction: 'from-directory', status: 'initialized', skill: initialized }
-    }
-    if (current.folderHash === skill.folderHash) {
-      return { direction: 'from-directory', status: 'unchanged', skill }
-    }
-    if (current.pageHash !== skill.pageHash) {
-      throw new Error('同步冲突：文件夹和 Page 在上次同步后都发生了修改，请先选择要保留的一侧')
-    }
-    const synced = await syncSkillPagesFromFiles(this.ctx.database, skill, current.files)
-    this.registry.put(synced.record)
+  import(input: SkillImportInput) {
+    const created = this.store.import(input)
     this.changed()
-    return { direction: 'from-directory', status: 'synced', ...synced }
+    return created
   }
 
-  async syncToDirectory(id: string) {
-    const skill = this.record(id)
-    const current = await this.syncHashes(skill)
-    if (!skill.folderHash || !skill.pageHash) {
-      const initialized = {
-        ...skill,
-        folderHash: current.folderHash,
-        pageHash: current.pageHash,
-        syncedAt: Date.now(),
-      }
-      this.registry.put(initialized)
-      return { direction: 'to-directory', status: 'initialized', skill: initialized }
-    }
-    if (current.pageHash === skill.pageHash) {
-      return { direction: 'to-directory', status: 'unchanged', skill }
-    }
-    if (current.folderHash !== skill.folderHash) {
-      throw new Error('同步冲突：文件夹和 Page 在上次同步后都发生了修改，请先选择要保留的一侧')
-    }
-    const files = await skillFilesFromPages(this.ctx.database, skill)
-    writeSkillDirectory(skill.directory, files)
-    const next = {
-      ...skill,
-      folderHash: skillFilesHash(files),
-      pageHash: current.pageHash,
-      syncedAt: Date.now(),
-    }
-    this.registry.put(next)
-    this.changed()
-    return { direction: 'to-directory', status: 'synced', files: files.length, skill: next }
-  }
-
-  async migrateLegacyDirectories() {
-    const registered = new Set(this.list().map((skill) => skill.id))
+  migrateLegacyDirectories() {
     let migrated = 0
     for (const input of legacySkillImports()) {
-      const id = String(input.id)
-      if (registered.has(id)) continue
-      const imported = await importSkillPages(this.ctx.database, input)
-      this.registry.put(imported)
-      registered.add(imported.id)
-      migrated += 1
-    }
-    for (const skill of this.list()) {
-      if (skill.folderHash && skill.pageHash && skill.syncedAt) continue
-      const current = await this.syncHashes(skill)
-      this.registry.put({
-        ...skill,
-        folderHash: current.folderHash,
-        pageHash: current.pageHash,
-        syncedAt: Date.now(),
-      })
+      const id = String(input.id || '')
+      if (!id || this.store.get(id)) continue
+      try {
+        this.store.import(input)
+        migrated += 1
+      } catch {
+        // 已存在或目录不合法就跳过。
+      }
     }
     if (migrated) this.changed()
     return migrated
   }
 
-  patch(id: string, patch: { name?: unknown; description?: unknown; enabled?: unknown }) {
-    const next = this.registry.patch(id, {
-      ...(patch.name !== undefined ? { name: String(patch.name) } : {}),
-      ...(patch.description !== undefined ? { description: String(patch.description) } : {}),
-      ...(patch.enabled !== undefined ? { enabled: patch.enabled !== false } : {}),
-    })
+  patch(id: string, patch: { name?: unknown; description?: unknown; enabled?: unknown; notes?: unknown }) {
+    const next = this.store.patch(id, patch)
     this.changed()
     return next
   }
@@ -217,23 +107,19 @@ export class SkillsService extends Service {
   }
 
   remove(id: string) {
-    const removed = this.registry.remove(id)
-    this.changed()
+    const removed = this.store.remove(id)
+    if (removed) this.changed()
     return removed
   }
 
   promptSection() {
     const skills = this.listEnabled()
     if (!skills.length) return ''
-    const lines = skills.map(
-      (skill) =>
-        `- ${skill.id}（${skill.name}）：${skill.description}；根页面 /pages/${skill.rootPageId}`,
-    )
+    const lines = skills.map((skill) => `- ${skill.id}（${skill.name}）：${skill.description}`)
     return [
       '<available_skills>',
-      '这些技能存成 Page 树；这里只列摘要，不展开正文。',
-      '相关时用 skill_read 读取入口 Page。正文中的 Page 引用按需用 db_content 继续读，不要一次展开整棵树。',
-      '相对引用可继续调用 skill_read，并传 path 与 from（当前 relativePath）；导入时能解析的 Markdown 相对链接已改成 Page 引用。',
+      '这些技能存在 /skills，这里只列摘要，不展开正文。',
+      '相关时用 skill_read 或 db_content /skills/<id> 读取正文。',
       ...lines,
       '</available_skills>',
     ].join('\n')
@@ -248,7 +134,7 @@ export function apply(ctx: Context) {
 
   ctx.tools.register({
     name: 'skill_list',
-    description: '列出 Skill 仓库注册信息。默认只列已启用项；all=true 包含停用项。',
+    description: '列出 /skills。默认只列已启用项；all=true 包含停用项。',
     parameters: {
       type: 'object',
       properties: { all: { type: 'boolean' } },
@@ -259,34 +145,23 @@ export function apply(ctx: Context) {
         name: skill.name,
         description: skill.description,
         enabled: 'enabled' in skill ? skill.enabled : true,
-        rootPageId: skill.rootPageId,
-        entryPageId: skill.entryPageId,
-        entryPath: skill.entryPath,
       })),
   })
 
   ctx.tools.register({
     name: 'skill_read',
-    description:
-      '按需读取 Skill 的入口 Page，或解析标准目录中的相对路径。path 省略时读取 SKILL.md；' +
-      '读取 ../skill.md 之类引用时同时传 from=当前返回的 relativePath。',
+    description: '读取一个 Skill 的正文。和 db_content /skills/<id> 相同。',
     parameters: {
       type: 'object',
-      properties: {
-        id: { type: 'string' },
-        path: { type: 'string' },
-        from: { type: 'string' },
-      },
+      properties: { id: { type: 'string' } },
       required: ['id'],
     },
-    execute: (args) =>
-      skills.read(String(args.id), String(args.path ?? ''), String(args.from ?? '')),
+    execute: (args) => skills.read(String(args.id)),
   })
 
   ctx.tools.register({
     name: 'skill_import',
-    description:
-      '把标准 Skill 目录导入为 Page 树并注册到 /skills。files 的 path 可包含根目录名；根目录必须有 SKILL.md。',
+    description: '把带 SKILL.md 的目录收成 /skills 里的一条记录。其它 md 会按章节附在正文后面。',
     parameters: {
       type: 'object',
       properties: {
@@ -297,10 +172,7 @@ export function apply(ctx: Context) {
           type: 'array',
           items: {
             type: 'object',
-            properties: {
-              path: { type: 'string' },
-              content: { type: 'string' },
-            },
+            properties: { path: { type: 'string' }, content: { type: 'string' } },
             required: ['path', 'content'],
           },
         },
@@ -313,14 +185,13 @@ export function apply(ctx: Context) {
         name: String(args.name ?? ''),
         description: String(args.description ?? ''),
         files: Array.isArray(args.files) ? args.files as Array<{ path: string; content: string }> : [],
-        source: 'skill_import',
       }),
   })
 
   ctx.http.route('POST', '/api/skills/import', async (route) => {
     try {
       const body = await route.json<SkillImportInput>()
-      const imported = await skills.import({ ...body, source: body.source || 'browser-directory' })
+      const imported = skills.import(body)
       route.send(200, { ok: true, skill: imported })
     } catch (error) {
       route.send(400, { ok: false, error: String(error instanceof Error ? error.message : error) })
@@ -329,23 +200,23 @@ export function apply(ctx: Context) {
 
   ctx.http.route('POST', '/api/skills/rescan', async (route) => {
     try {
-      const migrated = await skills.migrateLegacyDirectories()
+      const migrated = skills.migrateLegacyDirectories()
       route.send(200, { ok: true, imported: migrated })
     } catch (error) {
       route.send(400, { ok: false, error: String(error instanceof Error ? error.message : error) })
     }
   })
 
-  // Core Page 在插件清单中可能晚于 Skills 挂载；让本轮插件装载完成后再迁移。
   const migrationTimer = setTimeout(() => {
-    void skills.migrateLegacyDirectories()
-      .then((migrated) => {
-        if (migrated) ctx.logger('skills').info(`migrated ${migrated} legacy skill directories into Page trees`)
-      })
-      .catch((error) => ctx.logger('skills').error(error))
+    try {
+      const migrated = skills.migrateLegacyDirectories()
+      if (migrated) ctx.logger('skills').info(`migrated ${migrated} legacy skill directories`)
+    } catch (error) {
+      ctx.logger('skills').error(error)
+    }
   }, 0)
   ctx.effect(() => () => clearTimeout(migrationTimer))
 }
 
 export type { SkillImportFile, SkillImportInput, SkillRecord } from './store.ts'
-export { skillsRegistryFile } from './store.ts'
+export { skillRoot } from './store.ts'

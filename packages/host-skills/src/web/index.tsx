@@ -5,15 +5,12 @@ import type { DatabaseUi, FsContentProps, FsViewProps } from '@biu/type-file-sys
 export const name = 'host-skills-ui'
 export const inject = ['databaseUi']
 
-/** 分享 Skill 注册记录时只展示发现信息；正文归对应的 /pages Page 树。 */
+/** 分享 Skill 时展示何时使用；正文在本表 notes 里。 */
 export function SkillsContent({ record }: FsContentProps) {
   return (
     <div style={{ paddingTop: 12 }}>
       <p style={{ margin: 0, color: 'var(--dsw-label-2)', lineHeight: 1.6 }}>
         {String(record.description ?? '')}
-      </p>
-      <p style={{ margin: '8px 0 0', color: 'var(--dsw-label-3)', fontSize: 12 }}>
-        Skill 正文存储在关联的 Page 树中。
       </p>
     </div>
   )
@@ -83,7 +80,7 @@ function SkillsLibraryView({ rows, onOpen }: FsViewProps) {
         <div>
           <h2 style={{ margin: 0, fontSize: 18 }}>Skill 仓库</h2>
           <p style={{ margin: '4px 0 0', color: 'var(--dsw-label-3)', fontSize: 13 }}>
-            Skill 内容存储为 Page 树；标准目录仅在导入时解析。
+            Skill 内容存在本表，和页面分开。
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -127,22 +124,12 @@ function SkillsLibraryView({ rows, onOpen }: FsViewProps) {
 export function apply(ctx: Context) {
   const ui = ctx.get('databaseUi') as DatabaseUi
   ctx.effect(() => {
-    const chrome = ui.decorate('/skills', {
-      openRow: (row) => ({
-        kind: 'record',
-        collection: '/pages',
-        recordId: String(row.rootPageId ?? ''),
-      }),
-    })
     const view = ui.registerView('/skills', {
       id: 'skill-library',
       label: '仓库',
       plugin: 'skills',
       View: SkillsLibraryView,
     })
-    return () => {
-      chrome.dispose()
-      view.dispose()
-    }
+    return () => view.dispose()
   })
 }
