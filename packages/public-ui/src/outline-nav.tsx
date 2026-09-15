@@ -107,11 +107,15 @@ export function OutlineNav({
       className="chat-outline"
       aria-label={label}
       data-testid={testId}
-      onMouseEnter={hoverRail}
-      onMouseMove={hoverRail}
       onMouseLeave={scheduleClose}
     >
-      <div className="chat-outline-rail" ref={railRef} data-testid={`${testId}-rail`}>
+      <div
+        className="chat-outline-rail"
+        ref={railRef}
+        data-testid={`${testId}-rail`}
+        onMouseEnter={hoverRail}
+        onMouseMove={hoverRail}
+      >
         {items.map((item) => (
           <button
             key={item.id}
@@ -128,7 +132,12 @@ export function OutlineNav({
         ))}
       </div>
       {hoverId ? (
-        <nav className="chat-outline-panel" ref={panelRef} data-testid={`${testId}-panel`}>
+        <nav
+          className="chat-outline-panel"
+          ref={panelRef}
+          data-testid={`${testId}-panel`}
+          onMouseEnter={keepOpen}
+        >
           {items.map((item) => (
             <button
               key={item.id}
