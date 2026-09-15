@@ -191,6 +191,11 @@ test('page-excalidraw sandbox stores scenes as page assets', async () => {
   assert.match(src, /function reloadHost/)
   assert.match(src, /appliedEtag/)
   assert.match(src, /quietUntil/)
+  assert.match(src, /Date\.now\(\) < host\.quietUntil/)
+  assert.match(src, /live\.appliedEtag = result\.etag/)
+  assert.match(src, /captureUpdate: 'NEVER'/)
+  assert.doesNotMatch(src, /key=\{host\.etag\}/)
+  assert.doesNotMatch(src, /host\.root\?\.unmount\(\)\s*\n\s*host\.root = createRoot/)
   assert.match(src, /biu:asset-changed/)
   const onChange = src.match(/const onChange = useCallback\([\s\S]*?\}, \[file\]\)/)?.[0]
   assert.ok(onChange)
