@@ -6,6 +6,11 @@ export type WorkspaceProfile = {
 const KEY = 'biu.workspace-profile'
 const EVENT = 'biu:workspace-profile'
 const EMPTY: WorkspaceProfile = { name: '', avatar: '' }
+let cached: WorkspaceProfile = EMPTY
+
+function sameProfile(a: WorkspaceProfile, b: WorkspaceProfile) {
+  return a.name === b.name && a.avatar === b.avatar
+}
 
 function parse(raw: string | null): WorkspaceProfile {
   try {
@@ -15,20 +20,26 @@ function parse(raw: string | null): WorkspaceProfile {
       avatar: String(rec.avatar ?? '').trim(),
     }
   } catch {
-    return { ...EMPTY }
+    return EMPTY
   }
+}
+
+function remember(next: WorkspaceProfile) {
+  if (sameProfile(cached, next)) return cached
+  cached = next
+  return cached
 }
 
 export function readWorkspaceProfile(): WorkspaceProfile {
-  if (typeof localStorage === 'undefined') return { ...EMPTY }
-  return parse(localStorage.getItem(KEY))
+  if (typeof localStorage === 'undefined') return cached
+  return remember(parse(localStorage.getItem(KEY)))
 }
 
 export function writeWorkspaceProfile(next: WorkspaceProfile) {
-  const saved: WorkspaceProfile = {
+  const saved = remember({
     name: next.name.trim().slice(0, 40),
     avatar: next.avatar.trim(),
-  }
+  })
   if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(saved))
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(EVENT))
   return saved
@@ -54,10 +65,15 @@ export async function hydrateWorkspaceProfile() {
     const res = await fetch('/api/profile')
     if (!res.ok) return readWorkspaceProfile()
     const data = (await res.json()) as Partial<WorkspaceProfile>
-    return writeWorkspaceProfile({
+    const next = {
       name: String(data.name ?? ''),
       avatar: String(data.avatar ?? ''),
-    })
+    }
+    const current = readWorkspaceProfile()
+    if (sameProfile(current, { name: next.name.trim().slice(0, 40), avatar: next.avatar.trim() })) {
+      return current
+    }
+    return writeWorkspaceProfile(next)
   } catch {
     return readWorkspaceProfile()
   }
