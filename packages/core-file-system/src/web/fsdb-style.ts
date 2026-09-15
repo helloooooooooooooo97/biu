@@ -660,12 +660,7 @@ button.fsdb-detail-title-icon:hover{background:var(--dsw-hover);color:var(--dsw-
 .fsdb-share-page{position:fixed;inset:0;z-index:220;display:flex;flex-direction:column;overflow:hidden;background:var(--dsw-bg,#191919);color:var(--dsw-label,#f0efed)}
 html.share .fsdb-crumb-menu.is-fixed,html.share .fsdb-cellselect-menu,html.share .fsdb-query-drag-overlay,html.share .fsdb-cell-pop,html.share .fsdb-emoji-picker.is-fixed,html.share .fsdb-pager-size-menu,html.share .db-search-menu,html.share .fsdb-dlg-backdrop{z-index:360!important}
 html.share .fsdb-detail-float-nav,html.share .heading-outline-host .chat-outline{opacity:1}
-html.share .fsdb-share-page .tasks-toolbar{justify-content:space-between}
-html.share .fsdb-share-page .tasks-toolbar-left{flex:1 1 auto;min-width:0;width:auto;overflow:visible}
 .fsdb-share-page .fsdb-right{min-height:0;flex:1}
-.fsdb-share-page .fsdb-main > :not(.fsdb-page-banner){margin-inline:auto;padding-left:80px;padding-right:80px}
-.fsdb-share-page .tasks-table-wrap{display:block;width:100%;margin-inline:auto}
-.fsdb-share-page .tasks-table{width:100%;min-width:100%;max-width:100%;margin:0;table-layout:auto}
 .fsdb-share-page.fsdb-page{flex-direction:column;overflow:hidden}
 .fsdb-share-page .chat-view-header{flex:none}
 .fsdb-share-badge{margin-left:8px;border-radius:8px;padding:2px 8px;background:var(--dsw-hover);color:var(--dsw-label-2);font-size:11px;font-weight:700}

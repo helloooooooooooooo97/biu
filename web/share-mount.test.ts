@@ -36,7 +36,7 @@ test('share mount loads page plugins without booting the workstation', () => {
   assert.doesNotMatch(page, /clipboard\.writeText/)
   const style = readFileSync(resolve(import.meta.dirname, '../packages/core-file-system/src/web/fsdb-style.ts'), 'utf8')
   assert.match(style, /html\.share \.fsdb-detail-float-nav/)
-  assert.match(style, /html\.share \.fsdb-share-page \.tasks-toolbar\{justify-content:space-between\}/)
+  assert.doesNotMatch(style, /\.fsdb-share-page \.fsdb-main > :not\(\.fsdb-page-banner\)/)
   const bar = readFileSync(resolve(import.meta.dirname, '../packages/core-file-system/src/web/share-view-bar.tsx'), 'utf8')
   assert.match(bar, /aria-label="可见列"/)
   assert.match(bar, /表格显示/)
