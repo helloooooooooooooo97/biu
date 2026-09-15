@@ -49,7 +49,7 @@ const NOTION_LIGHT = {
     borderRadius: 6,
     fontSize: 14,
     fontFamily: 'inherit',
-    boxShadowSecondary: '0 0 0 1px #f0efed, 0 8px 24px rgba(0, 0, 0, 0.12)',
+    boxShadowSecondary: '0 0 0 1px #eeeceb, 0 8px 24px #eeeceb',
   },
   components: PICKER_CHROME,
 }

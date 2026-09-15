@@ -94,8 +94,8 @@ test('list and detail share the chat column max width with side padding', () => 
 })
 
 test('title cell hover icons take the primary label color', () => {
-  assert.match(css, /\.fsdb-page \.tasks-title-open\{[^}]*color:var\(--dsw-label\)/)
-  assert.match(css, /\.fsdb-page \.tasks-title-open:hover\{[^}]*color:var\(--dsw-label\)/)
+  assert.match(css, /\.fsdb-page \.tasks-title-open\{[^}]*color:var\(--dsw-icon\)/)
+  assert.match(css, /\.fsdb-page \.tasks-title-open:hover\{[^}]*color:var\(--dsw-icon\)/)
   assert.match(css, /\.fsdb-page \.tasks-title-aside\{[^}]*gap:2px/)
   assert.match(css, /\.fsdb-page \.tasks-row-tools-slot\{[^}]*gap:2px/)
   assert.match(css, /\.fsdb-page \.tasks-row-actions\{[^}]*gap:2px/)
@@ -103,7 +103,7 @@ test('title cell hover icons take the primary label color', () => {
   assert.match(css, /\.fsdb-page \.tasks-icon-btn\{[^}]*border-radius:5px/)
   assert.doesNotMatch(css, /\.fsdb-page \.tasks-title-open\{[^}]*width:24px/)
   assert.doesNotMatch(css, /\.fsdb-page \.tasks-title-zoom\{[^}]*width:24px/)
-  assert.match(css, /\.fsdb-page \.tasks-row-tools \.tasks-icon-btn,\.fsdb-page \.tasks-row-actions \.tasks-icon-btn\{[^}]*color:var\(--dsw-label\)/)
+  assert.match(css, /\.fsdb-page \.tasks-row-tools \.tasks-icon-btn,\.fsdb-page \.tasks-row-actions \.tasks-icon-btn\{[^}]*color:var\(--dsw-icon\)/)
   assert.match(
     css,
     /\.fsdb-page \.tasks-table tr:hover td:has\(\.fsdb-title-host\) \.tasks-title-open,\.fsdb-page \.tasks-title-open:focus-visible,\.fsdb-page \.tasks-table tr:hover td:has\(\.fsdb-title-host\) \.tasks-row-tools \.tasks-icon-btn,\.fsdb-page \.tasks-table tr:hover td:has\(\.fsdb-title-host\) \.tasks-row-actions \.tasks-icon-btn\{[^}]*background:var\(--dsw-hover\)/,
@@ -112,14 +112,14 @@ test('title cell hover icons take the primary label color', () => {
 
 test('list properties stay on the weakest label tier; detail aside lifts keys one tier and values to primary', () => {
   assert.match(css, /\.fsdb-proprow-k,\.fsdb-prop>span:first-child\{[^}]*color:var\(--dsw-label-3\)/)
-  assert.match(css, /\.fsdb-proprow-v,\.fsdb-prop-val,\.fsdb-detail-id\{[^}]*color:var\(--dsw-label-3\)/)
+  assert.match(css, /\.fsdb-proprow-v,\.fsdb-prop-val,\.fsdb-detail-id\{[^}]*color:var\(--dsw-label\)/)
   assert.match(css, /\.fsdb-schema-prop-k\{[^}]*color:var\(--dsw-label-3\)/)
-  assert.match(css, /\.fsdb-proprow-k svg,\.fsdb-prop>span:first-child svg,\.fsdb-schema-prop-k svg\{[^}]*color:var\(--dsw-label\)/)
+  assert.match(css, /\.fsdb-proprow-k svg,\.fsdb-prop>span:first-child svg,\.fsdb-schema-prop-k svg\{[^}]*color:var\(--dsw-icon\)/)
   assert.match(
     css,
     /\.fsdb-detail-aside \.fsdb-proprow-k,\.fsdb-detail-aside \.fsdb-prop>span:first-child,\.fsdb-detail-aside \.fsdb-proprow-label\{[^}]*color:var\(--dsw-label-2\)/,
   )
-  assert.match(css, /\.fsdb-detail-aside \.fsdb-proprow-k svg,\.fsdb-detail-aside \.fsdb-prop>span:first-child svg\{[^}]*color:var\(--dsw-label-2\)/)
+  assert.match(css, /\.fsdb-detail-aside \.fsdb-proprow-k svg,\.fsdb-detail-aside \.fsdb-prop>span:first-child svg\{[^}]*color:var\(--dsw-icon\)/)
   assert.match(
     css,
     /\.fsdb-detail-aside \.fsdb-proprow-v,\.fsdb-detail-aside \.fsdb-prop-val,\.fsdb-detail-aside \.fsdb-detail-id,\.fsdb-detail-aside \.fsdb-plain-input\{[^}]*color:var\(--dsw-label\)/,

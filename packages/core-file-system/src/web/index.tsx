@@ -463,7 +463,7 @@ if (typeof document !== 'undefined') {
   const style = document.getElementById(id) ?? document.createElement('style')
   style.id = id
   style.textContent = `
-.fsdb-nav-errors{position:fixed;right:16px;bottom:16px;z-index:80;max-width:360px;border:1px solid var(--dsw-danger);border-radius:12px;padding:12px 14px;background:var(--dsw-surface);color:var(--dsw-label);box-shadow:0 8px 24px rgba(0,0,0,.24)}
+.fsdb-nav-errors{position:fixed;right:16px;bottom:16px;z-index:80;max-width:360px;border:1px solid var(--dsw-danger);border-radius:12px;padding:12px 14px;background:var(--dsw-surface);color:var(--dsw-label);box-shadow:var(--dsw-shadow)}
 .fsdb-nav-errors strong{display:block;margin-bottom:6px;color:var(--dsw-danger);font-size:12px}
 .fsdb-nav-errors ul{margin:0;padding-left:18px;font-size:12px;line-height:1.5}
 `
