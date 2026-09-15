@@ -202,7 +202,17 @@ export function FacetPackEditor({ facetId }: { facetId: string }) {
   }
 
   return (
-    <div className="fsdb-schema-pack">
+    <div className="fsdb-schema" data-testid="fsdb-facet-fields">
+      {pack.fields.length ? (
+        <TagChips>
+          {pack.fields.map((field) => (
+            <SchemaChip key={field.key} id={field.key} label={field.label ?? field.key} />
+          ))}
+        </TagChips>
+      ) : (
+        <span className="fsdb-muted">添加属性</span>
+      )}
+      <div className="fsdb-schema-pack">
       {pack.fields.map((field) => (
         <div key={field.key} className="fsdb-schema-prop">
           <span className="fsdb-schema-prop-k" title={field.label ?? field.key}>
@@ -218,6 +228,7 @@ export function FacetPackEditor({ facetId }: { facetId: string }) {
         </div>
       ))}
       <AddProperty onAdd={addField} />
+      </div>
     </div>
   )
 }

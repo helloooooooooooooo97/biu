@@ -31,7 +31,7 @@ export function PropertyRow({
             type="button"
             className="fsdb-proprow-fold"
             aria-expanded={Boolean(expanded)}
-            aria-label={expanded ? '收起合集' : '展开合集'}
+            aria-label={expanded ? `收起${label || '属性'}` : `展开${label || '属性'}`}
             onClick={onToggle}
           >
             <span className="fsdb-proprow-glyph" aria-hidden>
