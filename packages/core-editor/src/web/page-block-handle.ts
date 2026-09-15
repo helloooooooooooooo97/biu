@@ -14,6 +14,14 @@ export function handleRailLeft(hostLeft: number, contentLeft: number, rail = HAN
   return contentLeft - hostLeft - rail
 }
 
+/** React 节点视图外层还有一层 renderer，把手要贴真正的块盒子，不然会悬在块上方。 */
+export function visibleHandleEl(root: Node | null | undefined): HTMLElement | null {
+  const el = root instanceof HTMLElement ? root : root instanceof Node ? root.parentElement : null
+  if (!(el instanceof HTMLElement)) return null
+  const inner = el.querySelector<HTMLElement>('[data-page-block]')
+  return inner ?? el
+}
+
 /** 列表项单独成块；其余取紧贴文档的顶层块（引用整段、段落、插件块等）。 */
 export function resolveHandleBlock($pos: ResolvedPos): HandleBlock | null {
   for (let depth = $pos.depth; depth >= 1; depth--) {
