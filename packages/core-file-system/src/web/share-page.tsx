@@ -6,7 +6,10 @@ import {
   ArrowDownTrayIcon,
   ArrowsPointingInIcon,
   ArrowsPointingOutIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   CubeTransparentIcon,
+  HashtagIcon,
 } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
 import { parseSharePath, sharePublicPath, type ShareSnapshot } from '../share-snapshot.ts'
@@ -23,6 +26,8 @@ import { applyShareQuery, loadShareQuery, saveShareQuery, shareQueryFromView, ty
 import { ShareViewQueryBar } from './share-view-bar.tsx'
 import { ShareCell, ShareListTable } from './share-table.tsx'
 import { getPageWidth, persistPageWidth, subscribePageWidth } from './page-width.ts'
+import { PagerSizeControl } from './pager-size.tsx'
+import { normalizePageSize } from './saved-view.ts'
 
 function passwordKey(token: string) {
   return `fsdb.share.pw:${token}`
@@ -188,6 +193,11 @@ function SharePage({
     if (!queryState || snapshot?.kind !== 'view') return
     saveShareQuery(token, queryState)
   }, [queryState, snapshot, token])
+  const [page, setPage] = useState(0)
+  const pageSize = normalizePageSize(queryState?.pageSize)
+  useEffect(() => {
+    setPage(0)
+  }, [token, pageSize, queryState?.q, queryState?.sorts, queryState?.filterTree])
 
   const selected = useMemo(() => {
     if (!snapshot) return null
@@ -249,6 +259,10 @@ function SharePage({
   const listed = snapshot.kind === 'view' && queryState
     ? applyShareQuery(snapshot.records, schema, queryState, snapshot.contents)
     : snapshot.records
+  const total = listed.length
+  const lastPage = Math.max(0, Math.ceil(total / pageSize) - 1)
+  const safePage = Math.min(page, lastPage)
+  const paged = snapshot.kind === 'view' ? listed.slice(safePage * pageSize, safePage * pageSize + pageSize) : listed
   const shown = selected ?? (snapshot.kind === 'record' ? snapshot.records[0] : null)
   if (recordId && !shown) {
     return (
@@ -497,7 +511,7 @@ function SharePage({
               <ShareListTable
                 schema={schema}
                 view={snapshot.view}
-                records={listed}
+                records={paged}
                 collection={snapshot.collection}
                 chrome={chrome}
                 columns={queryState?.columns}
@@ -505,7 +519,39 @@ function SharePage({
                 truncate={queryState?.truncate}
                 onOpen={(id) => navigate(sharePublicPath(token, id))}
               />
-              {listed.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}
+              {paged.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}
+            </div>
+            <div className="fsdb-pager" data-testid="fsdb-share-pager">
+              <span className="fsdb-pager-meta" title={total ? `共 ${total} 条` : '暂无记录'}>
+                <HashtagIcon aria-hidden className="size-[14px]" />
+                <span>{total}</span>
+              </span>
+              <div className="fsdb-pager-nav">
+                {queryState ? (
+                  <PagerSizeControl
+                    pageSize={pageSize}
+                    onChange={(size) => setQueryState({ ...queryState, pageSize: size })}
+                  />
+                ) : null}
+                <button
+                  type="button"
+                  className="tasks-icon-btn"
+                  aria-label="上一页"
+                  disabled={safePage <= 0}
+                  onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+                >
+                  <ChevronLeftIcon aria-hidden className="size-[14px]" />
+                </button>
+                <button
+                  type="button"
+                  className="tasks-icon-btn"
+                  aria-label="下一页"
+                  disabled={total <= 0 || (safePage + 1) * pageSize >= total || (paged.length > 0 && paged.length < pageSize)}
+                  onClick={() => setPage((prev) => prev + 1)}
+                >
+                  <ChevronRightIcon aria-hidden className="size-[14px]" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
