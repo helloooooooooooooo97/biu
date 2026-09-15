@@ -16,6 +16,9 @@ export type ShareQueryState = {
   q: string
   sorts: SortRule[]
   filterTree: FilterGroup
+  columns: string[]
+  wrap: boolean
+  truncate: boolean
 }
 
 export function shareQueryStorageKey(token: string) {
@@ -30,6 +33,9 @@ export function shareQueryFromView(view?: Partial<SavedView>): ShareQueryState {
       filters: view?.filters,
       filterTree: view?.filterTree,
     }),
+    columns: Array.isArray(view?.columns) ? [...view.columns] : [],
+    wrap: Boolean(view?.wrap),
+    truncate: view?.truncate !== false,
   }
 }
 
@@ -42,6 +48,9 @@ export function loadShareQuery(token: string, fallback: ShareQueryState): ShareQ
       q: typeof parsed.q === 'string' ? parsed.q : fallback.q,
       sorts: Array.isArray(parsed.sorts) ? normalizeSorts(parsed.sorts, fallback.sorts[0]?.field, fallback.sorts[0]?.dir) : fallback.sorts,
       filterTree: parsed.filterTree ? resolveViewFilterTree({ filterTree: parsed.filterTree, filters: {} }) : fallback.filterTree,
+      columns: Array.isArray(parsed.columns) ? parsed.columns.filter((key) => typeof key === 'string') : fallback.columns,
+      wrap: typeof parsed.wrap === 'boolean' ? parsed.wrap : fallback.wrap,
+      truncate: typeof parsed.truncate === 'boolean' ? parsed.truncate : fallback.truncate,
     }
   } catch {
     return fallback
