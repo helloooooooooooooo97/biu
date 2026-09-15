@@ -2356,7 +2356,7 @@ html.dark .chat-overlay-panel {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: inherit;
+  color: var(--dsw-icon);
   opacity: 0;
   cursor: pointer;
   line-height: 0;
@@ -2373,19 +2373,14 @@ html.dark .chat-overlay-panel {
 .chat-session-row:hover .chat-session-row-delete,
 .chat-session-row-delete:focus,
 .chat-session-row:hover .chat-session-row-star,
-.chat-session-row-star:focus,
-.chat-session-row-star.is-on {
+.chat-session-row-star:focus {
   width: 24px;
   opacity: 1;
 }
 
-.chat-session-row-star.is-on {
-  color: #f5c518;
-}
-
 .chat-session-row-star:hover {
   background: var(--dsw-hover);
-  color: #fbd96d;
+  color: var(--dsw-icon);
 }
 
 .chat-session-row-delete:hover {
@@ -2407,7 +2402,7 @@ html.dark .chat-overlay-panel {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: inherit;
+  color: var(--dsw-icon);
   opacity: 0;
   cursor: pointer;
   line-height: 0;
@@ -2430,7 +2425,7 @@ html.dark .chat-overlay-panel {
 
 .sidebar-add:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-sidebar-fg-active);
+  color: var(--dsw-icon);
 }
 
 .sidebar-trail-icon {
@@ -2726,17 +2721,31 @@ html.dark .chat-overlay-panel {
   display: inline-grid;
   flex-shrink: 0;
   place-items: center;
-  min-width: 24px;
+  width: 0;
+  min-width: 0;
   height: 24px;
+  overflow: hidden;
   grid-column: 2;
   justify-self: end;
   margin: 0;
-  padding: 0 4px;
+  padding: 0;
   border-radius: 6px;
-  color: inherit;
+  color: var(--dsw-icon);
   font-size: 14px;
   font-weight: 500;
   line-height: 0;
+  opacity: 0;
+  transition: width 150ms ease, min-width 150ms ease, padding 150ms ease, opacity 150ms ease;
+}
+
+.sidebar-section-head:hover .sidebar-chat-count,
+.sidebar-group-head:hover .sidebar-chat-count,
+.chat-session-row:hover .sidebar-chat-count,
+.sidebar-chat-count:focus-within {
+  width: auto;
+  min-width: 24px;
+  padding: 0 4px;
+  opacity: 1;
 }
 
 .sidebar-chat-count-num {
@@ -2785,7 +2794,7 @@ html.dark .chat-overlay-panel {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: inherit;
+  color: var(--dsw-icon);
   cursor: pointer;
   line-height: 0;
 }
@@ -2798,12 +2807,12 @@ html.dark .chat-overlay-panel {
 
 .sidebar-view-switch-btn:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-sidebar-fg-active);
+  color: var(--dsw-icon);
 }
 
 .sidebar-view-switch-btn.is-on {
   background: var(--dsw-hover);
-  color: var(--dsw-sidebar-fg-active);
+  color: var(--dsw-icon);
 }
 
 .sidebar-mascot {
