@@ -610,11 +610,9 @@ body {
   flex-direction: column;
   gap: 8px;
   margin: 0;
-  border: 1px solid var(--dsw-border);
+  border: 1px solid transparent;
   border-radius: 10px;
-  background: transparent;
   padding: 8px;
-  color: var(--dsw-label-2);
   font: inherit;
   font-size: 13px;
   font-weight: 550;
@@ -622,29 +620,71 @@ body {
   cursor: pointer;
 }
 
-.settings-theme-card:hover {
-  background: var(--dsw-hover);
+/* 预览卡自己的浅色/深色，不跟当前 html.dark 走 */
+.settings-theme-card[data-theme-card="light"] {
+  color-scheme: light;
+  background: #ffffff;
+  border-color: #f0efed;
+  color: #5f5e5a;
 }
 
-.settings-theme-card.is-on {
-  border-color: var(--dsw-label);
-  color: var(--dsw-label);
+.settings-theme-card[data-theme-card="light"]:hover {
+  background: #f9f8f7;
+}
+
+.settings-theme-card[data-theme-card="light"].is-on {
+  border-color: #2c2c2b;
+  color: #2c2c2b;
+}
+
+.settings-theme-card[data-theme-card="dark"] {
+  color-scheme: dark;
+  background: #191919;
+  border-color: #383836;
+  color: #bcbab6;
+}
+
+.settings-theme-card[data-theme-card="dark"]:hover {
+  background: #202020;
+}
+
+.settings-theme-card[data-theme-card="dark"].is-on {
+  border-color: #f0efed;
+  color: #f0efed;
 }
 
 .settings-theme-preview {
   display: block;
   height: 72px;
   border-radius: 6px;
-  border: 1px solid var(--dsw-border);
   overflow: hidden;
+  background-repeat: no-repeat;
 }
 
 .settings-theme-preview.is-light {
-  background: linear-gradient(90deg, #f7f6f3 28%, #fff 28%);
+  color-scheme: light;
+  border: 1px solid #f0efed;
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(#f9f8f7, #f9f8f7),
+    linear-gradient(#f0efed, #f0efed),
+    linear-gradient(#ececec, #ececec),
+    linear-gradient(#ececec, #ececec);
+  background-size: 28% 100%, 1px 100%, 52% 8px, 40% 8px;
+  background-position: 0 0, 28% 0, 38% 28%, 38% 48%;
 }
 
 .settings-theme-preview.is-dark {
-  background: linear-gradient(90deg, #2c2c2b 28%, #191919 28%);
+  color-scheme: dark;
+  border: 1px solid #383836;
+  background-color: #191919;
+  background-image:
+    linear-gradient(#202020, #202020),
+    linear-gradient(#383836, #383836),
+    linear-gradient(#2c2c2c, #2c2c2c),
+    linear-gradient(#2c2c2c, #2c2c2c);
+  background-size: 28% 100%, 1px 100%, 52% 8px, 40% 8px;
+  background-position: 0 0, 28% 0, 38% 28%, 38% 48%;
 }
 
 .settings-shortcut-list {
