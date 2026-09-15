@@ -104,6 +104,8 @@ test('title cell hover icons take the primary label color', () => {
   assert.doesNotMatch(css, /\.fsdb-page \.tasks-title-open\{[^}]*width:24px/)
   assert.doesNotMatch(css, /\.fsdb-page \.tasks-title-zoom\{[^}]*width:24px/)
   assert.match(css, /\.fsdb-page \.tasks-row-tools \.tasks-icon-btn,\.fsdb-page \.tasks-row-actions \.tasks-icon-btn\{[^}]*color:var\(--dsw-icon\)/)
+  assert.match(css, /\.fsdb-page \.fsdb-record-mark,\.fsdb-page \.fsdb-record-mark svg,\.fsdb-page \.fsdb-title-host>svg,\.fsdb-page \.fsdb-table-record-icon svg\{[^}]*color:var\(--dsw-icon\)/)
+  assert.match(css, /\.fsdb-page \.fsdb-table-emoji-btn\{[^}]*color:var\(--dsw-icon\)/)
   assert.match(
     css,
     /\.fsdb-page \.tasks-table tr:hover td:has\(\.fsdb-title-host\) \.tasks-title-open,\.fsdb-page \.tasks-title-open:focus-visible,\.fsdb-page \.tasks-table tr:hover td:has\(\.fsdb-title-host\) \.tasks-row-tools \.tasks-icon-btn,\.fsdb-page \.tasks-table tr:hover td:has\(\.fsdb-title-host\) \.tasks-row-actions \.tasks-icon-btn\{[^}]*background:var\(--dsw-hover\)/,
