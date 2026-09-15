@@ -563,10 +563,12 @@ function SharePage({
             const banner = rewriteBanner(snapshot.banner, token, password)
             return banner ? <PageBanner value={banner} writable={false} title={snapshot.title} /> : null
           })()}
-          <div className="fsdb-detail-title-row">
+          <div className="fsdb-detail-icon-slot">
             <span className="fsdb-detail-title-icon" aria-hidden>
               <TableGlyph className="size-8" />
             </span>
+          </div>
+          <div className="fsdb-detail-title-row">
             <div className="fsdb-detail-title-block">
               <h1 className="fsdb-detail-title">{snapshot.title}</h1>
             </div>

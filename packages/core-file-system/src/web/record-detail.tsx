@@ -263,7 +263,7 @@ export function RecordDetail({
                     })
                   }}
                 />
-                <div className="fsdb-detail-title-row">
+                <div className="fsdb-detail-icon-slot">
                 <DetailTitleIcon
                   emoji={recordPreviewEmoji(selected)}
                   tableIcon={tableIcon}
@@ -277,6 +277,8 @@ export function RecordDetail({
                   }}
                   locked={readOnly}
                 />
+                </div>
+                <div className="fsdb-detail-title-row">
                 <div className="fsdb-detail-title-block">
                 {schema.labelField && schema.fields[schema.labelField]?.writable && !readOnly ? (
                   <h1 className="fsdb-detail-title">
