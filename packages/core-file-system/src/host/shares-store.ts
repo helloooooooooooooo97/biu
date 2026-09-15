@@ -188,6 +188,26 @@ export class SharesStore {
     ).run(kind, normalizeCollectionPath(collection), viewId, recordId)
   }
 
+  revokeRecord(collection: string, recordId: string) {
+    const id = String(recordId ?? '').trim()
+    if (!id) return
+    this.conn().prepare('DELETE FROM shares WHERE kind = ? AND collection = ? AND record_id = ?').run(
+      'record',
+      normalizeCollectionPath(collection),
+      id,
+    )
+  }
+
+  revokeView(collection: string, viewId: string) {
+    const id = String(viewId ?? '').trim()
+    if (!id) return
+    this.conn().prepare('DELETE FROM shares WHERE kind = ? AND collection = ? AND view_id = ?').run(
+      'view',
+      normalizeCollectionPath(collection),
+      id,
+    )
+  }
+
   list(): ShareRecord[] {
     const rows = this.conn().prepare('SELECT * FROM shares ORDER BY updated_at DESC, token DESC').all() as ShareRow[]
     return rows.map(publicShare)
