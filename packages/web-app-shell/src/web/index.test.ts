@@ -131,6 +131,7 @@ test('settings appearance toggles day and night themes', () => {
   assert.match(css, /:root \{[^}]*--dsw-sidebar-fg: #5f5e5a/)
   assert.match(css, /:root \{[^}]*--dsw-sidebar-fg-active: #2c2c2b/)
   assert.match(css, /:root \{[^}]*--dsw-icon: #91918e/)
+  assert.match(css, /\.app-side-bar \.chat-session-row > span svg \{\s*color: var\(--dsw-icon\)/)
   assert.match(css, /:root \{[^}]*--dsw-shadow: 0 8px 24px rgba\(0, 0, 0, 0\.06\)/)
   assert.match(css, /:root \{[^}]*--dsw-shadow-lv2: 0 8px 24px rgba\(0, 0, 0, 0\.06\)/)
   assert.match(css, /:root \{[^}]*--dsw-tag-ink: #2c2c2b/)
