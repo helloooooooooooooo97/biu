@@ -610,7 +610,7 @@ body {
   flex-direction: column;
   gap: 8px;
   margin: 0;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 10px;
   padding: 8px;
   font: inherit;
@@ -624,7 +624,6 @@ body {
 .settings-theme-card[data-theme-card="light"] {
   color-scheme: light;
   background: #ffffff;
-  border-color: #f0efed;
   color: #5f5e5a;
 }
 
@@ -633,14 +632,12 @@ body {
 }
 
 .settings-theme-card[data-theme-card="light"].is-on {
-  border-color: #2c2c2b;
   color: #2c2c2b;
 }
 
 .settings-theme-card[data-theme-card="dark"] {
   color-scheme: dark;
   background: #191919;
-  border-color: #383836;
   color: #bcbab6;
 }
 
@@ -649,7 +646,6 @@ body {
 }
 
 .settings-theme-card[data-theme-card="dark"].is-on {
-  border-color: #f0efed;
   color: #f0efed;
 }
 
