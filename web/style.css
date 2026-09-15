@@ -2708,7 +2708,7 @@ html.dark .chat-overlay-panel {
 .chat-session-row > .chat-session-row-delete,
 .chat-session-row > .chat-session-row-star,
 .chat-session-row > .sidebar-add {
-  color: var(--dsw-icon-active);
+  color: #a6a6a3;
 }
 
 .chat-session-row::before {
@@ -2755,7 +2755,7 @@ html.dark .chat-overlay-panel {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-icon-active);
+  color: #a6a6a3;
   opacity: 0;
   cursor: pointer;
   line-height: 0;
@@ -2767,7 +2767,7 @@ html.dark .chat-overlay-panel {
   display: block;
   width: 16px;
   height: 16px;
-  color: var(--dsw-icon-active);
+  color: #a6a6a3;
 }
 
 .chat-session-row:hover .chat-session-row-delete,
@@ -2780,7 +2780,7 @@ html.dark .chat-overlay-panel {
 
 .chat-session-row-star:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-icon-active);
+  color: #a6a6a3;
 }
 
 .chat-session-row-delete:hover {
@@ -2802,7 +2802,7 @@ html.dark .chat-overlay-panel {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-icon-active);
+  color: #a6a6a3;
   opacity: 0;
   cursor: pointer;
   line-height: 0;
@@ -2825,7 +2825,7 @@ html.dark .chat-overlay-panel {
 
 .sidebar-add:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-icon-active);
+  color: #a6a6a3;
 }
 
 .sidebar-trail-icon {
@@ -2836,7 +2836,7 @@ html.dark .chat-overlay-panel {
   min-width: 0;
   height: 24px;
   overflow: hidden;
-  color: var(--dsw-icon-active);
+  color: #a6a6a3;
   opacity: 0;
   line-height: 0;
   transition: width 150ms ease, opacity 150ms ease;
@@ -2874,7 +2874,7 @@ html.dark .chat-overlay-panel {
 
 .app-side-bar .chat-session-row-delete svg,
 .app-side-bar .chat-session-row-star svg {
-  color: var(--dsw-icon-active);
+  color: #a6a6a3;
 }
 
 .chat-session-row-star.is-on,
@@ -2882,6 +2882,22 @@ html.dark .chat-overlay-panel {
 .app-side-bar .chat-session-row-star.is-on svg,
 .app-side-bar .chat-session-row-star.is-on:hover svg {
   color: #e8b84a;
+}
+
+html.dark .chat-session-row > .chat-session-row-delete,
+html.dark .chat-session-row > .chat-session-row-star:not(.is-on),
+html.dark .chat-session-row > .sidebar-add,
+html.dark .chat-session-row-delete,
+html.dark .chat-session-row-star:not(.is-on),
+html.dark .sidebar-add,
+html.dark .sidebar-trail-icon,
+html.dark .chat-session-row-delete svg,
+html.dark .chat-session-row-star:not(.is-on) svg,
+html.dark .sidebar-add:hover,
+html.dark .chat-session-row-star:not(.is-on):hover,
+html.dark .app-side-bar .chat-session-row-delete svg,
+html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
+  color: var(--dsw-icon-active);
 }
 
 .chat-session-row:hover .sidebar-rail-icon,
