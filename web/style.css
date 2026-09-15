@@ -5038,8 +5038,8 @@ html.dark .chat-overlay-panel {
 .chat-outline::before {
   content: '';
   position: absolute;
-  inset: -16px auto -16px -8px;
-  width: 32px;
+  inset: -16px auto -16px -12px;
+  width: 64px;
   pointer-events: auto;
 }
 
