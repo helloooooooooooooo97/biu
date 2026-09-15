@@ -14,7 +14,7 @@ import { FACETS_COLLECTION_PATH } from './database-path.ts'
 import { normalizeRecordEmoji, recordPreviewEmoji } from './sidebar-preview.ts'
 import { FOCUS_RECORD_CONTENT, FOCUS_RECORD_TITLE, shouldLeaveContentForTitle, shouldLeaveTitleForContent, focusRecordTitleNear } from './title-content-nav.ts'
 import { HeadingOutline } from './heading-outline.tsx'
-import { PageBanner, BannerTitleActions } from './page-banner.tsx'
+import { PageBanner } from './page-banner.tsx'
 
 function DetailTitleIcon({
   emoji,
@@ -277,19 +277,6 @@ export function RecordDetail({
                   }}
                   locked={readOnly}
                 />
-                {!readOnly ? (
-                  <BannerTitleActions
-                    value={selected.banner}
-                    writable
-                    path={collectionPath ? `${collectionPath}/${selected.id}` : undefined}
-                    title={labelOf(selected)}
-                    onChange={(next) => {
-                      void Promise.resolve(writePatch(selected, { banner: next })).then(() => {
-                        window.dispatchEvent(new Event('fsdb:change'))
-                      })
-                    }}
-                  />
-                ) : null}
                 </div>
                 <div className="fsdb-detail-title-row">
                 <div className="fsdb-detail-title-block">
