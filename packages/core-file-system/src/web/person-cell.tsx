@@ -65,9 +65,10 @@ export function PersonFace({ value, empty = '' }: { value: unknown; empty?: stri
   const people = asPersonList(value)
   const [sessionNames, setSessionNames] = useState<Map<string, string>>(() => new Map())
   const needAgents = people.some((item) => item.kind === 'agent' && item.sessionId)
+  const shareRuntime = typeof document !== 'undefined' && document.documentElement.classList.contains('share')
 
   useEffect(() => {
-    if (!needAgents) return
+    if (!needAgents || shareRuntime) return
     let cancelled = false
     void loadAgents()
       .then((rows) => {
@@ -80,7 +81,7 @@ export function PersonFace({ value, empty = '' }: { value: unknown; empty?: stri
     return () => {
       cancelled = true
     }
-  }, [needAgents])
+  }, [needAgents, shareRuntime])
 
   if (!people.length) {
     return empty ? (
@@ -94,16 +95,16 @@ export function PersonFace({ value, empty = '' }: { value: unknown; empty?: stri
   return (
     <span className="fsdb-person-list">
       {people.map((person) => {
-        const displayName = resolveAgentName(person, sessionNames) || (person.kind === 'agent' ? '' : person.name)
+        const displayName = resolveAgentName(person, sessionNames) || (person.kind === 'agent' ? person.name : person.name)
         const label = displayName || empty
         return (
           <span key={personKey(person) || person.name} className="fsdb-person" title={label || undefined}>
-            {person.kind === 'agent' && person.sessionId ? (
+            {person.kind === 'agent' && (person.sessionId || person.mascot) ? (
               <span className="fsdb-person-face" aria-hidden>
                 <SidebarMascot
                   size={18}
-                  sessionId={person.sessionId}
-                  identity={resolveSessionMascot(person.sessionId)}
+                  sessionId={person.sessionId || person.name}
+                  identity={resolveSessionMascot(person.sessionId || person.name, person.mascot)}
                   animate={false}
                   title={label || person.sessionId}
                 />

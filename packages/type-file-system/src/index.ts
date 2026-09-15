@@ -41,7 +41,23 @@ export type AttachmentValue = { name: string; href: string; bytes?: number }
 
 export type PersonKind = 'user' | 'agent' | 'system'
 
-export type PersonValue = { kind: PersonKind; name: string; sessionId?: string }
+export type PersonValue = {
+  kind: PersonKind
+  name: string
+  sessionId?: string
+  mascot?: { shape: string; color: string; eye?: number }
+}
+
+function personMascot(raw: unknown): PersonValue['mascot'] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const rec = raw as { shape?: unknown; color?: unknown; eye?: unknown }
+  if (typeof rec.shape !== 'string' || typeof rec.color !== 'string') return undefined
+  return {
+    shape: rec.shape,
+    color: rec.color,
+    ...(typeof rec.eye === 'number' ? { eye: rec.eye } : {}),
+  }
+}
 
 export function asPerson(value: unknown): PersonValue | null {
   if (value == null || value === '') return null
@@ -65,7 +81,8 @@ export function asPerson(value: unknown): PersonValue | null {
     String(rec.name ?? rec.title ?? '').trim() ||
     (kind === 'system' ? '系统' : kind === 'user' ? '用户' : sessionId.slice(0, 8) || '')
   if (!name && !sessionId) return null
-  return { kind, name: name || 'Agent', ...(sessionId ? { sessionId } : {}) }
+  const mascot = personMascot(rec.mascot)
+  return { kind, name: name || 'Agent', ...(sessionId ? { sessionId } : {}), ...(mascot ? { mascot } : {}) }
 }
 
 export function personKey(person: PersonValue | null | undefined): string {

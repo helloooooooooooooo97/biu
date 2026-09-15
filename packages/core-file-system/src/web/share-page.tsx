@@ -18,6 +18,7 @@ import { CrumbTrail } from './crumb-trail.tsx'
 import { buildCrumbs, type CrumbTarget } from './sidebar-nav.ts'
 import { crumbRecordLabel, recordPreviewEmoji } from './sidebar-preview.ts'
 import { PageBanner } from './page-banner.tsx'
+import { TableGlyph } from './table-glyph.tsx'
 import { applyShareQuery, loadShareQuery, saveShareQuery, shareQueryFromView, type ShareQueryState } from './share-query.ts'
 import { ShareViewQueryBar } from './share-view-bar.tsx'
 import { ShareCell, ShareListTable } from './share-table.tsx'
@@ -120,13 +121,17 @@ function SharePage({
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [pluginsReady, setPluginsReady] = useState(false)
   const [pageWidth, setPageWidth] = useState(getPageWidth)
+  const [reload, setReload] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
   useEffect(() => subscribePageWidth(() => setPageWidth(getPageWidth())), [])
   const layoutRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let alive = true
+    if (reload) setRefreshing(true)
     void loadSnapshot(token, password).then((next) => {
       if (!alive) return
+      setRefreshing(false)
       if ('needsPassword' in next) {
         setLocked(true)
         setSnapshot(null)
@@ -150,7 +155,7 @@ function SharePage({
     return () => {
       alive = false
     }
-  }, [token, password])
+  }, [token, password, reload])
 
   useEffect(() => {
     if (!snapshot) {
@@ -464,13 +469,26 @@ function SharePage({
         />
       ) : (
         <div className="tasks-main fsdb-main" data-testid="fsdb-share-list">
-          <PageBanner value={rewriteBanner(snapshot.banner, token, password)} writable={false} title={snapshot.title} />
+          {(() => {
+            const banner = rewriteBanner(snapshot.banner, token, password)
+            return banner ? <PageBanner value={banner} writable={false} title={snapshot.title} /> : null
+          })()}
+          <div className="fsdb-detail-title-row">
+            <span className="fsdb-detail-title-icon" aria-hidden>
+              <TableGlyph className="size-8" />
+            </span>
+            <div className="fsdb-detail-title-block">
+              <h1 className="fsdb-detail-title">{snapshot.title}</h1>
+            </div>
+          </div>
           {snapshot.kind === 'view' && queryState ? (
             <ShareViewQueryBar
               schema={schema}
               records={snapshot.records}
               state={queryState}
               onChange={setQueryState}
+              refreshing={refreshing}
+              onRefresh={() => setReload((n) => n + 1)}
             />
           ) : null}
           <ShareListTable
@@ -479,6 +497,9 @@ function SharePage({
             records={listed}
             collection={snapshot.collection}
             chrome={chrome}
+            columns={queryState?.columns}
+            wrap={queryState?.wrap}
+            truncate={queryState?.truncate}
             onOpen={(id) => navigate(sharePublicPath(token, id))}
           />
           {listed.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}

@@ -86,6 +86,8 @@ export async function buildShareSnapshot(
     filters: stored?.filters,
     filterTree: stored?.filterTree,
     columns: stored?.columns,
+    wrap: stored?.wrap,
+    truncate: stored?.truncate,
   }
   const listed = (await db.list(share.collection, asFilter(view), {
     q: String(view.query ?? ''),

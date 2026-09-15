@@ -9,9 +9,13 @@ import { RecordMark } from './record-mark.tsx'
 import { crumbRecordLabel } from './sidebar-preview.ts'
 import { colWidthStyle, tableWidthStyle, type SavedView } from './saved-view.ts'
 
-export function shareTableColumns(schema: CollectionSchema, view?: Partial<SavedView>) {
+export function shareTableColumns(schema: CollectionSchema, view?: Partial<SavedView>, visibleKeys?: string[]) {
   const body = contentFieldKey(schema)
-  const requested = view?.columns?.length ? view.columns : defaultColumnKeys(schema, Object.keys(schema.fields))
+  const requested = visibleKeys?.length
+    ? visibleKeys
+    : view?.columns?.length
+      ? view.columns
+      : defaultColumnKeys(schema, Object.keys(schema.fields))
   const keys = pinLabelColumn(
     schema,
     requested.filter((key) => {
@@ -71,6 +75,9 @@ export function ShareListTable({
   collection,
   chrome,
   onOpen,
+  columns,
+  wrap,
+  truncate,
 }: {
   schema: CollectionSchema
   view?: Partial<SavedView>
@@ -78,24 +85,27 @@ export function ShareListTable({
   collection: string
   chrome?: CollectionChrome
   onOpen: (recordId: string) => void
+  columns?: string[]
+  wrap?: boolean
+  truncate?: boolean
 }) {
   ensureTagChipStyle()
-  const columns = shareTableColumns(schema, view)
+  const listed = shareTableColumns(schema, view, columns)
   const labelKey = schema.labelField
   const widths = view?.columnWidths ?? {}
-  const wrap = Boolean(view?.wrap)
-  const truncate = Boolean(view?.truncate)
+  const wrapCells = wrap ?? Boolean(view?.wrap)
+  const truncateCells = truncate ?? view?.truncate !== false
   const hasColWidths = Object.keys(widths).length > 0
 
   return (
     <div className="tasks-table-wrap">
       <table
-        className={`tasks-table${wrap ? ' is-wrap' : ''}${truncate ? ' is-truncate' : ''}${hasColWidths ? ' is-cols-fixed' : ''}`}
-        style={tableWidthStyle(widths, columns.map((col) => col.key))}
+        className={`tasks-table${wrapCells ? ' is-wrap' : ''}${truncateCells ? ' is-truncate' : ''}${hasColWidths ? ' is-cols-fixed' : ''}`}
+        style={tableWidthStyle(widths, listed.map((col) => col.key))}
       >
         <thead>
           <tr>
-            {columns.map((col) => (
+            {listed.map((col) => (
               <th key={col.key} style={colWidthStyle(widths[col.key])}>
                 <span className="tasks-th">
                   <FieldGlyph kind={col.kind} />
@@ -108,7 +118,7 @@ export function ShareListTable({
         <tbody>
           {records.map((row) => (
             <tr key={row.id} data-testid="fsdb-share-row" data-record-id={row.id} onClick={() => onOpen(row.id)}>
-              {columns.map((col) => {
+              {listed.map((col) => {
                 const cell = (
                   <ShareCell
                     row={row}
