@@ -16,7 +16,7 @@ import {
   UserIcon,
   WrenchScrewdriverIcon,
   XCircleIcon,
-} from '@heroicons/react/24/outline'
+} from '@heroicons/react/24/solid'
 import { ImageThumbs } from './image-thumbs.tsx'
 import { bindSessionView, type SessionListItem, type SessionViewService } from '@biu/web-session-view'
 import { nodeIdFromOutlineEvent } from '@biu/web-session-view'

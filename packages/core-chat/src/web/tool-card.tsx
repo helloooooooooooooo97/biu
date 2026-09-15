@@ -7,7 +7,7 @@ import {
   ChevronRightIcon,
   MapIcon,
   XMarkIcon,
-} from '@heroicons/react/24/outline'
+} from '@heroicons/react/24/solid'
 import type { ChatToolPart } from '@biu/web-session-view'
 import { pickDomAttrs } from '@biu/core-pick/web'
 import {

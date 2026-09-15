@@ -1,4 +1,4 @@
-import { RectangleStackIcon } from '@heroicons/react/24/outline'
+import { RectangleStackIcon } from '@heroicons/react/24/solid'
 import type { CollectionSchema, DbRecord, FieldSpec } from '@biu/type-file-system'
 import type { CollectionRowViewType, FsRowViewProps } from '@biu/type-file-system/ui'
 import { formatField } from './fields.ts'

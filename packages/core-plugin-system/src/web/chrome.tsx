@@ -1,4 +1,4 @@
-import { ArchiveBoxArrowDownIcon, ArrowPathIcon, PlayIcon, StopIcon } from '@heroicons/react/24/outline'
+import { ArchiveBoxArrowDownIcon, ArrowPathIcon, PlayIcon, StopIcon } from '@heroicons/react/24/solid'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import { asHttpHref } from '@biu/type-file-system'
 import type { CollectionActionInfo, DbRecord } from '@biu/type-file-system'

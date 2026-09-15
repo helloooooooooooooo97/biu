@@ -1,6 +1,6 @@
 import { createElement } from 'react'
 import type { Context } from 'cordis'
-import { SignalIcon, MapIcon } from '@heroicons/react/24/outline'
+import { SignalIcon, MapIcon } from '@heroicons/react/24/solid'
 import { bindSessionView, type SessionViewService } from '@biu/web-session-view'
 import type { SlotProps } from '@biu/web-slots'
 import { ApprovalsRail } from './approvals.tsx'

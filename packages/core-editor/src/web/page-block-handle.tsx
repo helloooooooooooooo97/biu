@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import type { Editor } from '@tiptap/core'
-import { ArrowDownIcon, ArrowUpIcon, Square2StackIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { ArrowDownIcon, ArrowUpIcon, Square2StackIcon, TrashIcon } from '@heroicons/react/24/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
 import {
   beginHandleDrag,

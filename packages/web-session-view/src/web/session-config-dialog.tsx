@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { WrenchScrewdriverIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { WrenchScrewdriverIcon, XMarkIcon } from '@heroicons/react/24/solid'
 import {
   bindSessionView,
   type SessionViewService,

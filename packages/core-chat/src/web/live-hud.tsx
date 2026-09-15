@@ -4,7 +4,7 @@ import {
   HashtagIcon,
   Square3Stack3DIcon,
   WrenchScrewdriverIcon,
-} from '@heroicons/react/24/outline'
+} from '@heroicons/react/24/solid'
 import type { SlotProps } from '@biu/web-slots'
 import { bindSessionView } from '@biu/web-session-view'
 import { UsageInline } from './usage-inline.tsx'

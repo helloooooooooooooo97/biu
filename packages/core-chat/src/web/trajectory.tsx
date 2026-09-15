@@ -1,5 +1,5 @@
 import { memo, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpIcon } from '@heroicons/react/24/outline'
+import { ArrowUpIcon } from '@heroicons/react/24/solid'
 import type { SlotProps } from '@biu/web-slots'
 import { bindSessionView, type SessionViewService } from '@biu/web-session-view'
 import {

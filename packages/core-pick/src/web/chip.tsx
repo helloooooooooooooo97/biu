@@ -12,7 +12,7 @@ import {
   PuzzlePieceIcon,
   TagIcon,
   WrenchScrewdriverIcon,
-} from '@heroicons/react/24/outline'
+} from '@heroicons/react/24/solid'
 import type { ComponentType } from 'react'
 import { ensureTagChipStyle, TagChipCloseMark, tagTone } from '@biu/public-ui'
 import type { PickRef } from './types.ts'
