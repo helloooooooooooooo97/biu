@@ -9,6 +9,8 @@ describe('sidebar text colors', () => {
     // 断言 token 存在并被正确引用，不锁死具体色值，否则换主题就会整片变红。
     expect(css).toMatch(/--dsw-sidebar-fg:\s*[^;]+;/)
     expect(css).toMatch(/--dsw-sidebar-fg-active:\s*[^;]+;/)
+    expect(css).toMatch(/--dsw-sidebar-icon:\s*[^;]+;/)
+    expect(css).toMatch(/\.app-side-actions-icon\s*\{[^}]*color:\s*var\(--dsw-sidebar-icon\)/s)
     expect(css).toMatch(/\.app-side-bar\s*\{[^}]*color:\s*var\(--dsw-sidebar-fg\)/s)
     expect(css).toMatch(/\.chat-session-row\.is-active\s*\{[^}]*color:\s*var\(--dsw-sidebar-fg-active\)/s)
     expect(css).toMatch(/\.chat-session-row\s*\{[^}]*-webkit-user-drag:\s*none/s)
