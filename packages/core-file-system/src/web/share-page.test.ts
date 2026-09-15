@@ -48,6 +48,20 @@ test('share header has a theme toggle that writes biu.theme', () => {
   assert.match(src, /ShareOwnerCorner/)
 })
 
+test('share header merges resources into one download picker', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
+  const css = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
+  assert.match(src, /data-testid="fsdb-share-download"/)
+  assert.match(src, /data-testid="fsdb-share-download-pop"/)
+  assert.match(src, /页面 Markdown/)
+  assert.match(src, /全部页面（zip）/)
+  assert.match(src, /downloadPluginZip/)
+  assert.doesNotMatch(src, /关联资源/)
+  assert.doesNotMatch(src, /CubeTransparentIcon/)
+  assert.doesNotMatch(src, /data-testid="fsdb-share-resources"/)
+  assert.match(css, /\.fsdb-share-dl-item\{/)
+})
+
 test('share corner uses the owner photo when set, else the brand icon', () => {
   const src = readFileSync(resolve(import.meta.dirname, './share-owner-corner.tsx'), 'utf8')
   const css = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
