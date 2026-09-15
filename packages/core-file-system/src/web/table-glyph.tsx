@@ -1,4 +1,5 @@
 import {
+  AcademicCapIcon,
   CheckCircleIcon,
   ChatBubbleLeftRightIcon,
   BellIcon,
@@ -19,6 +20,7 @@ export function TableGlyph({ icon, className = 'size-4' }: { icon?: string; clas
     return <CheckCircleIcon aria-hidden className={className} />
   }
   if (name === 'chat-bubble' || name === 'chat-bubble-left-right') return <ChatBubbleLeftRightIcon aria-hidden className={className} />
+  if (name === 'academic-cap' || name === 'skill' || name === 'skills') return <AcademicCapIcon aria-hidden className={className} />
   if (name === 'document' || name === 'document-text' || name === 'page') return <DocumentIcon aria-hidden className={className} />
   if (name === 'bolt') return <BoltIcon aria-hidden className={className} />
   if (name === 'bell') return <BellIcon aria-hidden className={className} />

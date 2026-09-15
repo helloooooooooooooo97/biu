@@ -738,6 +738,14 @@ test('page collection uses a document glyph, not the table/database icon', () =>
   assert.match(glyphs, /<DocumentIcon/)
 })
 
+test('skill collection uses academic-cap, not the page document glyph', () => {
+  const glyphs = readFileSync(resolve(import.meta.dirname, './table-glyph.tsx'), 'utf8')
+  const spec = readFileSync(resolve(import.meta.dirname, '../../../host-skills/src/host/collection.ts'), 'utf8')
+  assert.match(spec, /icon: 'academic-cap'/)
+  assert.match(glyphs, /name === 'academic-cap'/)
+  assert.match(glyphs, /<AcademicCapIcon/)
+})
+
 test('boolean field glyph is a checkbox, not the document list icon', () => {
   const cells = readFileSync(resolve(import.meta.dirname, './fsdb-cells.tsx'), 'utf8')
   assert.match(cells, /kind === 'boolean'\) return <span aria-hidden className="fsdb-field-bool-glyph"><BoolBox on=\{false\}/)
