@@ -334,7 +334,7 @@ function SharePage({
 
   const viewIndex = shown && snapshot.kind === 'view' ? listed.findIndex((row) => row.id === shown.id) : -1
   const viewNav = snapshot.kind === 'view' && listed.length > 1
-  const tableLabel = snapshot.collection.replace(/^\//, '') || snapshot.title
+  const tableLabel = snapshot.collectionLabel || snapshot.title
   const crumbs = snapshot.kind === 'view'
     ? buildCrumbs({
         collection: snapshot.collection,

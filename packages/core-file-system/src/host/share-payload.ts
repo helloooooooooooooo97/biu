@@ -4,7 +4,7 @@ import type { SavedViewsStore } from './saved-views.ts'
 import { freezeSchema, type ShareSnapshot } from '../share-snapshot.ts'
 import { collectShareResources } from '../share-resources.ts'
 import { savedViewRecordPath } from '../paths.ts'
-import { isReadOnlyViewId } from '../catalog-views.ts'
+import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
 import type { ShareRecord } from './shares-store.ts'
 import { asPublicProfile } from './workspace-profile.ts'
 import { encodeListFilter, resolveViewFilterTree } from '../query-logic.ts'
@@ -16,7 +16,7 @@ function asFilter(view: { filters?: Record<string, string>; filterTree?: unknown
 }
 
 function asStat(raw: unknown) {
-  return raw as { kind?: string; schema?: CollectionSchema; label?: string }
+  return raw as { kind?: string; schema?: CollectionSchema; label?: string; view?: { title?: string } | null }
 }
 
 function asRecordRead(raw: unknown) {
@@ -56,7 +56,8 @@ export async function buildShareSnapshot(
   const stat = asStat(await db.stat(share.collection))
   if (stat.kind !== 'collection' || !stat.schema) throw new Error('unknown collection')
   const schema = freezeSchema(stat.schema)
-  const title = String(stat.label ?? share.collection.replace(/^\//, ''))
+  const collectionLabel = String(stat.view?.title ?? stat.label ?? share.collection.replace(/^\//, ''))
+  const table = { path: share.collection, label: collectionLabel, view: { title: collectionLabel } }
   if (share.kind === 'record') {
     const got = asRecordRead(await db.read(`${share.collection}/${share.recordId}`))
     const record = got.value
@@ -73,7 +74,8 @@ export async function buildShareSnapshot(
       collection: share.collection,
       viewId: share.viewId,
       recordId: record.id,
-      title: String(record.title ?? record.name ?? title),
+      title: String(record.title ?? record.name ?? collectionLabel),
+      collectionLabel,
       schema,
       records: [{ ...record, [schema.contentField ?? 'notes']: undefined }],
       contents,
@@ -82,9 +84,10 @@ export async function buildShareSnapshot(
     }, share)
   }
   const stored = savedViews.viewsFor(share.collection).find((item) => item.id === share.viewId)
+  const viewName = displayNameForView(share.viewId, table, stored?.name)
   const view = {
     id: share.viewId,
-    name: String(stored?.name || title),
+    name: viewName,
     query: stored?.query ?? '',
     sortField: stored?.sortField || 'title',
     sortDir: stored?.sortDir === 'desc' ? 'desc' as const : 'asc' as const,
@@ -118,7 +121,8 @@ export async function buildShareSnapshot(
     collection: share.collection,
     viewId: share.viewId,
     recordId: '',
-    title: String(view.name || title),
+    title: viewName,
+    collectionLabel,
     schema,
     view,
     records,

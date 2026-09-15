@@ -3,6 +3,12 @@ import { resolve } from 'node:path'
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 
+test('share header crumbs use collectionLabel not the path id', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
+  assert.match(src, /snapshot\.collectionLabel/)
+  assert.doesNotMatch(src, /snapshot\.collection\.replace/)
+})
+
 test('share header has a theme toggle that writes biu.theme', () => {
   const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
   assert.match(src, /data-testid="fsdb-share-theme"/)

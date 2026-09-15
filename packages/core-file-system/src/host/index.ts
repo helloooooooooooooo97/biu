@@ -44,7 +44,7 @@ import { readSharePluginWebJs, zipSharePluginSource } from './share-plugin-pack.
 import { collectShareResources } from '../share-resources.ts'
 import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
-import { isReadOnlyViewId } from '../catalog-views.ts'
+import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { AssetConflictError, FileSystemAssets, collectAssetNames, isAssetFileName, parseIfMatch } from './assets-store.ts'
 import { facetsCollection } from './facets-collection.ts'
@@ -1786,7 +1786,18 @@ export function apply(ctx: Context) {
             shares.revoke(share.token)
             continue
           }
-          if (named?.name) title = named.name
+          let collectionLabel = share.collection.replace(/^\//, '')
+          try {
+            const stat = (await db.stat(share.collection)) as { label?: string; view?: { title?: string } | null }
+            collectionLabel = String(stat.view?.title ?? stat.label ?? collectionLabel)
+          } catch {
+            /* keep path slug */
+          }
+          title = displayNameForView(
+            share.viewId,
+            { path: share.collection, label: collectionLabel, view: { title: collectionLabel } },
+            named?.name,
+          )
         }
         items.push({ ...share, title, url: publicShareUrl(route.req, share.token) })
       }

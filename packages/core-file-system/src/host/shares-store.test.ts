@@ -7,6 +7,7 @@ import { SavedViewsStore, viewsCollection } from './saved-views.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { parseSharePath } from '../share-snapshot.ts'
+import { builtinAllViewId } from '../catalog-views.ts'
 
 test('share tokens mint unique links and can set a password', () => {
   const store = new SharesStore().open(':memory:')
@@ -168,4 +169,31 @@ test('snapshot lists page plugins even when source zip is off', async () => {
   const snap = await buildShareSnapshot(db, views, share)
   assert.equal(snap.sharePlugins, false)
   assert.deepEqual(snap.pluginIds, ['page-html-blocks'])
+})
+
+test('builtin view snapshot titles use 全部 plus the collection label', async () => {
+  const spec: CollectionSpec = {
+    id: 'pages',
+    path: '/pages',
+    label: '页面',
+    view: { title: '页面', route: '/pages' },
+    schema: {
+      labelField: 'title',
+      contentField: 'notes',
+      fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true }, notes: { type: 'file', writable: true } },
+    },
+    records: {},
+    list: () => [{ id: 'p1', title: '首页', notes: '' }],
+    get: (id) => (id === 'p1' ? { id: 'p1', title: '首页', notes: '' } : null),
+  }
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.register(spec)
+  const views = new SavedViewsStore().open(':memory:')
+  const shares = new SharesStore().open(':memory:')
+  const share = shares.upsert({ kind: 'view', collection: '/pages', viewId: builtinAllViewId('/pages') })
+  const snap = await buildShareSnapshot(db, views, share)
+  assert.equal(snap.title, '全部页面')
+  assert.equal(snap.collectionLabel, '页面')
+  assert.equal(snap.view?.name, '全部页面')
 })

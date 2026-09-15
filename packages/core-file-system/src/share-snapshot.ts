@@ -23,6 +23,7 @@ export type ShareSnapshot = {
   viewId: string
   recordId: string
   title: string
+  collectionLabel: string
   schema: CollectionSchema
   view?: Partial<SavedView>
   records: DbRecord[]
