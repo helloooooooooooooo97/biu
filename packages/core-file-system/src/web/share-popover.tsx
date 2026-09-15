@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CheckIcon, LinkIcon, ShareIcon } from '@heroicons/react/16/solid'
+import { CheckIcon, LinkIcon, ShareIcon } from '@heroicons/react/24/outline'
 import { HeadlessDismiss } from '@biu/public-ui'
 import { readJson } from './db-client.ts'
 import { mintSharePin, type ShareResourceStats } from '../share-resources.ts'

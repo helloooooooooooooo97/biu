@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore, type ComponentType } from 'react'
 import type { Context } from 'cordis'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { CircleStackIcon } from '@heroicons/react/16/solid'
+import { CircleStackIcon } from '@heroicons/react/24/outline'
 import type { SlotProps } from '@biu/type-slots'
 import { DATABASE_CHANNEL, type CollectionInfo } from '@biu/type-file-system'
 import type { CollectionChrome } from '@biu/type-file-system/ui'

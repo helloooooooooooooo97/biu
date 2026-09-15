@@ -10,7 +10,7 @@ import {
   type SchemaFieldValue,
   type SchemaPackField,
 } from '@biu/type-file-system'
-import { ArrowUturnLeftIcon, ChevronDownIcon, PlusIcon, XMarkIcon } from '@heroicons/react/16/solid'
+import { ArrowUturnLeftIcon, ChevronDownIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { TagChip, TagChips, tagTone, HeadlessPopover } from '@biu/public-ui'
 import { CellMulti } from '@biu/database-ui'
 import { DefaultCell, FieldGlyph } from './fsdb-cells.tsx'

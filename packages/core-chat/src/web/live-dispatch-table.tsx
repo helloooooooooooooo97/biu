@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { CheckCircleIcon, MinusCircleIcon, XCircleIcon, ArrowPathIcon } from '@heroicons/react/16/solid'
+import { CheckCircleIcon, MinusCircleIcon, XCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import type { TrajectoryUsage } from '@biu/web-session-view'
 import type { DispatchedTaskRow } from '@biu/web-session-view'
 import { SidebarMascot } from '@biu/public-mascot'

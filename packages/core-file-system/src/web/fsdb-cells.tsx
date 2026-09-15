@@ -23,7 +23,7 @@ import {
   TableCellsIcon,
   ShareIcon,
   UserIcon,
-} from '@heroicons/react/16/solid'
+} from '@heroicons/react/24/outline'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import type { CollectionSchema, DbRecord, FieldSpec, FieldType } from '@biu/type-file-system'
 import { actionVisibleToUser, asAttachmentList, asHttpHref, asImageSrc, asImageSrcList, asPerson, commitAttachments } from '@biu/type-file-system'

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import ReactECharts from 'echarts-for-react'
-import { CircleStackIcon } from '@heroicons/react/16/solid'
+import { CircleStackIcon } from '@heroicons/react/24/outline'
 import { EventDetailBody } from './trajectory.tsx'
 import { type SessionViewService } from '@biu/web-session-view'
 import type { DerivedMessage, SessionEvent } from '@biu/web-session-view'

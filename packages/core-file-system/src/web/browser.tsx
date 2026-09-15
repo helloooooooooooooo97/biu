@@ -40,7 +40,7 @@ import {
   StarIcon,
   TableCellsIcon,
   ViewColumnsIcon,
-} from '@heroicons/react/16/solid'
+} from '@heroicons/react/24/outline'
 import type { CollectionActionInfo, CollectionInfo, CollectionSchema, CollectionSchemaPack, DbRecord, FieldSpec, FieldType } from '@biu/type-file-system'
 import { normalizeSchemaValue } from '@biu/type-file-system'
 import type { CollectionChrome, CollectionRowViewType, CollectionViewType, DatabaseUi } from '@biu/type-file-system/ui'

@@ -2,7 +2,7 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import * as lu from '@heroicons/react/16/solid'
+import * as lu from '@heroicons/react/24/outline'
 import { tagTone } from '@biu/public-ui'
 import { pickKindIcon, pickKindTone } from './chip.tsx'
 

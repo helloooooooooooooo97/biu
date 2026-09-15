@@ -1,5 +1,5 @@
 import { memo, useEffect, useState } from 'react'
-import { ChevronDownIcon, ChevronRightIcon, CircleStackIcon } from '@heroicons/react/16/solid'
+import { ChevronDownIcon, ChevronRightIcon, CircleStackIcon } from '@heroicons/react/24/outline'
 import { CONTENT_JUMP_EVENT } from '@biu/type-file-system'
 import { lineDiff, type DiffLine } from './tool-format.ts'
 

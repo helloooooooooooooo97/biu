@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { PhotoIcon, Square2StackIcon, XMarkIcon } from '@heroicons/react/16/solid'
+import { PhotoIcon, Square2StackIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { HeadlessPopover } from '@biu/public-ui'
 import { getPick } from '@biu/core-pick/web'
 import {
