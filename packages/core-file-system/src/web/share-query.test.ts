@@ -17,6 +17,11 @@ test('share query key is per token', () => {
   assert.equal(shareQueryStorageKey('abc'), 'fsdb.share.query:abc')
 })
 
+test('share query keeps the view page size', () => {
+  assert.equal(shareQueryFromView({}).pageSize, 50)
+  assert.equal(shareQueryFromView({ pageSize: 20 }).pageSize, 20)
+})
+
 test('applyShareQuery searches filters and sorts locally', () => {
   const rows = [
     { id: 'a', title: 'Alpha', notes: 'one' },

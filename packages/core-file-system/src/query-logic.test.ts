@@ -1,6 +1,8 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import {
+  collectQueryFields,
+  isCustomSorts,
   countFilterRules,
   emptyFilterGroup,
   emptyFilterRule,
@@ -21,6 +23,23 @@ test('legacy flat filters become an AND tree', () => {
   assert.equal(tree.combinator, 'and')
   assert.equal(tree.children.length, 1)
   assert.equal(tree.children[0] && tree.children[0].kind === 'rule' && tree.children[0].value, 'open')
+})
+
+test('default title/asc sort is not custom', () => {
+  assert.equal(isCustomSorts([{ field: 'title', dir: 'asc' }]), false)
+  assert.equal(isCustomSorts([{ field: 'due', dir: 'asc' }]), true)
+  assert.equal(isCustomSorts([{ field: 'title', dir: 'desc' }]), true)
+})
+
+test('query fields include active sorts and valued filters', () => {
+  const group = emptyFilterGroup()
+  group.children.push({ kind: 'rule', id: 'r', field: 'status', op: 'eq', value: 'open' })
+  group.children.push(emptyFilterRule('title'))
+  const keys = collectQueryFields([{ field: 'due', dir: 'asc' }], group)
+  assert.equal(keys.has('status'), true)
+  assert.equal(keys.has('due'), true)
+  assert.equal(keys.has('title'), false)
+  assert.equal(collectQueryFields([{ field: 'title', dir: 'asc' }], emptyFilterGroup()).size, 0)
 })
 
 test('empty rules do not count until they have a value', () => {

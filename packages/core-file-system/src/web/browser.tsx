@@ -147,6 +147,8 @@ import { FieldValuePop } from './field-value-pop.tsx'
 import { loadFacets, pullFacets, subscribeFacets } from './facet-catalog.ts'
 import { FilterQueryMenu, SortQueryMenu } from './query-menus.tsx'
 import {
+  collectQueryFields,
+  isCustomSorts,
   countFilterRules,
   emptyFilterGroup,
   encodeListFilter,
@@ -1135,9 +1137,6 @@ export function CollectionBrowser({
   const groupFields = useMemo(() => groupableFields(schema), [schema])
   const activeGroup = groupField(schema, groupBy)
   const grouping = Boolean(activeGroup)
-  const columnCustom =
-    columnKeys.length > 0 &&
-    (columnKeys.length !== schemaDefaultKeys.length || columnKeys.some((key, index) => key !== schemaDefaultKeys[index]))
   const filterFields = useMemo(
     () =>
       entries.filter(
@@ -1312,6 +1311,11 @@ export function CollectionBrowser({
     window.dispatchEvent(new Event('fsdb:crumb-labels'))
   }, [activeViewId, collectionPath, items, routeViewId, schema?.labelField, selected])
   const filterActive = countFilterRules(filterTree) > 0
+  const sortCustom = isCustomSorts(sorts, schema?.labelField ?? 'title')
+  const queryFields = useMemo(
+    () => collectQueryFields(sorts, filterTree, schema?.labelField ?? 'title'),
+    [filterTree, schema?.labelField, sorts],
+  )
   const activeView = views.find((view) => view.id === activeViewId)
   const [viewBanner, setViewBanner] = useState<unknown>(null)
   useEffect(() => {
@@ -2642,6 +2646,18 @@ export function CollectionBrowser({
             />
           </div>
           <div className="chat-view-header-right">
+            {activeViewId && !selected ? (
+              <button
+                type="button"
+                className={`chat-view-header-expand${viewStarred ? ' is-active' : ''}`}
+                title={viewStarred ? '取消收藏视图' : '收藏视图'}
+                aria-label={viewStarred ? '取消收藏视图' : '收藏视图'}
+                aria-pressed={viewStarred}
+                onClick={() => persistStarredViews(toggleStarredView(getStarredViews(), collectionPath, activeViewId))}
+              >
+                <StarIcon aria-hidden className={`size-4${viewStarred ? ' text-[#f5b700]' : ''}`} />
+              </button>
+            ) : null}
             {nested ? null : (
               <ShareButton
                 target={
@@ -2664,18 +2680,6 @@ export function CollectionBrowser({
                 }
               />
             )}
-            {activeViewId && !selected ? (
-              <button
-                type="button"
-                className={`chat-view-header-expand${viewStarred ? ' is-active' : ''}`}
-                title={viewStarred ? '取消收藏视图' : '收藏视图'}
-                aria-label={viewStarred ? '取消收藏视图' : '收藏视图'}
-                aria-pressed={viewStarred}
-                onClick={() => persistStarredViews(toggleStarredView(getStarredViews(), collectionPath, activeViewId))}
-              >
-                <StarIcon aria-hidden className={`size-4${viewStarred ? ' text-[#f5b700]' : ''}`} />
-              </button>
-            ) : null}
             <div className="fsdb-layout-wrap" ref={layoutRef}>
               <button
                 type="button"
@@ -2891,7 +2895,7 @@ export function CollectionBrowser({
             <div className={`tasks-search-wrap${searchExpanded ? ' is-open' : ''}`} ref={searchRef}>
               <button
                 type="button"
-                className="tasks-sort-btn"
+                className={`tasks-sort-btn${searchExpanded ? ' is-active' : ''}`}
                 aria-label="搜索"
                 aria-expanded={searchExpanded}
                 title="搜索"
@@ -2995,13 +2999,13 @@ export function CollectionBrowser({
             <div className="tasks-sort-wrap" ref={sortRef}>
               <button
                 type="button"
-                className={`tasks-sort-btn${sortMenuOpen ? ' is-active' : ''}${sorts.length ? ' is-custom' : ''}`}
+                className={`tasks-sort-btn${sortMenuOpen ? ' is-active' : ''}${sortCustom ? ' is-custom' : ''}`}
                 aria-label="排序"
-                title={sorts.length ? `${sorts.length} 个排序` : '排序'}
+                title={sortCustom ? `${sorts.length} 个排序` : '排序'}
                 onClick={() => toggleMenu('sort')}
               >
                 <ArrowsUpDownIcon aria-hidden className="size-[14px]" />
-                {sorts.length ? <span className="tasks-sort-dot" aria-hidden /> : null}
+                {sortCustom ? <span className="tasks-sort-dot" aria-hidden /> : null}
               </button>
               {sortMenuOpen ? (
                 <HeadlessDismiss
@@ -3058,12 +3062,13 @@ export function CollectionBrowser({
             <div className="tasks-sort-wrap" ref={groupRef}>
               <button
                 type="button"
-                className={`tasks-sort-btn${groupOpen || grouping ? ' is-active' : ''}`}
+                className={`tasks-sort-btn${groupOpen ? ' is-active' : ''}${grouping ? ' is-custom' : ''}`}
                 aria-label="分组"
                 title={activeGroup ? `分组：${activeGroup.field.label ?? activeGroup.key}` : '分组'}
                 onClick={() => toggleMenu('group')}
               >
                 <RectangleStackIcon aria-hidden className="size-[14px]" />
+                {grouping ? <span className="tasks-sort-dot" aria-hidden /> : null}
               </button>
               {groupOpen ? (
                 <HeadlessDismiss onDismiss={() => setGroupOpen(false)} insideRef={groupRef}>
@@ -3101,13 +3106,12 @@ export function CollectionBrowser({
             <div className="tasks-sort-wrap" ref={columnRef}>
               <button
                 type="button"
-                className={`tasks-sort-btn${columnMenuOpen ? ' is-active' : ''}${columnCustom ? ' is-custom' : ''}`}
+                className={`tasks-sort-btn${columnMenuOpen ? ' is-active' : ''}`}
                 aria-label="可见列"
                 title="可见列"
                 onClick={() => toggleMenu('columns')}
               >
                 <EyeIcon aria-hidden className="size-[14px]" />
-                {columnCustom ? <span className="tasks-sort-dot" aria-hidden /> : null}
               </button>
               {columnMenuOpen ? (
                 <HeadlessDismiss
@@ -3139,15 +3143,12 @@ export function CollectionBrowser({
             <div className="tasks-filter-btn-wrap" ref={configRef}>
               <button
                 type="button"
-                className={`tasks-refresh tasks-rbar-btn${configOpen || wrapCells || !truncateCells || (treeable && !showTree) ? ' is-active' : ''}`}
+                className={`tasks-refresh tasks-rbar-btn${configOpen ? ' is-active' : ''}`}
                 aria-label="表格配置"
                 title="表格配置"
                 onClick={() => toggleMenu('config')}
               >
                 <AdjustmentsHorizontalIcon aria-hidden className="size-[14px]" />
-                {wrapCells || !truncateCells || (treeable && !showTree) ? (
-                  <span className="tasks-filter-dot" aria-hidden />
-                ) : null}
               </button>
               {configOpen ? (
                 <HeadlessDismiss onDismiss={() => setConfigOpen(false)} insideRef={configRef}>
@@ -3366,7 +3367,7 @@ export function CollectionBrowser({
                       ...(tone ? { ['--biu-tag' as string]: tone } : {}),
                     }}
                   >
-                    <span className="tasks-th">
+                    <span className={`tasks-th${queryFields.has(col.key) ? ' is-on' : ''}`}>
                       <FieldGlyph kind={col.kind} />
                       {facetColumnTitle(col)}
                     </span>

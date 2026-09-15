@@ -23,6 +23,7 @@ export type ShareSnapshot = {
   viewId: string
   recordId: string
   title: string
+  collectionLabel: string
   schema: CollectionSchema
   view?: Partial<SavedView>
   records: DbRecord[]
@@ -37,6 +38,7 @@ export type ShareSnapshot = {
   pluginIds: string[]
   sharePlugins: boolean
   allowCopy: boolean
+  owner?: { name: string; avatar: string; slogan?: string }
 }
 
 export function freezeSchema(schema: CollectionSchema): CollectionSchema {

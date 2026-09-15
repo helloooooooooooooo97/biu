@@ -13,6 +13,7 @@ import {
   pluginRecordEnabled,
   visibleRowActions,
   previewHitRecord,
+  isGlobalSearchHotkey,
 } from './shell-search.tsx'
 
 test('search opens inspector collections, not chat or database routes', () => {
@@ -118,8 +119,11 @@ test('session task page plugin hits render tags left of actions', () => {
   assert.match(css, /\.shell-search-hint\s*\{[^}]*font-weight:\s*600/s)
   assert.match(css, /\.shell-search-foot\s*\{[^}]*font-weight:\s*600/s)
   assert.match(css, /\.shell-search-hit-tags \.biu-tag\s*\{[^}]*font-weight:\s*400/s)
-  assert.match(css, /\.shell-search-hit-icon\s*\{[^}]*color:\s*var\(--dsw-label-2\)/s)
-  assert.match(css, /\.shell-search-hit-action\s*\{[^}]*color:\s*var\(--dsw-label-2\)/s)
+  assert.match(css, /\.shell-search-go\s*\{[^}]*color:\s*var\(--dsw-icon\)/s)
+  assert.match(css, /\.shell-search-hit-icon\s*\{[^}]*color:\s*var\(--dsw-icon\)/s)
+  assert.match(css, /\.shell-search-hit\.is-active \.shell-search-hit-icon[\s\S]*?color:\s*var\(--dsw-icon-active\)/s)
+  assert.match(css, /\.shell-search-hit-action\s*\{[^}]*color:\s*var\(--dsw-icon\)/s)
+  assert.match(css, /\.shell-search-hit-action:hover\s*\{[^}]*color:\s*var\(--dsw-icon-active\)/s)
   assert.match(css, /\.shell-search-hit-action\s*\{[^}]*padding:\s*3px/s)
   assert.match(css, /\.shell-search-hit-action:hover\s*\{[^}]*background:\s*var\(--dsw-hover\)/s)
   assert.match(css, /\.shell-search-hit-action\[data-dock-tip\]::after\s*\{[^}]*z-index:\s*80/s)
@@ -198,6 +202,14 @@ test('previewHitRecord drops start/stop after uninstall', () => {
     visibleRowActions([start, stop, { id: 'pack', label: '打包', when: { sandbox: true } }], next).map((item) => item.id),
     ['pack'],
   )
+})
+
+test('⌘⇧F always opens global search; ⌘F skips the page editor', () => {
+  assert.equal(isGlobalSearchHotkey({ key: 'f', metaKey: true, ctrlKey: false, altKey: false, shiftKey: true }), true)
+  assert.equal(isGlobalSearchHotkey({ key: 'F', metaKey: false, ctrlKey: true, altKey: false, shiftKey: true }, { inPageEditor: true }), true)
+  assert.equal(isGlobalSearchHotkey({ key: 'f', metaKey: true, ctrlKey: false, altKey: false, shiftKey: false }), true)
+  assert.equal(isGlobalSearchHotkey({ key: 'f', metaKey: true, ctrlKey: false, altKey: false, shiftKey: false }, { inPageEditor: true }), false)
+  assert.equal(isGlobalSearchHotkey({ key: 'f', metaKey: false, ctrlKey: false, altKey: false, shiftKey: true }), false)
 })
 
 test('opening a session on the left closes search and focuses the composer', () => {

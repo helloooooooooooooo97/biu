@@ -8,7 +8,9 @@ import { contentFieldKey, fieldHasValue, formatField, resolveFieldType } from '.
 import { LocalText } from './controls.tsx'
 import { FilePreview, placedActions } from './fsdb-cells.tsx'
 import { PropertyRow } from './property-row.tsx'
+import { FacetPackEditor } from './schema-field.tsx'
 import { TableGlyph } from './nav-glyphs.tsx'
+import { FACETS_COLLECTION_PATH } from './database-path.ts'
 import { normalizeRecordEmoji, recordPreviewEmoji } from './sidebar-preview.ts'
 import { FOCUS_RECORD_CONTENT, FOCUS_RECORD_TITLE, shouldLeaveContentForTitle, shouldLeaveTitleForContent, focusRecordTitleNear } from './title-content-nav.ts'
 import { HeadingOutline } from './heading-outline.tsx'
@@ -233,12 +235,17 @@ export function RecordDetail({
       if (key === 'id' || key === 'emoji' || key === schema.labelField) return false
       if (key === contentFieldKey(schema) && resolveFieldType(field) === 'file') return false
       if (chrome?.panes?.some((pane) => pane.id === key)) return false
+      if (key === 'fields' && collectionPath === FACETS_COLLECTION_PATH && String(selected.id).includes('::')) return false
       const kind = resolveFieldType(field)
       if (kind === 'facet' && !field.writable) return false
       if (field.computed && !fieldHasValue(field, selected[key])) return false
       return true
     })
-    .sort(([, a], [, b]) => Number(resolveFieldType(a) === 'facet') - Number(resolveFieldType(b) === 'facet'))
+    .sort(([keyA, a], [keyB, b]) => {
+      const fold = (key: string, field: FieldSpec) =>
+        resolveFieldType(field) === 'facet' || (key === 'fields' && collectionPath === FACETS_COLLECTION_PATH)
+      return Number(fold(keyA, a)) - Number(fold(keyB, b))
+    })
 
   return (
 <div className="fsdb-detail-stage">
@@ -313,17 +320,23 @@ export function RecordDetail({
                   {propertyEntries.map(([key, field]) => {
                     const kind = resolveFieldType(field)
                     const facet = kind === 'facet'
+                    const packFields = key === 'fields' && collectionPath === FACETS_COLLECTION_PATH
+                    const fold = facet || packFields
                     return (
                       <PropertyRow
                         key={key}
                         field={field}
                         fieldKey={key}
-                        collapsible={facet}
-                        expanded={facet ? facetOpen : undefined}
-                        onToggle={facet ? () => setFacetOpen((open) => !open) : undefined}
+                        collapsible={fold}
+                        expanded={fold ? facetOpen : undefined}
+                        onToggle={fold ? () => setFacetOpen((open) => !open) : undefined}
                       >
-                        <div className={facet ? 'fsdb-prop-val is-schema' : 'fsdb-prop-val'} title={formatField(field, selected[key])}>
-                          {renderCell(selected, key, field)}
+                        <div className={fold ? 'fsdb-prop-val is-schema' : 'fsdb-prop-val'} title={packFields ? undefined : formatField(field, selected[key])}>
+                          {packFields ? (
+                            <FacetPackEditor facetId={selected.id} />
+                          ) : (
+                            renderCell(selected, key, field)
+                          )}
                         </div>
                       </PropertyRow>
                     )

@@ -29,8 +29,13 @@ test('sessionsCollection maps summaries and writes title/pinned/tags', async () 
       calls.push(['delete', id])
       return true
     },
+    require: async (id) => ({
+      id,
+      events: [{ type: 'user/message', text: 'hi', seq: 0, ts: 1, kind: 'user' }],
+    }),
   })
-  assert.equal(spec.path, '/sessions')
+  assert.equal(spec.schema.contentField, 'events')
+  assert.equal(spec.schema.fields.events?.type, 'file')
   assert.equal(spec.view?.moduleId, 'sessions-db')
   assert.deepEqual(spec.records, { update: true, create: false, delete: true })
   const rows = await spec.list()
@@ -42,6 +47,10 @@ test('sessionsCollection maps summaries and writes title/pinned/tags', async () 
   assert.equal(rows[0]?.mascotEye, 1)
   assert.equal(rows[0]?.mascotName, '橙石美')
   assert.deepEqual(rows[0]?.tags, ['a'])
+  assert.equal(rows[0]?.createdAt, 100)
+  assert.equal(rows[0]?.events, undefined)
+  const got = await spec.get?.('s1')
+  assert.equal(Array.isArray(got?.events), true)
   await spec.update?.('s1', {
     title: 'renamed',
     pinned: true,

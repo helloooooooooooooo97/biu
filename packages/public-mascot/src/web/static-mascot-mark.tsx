@@ -37,18 +37,24 @@ export const StaticMascotMark = memo(function StaticMascotMark({
   const [geo, setGeo] = useState<GeoSnapshot | null>(() => readGeo(identity))
 
   useEffect(() => {
+    // LAN share listener intentionally does not expose workstation assets.
+    // Render the bundled fallback below instead of requesting /grok-bot.
+    if (typeof document !== 'undefined' && document.documentElement.classList.contains('share')) return
     let cancelled = false
-    void loadGrokGeo().then(() => {
-      if (cancelled) return
-      setGeo(readGeo(identity))
-    })
+    void loadGrokGeo()
+      .then(() => {
+        if (cancelled) return
+        setGeo(readGeo(identity))
+      })
+      .catch(() => {
+        // The inline mark remains visible if optional geometry cannot load.
+      })
     return () => {
       cancelled = true
     }
   }, [identity.shape, identity.color, identity.eye])
 
   const vb = geo?.viewBox ?? DEFAULT_VB
-  const ready = Boolean(geo?.path)
 
   return (
     <span
@@ -67,10 +73,18 @@ export const StaticMascotMark = memo(function StaticMascotMark({
           width: size,
           height: size,
           overflow: 'visible',
-          opacity: ready ? 1 : 0.35,
+          opacity: 1,
         }}
       >
-        {geo?.path ? <path d={geo.path} fill={geo.fill} /> : null}
+        {geo?.path ? (
+          <path d={geo.path} fill={geo.fill} />
+        ) : (
+          <>
+            <path d={fallbackBody(identity.shape)} fill={fallbackColor(identity.color)} />
+            <ellipse cx="91" cy="119" rx="13" ry="18" fill="#fff" />
+            <ellipse cx="151" cy="119" rx="13" ry="18" fill="#fff" />
+          </>
+        )}
         {geo?.eyePaths ? (
           <g transform={faceTransform(geo.Re, geo.face)}>
             <path d={geo.eyePaths[0]} fill="#fff" />
@@ -82,6 +96,37 @@ export const StaticMascotMark = memo(function StaticMascotMark({
     </span>
   )
 })
+
+const FALLBACK_COLORS: Record<GrokColor, string> = {
+  black: '#444',
+  brown: '#a86f45',
+  red: '#e25555',
+  orange: '#ed8b3a',
+  yellow: '#d8b72b',
+  green: '#48a868',
+  cyan: '#1cc3b0',
+  blue: '#4f8fe8',
+  violet: '#8f6de0',
+  magenta: '#d65fc1',
+  gray: '#8b8b8b',
+}
+
+function fallbackColor(color: GrokColor) {
+  return FALLBACK_COLORS[color] ?? FALLBACK_COLORS.cyan
+}
+
+function fallbackBody(shape: GrokShape) {
+  if (shape === 'tablet' || shape === 'capsule' || shape === 'cylinder') {
+    return 'M47 42C47 18 66 0 90 0H151C175 0 194 18 194 42V187C194 211 175 229 151 229H90C66 229 47 211 47 187Z'
+  }
+  if (shape === 'hex' || shape === 'gem' || shape === 'crystal' || shape === 'shield') {
+    return 'M121 0L211 49L221 148L160 229H82L20 148L30 49Z'
+  }
+  if (shape === 'bean' || shape === 'leaf' || shape === 'teardrop') {
+    return 'M205 32C239 77 222 162 174 205C126 248 43 224 16 163C-11 102 24 32 84 9C127-8 178-4 205 32Z'
+  }
+  return 'M121 0C185 0 229 45 229 112C229 180 187 229 115 229C43 229 0 181 0 114C0 48 51 0 121 0Z'
+}
 
 function readGeo(identity: SessionMascotIdentity): GeoSnapshot | null {
   const root = typeof window !== 'undefined' ? window.GROK_GEO : undefined

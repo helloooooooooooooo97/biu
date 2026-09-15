@@ -306,9 +306,18 @@ export class HttpService extends Service {
     if (!base) return false
     try {
       const upstream = await fetch(`${base}${pathname}`)
-      const buf = Buffer.from(await upstream.arrayBuffer())
       const type = upstream.headers.get('content-type') ?? MIME[extname(pathname)] ?? 'application/octet-stream'
-      res.writeHead(upstream.status, { 'content-type': type })
+      let buf = Buffer.from(await upstream.arrayBuffer())
+      if (type.includes('text/html')) {
+        const html = buf
+          .toString('utf8')
+          .replace(/<script\b[^>]*\bsrc=["']\/@vite\/client["'][^>]*><\/script>\s*/gi, '')
+        buf = Buffer.from(html)
+      }
+      res.writeHead(upstream.status, {
+        'content-type': type,
+        ...(type.includes('text/html') ? { 'cache-control': 'no-store' } : {}),
+      })
       res.end(buf)
       return true
     } catch {

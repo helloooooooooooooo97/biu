@@ -6,9 +6,17 @@ import {
   ArrowDownTrayIcon,
   ArrowsPointingInIcon,
   ArrowsPointingOutIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   CubeTransparentIcon,
+  HashtagIcon,
+  MoonIcon,
+  SunIcon,
 } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
+import { ShareOwnerCorner } from './share-owner-corner.tsx'
+
+export { registerShareOwnerExtra } from './share-owner-corner.tsx'
 import { parseSharePath, sharePublicPath, type ShareSnapshot } from '../share-snapshot.ts'
 import { parsePageBanner } from '../page-banner.ts'
 import { RecordDetail } from './record-detail.tsx'
@@ -20,12 +28,40 @@ import { crumbRecordLabel, recordPreviewEmoji } from './sidebar-preview.ts'
 import { PageBanner } from './page-banner.tsx'
 import { TableGlyph } from './table-glyph.tsx'
 import { applyShareQuery, loadShareQuery, saveShareQuery, shareQueryFromView, type ShareQueryState } from './share-query.ts'
+import { collectQueryFields } from '../query-logic.ts'
 import { ShareViewQueryBar } from './share-view-bar.tsx'
 import { ShareCell, ShareListTable } from './share-table.tsx'
 import { getPageWidth, persistPageWidth, subscribePageWidth } from './page-width.ts'
+import { PagerSizeControl } from './pager-size.tsx'
+import { normalizePageSize } from './saved-view.ts'
 
 function passwordKey(token: string) {
   return `fsdb.share.pw:${token}`
+}
+
+const SHARE_THEME_KEY = 'biu.theme'
+
+function readShareTheme(): 'light' | 'dark' {
+  try {
+    const stored = localStorage.getItem(SHARE_THEME_KEY)
+    if (stored === 'dark' || stored === 'light') return stored
+  } catch {
+    /* ignore */
+  }
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+}
+
+function persistShareTheme(mode: 'light' | 'dark') {
+  try {
+    localStorage.setItem(SHARE_THEME_KEY, mode)
+  } catch {
+    /* ignore */
+  }
+  const root = document.documentElement
+  root.classList.toggle('dark', mode === 'dark')
+  root.classList.toggle('light', mode === 'light')
+  const meta = document.querySelector('meta[name="color-scheme"]')
+  if (meta) meta.setAttribute('content', mode)
 }
 
 async function loadSnapshot(token: string, password = ''): Promise<ShareSnapshot | { needsPassword: true } | { error: string }> {
@@ -71,15 +107,25 @@ function rewriteBanner(value: unknown, token: string, password: string) {
 
 export function ShareRoot({
   chrome,
+  chromeFor,
   loadPlugins,
 }: {
   chrome?: CollectionChrome
+  chromeFor?: (collection: string) => CollectionChrome | undefined
   loadPlugins?: (token: string, pluginIds: string[], password: string) => Promise<void>
 } = {}) {
   const location = useLocation()
   const parsed = parseSharePath(location.pathname)
   if (!parsed) return null
-  return <SharePage token={parsed.token} recordId={parsed.recordId} chrome={chrome} loadPlugins={loadPlugins} />
+  return (
+    <SharePage
+      token={parsed.token}
+      recordId={parsed.recordId}
+      chrome={chrome}
+      chromeFor={chromeFor}
+      loadPlugins={loadPlugins}
+    />
+  )
 }
 
 function downloadShareFile(blob: Blob, name: string) {
@@ -97,11 +143,13 @@ function SharePage({
   token,
   recordId,
   chrome,
+  chromeFor,
   loadPlugins,
 }: {
   token: string
   recordId: string
   chrome?: CollectionChrome
+  chromeFor?: (collection: string) => CollectionChrome | undefined
   loadPlugins?: (token: string, pluginIds: string[], password: string) => Promise<void>
 }) {
   ensureFsdbStyle()
@@ -119,8 +167,10 @@ function SharePage({
   const [snapshot, setSnapshot] = useState<ShareSnapshot | null>(null)
   const [resourcesOpen, setResourcesOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
+  const [ownerOpen, setOwnerOpen] = useState(false)
   const [pluginsReady, setPluginsReady] = useState(false)
   const [pageWidth, setPageWidth] = useState(getPageWidth)
+  const [theme, setTheme] = useState(readShareTheme)
   const [reload, setReload] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   useEffect(() => subscribePageWidth(() => setPageWidth(getPageWidth())), [])
@@ -188,6 +238,15 @@ function SharePage({
     if (!queryState || snapshot?.kind !== 'view') return
     saveShareQuery(token, queryState)
   }, [queryState, snapshot, token])
+  const [page, setPage] = useState(0)
+  const pageSize = normalizePageSize(queryState?.pageSize)
+  useEffect(() => {
+    setPage(0)
+  }, [token, pageSize, queryState?.q, queryState?.sorts, queryState?.filterTree])
+  const queryFields = useMemo(
+    () => collectQueryFields(queryState?.sorts, queryState?.filterTree, snapshot?.schema?.labelField ?? 'title'),
+    [queryState?.filterTree, queryState?.sorts, snapshot?.schema?.labelField],
+  )
 
   const selected = useMemo(() => {
     if (!snapshot) return null
@@ -238,8 +297,8 @@ function SharePage({
 
   if (!snapshot || !pluginsReady) {
     return (
-      <div className="fsdb-share-page" data-testid="fsdb-share-page">
-        <p className="fsdb-empty">正在打开…</p>
+      <div className="fsdb-share-page fsdb-share-loading" data-testid="fsdb-share-page">
+        <span className="fsdb-share-spinner" role="status" aria-label="加载中" />
       </div>
     )
   }
@@ -249,7 +308,12 @@ function SharePage({
   const listed = snapshot.kind === 'view' && queryState
     ? applyShareQuery(snapshot.records, schema, queryState, snapshot.contents)
     : snapshot.records
+  const total = listed.length
+  const lastPage = Math.max(0, Math.ceil(total / pageSize) - 1)
+  const safePage = Math.min(page, lastPage)
+  const paged = snapshot.kind === 'view' ? listed.slice(safePage * pageSize, safePage * pageSize + pageSize) : listed
   const shown = selected ?? (snapshot.kind === 'record' ? snapshot.records[0] : null)
+  const detailChrome = chromeFor?.(snapshot.collection) ?? chrome
   if (recordId && !shown) {
     return (
       <div className="fsdb-share-page" data-testid="fsdb-share-page">
@@ -283,7 +347,7 @@ function SharePage({
 
   const viewIndex = shown && snapshot.kind === 'view' ? listed.findIndex((row) => row.id === shown.id) : -1
   const viewNav = snapshot.kind === 'view' && listed.length > 1
-  const tableLabel = snapshot.collection.replace(/^\//, '') || snapshot.title
+  const tableLabel = snapshot.collectionLabel || snapshot.title
   const crumbs = snapshot.kind === 'view'
     ? buildCrumbs({
         collection: snapshot.collection,
@@ -310,13 +374,48 @@ function SharePage({
       <header className="chat-view-header">
         <div className="chat-view-header-left">
           {crumbs.length ? (
-            <CrumbTrail crumbs={crumbs} canCreateView={false} canCreateRecord={false} onPick={openShareTarget} />
+            <CrumbTrail
+              crumbs={crumbs}
+              canCreateView={false}
+              canCreateRecord={false}
+              collapseToLeaf
+              onPick={openShareTarget}
+            />
           ) : (
             <span className="chat-view-project-name">{snapshot.title}</span>
           )}
-          <span className="fsdb-share-badge">只读</span>
         </div>
         <div className="chat-view-header-right">
+          {viewNav && shown ? (
+            <div className="fsdb-share-record-nav" data-testid="fsdb-share-record-nav">
+              <button
+                type="button"
+                className="chat-view-header-expand"
+                title="上一条"
+                aria-label="上一条"
+                disabled={viewIndex <= 0}
+                onClick={() => {
+                  const prev = listed[Math.max(0, viewIndex - 1)]
+                  if (prev) navigate(sharePublicPath(token, prev.id))
+                }}
+              >
+                <ChevronLeftIcon aria-hidden className="size-4" />
+              </button>
+              <button
+                type="button"
+                className="chat-view-header-expand"
+                title="下一条"
+                aria-label="下一条"
+                disabled={viewIndex < 0 || viewIndex >= listed.length - 1}
+                onClick={() => {
+                  const next = listed[Math.min(listed.length - 1, viewIndex + 1)]
+                  if (next) navigate(sharePublicPath(token, next.id))
+                }}
+              >
+                <ChevronRightIcon aria-hidden className="size-4" />
+              </button>
+            </div>
+          ) : null}
           <div className="fsdb-layout-wrap" ref={layoutRef}>
             <button
               type="button"
@@ -419,15 +518,31 @@ function SharePage({
             <ArrowDownTrayIcon aria-hidden className="size-4" />
           </button>
           ) : null}
+          <button
+            type="button"
+            className="chat-view-header-expand"
+            title={theme === 'dark' ? '日间模式' : '夜间模式'}
+            aria-label={theme === 'dark' ? '日间模式' : '夜间模式'}
+            data-testid="fsdb-share-theme"
+            onClick={() => {
+              const next = theme === 'dark' ? 'light' : 'dark'
+              persistShareTheme(next)
+              setTheme(next)
+            }}
+          >
+            {theme === 'dark' ? <SunIcon aria-hidden className="size-4" /> : <MoonIcon aria-hidden className="size-4" />}
+          </button>
         </div>
       </header>
       <div className="fsdb-right">
       <div className="fsdb-share-body fsdb-right-body">
+      <div className="app-pane-in">
       {shown ? (
         <RecordDetail
           selected={{ ...shown, banner: rewriteBanner(shown.banner, token, password) ?? shown.banner }}
           schema={schema}
-          chrome={chrome}
+          chrome={detailChrome}
+          collectionPath={snapshot.collection}
           draft={{}}
           detailBody={rewriteAssetUrls(snapshot.contents[shown.id], token, password)}
           labelOf={(row) => crumbRecordLabel(row, schema.labelField)}
@@ -439,7 +554,7 @@ function SharePage({
               records={listed}
               collection={snapshot.collection}
               schema={schema}
-              chrome={chrome}
+              chrome={detailChrome}
             />
           )}
           setDraft={() => undefined}
@@ -468,7 +583,7 @@ function SharePage({
           canNext={viewIndex >= 0 && viewIndex < listed.length - 1}
         />
       ) : (
-        <div className="tasks-main fsdb-main" data-testid="fsdb-share-list">
+        <div className="tasks-main fsdb-main fsdb-share-list" data-testid="fsdb-share-list">
           {(() => {
             const banner = rewriteBanner(snapshot.banner, token, password)
             return banner ? <PageBanner value={banner} writable={false} title={snapshot.title} /> : null
@@ -491,22 +606,61 @@ function SharePage({
               onRefresh={() => setReload((n) => n + 1)}
             />
           ) : null}
-          <ShareListTable
-            schema={schema}
-            view={snapshot.view}
-            records={listed}
-            collection={snapshot.collection}
-            chrome={chrome}
-            columns={queryState?.columns}
-            wrap={queryState?.wrap}
-            truncate={queryState?.truncate}
-            onOpen={(id) => navigate(sharePublicPath(token, id))}
-          />
-          {listed.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}
+          <div className="fsdb-workspace">
+            <div className="fsdb-stage">
+              <ShareListTable
+                schema={schema}
+                view={snapshot.view}
+                records={paged}
+                collection={snapshot.collection}
+                chrome={detailChrome}
+                columns={queryState?.columns}
+                wrap={queryState?.wrap}
+                truncate={queryState?.truncate}
+                queryFields={queryFields}
+                onOpen={(id) => navigate(sharePublicPath(token, id))}
+              />
+              {paged.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}
+            </div>
+            <div className="fsdb-pager" data-testid="fsdb-share-pager">
+              <span className="fsdb-pager-meta" title={total ? `共 ${total} 条` : '暂无记录'}>
+                <HashtagIcon aria-hidden className="size-[14px]" />
+                <span>{total}</span>
+              </span>
+              <div className="fsdb-pager-nav">
+                {queryState ? (
+                  <PagerSizeControl
+                    pageSize={pageSize}
+                    onChange={(size) => setQueryState({ ...queryState, pageSize: size })}
+                  />
+                ) : null}
+                <button
+                  type="button"
+                  className="tasks-icon-btn"
+                  aria-label="上一页"
+                  disabled={safePage <= 0}
+                  onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+                >
+                  <ChevronLeftIcon aria-hidden className="size-[14px]" />
+                </button>
+                <button
+                  type="button"
+                  className="tasks-icon-btn"
+                  aria-label="下一页"
+                  disabled={total <= 0 || (safePage + 1) * pageSize >= total || (paged.length > 0 && paged.length < pageSize)}
+                  onClick={() => setPage((prev) => prev + 1)}
+                >
+                  <ChevronRightIcon aria-hidden className="size-[14px]" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
       </div>
       </div>
+      </div>
+      <ShareOwnerCorner owner={snapshot.owner} open={ownerOpen} onOpenChange={setOwnerOpen} />
     </div>
   )
 }

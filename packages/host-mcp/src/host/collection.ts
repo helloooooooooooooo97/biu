@@ -121,7 +121,7 @@ export function mcpCollection(mcp: McpService): CollectionSpec {
         'select=设置工具选择（allow / deny）；uninstall=从配置里删掉。' +
         'status=error 时看 error 列，stdio 服务器那里会带上子进程 stderr。builtin 的 echo 行只用于自检，不能改。',
       order: 40,
-      icon: 'bolt',
+      icon: 'link',
     },
     records: { update: true, create: true, delete: true },
     schema: {

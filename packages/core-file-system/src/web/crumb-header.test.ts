@@ -35,7 +35,9 @@ describe('顶栏三级标题', () => {
     expect(trail).not.toContain('getBoundingClientRect')
     expect(trail).not.toContain('autoFocus')
     expect(trail).not.toContain('setTimeout')
-    expect(trail).not.toContain('useLayoutEffect')
+    expect(trail).toContain('collapseToLeaf')
+    expect(trail).toContain('is-leaf-only')
+    expect(trail).toContain('ResizeObserver')
     expect(style).toContain('anchor-name:--fsdb-crumb')
     expect(style).toContain('anchor(--fsdb-crumb left)')
     expect(trail).toContain('HeadlessDismiss')
@@ -45,12 +47,13 @@ describe('顶栏三级标题', () => {
     expect(trail).not.toContain('data-testid="crumb-expand"')
     expect(style).not.toContain('.fsdb-crumb-expand{position:absolute')
     expect(browser).toContain('<CrumbTrail')
+    expect(browser.indexOf('收藏视图')).toBeLessThan(browser.indexOf('<ShareButton'))
   })
 
   it('中间顶栏面包屑字重和颜色与侧栏标题对齐', () => {
     expect(style).toContain('.fsdb-crumb-btn{display:inline-flex')
-    expect(style).toMatch(/\.fsdb-crumb-btn\{[^}]*color:var\(--dsw-label\)/)
-    expect(style).toMatch(/\.fsdb-crumb-btn\{[^}]*font-weight:600/)
+    expect(style).toMatch(/\.fsdb-crumb-btn\{[^}]*color:var\(--dsw-sidebar-fg\)/)
+    expect(style).toMatch(/\.fsdb-crumb-btn\{[^}]*font-weight:500/)
     expect(style).toMatch(/\.fsdb-crumb-option\{[^}]*font-weight:600/)
   })
 

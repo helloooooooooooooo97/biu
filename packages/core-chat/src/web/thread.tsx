@@ -9,7 +9,6 @@ import {
   ClockIcon,
   CircleStackIcon,
   Square2StackIcon,
-  ShareIcon,
   HashtagIcon,
   Square3Stack3DIcon,
   LanguageIcon,
@@ -18,6 +17,7 @@ import {
   XCircleIcon,
 } from '@heroicons/react/16/solid'
 import { ImageThumbs } from './image-thumbs.tsx'
+import { ForkGlyph } from './fork-glyph.tsx'
 import { bindSessionView, type SessionListItem, type SessionViewService } from '@biu/web-session-view'
 import { nodeIdFromOutlineEvent } from '@biu/web-session-view'
 import {
@@ -368,7 +368,7 @@ function ReplyActions({
               disabled={forkBusy}
               onClick={() => void fork()}
             >
-              <ShareIcon className="size-3.5" />
+              <ForkGlyph className="size-3.5" />
             </button>
           </>
         ) : null}
@@ -431,7 +431,7 @@ function UserTurnBar({
 
   return (
     <div
-      className="box-border flex h-[30px] min-h-[30px] w-full items-center justify-between gap-3 border-0 border-t border-(--dsw-bubble) bg-transparent px-(--dsw-chat-pad-x) text-(length:--dsw-chat-ui-font-size) leading-none text-(--dsw-sidebar-fg)"
+      className="user-turn-bar box-border flex h-[30px] min-h-[30px] w-full items-center justify-between gap-3 border-0 border-t border-(--dsw-bubble) bg-transparent px-(--dsw-chat-pad-x) text-(length:--dsw-chat-ui-font-size) leading-none text-(--dsw-sidebar-fg)"
       aria-label="回合摘要"
       data-testid="user-turn-bar"
     >

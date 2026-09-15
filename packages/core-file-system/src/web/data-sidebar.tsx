@@ -367,7 +367,7 @@ function ViewRecordPreview({
                 toggleRecordStar(row)
               }}
             >
-              <StarIcon className={`size-4 shrink-0${starred ? ' text-[#f5b700]' : ''}`} />
+              <StarIcon className="size-4 shrink-0" />
             </button>
           </div>
           <SidebarFold open={expanded}>
@@ -726,6 +726,8 @@ export const DataSidebar = memo(function DataSidebar({
               >
                 {name}
               </button>
+            </div>
+              <ChatCount count={listed.length} />
               <button
                 type="button"
                 className="sidebar-add"
@@ -740,8 +742,6 @@ export const DataSidebar = memo(function DataSidebar({
               >
                 <PlusIcon className="size-4 shrink-0" />
               </button>
-            </div>
-            <ChatCount count={listed.length} />
           </div>
           <SidebarFold open={open} className="sidebar-session-list min-w-0">
             {listed.map((view) => {
@@ -815,7 +815,7 @@ export const DataSidebar = memo(function DataSidebar({
                       title={starred ? '取消收藏' : '收藏'}
                       onClick={() => toggleStar(table.path, view.id)}
                     >
-                      <StarIcon className={`size-4 shrink-0${starred ? ' text-[#f5b700]' : ''}`} />
+                      <StarIcon className="size-4 shrink-0" />
                     </button>
                   </div>
                   <SidebarFold open={expanded}>
@@ -925,7 +925,7 @@ export const DataSidebar = memo(function DataSidebar({
                             {label}
                           </button>
                         </div>
-                        <span className="grid size-6 shrink-0 place-items-center" title={tableName} aria-label={tableName}>
+                        <span className="sidebar-trail-icon" title={tableName} aria-label={tableName}>
                           {table?.view?.icon ? <TableGlyph icon={table.view.icon} /> : <ShareIcon className="size-4 shrink-0 opacity-70" />}
                         </span>
                       </div>
@@ -1027,7 +1027,7 @@ export const DataSidebar = memo(function DataSidebar({
                             </button>
                           </div>
                           {nested ? <ChatCount count={kidCount} title={`${kidCount} 个子记录`} /> : null}
-                          <span className="grid size-6 shrink-0 place-items-center" title={tableName} aria-label={tableName}>
+                          <span className="sidebar-trail-icon" title={tableName} aria-label={tableName}>
                             <TableGlyph icon={table.view?.icon} />
                           </span>
                           {nested ? (
@@ -1069,7 +1069,7 @@ export const DataSidebar = memo(function DataSidebar({
                             title="取消收藏"
                             onClick={() => persistStarredRecords(toggleStarredRecord(getStarredRecords(), table.path, item.recordId))}
                           >
-                            <StarIcon className="size-4 shrink-0 text-[#f5b700]" />
+                            <StarIcon className="size-4 shrink-0" />
                           </button>
                         </div>
                         {nested && view ? (
@@ -1129,7 +1129,7 @@ export const DataSidebar = memo(function DataSidebar({
                             </button>
                           </div>
                           <ChatCount count={getPreviewTotal(viewTotalKey(table.path, view))} />
-                          <span className="grid size-6 shrink-0 place-items-center" title={tableName} aria-label={tableName}>
+                          <span className="sidebar-trail-icon" title={tableName} aria-label={tableName}>
                             <TableGlyph icon={table.view?.icon} />
                           </span>
                           <button
@@ -1140,7 +1140,7 @@ export const DataSidebar = memo(function DataSidebar({
                             title="取消收藏"
                             onClick={() => toggleStar(table.path, view.id)}
                           >
-                            <StarIcon className="size-4 shrink-0 text-[#f5b700]" />
+                            <StarIcon className="size-4 shrink-0" />
                           </button>
                         </div>
                         <SidebarFold open={expanded}>

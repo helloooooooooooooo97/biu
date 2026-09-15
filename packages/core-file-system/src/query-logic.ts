@@ -130,6 +130,40 @@ export function countFilterRules(node: FilterNode | undefined): number {
   return node.children.reduce((sum, child) => sum + countFilterRules(child), 0)
 }
 
+export function collectFilterFields(node: FilterNode | undefined, into = new Set<string>()): Set<string> {
+  if (!node) return into
+  if (node.kind === 'rule') {
+    if (countFilterRules(node)) into.add(node.field)
+    return into
+  }
+  for (const child of node.children) collectFilterFields(child, into)
+  return into
+}
+
+export function isCustomSorts(
+  sorts: Array<Pick<SortRule, 'field' | 'dir'>> | undefined,
+  defaultField = 'title',
+  defaultDir: 'asc' | 'desc' = 'asc',
+) {
+  if (!sorts?.length) return false
+  if (sorts.length === 1 && sorts[0]?.field === defaultField && sorts[0]?.dir === defaultDir) return false
+  return true
+}
+
+export function collectQueryFields(
+  sorts: Array<Pick<SortRule, 'field' | 'dir'>> | undefined,
+  tree?: FilterNode,
+  defaultSortField = 'title',
+): Set<string> {
+  const keys = collectFilterFields(tree)
+  if (!isCustomSorts(sorts, defaultSortField)) return keys
+  for (const rule of sorts ?? []) {
+    const field = String(rule.field ?? '').trim()
+    if (field) keys.add(field)
+  }
+  return keys
+}
+
 function filterNodeState(node: FilterNode): unknown {
   if (node.kind === 'rule') return { kind: 'rule', field: node.field, op: node.op, value: node.value }
   return { kind: 'group', combinator: node.combinator, children: node.children.map(filterNodeState) }

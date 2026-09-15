@@ -1,9 +1,23 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import type { Context } from 'cordis'
-import type { DatabaseUi, FsViewProps } from '@biu/type-file-system/ui'
+import type { DatabaseUi, FsContentProps, FsViewProps } from '@biu/type-file-system/ui'
 
 export const name = 'host-skills-ui'
 export const inject = ['databaseUi']
+
+/** 分享 Skill 注册记录时只展示发现信息；正文归对应的 /pages Page 树。 */
+export function SkillsContent({ record }: FsContentProps) {
+  return (
+    <div style={{ paddingTop: 12 }}>
+      <p style={{ margin: 0, color: 'var(--dsw-label-2)', lineHeight: 1.6 }}>
+        {String(record.description ?? '')}
+      </p>
+      <p style={{ margin: '8px 0 0', color: 'var(--dsw-label-3)', fontSize: 12 }}>
+        Skill 正文存储在关联的 Page 树中。
+      </p>
+    </div>
+  )
+}
 
 function SkillsLibraryView({ rows, onOpen }: FsViewProps) {
   const inputRef = useRef<HTMLInputElement>(null)

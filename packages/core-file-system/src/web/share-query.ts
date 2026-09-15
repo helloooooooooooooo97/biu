@@ -10,7 +10,7 @@ import {
   type FilterGroup,
   type SortRule,
 } from '../query-logic.ts'
-import type { SavedView } from './saved-view.ts'
+import { normalizePageSize, type SavedView } from './saved-view.ts'
 
 export type ShareQueryState = {
   q: string
@@ -19,6 +19,7 @@ export type ShareQueryState = {
   columns: string[]
   wrap: boolean
   truncate: boolean
+  pageSize: number
 }
 
 export function shareQueryStorageKey(token: string) {
@@ -36,6 +37,7 @@ export function shareQueryFromView(view?: Partial<SavedView>): ShareQueryState {
     columns: Array.isArray(view?.columns) ? [...view.columns] : [],
     wrap: Boolean(view?.wrap),
     truncate: view?.truncate !== false,
+    pageSize: normalizePageSize(view?.pageSize),
   }
 }
 
@@ -51,6 +53,7 @@ export function loadShareQuery(token: string, fallback: ShareQueryState): ShareQ
       columns: Array.isArray(parsed.columns) ? parsed.columns.filter((key) => typeof key === 'string') : fallback.columns,
       wrap: typeof parsed.wrap === 'boolean' ? parsed.wrap : fallback.wrap,
       truncate: typeof parsed.truncate === 'boolean' ? parsed.truncate : fallback.truncate,
+      pageSize: normalizePageSize(parsed.pageSize ?? fallback.pageSize),
     }
   } catch {
     return fallback

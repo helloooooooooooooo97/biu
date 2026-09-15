@@ -23,6 +23,14 @@ export function mintSharePin() {
   return String(100000 + (buf[0]! % 900000))
 }
 
+export function shareClipboardText(url: string, password = '') {
+  const link = String(url ?? '').trim()
+  const pin = String(password ?? '').trim()
+  if (!link) return pin
+  if (!pin) return link
+  return `${link}\n密码 ${pin}`
+}
+
 export function shareResourceTypeCount(stats: Pick<ShareResourceStats, 'pages' | 'plugins' | 'collections'>) {
   return Number(stats.pages > 0) + Number(stats.plugins > 0) + Number(stats.collections > 0)
 }

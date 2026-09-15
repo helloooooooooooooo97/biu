@@ -397,6 +397,13 @@ test('creating a record opens a new inspector pane instead of covering the view'
 
 test('create record sits at the right of the toolbar with a blue label', () => {
   assert.match(browser, /aria-label="排序"[\s\S]*aria-label="筛选"[\s\S]*aria-label="分组"/)
+  assert.match(browser, /sortCustom \? <span className="tasks-sort-dot"/)
+  assert.match(browser, /filterActive \? <span className="tasks-filter-dot"/)
+  assert.match(browser, /grouping \? <span className="tasks-sort-dot"/)
+  const columnsBtn = browser.slice(browser.indexOf('aria-label="可见列"'), browser.indexOf('aria-label="表格配置"'))
+  const configBtn = browser.slice(browser.indexOf('aria-label="表格配置"'), browser.indexOf('aria-label="刷新"'))
+  assert.doesNotMatch(columnsBtn, /tasks-sort-dot|tasks-filter-dot/)
+  assert.doesNotMatch(configBtn, /tasks-sort-dot|tasks-filter-dot/)
   assert.match(browser, /className="fsdb-create-btn"/)
   assert.match(browser, /新建记录/)
   assert.match(browser, /<PlusIcon[\s\S]*新建/)
@@ -473,8 +480,8 @@ test('create record sits at the right of the toolbar with a blue label', () => {
   assert.match(readFileSync(resolve(import.meta.dirname, './cell-pop-draft.tsx'), 'utf8'), /autoOpen/)
   assert.match(browser, /schemaTagTone\(flat\.packId\)/)
   assert.match(browser, /className=\{tone \? 'is-facet-col' : undefined\}/)
-  assert.match(css, /\.tasks-table th\.is-facet-col\{[^}]*color:color-mix\(in srgb,var\(--biu-tag\) 8%,#fff\)/)
-  assert.match(css, /\.tasks-table th\.is-facet-col\{[^}]*background:color-mix\(in srgb,var\(--biu-tag\) 22%,var\(--dsw-surface\)\)/)
+  assert.match(css, /\.tasks-table th\.is-facet-col\{[^}]*color:var\(--dsw-tag-ink,#2c2c2b\)/)
+  assert.match(css, /\.tasks-table th\.is-facet-col\{[^}]*background:color-mix\(in srgb,var\(--biu-tag\) 38%,var\(--dsw-surface\)\)/)
   assert.match(css, /\.tasks-table\.is-wrap\{[^}]*white-space:normal/)
   assert.match(css, /\.tasks-table th,\.fsdb-page \.tasks-table\.is-wrap th\{[^}]*white-space:nowrap/)
   assert.match(css, /\.tasks-th\{[^}]*white-space:nowrap/)
@@ -544,7 +551,7 @@ test('database extras sit after the record detail, not in the inspector', () => 
   assert.match(style, /\.fsdb-detail-float-nav:hover,\.fsdb-detail-float-nav:focus-within,\.fsdb-detail-float-nav:has\(\[aria-expanded=true\]\)\{[^}]*opacity:1/)
   assert.match(style, /\.fsdb-detail-screen\{[^}]*width:100%/)
   assert.match(style, /\.fsdb-detail-float-btn\{[^}]*width:24px/)
-  assert.match(style, /\.fsdb-detail-float-btn\{[^}]*color:var\(--dsw-label\)/)
+  assert.match(style, /\.fsdb-detail-float-btn\{[^}]*color:var\(--dsw-icon\)/)
   assert.match(style, /\.fsdb-detail-float-btn svg\{[^}]*width:16px/)
   assert.doesNotMatch(style, /border-radius:999px/)
   assert.match(detail, /<h1 className="fsdb-detail-title">/)
@@ -736,6 +743,23 @@ test('page collection uses a document glyph, not the table/database icon', () =>
   const glyphs = readFileSync(resolve(import.meta.dirname, './table-glyph.tsx'), 'utf8')
   assert.match(glyphs, /name === 'document' \|\| name === 'document-text' \|\| name === 'page'/)
   assert.match(glyphs, /<DocumentIcon/)
+})
+
+test('mcp collection uses a link glyph, not the events bolt', () => {
+  const glyphs = readFileSync(resolve(import.meta.dirname, './table-glyph.tsx'), 'utf8')
+  const spec = readFileSync(resolve(import.meta.dirname, '../../../host-mcp/src/host/collection.ts'), 'utf8')
+  assert.match(spec, /icon: 'link'/)
+  assert.doesNotMatch(spec, /icon: 'bolt'/)
+  assert.match(glyphs, /name === 'link' \|\| name === 'mcp'/)
+  assert.match(glyphs, /<LinkIcon/)
+})
+
+test('skill collection uses academic-cap, not the page document glyph', () => {
+  const glyphs = readFileSync(resolve(import.meta.dirname, './table-glyph.tsx'), 'utf8')
+  const spec = readFileSync(resolve(import.meta.dirname, '../../../host-skills/src/host/collection.ts'), 'utf8')
+  assert.match(spec, /icon: 'academic-cap'/)
+  assert.match(glyphs, /name === 'academic-cap'/)
+  assert.match(glyphs, /<AcademicCapIcon/)
 })
 
 test('boolean field glyph is a checkbox, not the document list icon', () => {

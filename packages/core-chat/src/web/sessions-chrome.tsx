@@ -52,10 +52,33 @@ function MascotEyeCell({ value }: FsCellProps) {
   return <span>{name}</span>
 }
 
-function SessionRecordChat({ record }: FsContentProps) {
+function eventsFromContent(value: unknown): SessionEvent[] | null {
+  if (Array.isArray(value)) return value as SessionEvent[]
+  if (value && typeof value === 'object' && Array.isArray((value as { events?: unknown }).events)) {
+    return (value as { events: SessionEvent[] }).events
+  }
+  return null
+}
+
+function usageFromContent(value: unknown): Record<string, TrajectoryUsage> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const raw = (value as { dispatchedUsageByTurn?: unknown }).dispatchedUsageByTurn
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  return raw as Record<string, TrajectoryUsage>
+}
+
+function nodesFromContent(value: unknown): ChatNode[] | null {
+  const events = eventsFromContent(value)
+  if (!events) return null
+  return mergeDispatchedUsageIntoNodes(projectNodes(events), usageFromContent(value))
+}
+
+function SessionRecordChat({ record, value }: FsContentProps) {
   const sessionId = String(record.id)
-  const [nodes, setNodes] = useState<ChatNode[]>([])
+  const [nodes, setNodes] = useState<ChatNode[]>(() => nodesFromContent(value) ?? [])
   useEffect(() => {
+    const seeded = nodesFromContent(value)
+    if (seeded) setNodes(seeded)
     const ac = new AbortController()
     void fetch(`/api/sessions/${sessionId}?turns=${SESSION_LOAD_TURNS}`, { signal: ac.signal })
       .then((res) => (res.ok ? res.json() : null))
@@ -70,7 +93,7 @@ function SessionRecordChat({ record }: FsContentProps) {
       })
       .catch(() => undefined)
     return () => ac.abort()
-  }, [sessionId])
+  }, [sessionId, value])
   return (
     <ChatPane
       embed
@@ -107,9 +130,9 @@ if (typeof document !== 'undefined') {
   style.id = id
   style.textContent = `
 .sessions-title-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
-.fsdb-fileview:has(.chat-pane-embed){display:flex;flex-direction:column;flex:none;min-width:0;min-height:0;height:auto;width:100%;max-width:100%;background:#191919}
+.fsdb-fileview:has(.chat-pane-embed){display:flex;flex-direction:column;flex:none;min-width:0;min-height:0;height:auto;width:100%;max-width:100%;background:var(--dsw-bg)}
 .inspector-database-page .fsdb-fileview:has(.chat-pane-embed){min-height:0;flex:1}
-.fsdb-detail-main:has(.chat-pane-embed),.fsdb-detail-screen:has(.chat-pane-embed){background:#191919}
+.fsdb-detail-main:has(.chat-pane-embed),.fsdb-detail-screen:has(.chat-pane-embed){background:var(--dsw-bg)}
 .fsdb-detail-main:has(.chat-pane-embed) .chat-pane-embed{padding-inline:0;min-width:0;min-height:0;width:100%;max-width:100%;box-sizing:border-box}
 .fsdb-detail-main:has(.chat-pane-embed) .chat-pane-embed,.fsdb-detail-main:has(.chat-pane-embed) .chat-overlay-thread,.fsdb-detail-main:has(.chat-pane-embed) .chat-stage{overflow:visible;flex:none;min-width:0;min-height:0;height:auto;max-width:100%;overscroll-behavior:auto;align-items:stretch;scrollbar-gutter:auto}
 .fsdb-detail-main:has(.chat-pane-embed) .chat-stage>*{max-width:100%;width:100%;min-width:0;box-sizing:border-box}

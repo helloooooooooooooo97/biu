@@ -19,5 +19,6 @@ test('share web plugin keeps pageEditor inject', () => {
   assert.equal(plugin.name, 'page-terminal')
   assert.deepEqual(plugin.inject, ['pageEditor'])
   assert.equal(sharePluginInjectOk(plugin.inject), true)
+  assert.equal(sharePluginInjectOk(['pageEditor', 'databaseUi']), true)
   assert.equal(sharePluginInjectOk(['pageEditor', 'slots']), false)
 })

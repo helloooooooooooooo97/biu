@@ -11,7 +11,7 @@ import {
 } from '@heroicons/react/16/solid'
 import { HeadlessDismiss, HEADLESS_DISMISS_IGNORE } from '@biu/public-ui'
 import type { CollectionSchema, DbRecord, FieldType } from '@biu/type-file-system'
-import { countFilterRules } from '../query-logic.ts'
+import { countFilterRules, isCustomSorts } from '../query-logic.ts'
 import { defaultColumnKeys, resolveFieldType } from './fields.ts'
 import { FieldGlyph, ModeGlyph, VIEW_MODES } from './fsdb-cells.tsx'
 import { CheckRow } from './controls.tsx'
@@ -50,9 +50,9 @@ export function ShareViewQueryBar({
   const fields = queryFieldsOf(schema)
   const sortFields = fields.filter((item) => item.field.sortable !== false)
   const filterActive = countFilterRules(state.filterTree) > 0
+  const sortCustom = isCustomSorts(state.sorts, schema.labelField)
   const defaults = allColumnKeys(schema)
   const visible = (state.columns.length ? state.columns : defaults).filter((key) => schema.fields[key])
-  const columnCustom = visible.join('\0') !== defaults.join('\0')
   const searchRef = useRef<HTMLDivElement>(null)
   const modeRef = useRef<HTMLDivElement>(null)
   const sortRef = useRef<HTMLDivElement>(null)
@@ -105,7 +105,7 @@ export function ShareViewQueryBar({
           <div className={`tasks-search-wrap${searchExpanded ? ' is-open' : ''}`} ref={searchRef}>
             <button
               type="button"
-              className="tasks-sort-btn"
+              className={`tasks-sort-btn${searchExpanded ? ' is-active' : ''}`}
               aria-label="搜索"
               aria-expanded={searchExpanded}
               title="搜索"
@@ -156,13 +156,13 @@ export function ShareViewQueryBar({
         <div className="tasks-sort-wrap" ref={sortRef}>
           <button
             type="button"
-            className={`tasks-sort-btn${sortOpen ? ' is-active' : ''}${state.sorts.length ? ' is-custom' : ''}`}
+            className={`tasks-sort-btn${sortOpen ? ' is-active' : ''}${sortCustom ? ' is-custom' : ''}`}
             aria-label="排序"
-            title={state.sorts.length ? `${state.sorts.length} 个排序` : '排序'}
+            title={sortCustom ? `${state.sorts.length} 个排序` : '排序'}
             onClick={() => setSortOpen((open) => !open)}
           >
             <ArrowsUpDownIcon aria-hidden className="size-[14px]" />
-            {state.sorts.length ? <span className="tasks-sort-dot" aria-hidden /> : null}
+            {sortCustom ? <span className="tasks-sort-dot" aria-hidden /> : null}
           </button>
           {sortOpen ? (
             <HeadlessDismiss
@@ -205,13 +205,12 @@ export function ShareViewQueryBar({
         <div className="tasks-sort-wrap" ref={columnRef}>
           <button
             type="button"
-            className={`tasks-sort-btn${columnOpen ? ' is-active' : ''}${columnCustom ? ' is-custom' : ''}`}
+            className={`tasks-sort-btn${columnOpen ? ' is-active' : ''}`}
             aria-label="可见列"
             title="可见列"
             onClick={() => setColumnOpen((open) => !open)}
           >
             <EyeIcon aria-hidden className="size-[14px]" />
-            {columnCustom ? <span className="tasks-sort-dot" aria-hidden /> : null}
           </button>
           {columnOpen ? (
             <HeadlessDismiss onDismiss={() => setColumnOpen(false)} insideRef={columnRef}>
@@ -236,13 +235,12 @@ export function ShareViewQueryBar({
         <div className="tasks-filter-btn-wrap" ref={configRef}>
           <button
             type="button"
-            className={`tasks-refresh tasks-rbar-btn${configOpen || state.wrap || !state.truncate ? ' is-active' : ''}`}
+            className={`tasks-refresh tasks-rbar-btn${configOpen ? ' is-active' : ''}`}
             aria-label="表格配置"
             title="表格显示"
             onClick={() => setConfigOpen((open) => !open)}
           >
             <AdjustmentsHorizontalIcon aria-hidden className="size-[14px]" />
-            {state.wrap || !state.truncate ? <span className="tasks-filter-dot" aria-hidden /> : null}
           </button>
           {configOpen ? (
             <HeadlessDismiss onDismiss={() => setConfigOpen(false)} insideRef={configRef}>

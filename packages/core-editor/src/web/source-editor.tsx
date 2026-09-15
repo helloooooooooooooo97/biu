@@ -72,19 +72,19 @@ export type SourceEditorHandle = {
 }
 
 const mdHighlight = HighlightStyle.define([
-  { tag: tags.heading, color: '#F0EFED', fontWeight: '700' },
+  { tag: tags.heading, color: 'var(--dsw-label)', fontWeight: '700' },
   { tag: tags.strong, fontWeight: '700' },
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
   { tag: tags.link, color: 'var(--dsw-business)' },
   { tag: tags.url, color: 'var(--dsw-business)' },
-  { tag: tags.monospace, color: '#E8E0D0' },
-  { tag: tags.meta, color: '#7B7B79' },
-  { tag: tags.processingInstruction, color: '#7B7B79' },
-  { tag: tags.comment, color: '#7B7B79' },
-  { tag: tags.keyword, color: '#C4B5FD' },
-  { tag: tags.string, color: '#86EFAC' },
-  { tag: tags.number, color: '#FDBA74' },
+  { tag: tags.monospace, color: 'var(--dsw-label)' },
+  { tag: tags.meta, color: 'var(--dsw-sidebar-fg)' },
+  { tag: tags.processingInstruction, color: 'var(--dsw-sidebar-fg)' },
+  { tag: tags.comment, color: 'var(--dsw-sidebar-fg)' },
+  { tag: tags.keyword, color: 'var(--dsw-pick)' },
+  { tag: tags.string, color: 'var(--dsw-ok)' },
+  { tag: tags.number, color: '#c2410c' },
 ])
 
 const theme = EditorView.theme({
@@ -98,11 +98,11 @@ const theme = EditorView.theme({
   '.cm-gutters': {
     background: 'transparent',
     border: 'none',
-    color: '#7B7B79',
+    color: 'var(--dsw-sidebar-fg)',
     minWidth: '2.4em',
   },
   '.cm-activeLine': { background: 'color-mix(in srgb, var(--dsw-hover) 70%, transparent)' },
-  '.cm-activeLineGutter': { background: 'transparent', color: '#F0EFED' },
+  '.cm-activeLineGutter': { background: 'transparent', color: 'var(--dsw-label)' },
   '.cm-cursor': { borderLeftColor: 'var(--dsw-label)' },
   /* 与正文 TipTap / --dsw-pick 同一蓝。系统 Highlight 在深色页会发白。 */
   '.cm-content ::selection': { background: 'color-mix(in srgb, var(--dsw-pick) 40%, transparent)', color: 'inherit' },

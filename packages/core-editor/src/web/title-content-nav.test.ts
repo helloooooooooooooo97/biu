@@ -95,6 +95,18 @@ test('Delete at the start of TipTap also focuses the title', () => {
   host.remove()
 })
 
+test('select-all then Backspace deletes the document instead of jumping to the title', () => {
+  const { editor, host } = makeEditor('hello')
+  editor.chain().focus().selectAll().run()
+  const title = listenTitle()
+  press(editor, 'Backspace')
+  title.stop()
+  assert.equal(title.hits(), 0)
+  assert.doesNotMatch(editor.getHTML(), /hello/)
+  editor.destroy()
+  host.remove()
+})
+
 test('Backspace in the middle of a paragraph does not jump to the title', () => {
   const { editor, host } = makeEditor('hello')
   editor.commands.setTextSelection(3)

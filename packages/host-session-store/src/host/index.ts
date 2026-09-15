@@ -8,15 +8,20 @@ import {
 } from '@biu/type-session'
 
 function toSummary(record: SessionRecord, updatedAt?: number): SessionSummary {
+  const touched = updatedAt ?? record.events.at(-1)?.ts ?? 0
+  const createdAt = Number(record.config?.createdAt)
+  const stamp = Number.isFinite(createdAt) && createdAt > 0 ? createdAt : (record.events[0]?.ts ?? touched)
   return {
     id: record.id,
     version: record.version,
     eventCount: record.events.length,
     title: sessionDisplayTitle(record),
-    updatedAt: updatedAt ?? record.events.at(-1)?.ts ?? 0,
+    updatedAt: touched,
     ...(record.project ? { project: record.project } : {}),
     ...(record.mascot ? { mascot: record.mascot } : {}),
-    ...(record.config ? { config: record.config } : {}),
+    ...(record.config || stamp
+      ? { config: { ...(record.config ?? {}), ...(stamp ? { createdAt: stamp } : {}) } }
+      : {}),
   }
 }
 

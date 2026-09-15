@@ -44,8 +44,9 @@ import { SessionInspector } from './session-inspector.tsx'
 import { SessionConfigDialog } from '@biu/web-session-view/dialog'
 import { FolderGlyph } from '@biu/web-session-view/folder-glyph'
 import { OverlayChatWindow } from './overlay-window.tsx'
-import { ShellSettingsAbout, ShellSettingsShortcuts, ShellSettingsUpdate } from './shell-chrome.tsx'
-import { ShellSearchPanel } from './shell-search.tsx'
+import { ShellSettingsAbout, ShellSettingsAccount, ShellSettingsAppearance, ShellSettingsShortcuts, ShellSettingsUpdate } from './shell-chrome.tsx'
+import { hydrateWorkspaceProfile } from '@biu/public-ui'
+import { ShellSearchPanel, isGlobalSearchHotkey } from './shell-search.tsx'
 import { useSlotEntries } from '@biu/web-slots'
 import type { SlotsService } from '@biu/web-slots'
 import { chromeIcon } from './chrome-icon.ts'
@@ -259,7 +260,7 @@ function Shell(props: SlotProps) {
   const routeView = useSessionView((state) => state.view)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<string>('plugins')
+  const [settingsTab, setSettingsTab] = useState<string>('account')
   const [configOpen, setConfigOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -337,6 +338,9 @@ function Shell(props: SlotProps) {
   )
   const openSettings = useCallback(() => setSettingsOpen(true), [])
   useEffect(() => {
+    void hydrateWorkspaceProfile()
+  }, [])
+  useEffect(() => {
     if (!settingsOpen) return
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
@@ -353,11 +357,9 @@ function Shell(props: SlotProps) {
   }, [])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing) return
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
-      if (event.key !== 'f' && event.key !== 'F') return
       const target = event.target
-      if (target instanceof Element && target.closest('.page-editor')) return
+      const inPageEditor = target instanceof Element && Boolean(target.closest('.page-editor'))
+      if (!isGlobalSearchHotkey(event, { inPageEditor })) return
       event.preventDefault()
       event.stopPropagation()
       openSearch()
@@ -851,6 +853,8 @@ function Shell(props: SlotProps) {
                 <nav className="w-40 shrink-0 border-r border-(--dsw-float-border) p-2">
                   <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
                     {[
+                      { key: 'account', label: '账户' },
+                      { key: 'appearance', label: '外观' },
                       { key: 'plugins', label: '插件' },
                       { key: 'shortcuts', label: '快捷键' },
                       { key: 'routes', label: '路由' },
@@ -871,6 +875,8 @@ function Shell(props: SlotProps) {
                   </ul>
                 </nav>
                 <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+                  {settingsTab === 'account' ? <ShellSettingsAccount /> : null}
+                  {settingsTab === 'appearance' ? <ShellSettingsAppearance /> : null}
                   {settingsTab === 'plugins' ? (
                     <section>{props.renderSlot('sidebar')}</section>
                   ) : null}

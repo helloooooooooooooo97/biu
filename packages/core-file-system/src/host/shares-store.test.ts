@@ -3,10 +3,11 @@ import assert from 'node:assert/strict'
 import { Context } from 'cordis'
 import { REQUIRED_RECORD_FIELDS, type CollectionSpec } from '@biu/type-file-system'
 import { DatabaseService } from './index.ts'
-import { SavedViewsStore } from './saved-views.ts'
-import { SharesStore } from './shares-store.ts'
+import { SavedViewsStore, viewsCollection } from './saved-views.ts'
+import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { parseSharePath } from '../share-snapshot.ts'
+import { builtinAllViewId } from '../catalog-views.ts'
 
 test('share tokens mint unique links and can set a password', () => {
   const store = new SharesStore().open(':memory:')
@@ -43,6 +44,58 @@ test('share flags persist plugin source and copy', () => {
   assert.equal(again.sharePlugins, true)
   assert.equal(again.allowCopy, false)
   assert.equal(store.list().length, 1)
+})
+
+test('deleting a record revokes its share but keeps other shares', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map([
+    ['keep', { id: 'keep', title: '留下' }],
+    ['gone', { id: 'gone', title: '删除' }],
+  ])
+  db.register({
+    id: 'notes',
+    path: '/notes',
+    schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } } },
+    records: { delete: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    remove: (query) => {
+      const ids = query.ids ?? []
+      for (const id of ids) rows.delete(id)
+      return ids
+    },
+  })
+  const viewShare = db.shares.upsert({ kind: 'view', collection: '/notes', viewId: 'all' })
+  const keepShare = db.shares.upsert({ kind: 'record', collection: '/notes', recordId: 'keep' })
+  const goneShare = db.shares.upsert({ kind: 'record', collection: '/notes', recordId: 'gone' })
+  await db.remove('/notes', { ids: ['gone'] })
+  assert.equal(db.shares.get(goneShare.token), null)
+  assert.equal(db.shares.find('record', '/notes', '', 'gone'), null)
+  assert.equal(db.shares.get(keepShare.token)?.token, keepShare.token)
+  assert.equal(db.shares.get(viewShare.token)?.token, viewShare.token)
+})
+
+test('dropping a saved view from replace revokes its share', () => {
+  const store = new SharesStore().open(':memory:')
+  const keep = store.upsert({ kind: 'view', collection: '/pages', viewId: 'keep' })
+  const gone = store.upsert({ kind: 'view', collection: '/pages', viewId: 'gone' })
+  dropSharesForRemovedViews(store, '/pages', [{ id: 'keep' }, { id: 'gone' }], [{ id: 'keep' }])
+  assert.equal(store.get(gone.token), null)
+  assert.equal(store.get(keep.token)?.token, keep.token)
+})
+
+test('deleting a saved view revokes that view share', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const views = new SavedViewsStore().open(':memory:')
+  db.register(viewsCollection(views, () => [{ id: 'pages', path: '/pages', kind: 'collection' as const, label: '页面', view: null }]))
+  const created = views.create({ title: '看板', tablePath: '/pages', mode: 'board' }, [{ id: 'pages', path: '/pages', kind: 'collection', label: '页面', view: null }])
+  const viewId = String(created.viewId)
+  const share = db.shares.upsert({ kind: 'view', collection: '/pages', viewId })
+  await db.remove('/views', { ids: [String(created.id)] })
+  assert.equal(db.shares.get(share.token), null)
+  assert.equal(db.shares.find('view', '/pages', viewId, ''), null)
 })
 
 test('list returns every share', () => {
@@ -116,4 +169,64 @@ test('snapshot lists page plugins even when source zip is off', async () => {
   const snap = await buildShareSnapshot(db, views, share)
   assert.equal(snap.sharePlugins, false)
   assert.deepEqual(snap.pluginIds, ['page-html-blocks'])
+})
+
+test('session snapshot uses db_content events, not page markdown', async () => {
+  const events = [
+    { type: 'user/message', text: 'hi', seq: 0, ts: 1, turn: 1, kind: 'user' },
+    { type: 'assistant/message', text: 'hello', seq: 1, ts: 2, turn: 1 },
+  ]
+  const spec: CollectionSpec = {
+    id: 'sessions',
+    path: '/sessions',
+    label: '会话',
+    schema: {
+      labelField: 'title',
+      contentField: 'events',
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+        events: { type: 'file', writable: false },
+      },
+    },
+    records: {},
+    list: () => [{ id: 's1', title: '对话' }],
+    get: async (id) => (id === 's1' ? { id: 's1', title: '对话', events } : null),
+  }
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.register(spec)
+  const views = new SavedViewsStore().open(':memory:')
+  const shares = new SharesStore().open(':memory:')
+  const share = shares.upsert({ kind: 'record', collection: '/sessions', recordId: 's1' })
+  const snap = await buildShareSnapshot(db, views, share)
+  assert.equal(snap.contents.s1, events)
+  assert.equal(snap.schema.contentField, 'events')
+})
+
+test('builtin view snapshot titles use 全部 plus the collection label', async () => {
+  const spec: CollectionSpec = {
+    id: 'pages',
+    path: '/pages',
+    label: '页面',
+    view: { title: '页面', route: '/pages' },
+    schema: {
+      labelField: 'title',
+      contentField: 'notes',
+      fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true }, notes: { type: 'file', writable: true } },
+    },
+    records: {},
+    list: () => [{ id: 'p1', title: '首页', notes: '' }],
+    get: (id) => (id === 'p1' ? { id: 'p1', title: '首页', notes: '' } : null),
+  }
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.register(spec)
+  const views = new SavedViewsStore().open(':memory:')
+  const shares = new SharesStore().open(':memory:')
+  const share = shares.upsert({ kind: 'view', collection: '/pages', viewId: builtinAllViewId('/pages') })
+  const snap = await buildShareSnapshot(db, views, share)
+  assert.equal(snap.title, '全部页面')
+  assert.equal(snap.collectionLabel, '页面')
+  assert.equal(snap.view?.name, '全部页面')
 })

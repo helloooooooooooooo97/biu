@@ -45,7 +45,7 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
         '创建可用 db_create /skills，目录导入用 db_action path=/skills/<id> action=import。' +
         '双向同步用 sync-from-directory（文件夹到 Page）与 sync-to-directory（Page 写回文件夹）；双方都修改时会拒绝覆盖。',
       order: 50,
-      icon: 'document',
+      icon: 'academic-cap',
     },
     records: { update: true, create: true, delete: true },
     schema: {

@@ -372,7 +372,7 @@ export const SessionInspector = memo(function SessionInspector({
 
   return (
     <aside
-      className={`session-inspector relative flex min-h-0 min-w-0 flex-col bg-(--dsw-sidebar) text-(--dsw-label)${open ? '' : ' is-closed'}`}
+      className={`session-inspector relative flex min-h-0 min-w-0 flex-col bg-(--dsw-bg) text-(--dsw-label)${open ? '' : ' is-closed'}`}
       data-testid="session-inspector"
       aria-label="会话检查器"
       aria-hidden={!open}

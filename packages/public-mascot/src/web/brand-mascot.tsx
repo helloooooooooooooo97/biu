@@ -1,5 +1,5 @@
 import { isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
-import { HeadlessDismiss } from '@biu/public-ui'
+import { HeadlessDismiss, useWorkspaceProfile } from '@biu/public-ui'
 import { SidebarMascot } from './sidebar-mascot.tsx'
 import { resolveSessionMascot } from './session-mascot.ts'
 
@@ -47,9 +47,24 @@ export function BrandMascot({ className, size = 28 }: { className?: string; size
 }
 
 export function SidebarBrandLockup() {
+  const profile = useWorkspaceProfile()
+  const name = profile.name.trim()
+  const avatar = profile.avatar.trim()
   return (
-    <span className="sidebar-brand-lockup" data-testid="sidebar-brand-lockup" aria-hidden>
-      <BrandMascot className="sidebar-brand-mascot" size={22} />
+    <span
+      className={`sidebar-brand-lockup${avatar ? ' has-avatar' : ''}${name ? ' has-name' : ''}`}
+      data-testid="sidebar-brand-lockup"
+    >
+      {avatar ? (
+        <img className="sidebar-brand-avatar" src={avatar} alt="" data-testid="sidebar-brand-avatar" />
+      ) : (
+        <BrandMascot className="sidebar-brand-mascot" size={22} />
+      )}
+      {name ? (
+        <span className="sidebar-brand-name" data-testid="sidebar-brand-name">
+          {name}
+        </span>
+      ) : null}
     </span>
   )
 }

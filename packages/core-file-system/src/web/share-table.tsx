@@ -7,7 +7,7 @@ import { SchemaChips } from './schema-field.tsx'
 import { loadFacets } from './facet-catalog.ts'
 import { RecordMark } from './record-mark.tsx'
 import { crumbRecordLabel } from './sidebar-preview.ts'
-import { colWidthStyle, tableWidthStyle, type SavedView } from './saved-view.ts'
+import type { SavedView } from './saved-view.ts'
 
 export function shareTableColumns(schema: CollectionSchema, view?: Partial<SavedView>, visibleKeys?: string[]) {
   const body = contentFieldKey(schema)
@@ -78,6 +78,7 @@ export function ShareListTable({
   columns,
   wrap,
   truncate,
+  queryFields,
 }: {
   schema: CollectionSchema
   view?: Partial<SavedView>
@@ -88,26 +89,26 @@ export function ShareListTable({
   columns?: string[]
   wrap?: boolean
   truncate?: boolean
+  queryFields?: Set<string>
 }) {
   ensureTagChipStyle()
   const listed = shareTableColumns(schema, view, columns)
   const labelKey = schema.labelField
-  const widths = view?.columnWidths ?? {}
   const wrapCells = wrap ?? Boolean(view?.wrap)
   const truncateCells = truncate ?? view?.truncate !== false
-  const hasColWidths = Object.keys(widths).length > 0
 
   return (
     <div className="tasks-table-wrap">
+      <div className="tasks-table-stage">
+        <div className="fsdb-check-rail" aria-hidden />
       <table
-        className={`tasks-table${wrapCells ? ' is-wrap' : ''}${truncateCells ? ' is-truncate' : ''}${hasColWidths ? ' is-cols-fixed' : ''}`}
-        style={tableWidthStyle(widths, listed.map((col) => col.key))}
+        className={`tasks-table${wrapCells ? ' is-wrap' : ''}${truncateCells ? ' is-truncate' : ''}`}
       >
         <thead>
           <tr>
             {listed.map((col) => (
-              <th key={col.key} style={colWidthStyle(widths[col.key])}>
-                <span className="tasks-th">
+              <th key={col.key}>
+                <span className={`tasks-th${queryFields?.has(col.key) ? ' is-on' : ''}`}>
                   <FieldGlyph kind={col.kind} />
                   {String(col.field.label ?? col.key)}
                 </span>
@@ -131,7 +132,7 @@ export function ShareListTable({
                   />
                 )
                 return (
-                  <td key={col.key} style={colWidthStyle(widths[col.key])}>
+                  <td key={col.key}>
                     {col.key === labelKey ? (
                       <span className="fsdb-title-host">
                         <RecordMark record={row} Icon={chrome?.Icon} />
@@ -149,6 +150,7 @@ export function ShareListTable({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

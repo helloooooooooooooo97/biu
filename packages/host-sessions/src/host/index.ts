@@ -312,14 +312,16 @@ export class SessionsService extends Service {
     const used = await this.collectUsedMascots()
     const mascot = pickSessionMascot(id, used)
     const title = opts.title?.trim() || nameFromSessionMascot(mascot)
+    const now = Date.now()
     const seeded = normalizeSessionConfig({
       ...(opts.config ?? {}),
       title,
+      createdAt: Number(opts.config?.createdAt) > 0 ? opts.config.createdAt : now,
     })
     const record: SessionRecord = {
       id,
       version: SESSION_FORMAT_VERSION,
-      events: [{ type: 'session/open', version: SESSION_FORMAT_VERSION, seq: 0, ts: Date.now() }],
+      events: [{ type: 'session/open', version: SESSION_FORMAT_VERSION, seq: 0, ts: now }],
       mascot,
       ...(seeded ? { config: seeded } : {}),
     }
@@ -504,6 +506,7 @@ export class SessionsService extends Service {
       config: normalizeSessionConfig({
         ...sourceConfig,
         title: nameFromSessionMascot(mascot),
+        createdAt: Date.now(),
       }),
     }
     await this.persist(record)

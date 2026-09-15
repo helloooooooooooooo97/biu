@@ -162,7 +162,7 @@ const SessionRow = memo(function SessionRow({
           onPin(item)
         }}
       >
-        <StarIcon className={chromeIconClass(pinned ? 'text-[#f5b700]' : undefined)} />
+        <StarIcon {...chromeIcon} />
       </button>
     </div>
   )
@@ -325,15 +325,21 @@ export const ChatSidebar = memo(function ChatSidebar({
                 <section key={section.kind} className="min-w-0">
                   {/* 板块标题：收藏 / (项目|标签)，可点击整行展开/收缩；层级靠 kind 图标表达；悬浮时右侧露出分组切换 tab */}
                   <div className="sidebar-section-head min-w-0">
-                    <div className="flex min-w-0 min-h-8 flex-1 items-center">
                       <button
                         type="button"
-                        className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
+                        className="flex h-full min-h-8 min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
                         aria-expanded={!sectionCollapsed}
                         onClick={() => toggleSection(section.kind)}
                       >
                         <span className="sidebar-label min-w-0 flex-1 truncate tracking-normal">{section.label}</span>
                       </button>
+                    <ChatCount
+                      count={
+                        section.sessions
+                          ? section.sessions.length
+                          : section.groups?.reduce((sum, g) => sum + g.sessions.length, 0) ?? 0
+                      }
+                    />
                       {section.kind !== 'pinned' ? (
                         <div
                           className="sidebar-view-switch"
@@ -360,14 +366,6 @@ export const ChatSidebar = memo(function ChatSidebar({
                           </button>
                         </div>
                       ) : null}
-                    </div>
-                    <ChatCount
-                      count={
-                        section.sessions
-                          ? section.sessions.length
-                          : section.groups?.reduce((sum, g) => sum + g.sessions.length, 0) ?? 0
-                      }
-                    />
                   </div>
 
                   <SidebarFold open={!sectionCollapsed}>
@@ -409,7 +407,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                                   <span className="sidebar-rail-icon sidebar-group-fold" aria-hidden>
                                     <span className="sidebar-group-fold-face">
                                       {group.kind === 'pinned' ? (
-                                        <StarIcon className={chromeIconClass('text-[#f5b700]')} />
+                                        <StarIcon {...chromeIcon} />
                                       ) : group.key === UNGROUPED_PROJECT_KEY ? (
                                         <FolderMinusIcon className={chromeIconClass('opacity-80')} />
                                       ) : group.key === UNGROUPED_TAG_KEY ? (
@@ -429,6 +427,8 @@ export const ChatSidebar = memo(function ChatSidebar({
                                     </span>
                                   </span>
                                   <span className="sidebar-label min-w-0 flex-1 truncate">{group.label}</span>
+                                </div>
+                                <ChatCount count={group.sessions.length} />
                                   {canAddHere ? (
                                     <button
                                       type="button"
@@ -445,8 +445,6 @@ export const ChatSidebar = memo(function ChatSidebar({
                                       <PlusIcon {...chromeIcon} />
                                     </button>
                                   ) : null}
-                                </div>
-                                <ChatCount count={group.sessions.length} />
                               </div>
                               <SidebarFold open={!collapsed} className="sidebar-session-list min-w-0">
                                 {group.sessions.map((item) => (
