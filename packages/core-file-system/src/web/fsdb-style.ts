@@ -674,6 +674,7 @@ html.share .fsdb-share-page .tasks-toolbar-left{flex:0 0 0;min-width:0;width:0;o
 .fsdb-share-list{min-height:0;padding:24px 80px}
 .fsdb-share-page .fsdb-share-list .tasks-table,.fsdb-share-list .tasks-table{width:max-content;min-width:100%}
 .fsdb-share-list tr{cursor:pointer}
+.fsdb-share-page .tasks-table tr{cursor:pointer}
 .fsdb-share-gate{margin:auto;text-align:center}
 `
 
