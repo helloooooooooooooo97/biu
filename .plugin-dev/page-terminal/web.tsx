@@ -127,6 +127,16 @@ function attachScrollRail(term: Terminal, pane: HTMLElement) {
   rail.appendChild(thumb)
   pane.appendChild(rail)
 
+  // 右缘感应带。滑轨隐藏时 pointer-events:none，只有靠它才能把滑轨唤出来。
+  const hotspot = document.createElement('div')
+  hotspot.className = 'pt-rail-hotspot'
+  hotspot.setAttribute('aria-hidden', 'true')
+  pane.appendChild(hotspot)
+  const onHotEnter = () => pane.classList.add('is-rail-hot')
+  const onHotLeave = () => pane.classList.remove('is-rail-hot')
+  hotspot.addEventListener('pointerenter', onHotEnter)
+  hotspot.addEventListener('pointerleave', onHotLeave)
+
   const metrics = () => {
     const buf = term.buffer.active
     const rows = Math.max(1, term.rows)
@@ -144,8 +154,34 @@ function attachScrollRail(term: Terminal, pane: HTMLElement) {
     const top = maxY === 0 ? 0 : Math.round((y / maxY) * travel)
     thumb.style.height = `${thumbH}px`
     thumb.style.transform = `translateY(${top}px)`
+    // 不满一屏：不显示滑块，也不让它吃指针事件。
     rail.classList.toggle('is-idle', maxY === 0)
+    thumb.style.opacity = maxY === 0 ? '0' : '1'
   }
+
+  // 滑动时淡入，停手 900ms 后淡出。拖拽中不淡出。
+  let fadeTimer = 0
+  const sleepNow = () => {
+    if (fadeTimer) window.clearTimeout(fadeTimer)
+    fadeTimer = 0
+    if (!dragging && !hotspot.matches(':hover') && !rail.matches(':hover')) {
+      rail.classList.remove('is-active')
+    }
+  }
+  const wake = () => {
+    rail.classList.add('is-active')
+    if (fadeTimer) window.clearTimeout(fadeTimer)
+    fadeTimer = window.setTimeout(sleepNow, 900)
+  }
+  // 鼠标移出滑轨时，如果已经过了活跃期就立刻收起来，不用等 900ms。
+  rail.addEventListener('pointerleave', () => {
+    if (!dragging && fadeTimer === 0) rail.classList.remove('is-active')
+  })
+  rail.addEventListener('pointerenter', () => {
+    if (fadeTimer) window.clearTimeout(fadeTimer)
+    fadeTimer = 0
+    rail.classList.add('is-active')
+  })
 
   let dragging = false
   let startY = 0
@@ -166,10 +202,12 @@ function attachScrollRail(term: Terminal, pane: HTMLElement) {
     startY = event.clientY
     startViewport = y
     rail.classList.add('is-dragging')
+    wake()
     thumb.setPointerCapture(event.pointerId)
   }
   const onPointerMove = (event: PointerEvent) => {
     if (!dragging) return
+    wake()
     const { rows, total, maxY } = metrics()
     if (maxY === 0) return
     const trackH = Math.max(1, rail.clientHeight)
@@ -186,27 +224,56 @@ function attachScrollRail(term: Terminal, pane: HTMLElement) {
     } catch {
       // 可能没捕获过。
     }
+    wake()
   }
+  // 滚轮绑在整个 pane 上，不只是那条 4px 宽的滑轨。
+  // 背景：canvas 渲染下 .xterm-viewport 的原生滚动不可靠（实测 clientHeight
+  // === scrollHeight，maxScroll 恒为 0），滚动必须走 xterm 的 scrollLines。
+  // xterm 的 onWheel 只认 viewport 能滚的场景，这里自己接管。
   const onWheel = (event: WheelEvent) => {
+    // 必须双向堵死，否则滚到头会把滚动"传染"给外层编辑器：
+    // preventDefault 挡浏览器默认滚动，stopPropagation 挡冒泡到祖先监听。
     event.preventDefault()
     event.stopPropagation()
-    term.scrollLines(event.deltaY > 0 ? 3 : -3)
+    const { maxY } = metrics()
+    if (maxY === 0) return
+    wake()
+    const lines =
+      event.deltaMode === 1
+        ? Math.round(event.deltaY)
+        : event.deltaMode === 2
+          ? Math.round(event.deltaY) * term.rows
+          : Math.round(event.deltaY / 18)
+    const step = Math.max(1, Math.min(12, Math.abs(lines) || 1))
+    term.scrollLines(step * (event.deltaY > 0 ? 1 : -1))
   }
 
   rail.addEventListener('pointerdown', onPointerDown)
   rail.addEventListener('pointermove', onPointerMove)
   rail.addEventListener('pointerup', onPointerUp)
   rail.addEventListener('pointercancel', onPointerUp)
-  rail.addEventListener('wheel', onWheel, { passive: false })
+  // capture 阶段抢在 xterm 自己的 wheel 处理之前，passive:false 才能 preventDefault。
+  pane.addEventListener('wheel', onWheel, { passive: false, capture: true })
 
-  const scrollSub = term.onScroll(() => sync())
-  const renderSub = term.onRender(() => sync())
+  // 只在事件到来时同步，不要开常驻 rAF：常驻循环会和 xterm 自己的刷新抢帧，
+  // 还会在布局未落定时读 rail.clientHeight（读到 0，thumb 高度塌成最小值）。
+  // scrollToLine / scrollLines 只改 buffer，不一定触发 viewport 原生 scroll 事件，
+  // 所以要额外盯 onScroll，那是 buffer 层滚动位置变化时必发的。
+  const subs = [
+    term.onScroll(() => sync()),
+    term.onRender(() => sync()),
+    term.onResize(() => sync()),
+  ]
   requestAnimationFrame(sync)
 
   return () => {
-    scrollSub.dispose()
-    renderSub.dispose()
+    if (fadeTimer) window.clearTimeout(fadeTimer)
+    pane.removeEventListener('wheel', onWheel, { capture: true } as EventListenerOptions)
+    hotspot.removeEventListener('pointerenter', onHotEnter)
+    hotspot.removeEventListener('pointerleave', onHotLeave)
+    for (const sub of subs) sub.dispose()
     rail.remove()
+    hotspot.remove()
   }
 }
 
@@ -243,11 +310,25 @@ const STYLE_CSS = `
 }
 .pt-title{color:rgba(242,241,237,.78);font-weight:600;letter-spacing:-.01em}
 .pt-history{border-bottom:1px solid rgba(255,255,255,.06);background:#161616}
-.pt-mount{position:absolute;inset:0;overflow:hidden;box-sizing:border-box}
+.pt-mount{position:absolute;inset:0;overflow:hidden;box-sizing:border-box;overscroll-behavior:contain}
 .pt-mount .xterm{
   width:100%;height:100%;
   padding:9px 8px 5px 10px;
   overflow:hidden;box-sizing:border-box;
+}
+/* 兜底：下面这两块本来由 xterm.css 提供。esbuild 把 xterm.css 的注入包在
+   if(!document.getElementById("store-css-<路径哈希>")) 里，只要 head 里残留过
+   一个同 id 的空 <style>，整段 CSS 就再也不会注入 —— 实测表现为 .xterm 退化成
+   position:static，.xterm-viewport 跟着变 static 被 .xterm-scroll-area 撑满，
+   clientHeight === scrollHeight，滚动范围恒为 0：内容一多就"溢出但滑不动"。
+   这里显式钉死，不依赖那段注入。pt-xterm-style-vN 每次覆盖，不会被残留标签挡住。 */
+.pt-pane .xterm{
+  position:relative !important;
+}
+.pt-pane .xterm .xterm-viewport{
+  position:absolute !important;
+  top:0 !important;right:0 !important;bottom:0 !important;left:0 !important;
+  cursor:default;
 }
 .pt-pane .xterm-screen { background: transparent !important; }
 .pt-pane canvas { background: transparent !important; }
@@ -269,34 +350,70 @@ const STYLE_CSS = `
   overflow-y: auto !important;
   background: transparent !important;
   scrollbar-width: none;
+  /* 别把滚动链传给外层编辑器。 */
+  overscroll-behavior: contain;
 }
 .pt-pane .xterm-viewport::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
 
+/* 覆盖式浮动滑块，仿 macOS：
+   - 平时整条不可见（opacity:0），也不吃指针事件，不挡终端选区/点击
+   - 滑动时淡入，停手 ~900ms 后淡出
+   - 轨道容器始终可见性透明，只用来定位和接事件，不画背景槽
+   注意：不要用 display:none 切换，否则 pointerdown 拖拽期间会丢事件、
+   也会让 rail.clientHeight 变 0 导致 thumb 高度算错。 */
 .pt-scroll-rail {
   position: absolute;
-  top: 8px;
-  right: 4px;
-  bottom: 8px;
-  width: 8px;
+  top: 4px;
+  right: 3px;
+  bottom: 4px;
+  width: 6px;
   z-index: 12;
   border-radius: 999px;
-  background: rgba(242,241,237,0.10);
+  background: transparent;
+  opacity: 0;
+  transition: opacity .18s ease-out;
+  pointer-events: none;
+  /* 自身滚动不要传染给页面 */
+  overscroll-behavior: contain;
+}
+/* 滚动中 / 拖拽：淡入并接管指针事件。
+   注意别写 .pt-scroll-rail:hover —— 隐藏时 pointer-events:none，hover 永不成立，
+   那条规则是死代码。改用 pane 右侧的感应带来触发（见下）。 */
+.pt-scroll-rail.is-active,
+.pt-scroll-rail.is-dragging,
+.pt-pane.is-rail-hot .pt-scroll-rail {
+  opacity: 1;
   pointer-events: auto;
+}
+/* pane 右缘 16px 宽的透明感应带：鼠标靠近才让滑轨显形。 */
+.pt-rail-hotspot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  z-index: 11;
+  pointer-events: auto;
+}
+/* 内容不满一屏：彻底不出现、不占事件（thumb 由 JS 隐藏）。 */
+.pt-scroll-rail.is-idle {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 .pt-scroll-thumb {
   position: absolute;
-  left: 0;
-  width: 8px;
+  left: 1px;
+  width: 4px;
   border-radius: 999px;
-  background: rgba(242,241,237,0.42);
+  background: rgba(242,241,237,0.34);
   cursor: pointer;
+  transition: background .12s ease-out;
 }
-.pt-scroll-thumb:hover,
+.pt-scroll-rail:hover .pt-scroll-thumb {
+  background: rgba(242,241,237,0.5);
+}
 .pt-scroll-rail.is-dragging .pt-scroll-thumb {
-  background: rgba(242,241,237,0.62);
-}
-.pt-scroll-rail.is-idle .pt-scroll-thumb {
-  background: rgba(242,241,237,0.28);
+  background: rgba(242,241,237,0.72);
 }
 
 .pt-history-out {
@@ -621,7 +738,10 @@ function TerminalSurface({
         boxSizing: 'border-box',
         overflow: 'hidden',
         background: '#191919',
-        contain: 'strict',
+        // 不能用 contain:strict：它会让 .xterm-viewport 的 offsetParent 变 null，
+        // xterm 的 _handleScroll 里 `if (!viewportElement.offsetParent) return`
+        // 会直接吞掉滚动事件，buffer.viewportY 再也不更新 → 内容一多就「溢出但滚不动」。
+        contain: 'layout paint',
       }}
     >
       <div ref={mount} className="pt-mount" />

@@ -50,7 +50,7 @@ export const PAGE_EDITOR_STYLE = `
 .page-editor .page-block[data-page-block=excalidraw] img{margin:0;max-width:none;height:unset;border-radius:0}
 .page-editor .page-block[data-page-block=excalidraw] svg,.page-editor .page-block[data-page-block=excalidraw] canvas{display:block;max-width:none;margin:0;border-radius:0}
 .page-editor .page-block[data-page-block=excalidraw] .welcome-screen-center{display:none}
-.page-editor .page-block[data-page-block=terminal] .pt-scroll-rail{position:absolute;top:8px;right:4px;bottom:8px;width:8px;z-index:12}
+.page-editor .page-block[data-page-block=terminal] .pt-scroll-rail{position:absolute;top:4px;right:3px;bottom:4px;width:6px;z-index:12}
 .page-editor .tiptap table{width:100%;margin:8px 0;border-collapse:collapse;table-layout:fixed}
 .page-editor .tiptap th,.page-editor .tiptap td{border:1px solid var(--dsw-border);padding:6px 8px;vertical-align:top}
 .page-editor .tiptap th{background:var(--dsw-hover);font-weight:650;text-align:left}

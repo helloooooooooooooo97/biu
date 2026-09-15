@@ -83,5 +83,8 @@ xterm 在编辑器容器里跑，比独立页面麻烦得多：
 6. **不要往 PTY 写清屏序列** —— shell 开着 echo，会被原样回显成 `^[[2J` 乱码。清屏用前端 `term.reset()`。
 7. **向 head 注入 `<style>` 不要写「已存在同 id 就 return」** —— 旧版本留下的同 id 标签会一直挡着，新样式永远不生效。每次覆盖内容，并清理旧标签。
 8. **改完代码要 pack + 重载** —— 宿主不会自动重新 import 已挂载的插件。
-9. **可见纵向滑块不能靠 viewport 原生条** —— `.xterm-screen` 的 canvas 盖住滚动条。滚轮仍走 viewport；右侧 `.pt-scroll-rail` 是叠在 canvas 上的自定义滑块，跟 `buffer.viewportY` 同步。
-10. **不要用 term.clear() 清启动空行** —— 中间试过，会把提示符一起清掉。最终版（5456764d）是：padding 打在 `.xterm` 上让 FitAddon 扣掉；宿主 `contain:strict` + 内层 `inset:0`；**看不见就不 open**。把手对齐时 overflow 收到了 `[data-page-block]`，TipTap 外层 `react-renderer` 不再裁切，FitAddon 会按被撑高的 CSS height 多算行。外壳要自己 overflow:hidden；行数按 **getBoundingClientRect** 算，写完滚到底。
+9. **可见纵向滑块不能靠 viewport 原生条** —— `.xterm-screen` 的 canvas 盖住滚动条。右侧 `.pt-scroll-rail` 是叠在 canvas 上的自定义滑块，跟 `buffer.viewportY` 同步；平时 `opacity:0` + `pointer-events:none`，只在滚动/拖拽/鼠标靠近右缘 16px 感应带（`.pt-rail-hotspot`）时淡入，停手 900ms 淡出。
+10. **不要用 term.clear() 清启动空行** —— 中间试过，会把提示符一起清掉。最终版（5456764d）是：padding 打在 `.xterm` 上让 FitAddon 扣掉；宿主 `contain:layout paint` + 内层 `inset:0`（**不能用 `contain:strict`**：`size` 会让 `.xterm-viewport` 的 `offsetParent` 变 null，xterm 的 `_handleScroll` 里 `if (!viewportElement.offsetParent) return` 会直接吞掉滚动事件）；**看不见就不 open**。把手对齐时 overflow 收到了 `[data-page-block]`，TipTap 外层 `react-renderer` 不再裁切，FitAddon 会按被撑高的 CSS height 多算行。外壳要自己 overflow:hidden；行数按 **getBoundingClientRect** 算，写完滚到底。
+11. **滚动必须走 `term.scrollLines()`，别指望 viewport 原生滚动** —— canvas 渲染下实测 `.xterm-viewport` 的 `clientHeight === scrollHeight`、`maxScroll` 恒为 0，原生滚动根本不成立。滚轮监听挂在 `.pt-pane` 上（capture + `passive:false`），`preventDefault()` + `stopPropagation()` 双管，配合 `overscroll-behavior:contain`，否则滚到头会把滚动链传给外层编辑器。
+12. **`.xterm` 的 `position:relative` 要自己钉死** —— esbuild 把 xterm.css 的注入包在 `if(!document.getElementById("store-css-<路径哈希>"))` 里，head 里残留过同 id 的空 `<style>` 就再也不会注入。后果是 `.xterm` 退化成 `static`，`.xterm .xterm-viewport{position:absolute;top:0;bottom:0}` 整条落空，viewport 被 `.xterm-scroll-area` 撑满 → 滚动范围恒为 0，内容一多就"溢出但滑不动"。插件 CSS 里显式兜底，不依赖那段注入。
+13. **别写 `.pt-scroll-rail:hover` 来控制显隐** —— 隐藏时 `pointer-events:none`，hover 永不成立，是死代码。要用 pane 右缘的感应带触发。
