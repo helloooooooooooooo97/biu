@@ -327,6 +327,15 @@ export function apply(ctx: Context) {
     }
   })
 
+  ctx.http.route('POST', '/api/skills/rescan', async (route) => {
+    try {
+      const migrated = await skills.migrateLegacyDirectories()
+      route.send(200, { ok: true, imported: migrated })
+    } catch (error) {
+      route.send(400, { ok: false, error: String(error instanceof Error ? error.message : error) })
+    }
+  })
+
   // Core Page 在插件清单中可能晚于 Skills 挂载；让本轮插件装载完成后再迁移。
   const migrationTimer = setTimeout(() => {
     void skills.migrateLegacyDirectories()

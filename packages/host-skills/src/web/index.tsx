@@ -22,6 +22,7 @@ export function SkillsContent({ record }: FsContentProps) {
 function SkillsLibraryView({ rows, onOpen }: FsViewProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const [scanning, setScanning] = useState(false)
   const [message, setMessage] = useState('')
 
   const chooseDirectory = () => {
@@ -60,6 +61,22 @@ function SkillsLibraryView({ rows, onOpen }: FsViewProps) {
     }
   }
 
+  const rescan = async () => {
+    setScanning(true)
+    setMessage('')
+    try {
+      const response = await fetch('/api/skills/rescan', { method: 'POST' })
+      const body = await response.json() as { ok?: boolean; imported?: number; error?: string }
+      if (!response.ok || !body.ok) throw new Error(body.error || `HTTP ${response.status}`)
+      setMessage(body.imported ? `发现 ${body.imported} 个新 Skill，正在刷新…` : '没有发现新的 Skill')
+      if (body.imported) window.location.reload()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+    } finally {
+      setScanning(false)
+    }
+  }
+
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -69,9 +86,14 @@ function SkillsLibraryView({ rows, onOpen }: FsViewProps) {
             Skill 内容存储为 Page 树；标准目录仅在导入时解析。
           </p>
         </div>
-        <button type="button" disabled={busy} onClick={chooseDirectory}>
-          {busy ? '导入中…' : '导入 Skill 目录'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button type="button" disabled={busy || scanning} onClick={() => void rescan()}>
+            {scanning ? '扫描中…' : '扫描本地'}
+          </button>
+          <button type="button" disabled={busy || scanning} onClick={chooseDirectory}>
+            {busy ? '导入中…' : '导入 Skill 目录'}
+          </button>
+        </div>
         <input ref={inputRef} type="file" multiple hidden onChange={importDirectory} />
       </div>
       {message ? <p style={{ margin: 0, color: 'var(--dsw-label-2)', fontSize: 13 }}>{message}</p> : null}

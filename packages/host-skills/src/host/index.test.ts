@@ -93,11 +93,11 @@ class FakeHttp extends Service {
 async function boot() {
   const ctx = new Context()
   const database = new FakeDatabase(ctx)
-  new FakeHttp(ctx)
+  const http = new FakeHttp(ctx)
   await ctx.plugin(tools)
   await ctx.plugin(systemPrompt)
   await ctx.plugin(skills)
-  return { ctx, database }
+  return { ctx, database, http }
 }
 
 const fixture = {
@@ -256,6 +256,22 @@ test('startup migrates legacy .biu/skills directories once', async () => {
   const pageCount = first.database.pages.size
   await first.ctx.skills.migrateLegacyDirectories()
   assert.equal(first.database.pages.size, pageCount)
+})
+
+test('runtime rescan discovers a Skill directory added after startup', async () => {
+  const { ctx, http } = await boot()
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  assert.ok(http.routes.has('POST /api/skills/rescan'))
+
+  const legacy = join(process.env.BIU_SKILLS_DIR!, 'late-skill')
+  mkdirSync(legacy, { recursive: true })
+  writeFileSync(
+    join(legacy, 'SKILL.md'),
+    '---\nname: Late Skill\ndescription: 运行期间新增\n---\n\n新增正文',
+  )
+
+  assert.equal(await ctx.skills.migrateLegacyDirectories(), 1)
+  assert.equal(new SkillRegistry().get('late-skill')?.name, 'Late Skill')
 })
 
 test('explicit sync moves changes both ways and rejects concurrent edits', async () => {
