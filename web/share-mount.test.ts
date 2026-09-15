@@ -14,6 +14,7 @@ test('share hrefs skip the full workstation boot', () => {
 test('share mount loads page plugins without booting the workstation', () => {
   const mount = readFileSync(resolve(import.meta.dirname, './share-mount.tsx'), 'utf8')
   assert.match(mount, /PageEditor/)
+  assert.match(mount, /applyStoredTheme/)
   assert.match(mount, /bootShareRuntime/)
   assert.match(mount, /loadSharePagePlugins/)
   const plugins = readFileSync(resolve(import.meta.dirname, './share-plugins.ts'), 'utf8')

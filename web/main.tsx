@@ -1,8 +1,11 @@
 import { Context } from 'cordis'
 import './types.ts'
 import './style.css'
+import { applyStoredTheme } from '@biu/web-app-shell/theme'
 import { webRuntimeLoaders } from 'virtual:cordis-web-runtime'
 import { isShareHref, mountShareApp } from './share-mount.tsx'
+
+applyStoredTheme()
 
 const el = document.querySelector<HTMLElement>('#app')
 if (!el) throw new Error('#app missing')

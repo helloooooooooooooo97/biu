@@ -62,6 +62,39 @@
   --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Consolas, monospace;
 }
 
+/* Night chrome — previous default: canvas #191919, rails #202020 */
+html.dark {
+  color-scheme: dark;
+  --dsw-bg: #191919;
+  --dsw-sidebar: #202020;
+  --dsw-label: #f0efed;
+  --dsw-label-2: rgba(242, 241, 237, 0.72);
+  --dsw-label-3: rgba(242, 241, 237, 0.45);
+  --dsw-placeholder: #5F5F5A;
+  --dsw-border: rgba(242, 241, 237, 0.1);
+  --dsw-bubble: #262626;
+  --dsw-business: #f2f1ed;
+  --dsw-business-soft: rgba(242, 241, 237, 0.1);
+  --dsw-input: var(--dsw-bg);
+  --dsw-tool: var(--dsw-bg);
+  --dsw-surface: var(--dsw-bg);
+  --dsw-danger: #cf2d56;
+  --dsw-danger-soft: rgba(207, 45, 86, 0.14);
+  --dsw-ok: #1f8a65;
+  --dsw-pick: #5b9fd6;
+  --dsw-pick-fill: color-mix(in srgb, #5b9fd6 22%, transparent);
+  --dsw-pick-stroke: color-mix(in srgb, #5b9fd6 40%, transparent);
+  --dsw-hover: #2c2c2c;
+  --dsw-hover-strong: #2c2c2c;
+  --dsw-sidebar-fg: #bcbab6;
+  --dsw-sidebar-fg-active: #f0efed;
+  --dsw-muted-fill: rgba(242, 241, 237, 0.04);
+  --dsw-overlay: rgba(25, 25, 25, 0.72);
+  --dsw-float: #202020;
+  --dsw-float-border: #383836;
+  --dsw-shadow-lv2: 0 0 0 1px rgba(242, 241, 237, 0.06), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
 @theme {
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
