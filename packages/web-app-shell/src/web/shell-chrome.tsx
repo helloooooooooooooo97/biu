@@ -14,6 +14,42 @@ import { setChatOverlay } from './chat-overlay.ts'
 import { chromeIcon } from './chrome-icon.ts'
 import { applyNoticeClick, noticeIdOf } from './notice-open.ts'
 import { readMainDataRoute } from '@biu/core-file-system/main-data-route'
+import { persistTheme, readTheme, type ThemeMode } from './theme.ts'
+
+export function ShellSettingsAppearance() {
+  const [theme, setTheme] = useState(readTheme)
+
+  const pick = (next: ThemeMode) => {
+    persistTheme(next)
+    setTheme(next)
+  }
+
+  return (
+    <section data-testid="settings-appearance">
+      <p className="settings-muted m-0 px-2 pb-2">界面颜色。日间是当前浅色，夜间是原来的深色主题。</p>
+      <div className="flex flex-col gap-0.5 px-0">
+        <button
+          type="button"
+          className={`settings-nav-btn${theme === 'light' ? ' is-on' : ' settings-muted'}`}
+          aria-pressed={theme === 'light'}
+          data-testid="settings-theme-light"
+          onClick={() => pick('light')}
+        >
+          日间模式
+        </button>
+        <button
+          type="button"
+          className={`settings-nav-btn${theme === 'dark' ? ' is-on' : ' settings-muted'}`}
+          aria-pressed={theme === 'dark'}
+          data-testid="settings-theme-dark"
+          onClick={() => pick('dark')}
+        >
+          夜间模式
+        </button>
+      </div>
+    </section>
+  )
+}
 
 export function ShellSettingsAbout() {
   return (
