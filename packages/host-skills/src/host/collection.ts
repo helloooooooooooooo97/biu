@@ -92,7 +92,7 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
         '本表动作（只对技能父行）：create=一次填好新建；enable / disable=进出清单；uninstall=删整个目录。' +
         'error 列有值说明缺 description，那一行不会被 Agent 看到。',
       order: 50,
-      icon: 'document',
+      icon: 'academic-cap',
     },
     records: { update: true, create: true, delete: true },
     schema: {
