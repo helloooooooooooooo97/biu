@@ -180,13 +180,10 @@ export function ShellSettingsAbout() {
     <section data-testid="settings-about">
       <h3 className="settings-pane-title">关于</h3>
       <p className="settings-pane-title" style={{ fontSize: 14, fontWeight: 600, margin: '18px 0 8px' }}>Biu Agent OS</p>
-      <p className="settings-muted m-0">
-        Apache License 2.0：免费使用、修改、分发与商用；贡献者授予相关专利许可。再分发须保留 LICENSE 与 NOTICE，改过的文件须标明已修改。Grok Bot 角色素材见 NOTICE.md，不在本许可内。
-      </p>
+      <p className="settings-muted m-0">Apache License 2.0。</p>
       <p className="settings-muted m-0" style={{ marginTop: 12 }}>
-        public/grok-bot/ 角色素材归 xAI，不随 Apache-2.0 授权；二次分发与商用有侵权风险。详见 NOTICE.md。
+        public/grok-bot/ 角色素材归 xAI，不随 Apache-2.0 授权。详见 NOTICE.md。
       </p>
-      <p className="settings-muted m-0" style={{ marginTop: 12 }}>此前以 MIT 或 PolyForm Noncommercial 发布的快照条款不变；本版本起适用 Apache-2.0。</p>
     </section>
   )
 }
