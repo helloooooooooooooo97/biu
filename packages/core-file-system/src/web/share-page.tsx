@@ -3,11 +3,18 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import type { FieldSpec } from '@biu/type-file-system'
 import type { CollectionChrome } from '@biu/type-file-system/ui'
 import { ArrowDownTrayIcon, CubeTransparentIcon } from '@heroicons/react/16/solid'
-import { parseSharePath, type ShareSnapshot } from '../share-snapshot.ts'
+import { parseSharePath, sharePublicPath, type ShareSnapshot } from '../share-snapshot.ts'
+import { parsePageBanner } from '../page-banner.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { formatField, defaultColumnKeys } from './fields.ts'
 import { contentToMarkdown, markdownFileName, recordToMarkdown, zipMarkdownPack } from './export-markdown.ts'
 import { ensureFsdbStyle } from './fsdb-style.ts'
+import { CrumbTrail } from './crumb-trail.tsx'
+import { buildCrumbs, type CrumbTarget } from './sidebar-nav.ts'
+import { crumbRecordLabel, recordPreviewEmoji } from './sidebar-preview.ts'
+import { PageBanner } from './page-banner.tsx'
+import { applyShareQuery, loadShareQuery, saveShareQuery, shareQueryFromView, type ShareQueryState } from './share-query.ts'
+import { ShareViewQueryBar } from './share-view-bar.tsx'
 
 function passwordKey(token: string) {
   return `fsdb.share.pw:${token}`
@@ -48,6 +55,10 @@ function rewriteAssetUrls(value: unknown, token: string, password: string): unkn
     return out
   }
   return value
+}
+
+function rewriteBanner(value: unknown, token: string, password: string) {
+  return parsePageBanner(rewriteAssetUrls(value, token, password))
 }
 
 export function ShareRoot({
@@ -149,6 +160,19 @@ function SharePage({
     }
   }, [loadPlugins, password, snapshot, token])
 
+  const [queryState, setQueryState] = useState<ShareQueryState | null>(null)
+  useEffect(() => {
+    if (!snapshot || snapshot.kind !== 'view') {
+      setQueryState(null)
+      return
+    }
+    setQueryState(loadShareQuery(token, shareQueryFromView(snapshot.view)))
+  }, [snapshot, token])
+  useEffect(() => {
+    if (!queryState || snapshot?.kind !== 'view') return
+    saveShareQuery(token, queryState)
+  }, [queryState, snapshot, token])
+
   const selected = useMemo(() => {
     if (!snapshot) return null
     if (snapshot.kind === 'record') return snapshot.records[0] ?? null
@@ -207,6 +231,9 @@ function SharePage({
   const schema = snapshot.schema
   const live = snapshot
   const columns = snapshot.view?.columns?.length ? snapshot.view.columns : defaultColumnKeys(schema, Object.keys(schema.fields))
+  const listed = snapshot.kind === 'view' && queryState
+    ? applyShareQuery(snapshot.records, schema, queryState, snapshot.contents)
+    : snapshot.records
   const shown = selected ?? (snapshot.kind === 'record' ? snapshot.records[0] : null)
   if (recordId && !shown) {
     return (
@@ -231,11 +258,42 @@ function SharePage({
     downloadShareFile(zipMarkdownPack(files), 'share.zip')
   }
 
+  function openShareTarget(target: CrumbTarget) {
+    if (target.kind === 'record') {
+      navigate(sharePublicPath(token, target.recordId))
+      return
+    }
+    navigate(sharePublicPath(token))
+  }
+
+  const tableLabel = snapshot.collection.replace(/^\//, '') || snapshot.title
+  const crumbs = snapshot.kind === 'view'
+    ? buildCrumbs({
+        collection: snapshot.collection,
+        collectionLabel: tableLabel,
+        tables: [{ path: snapshot.collection, label: tableLabel }],
+        viewId: snapshot.viewId,
+        viewName: snapshot.title,
+        views: [{ id: snapshot.viewId, name: snapshot.title }],
+        recordId: shown?.id,
+        recordLabel: shown ? crumbRecordLabel(shown, schema.labelField) : undefined,
+        records: snapshot.records.map((row) => ({
+          id: row.id,
+          label: crumbRecordLabel(row, schema.labelField),
+          emoji: recordPreviewEmoji(row),
+        })),
+      })
+    : []
+
   return (
     <div className="fsdb-share-page fsdb-page" data-testid="fsdb-share-page">
       <header className="chat-view-header">
         <div className="chat-view-header-left">
-          <span className="chat-view-project-name">{snapshot.title}</span>
+          {crumbs.length ? (
+            <CrumbTrail crumbs={crumbs} canCreateView={false} canCreateRecord={false} onPick={openShareTarget} />
+          ) : (
+            <span className="chat-view-project-name">{snapshot.title}</span>
+          )}
           <span className="fsdb-share-badge">只读</span>
         </div>
         <div className="chat-view-header-right">
@@ -302,12 +360,12 @@ function SharePage({
       <div className="fsdb-share-body">
       {shown ? (
         <RecordDetail
-          selected={shown}
+          selected={{ ...shown, banner: rewriteBanner(shown.banner, token, password) ?? shown.banner }}
           schema={schema}
           chrome={chrome}
           draft={{}}
           detailBody={rewriteAssetUrls(snapshot.contents[shown.id], token, password)}
-          labelOf={(row) => String(row.title ?? row.id)}
+          labelOf={(row) => crumbRecordLabel(row, schema.labelField)}
           renderCell={(row, key, field) => formatField(field, row[key]) || '—'}
           setDraft={() => undefined}
           writeOne={() => undefined}
@@ -316,7 +374,16 @@ function SharePage({
           readOnly
         />
       ) : (
-        <div className="fsdb-share-list">
+        <div className="tasks-main fsdb-main" data-testid="fsdb-share-list">
+          <PageBanner value={rewriteBanner(snapshot.banner, token, password)} writable={false} title={snapshot.title} />
+          {snapshot.kind === 'view' && queryState ? (
+            <ShareViewQueryBar
+              schema={schema}
+              records={snapshot.records}
+              state={queryState}
+              onChange={setQueryState}
+            />
+          ) : null}
           <table className="tasks-table">
             <thead>
               <tr>
@@ -326,11 +393,11 @@ function SharePage({
               </tr>
             </thead>
             <tbody>
-              {snapshot.records.map((row) => (
+              {listed.map((row) => (
                 <tr
                   key={row.id}
                   data-testid="fsdb-share-row"
-                  onClick={() => navigate(`/share/${encodeURIComponent(token)}/r/${encodeURIComponent(row.id)}`)}
+                  onClick={() => navigate(sharePublicPath(token, row.id))}
                 >
                   {columns.map((key) => (
                     <td key={key}>{formatField(schema.fields[key] as FieldSpec | undefined, row[key]) || '—'}</td>
@@ -339,7 +406,7 @@ function SharePage({
               ))}
             </tbody>
           </table>
-          {snapshot.records.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}
+          {listed.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}
         </div>
       )}
       </div>
