@@ -745,6 +745,15 @@ test('page collection uses a document glyph, not the table/database icon', () =>
   assert.match(glyphs, /<DocumentIcon/)
 })
 
+test('mcp collection uses a link glyph, not the events bolt', () => {
+  const glyphs = readFileSync(resolve(import.meta.dirname, './table-glyph.tsx'), 'utf8')
+  const spec = readFileSync(resolve(import.meta.dirname, '../../../host-mcp/src/host/collection.ts'), 'utf8')
+  assert.match(spec, /icon: 'link'/)
+  assert.doesNotMatch(spec, /icon: 'bolt'/)
+  assert.match(glyphs, /name === 'link' \|\| name === 'mcp'/)
+  assert.match(glyphs, /<LinkIcon/)
+})
+
 test('skill collection uses academic-cap, not the page document glyph', () => {
   const glyphs = readFileSync(resolve(import.meta.dirname, './table-glyph.tsx'), 'utf8')
   const spec = readFileSync(resolve(import.meta.dirname, '../../../host-skills/src/host/collection.ts'), 'utf8')
