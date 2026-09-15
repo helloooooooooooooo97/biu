@@ -663,8 +663,9 @@ html.share .fsdb-detail-float-nav,html.share .heading-outline-host .chat-outline
 html.share .fsdb-share-page .tasks-toolbar{justify-content:flex-end}
 html.share .fsdb-share-page .tasks-toolbar-left{flex:0 0 0;min-width:0;width:0;overflow:hidden}
 .fsdb-share-page .fsdb-right{min-height:0;flex:1}
-.fsdb-share-page .tasks-table-wrap{width:100%}
-.fsdb-share-page .tasks-table{min-width:100%;width:max-content;max-width:none}
+.fsdb-share-page .fsdb-main > :not(.fsdb-page-banner){margin-inline:auto;padding-left:80px;padding-right:80px}
+.fsdb-share-page .tasks-table-wrap{width:100%;margin-inline:auto;display:flex;justify-content:center}
+.fsdb-share-page .tasks-table{width:max-content;min-width:0;margin-inline:auto}
 .fsdb-share-page.fsdb-page{flex-direction:column;overflow:hidden}
 .fsdb-share-page .chat-view-header{flex:none}
 .fsdb-share-badge{margin-left:8px;border-radius:8px;padding:2px 8px;background:var(--dsw-hover);color:var(--dsw-label-2);font-size:11px;font-weight:700}
