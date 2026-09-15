@@ -515,8 +515,8 @@ button.fsdb-detail-title-icon:hover{background:var(--dsw-hover);color:var(--dsw-
 .fsdb-record-mark.is-lg{width:32px;height:32px}
 .fsdb-crumbs .fsdb-record-mark.is-sm,.fsdb-crumb-option .fsdb-record-mark.is-sm{width:14px;height:14px}
 .fsdb-record-mark .sidebar-mascot{display:block}
-.fsdb-detail-title{min-width:0;margin:0;color:var(--dsw-label);font-size:32px;font-weight:700;line-height:1.2}
-.fsdb-detail-title-input{display:block;width:100%;margin:0;border:0;background:transparent;color:inherit;font:inherit;font-size:inherit;font-weight:inherit;line-height:inherit;outline:none;padding:0;resize:none}
+.fsdb-detail-title{min-width:0;height:auto;max-height:none;overflow:visible;overflow-wrap:anywhere;word-break:break-word;margin:0;color:var(--dsw-label);font-size:32px;font-weight:700;line-height:1.2}
+.fsdb-detail-title-input{display:block;box-sizing:border-box;width:100%;height:auto;max-height:none;margin:0;border:0;background:transparent;color:inherit;font:inherit;font-size:inherit;font-weight:inherit;line-height:inherit;outline:none;padding:0;resize:none;overflow:hidden;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;field-sizing:content}
 .fsdb-detail-title-row .fsdb-detail-title-input{flex:none}
 .fsdb-page .tasks-icon-btn.is-danger:hover{background:color-mix(in srgb,var(--dsw-danger) 16%,transparent);color:var(--dsw-danger)}
 .fsdb-detail-id{font-size:14px;font-weight:600;font-family:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

@@ -284,7 +284,7 @@ export function RecordDetail({
                       as="textarea"
                       className="fsdb-detail-title-input"
                       value={draft[schema.labelField] ?? ''}
-                      rows={(draft[schema.labelField] ?? '').length > 48 ? 2 : 1}
+                      autoSize
                       onKeyDown={(event) => {
                         const el = event.currentTarget
                         if (!(el instanceof HTMLTextAreaElement)) return

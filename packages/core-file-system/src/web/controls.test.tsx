@@ -94,3 +94,21 @@ test('LocalText keeps keystrokes inside the field and only commits on blur', () 
   fireEvent.blur(box)
   assert.equal(committed, '新正文一二三')
 })
+
+test('LocalText autoSize grows height to scrollHeight instead of a fixed row cap', () => {
+  render(
+    <LocalText
+      as="textarea"
+      autoSize
+      className="fsdb-detail-title-input"
+      value="BIO - LINUX TOOLKIT K8S + NOTION + OFFICE"
+      onCommit={() => {}}
+    />,
+  )
+  const box = document.querySelector('.fsdb-detail-title-input') as HTMLTextAreaElement
+  assert.ok(box)
+  assert.equal(box.rows, 1)
+  Object.defineProperty(box, 'scrollHeight', { configurable: true, get: () => 96 })
+  fireEvent.change(box, { target: { value: `${box.value} extra` } })
+  assert.equal(box.style.height, '96px')
+})

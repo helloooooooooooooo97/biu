@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckCircleIcon } from '@heroicons/react/16/solid'
 import { CellMulti } from '@biu/database-ui'
@@ -169,6 +169,7 @@ export function LocalText({
   className,
   value,
   rows,
+  autoSize = false,
   placeholder,
   title,
   onCommit,
@@ -178,6 +179,7 @@ export function LocalText({
   className?: string
   value: string
   rows?: number
+  autoSize?: boolean
   placeholder?: string
   title?: string
   onCommit: (next: string) => void
@@ -186,6 +188,7 @@ export function LocalText({
   const [draft, setDraft] = useState(value)
   const draftRef = useRef(draft)
   draftRef.current = draft
+  const boxRef = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
     setDraft(value)
   }, [value])
@@ -197,6 +200,21 @@ export function LocalText({
     if (draftRef.current !== valueRef.current) onCommitRef.current(draftRef.current)
   }
   useEffect(() => () => commit(), [])
+  useLayoutEffect(() => {
+    if (!autoSize) return
+    const el = boxRef.current
+    if (!el) return
+    const fit = () => {
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    }
+    fit()
+    if (typeof ResizeObserver === 'undefined') return
+    const host = el.parentElement ?? el
+    const ro = new ResizeObserver(fit)
+    ro.observe(host)
+    return () => ro.disconnect()
+  }, [autoSize, draft])
   const shared = {
     className,
     value: draft,
@@ -206,6 +224,6 @@ export function LocalText({
     onBlur: commit,
     onKeyDown,
   }
-  if (as === 'textarea') return <textarea {...shared} rows={rows} />
+  if (as === 'textarea') return <textarea ref={boxRef} {...shared} rows={autoSize ? 1 : rows} />
   return <input {...shared} />
 }
