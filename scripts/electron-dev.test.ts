@@ -29,6 +29,8 @@ test('electron scripts compile ts and reuse busy ports', async () => {
   assert.match(main, /page-browser/)
   assert.match(main, /inspectScript/)
   assert.match(main, /__biuPickOff/)
+  assert.match(main, /cmd\.type === 'cancelInspect'/)
+  assert.match(main, /typeof off !== 'function'/)
   assert.match(main, /__biuPickRoot/)
   assert.match(main, /hitsInRect/)
   assert.match(main, /pointermove/)
@@ -41,6 +43,14 @@ test('electron scripts compile ts and reuse busy ports', async () => {
   assert.ok(openHandler)
   assert.match(openHandler, /view\.webContents\.loadURL\(url\)/)
   assert.doesNotMatch(openHandler, /openExternal/)
+
+  const preload = await readFile(resolve(import.meta.dirname, '../electron/preload.cjs'), 'utf8')
+  assert.match(preload, /cancelInspect: \(\) => cmd\(\{ type: 'cancelInspect' \}\)/)
+  const panel = await readFile(resolve(import.meta.dirname, '../.plugin-dev/page-browser/panel.tsx'), 'utf8')
+  assert.match(panel, /if \(picking\)/)
+  assert.match(panel, /api\.cancelInspect\(\)/)
+  assert.match(panel, /event\.key !== 'Escape'/)
+  assert.match(panel, /aria-pressed=\{picking\}/)
 
   const tsconfig = await readFile(resolve(import.meta.dirname, '../electron/tsconfig.json'), 'utf8')
   assert.doesNotMatch(tsconfig, /"noEmit": true/)

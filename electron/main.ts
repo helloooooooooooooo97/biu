@@ -98,6 +98,7 @@ type Cmd =
   | { type: 'visible'; visible: boolean }
   | { type: 'openExternal'; url: string }
   | { type: 'inspect'; x: number; y: number }
+  | { type: 'cancelInspect' }
   | { type: 'close' }
 
 /**
@@ -378,6 +379,22 @@ ipcMain.on('biu:browser:cmd', async (_event, cmd: Cmd) => {
   }
   if (cmd.type === 'stop') {
     wc.stop()
+    return
+  }
+  if (cmd.type === 'cancelInspect') {
+    try {
+      await wc.executeJavaScript(
+        `(() => {
+          const off = window.__biuPickOff
+          if (typeof off !== 'function') return false
+          off()
+          return true
+        })()`,
+        true,
+      )
+    } catch (error) {
+      send('biu:browser:error', { code: 0, desc: String((error as Error).message || error), url: '' })
+    }
     return
   }
   if (cmd.type === 'inspect') {
