@@ -104,6 +104,9 @@ test('page editor bridges cursor to the record title', async () => {
   assert.match(src, /SourceEditor/)
   assert.match(src, /FindBar/)
   const style = await readFile(resolve(import.meta.dirname, './style.ts'), 'utf8')
+  assert.match(style, /html:not\(\.dark\) \.page-bubble\{[^}]*box-shadow:none/)
+  assert.doesNotMatch(style, /\.page-bubble\{[^}]*0 0 0 1px color-mix/)
+  assert.match(style, /\.page-bubble button\{[^}]*color:var\(--dsw-label\)/)
   assert.match(style, /\.page-agent-edit\{[^}]*TAG_TONE_ROSE/)
   assert.match(style, /\.page-find-hit\{[^}]*TAG_TONE_ROSE/)
 
