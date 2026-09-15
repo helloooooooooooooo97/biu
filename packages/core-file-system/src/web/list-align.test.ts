@@ -213,6 +213,6 @@ test('share page portals sit above the share overlay', () => {
   assert.match(css, /z-index:360!important/)
   assert.match(css, /html\.share \.fsdb-detail-float-nav/)
   assert.doesNotMatch(css, /\.fsdb-share-page \.fsdb-main > :not\(\.fsdb-page-banner\)/)
-  assert.doesNotMatch(css, /\.fsdb-share-page \.tasks-table-wrap/)
+  assert.match(css, /\.fsdb-share-page \.tasks-table-wrap\{padding-left:80px;padding-right:80px\}/)
   assert.doesNotMatch(css, /\.fsdb-share-page \.tasks-table\{width/)
 })
