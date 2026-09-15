@@ -534,7 +534,7 @@ function SharePage({
           canNext={viewIndex >= 0 && viewIndex < listed.length - 1}
         />
       ) : (
-        <div className="tasks-main fsdb-main" data-testid="fsdb-share-list">
+        <div className="tasks-main fsdb-main fsdb-share-list" data-testid="fsdb-share-list">
           {(() => {
             const banner = rewriteBanner(snapshot.banner, token, password)
             return banner ? <PageBanner value={banner} writable={false} title={snapshot.title} /> : null

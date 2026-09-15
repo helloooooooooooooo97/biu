@@ -723,6 +723,16 @@ html.share .fsdb-detail-float-nav,html.share .heading-outline-host .chat-outline
 .fsdb-share-list tr{cursor:pointer}
 .fsdb-share-page .tasks-table tr{cursor:pointer}
 .fsdb-share-gate{margin:auto;text-align:center}
+@media (max-width:720px){
+.fsdb-share-page .fsdb-main > :not(.fsdb-page-banner),
+.fsdb-share-page .fsdb-detail-main > :not(.fsdb-page-banner){padding-left:16px;padding-right:16px}
+.fsdb-share-page:not(.is-sheet) .fsdb-main > .fsdb-detail-title-row,
+.fsdb-share-page:not(.is-sheet) .fsdb-main > .tasks-toolbar{padding-left:16px;padding-right:16px}
+.fsdb-share-list{padding:16px}
+.fsdb-share-page .fsdb-banner-story,.fsdb-share-page .fsdb-banner-title-actions{left:16px;max-width:calc(100% - 32px)}
+.fsdb-share-page .fsdb-main:not(:has(> .fsdb-page-banner)),
+.fsdb-share-page .fsdb-detail-main:not(:has(> .fsdb-page-banner)){padding-top:20px}
+}
 .fsdb-page .tasks-toolbar-right .tasks-sort-btn:not(.is-active):not(.is-custom),
 .fsdb-page .tasks-toolbar-right .tasks-refresh:not(.is-active){color:var(--dsw-icon)}
 .fsdb-page .tasks-toolbar-right .tasks-sort-btn.is-active,

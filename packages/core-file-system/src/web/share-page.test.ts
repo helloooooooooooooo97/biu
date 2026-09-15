@@ -3,6 +3,15 @@ import { resolve } from 'node:path'
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 
+test('share page uses tight side padding on small screens', () => {
+  const css = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
+  const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
+  assert.match(src, /fsdb-share-list/)
+  assert.match(css, /@media \(max-width:720px\)\{/)
+  assert.match(css, /\.fsdb-share-page \.fsdb-detail-main > :not\(\.fsdb-page-banner\)\{padding-left:16px;padding-right:16px\}/)
+  assert.match(css, /\.fsdb-share-list\{padding:16px\}/)
+})
+
 test('share header crumbs use collectionLabel not the path id', () => {
   const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
   assert.match(src, /snapshot\.collectionLabel/)
