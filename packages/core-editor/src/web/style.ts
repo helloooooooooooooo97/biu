@@ -68,7 +68,8 @@ export const PAGE_EDITOR_STYLE = `
 .page-editor .tiptap .is-empty::before{content:attr(data-placeholder);float:left;height:0;pointer-events:none;color:var(--dsw-placeholder)}
 html:not(.dark) .page-editor .tiptap p.is-editor-empty:first-child::before,
 html:not(.dark) .page-editor .tiptap .is-empty::before{color:#bcbab6}
-.page-bubble{z-index:80;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);box-shadow:var(--dsw-shadow),0 0 0 1px color-mix(in srgb,var(--dsw-border) 70%,transparent);border-radius:10px;overflow:hidden}
+.page-bubble{z-index:80;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);box-shadow:var(--dsw-shadow);border-radius:10px;overflow:hidden}
+html:not(.dark) .page-bubble{box-shadow:none}
 .page-slash{position:fixed;z-index:10000;width:240px;max-height:min(52vh,280px);padding:4px;display:flex;flex-direction:column;gap:0;overflow:hidden;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);box-shadow:var(--dsw-shadow);border-radius:8px}
 .page-slash-head,.page-slash-empty{padding:6px 8px 4px;color:var(--dsw-label-3);font-size:11px;font-weight:600}
 .page-slash-head{flex:none;padding:6px 8px 2px}
@@ -102,7 +103,7 @@ html:not(.dark) .page-editor .tiptap .is-empty::before{color:#bcbab6}
 .page-editor .page-block.page-find-hit{color:inherit;background:transparent;box-shadow:0 0 0 2px color-mix(in srgb,${TAG_TONE_ROSE} 55%,transparent)}
 .page-editor .page-block.page-find-hit.is-current{box-shadow:0 0 0 2px ${TAG_TONE_ROSE}}
 .page-bubble{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:4px;max-width:min(420px,calc(100vw - 48px))}
-.page-bubble button{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;margin:0;border:0;border-radius:6px;padding:0 7px;background:transparent;color:var(--dsw-icon);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.page-bubble button{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;margin:0;border:0;border-radius:6px;padding:0 7px;background:transparent;color:var(--dsw-label);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
 .page-bubble button:hover,.page-bubble button.is-on{background:var(--dsw-hover)}
 .page-bubble button.is-on{color:var(--dsw-business)}
 .page-bubble-chat{gap:4px;padding:0 8px}
