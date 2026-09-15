@@ -276,6 +276,8 @@ test('algorithm card drafts locally and saves on blur like html source', async (
   assert.match(src, /testId="page-algorithm-title"/)
   assert.match(src, /testId="page-algorithm-prompt"/)
   assert.match(src, /testId="page-algorithm-code"/)
+  assert.match(src, /className="pa-card"/)
+  assert.match(src, /--dsw-border/)
   assert.doesNotMatch(src, /onChange=\{\(event\) => update\(\{ title:/)
   assert.doesNotMatch(src, /onChange=\{\(event\) => update\(\{ prompt:/)
   assert.doesNotMatch(src, /onChange=\{\(event\) => update\(\{ code:/)

@@ -118,8 +118,27 @@ function buryAuxiliaryNodes(root: HTMLElement) {
   }
 }
 
-const STYLE_ID = 'pt-xterm-style-v1'
+const STYLE_ID = 'pt-xterm-style-v2'
 const STYLE_CSS = `
+.pt-card{
+  display:flex;flex-direction:column;overflow:hidden;
+  border:1px solid color-mix(in srgb, var(--dsw-border, rgba(242,241,237,0.12)) 80%, #000);
+  border-radius:12px;background:#191919;
+  box-shadow:0 1px 2px rgba(15,15,15,.08), 0 8px 24px rgba(0,0,0,.12);
+}
+.pt-head{
+  display:flex;align-items:center;gap:8px;flex:none;height:34px;padding:0 10px 0 12px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  background:#141414;color:rgba(242,241,237,.5);
+  font:12px/1 ui-sans-serif,system-ui,sans-serif;user-select:none;
+}
+.pt-dots{display:inline-flex;align-items:center;gap:6px;flex:none}
+.pt-dots i{width:8px;height:8px;border-radius:50%;display:block}
+.pt-dots .is-close{background:#ff5f57}
+.pt-dots .is-min{background:#febc2e}
+.pt-dots .is-max{background:#28c840}
+.pt-title{color:rgba(242,241,237,.78);font-weight:600;letter-spacing:-.01em}
+.pt-history{border-bottom:1px solid rgba(255,255,255,.06);background:#161616}
 .pt-pane .xterm { padding: 0 !important; height: 100%; }
 .pt-pane .xterm-viewport { background: transparent !important; }
 .pt-pane .xterm-screen { background: transparent !important; }
@@ -474,12 +493,7 @@ function HistoryPanel({
     : ''
 
   return (
-    <div
-      style={{
-        borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-        background: 'rgba(0,0,0,0.28)',
-      }}
-    >
+    <div className="pt-history">
       <div
         style={{
           display: 'flex',
@@ -626,6 +640,16 @@ function IconButton({
     >
       {children as never}
     </button>
+  )
+}
+
+function TrafficLights() {
+  return (
+    <span className="pt-dots" aria-hidden>
+      <i className="is-close" />
+      <i className="is-min" />
+      <i className="is-max" />
+    </span>
   )
 }
 
@@ -920,9 +944,8 @@ function PageTerminal({
         zoom.slotRef.current = el
       }}
       data-testid="page-terminal"
+      className="pt-card"
       style={{
-        display: 'flex',
-        flexDirection: 'column',
         ...(zoom.zoomed
           ? {
               position: 'fixed',
@@ -930,29 +953,15 @@ function PageTerminal({
               width: '100%',
               height: '100%',
               zIndex: 2147483647,
+              borderRadius: 0,
+              border: 'none',
             }
           : {}),
-        border: zoom.zoomed ? 'none' : '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-        borderRadius: zoom.zoomed ? 0 : 8,
-        overflow: 'hidden',
-        background: '#191919',
       }}
     >
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          height: 30,
-          padding: '0 8px 0 10px',
-          borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-          background: 'color-mix(in srgb, var(--dsw-label, #f0efed) 4%, transparent)',
-          color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
-          font: '11px ui-sans-serif, system-ui, sans-serif',
-          userSelect: 'none',
-        }}
-      >
-        <span style={{ flex: '0 0 auto', color: 'var(--dsw-label-2, rgba(242,241,237,0.72))' }}>终端</span>
+      <header className="pt-head">
+        <TrafficLights />
+        <span className="pt-title">终端</span>
         <span style={{ flex: 1 }} />
         <div ref={settingsWrap} style={{ position: 'relative', flex: '0 0 auto' }}>
           <IconButton label="设置" active={settingsOpen} onClick={() => setSettingsOpen((v) => !v)}>
