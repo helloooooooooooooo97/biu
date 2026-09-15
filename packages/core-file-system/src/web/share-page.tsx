@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import type { FieldSpec } from '@biu/type-file-system'
 import type { CollectionChrome } from '@biu/type-file-system/ui'
 import {
   AdjustmentsHorizontalIcon,
@@ -13,7 +12,6 @@ import { HeadlessDismiss } from '@biu/public-ui'
 import { parseSharePath, sharePublicPath, type ShareSnapshot } from '../share-snapshot.ts'
 import { parsePageBanner } from '../page-banner.ts'
 import { RecordDetail } from './record-detail.tsx'
-import { formatField, defaultColumnKeys } from './fields.ts'
 import { contentToMarkdown, markdownFileName, recordToMarkdown, zipMarkdownPack } from './export-markdown.ts'
 import { ensureFsdbStyle } from './fsdb-style.ts'
 import { CrumbTrail } from './crumb-trail.tsx'
@@ -22,6 +20,7 @@ import { crumbRecordLabel, recordPreviewEmoji } from './sidebar-preview.ts'
 import { PageBanner } from './page-banner.tsx'
 import { applyShareQuery, loadShareQuery, saveShareQuery, shareQueryFromView, type ShareQueryState } from './share-query.ts'
 import { ShareViewQueryBar } from './share-view-bar.tsx'
+import { ShareCell, ShareListTable } from './share-table.tsx'
 import { getPageWidth, persistPageWidth, subscribePageWidth } from './page-width.ts'
 
 function passwordKey(token: string) {
@@ -242,7 +241,6 @@ function SharePage({
 
   const schema = snapshot.schema
   const live = snapshot
-  const columns = snapshot.view?.columns?.length ? snapshot.view.columns : defaultColumnKeys(schema, Object.keys(schema.fields))
   const listed = snapshot.kind === 'view' && queryState
     ? applyShareQuery(snapshot.records, schema, queryState, snapshot.contents)
     : snapshot.records
@@ -428,7 +426,17 @@ function SharePage({
           draft={{}}
           detailBody={rewriteAssetUrls(snapshot.contents[shown.id], token, password)}
           labelOf={(row) => crumbRecordLabel(row, schema.labelField)}
-          renderCell={(row, key, field) => formatField(field, row[key]) || '—'}
+          renderCell={(row, key, field) => (
+            <ShareCell
+              row={row}
+              fieldKey={key}
+              field={field}
+              records={listed}
+              collection={snapshot.collection}
+              schema={schema}
+              chrome={chrome}
+            />
+          )}
           setDraft={() => undefined}
           writeOne={() => undefined}
           writePatch={() => undefined}
@@ -465,30 +473,14 @@ function SharePage({
               onChange={setQueryState}
             />
           ) : null}
-          <div className="tasks-table-wrap">
-          <table className="tasks-table">
-            <thead>
-              <tr>
-                {columns.map((key) => (
-                  <th key={key}>{String(schema.fields[key]?.label ?? key)}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {listed.map((row) => (
-                <tr
-                  key={row.id}
-                  data-testid="fsdb-share-row"
-                  onClick={() => navigate(sharePublicPath(token, row.id))}
-                >
-                  {columns.map((key) => (
-                    <td key={key}>{formatField(schema.fields[key] as FieldSpec | undefined, row[key]) || '—'}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
+          <ShareListTable
+            schema={schema}
+            view={snapshot.view}
+            records={listed}
+            collection={snapshot.collection}
+            chrome={chrome}
+            onOpen={(id) => navigate(sharePublicPath(token, id))}
+          />
           {listed.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}
         </div>
       )}
