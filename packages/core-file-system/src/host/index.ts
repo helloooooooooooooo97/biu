@@ -308,7 +308,8 @@ function coerce(field: FieldSpec, value: unknown) {
     return list.length === 1 ? list[0] : list
   }
   if (kind === 'file') {
-    if (value == null || value === '') return null
+    if (value == null) return null
+    if (value === '') return ''
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
     if (typeof value === 'object') return value
     throw new Error('expected file')
