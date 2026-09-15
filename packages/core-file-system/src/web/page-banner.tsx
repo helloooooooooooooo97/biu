@@ -169,15 +169,6 @@ export function PageBanner({
           <div className="fsdb-banner-story-note">{story.note}</div>
         </div>
       ) : null}
-      {writable && onChange ? (
-        <BannerTitleActions
-          value={value}
-          writable
-          path={path}
-          title={title}
-          onChange={onChange}
-        />
-      ) : null}
     </div>
   )
 }

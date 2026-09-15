@@ -14,7 +14,7 @@ import { FACETS_COLLECTION_PATH } from './database-path.ts'
 import { normalizeRecordEmoji, recordPreviewEmoji } from './sidebar-preview.ts'
 import { FOCUS_RECORD_CONTENT, FOCUS_RECORD_TITLE, shouldLeaveContentForTitle, shouldLeaveTitleForContent, focusRecordTitleNear } from './title-content-nav.ts'
 import { HeadingOutline } from './heading-outline.tsx'
-import { PageBanner } from './page-banner.tsx'
+import { PageBanner, BannerTitleActions } from './page-banner.tsx'
 
 function DetailTitleIcon({
   emoji,
@@ -43,10 +43,10 @@ function DetailTitleIcon({
             <span className="fsdb-record-emoji">{emoji}</span>
           ) : Icon ? (
             <span className="fsdb-record-mark is-lg">
-              <Icon record={record} />
+              <Icon record={record} size={64} />
             </span>
           ) : (
-            <TableGlyph icon={tableIcon} className="size-8" />
+            <TableGlyph icon={tableIcon} className="size-16" />
           )}
         </span>
       </span>
@@ -75,10 +75,10 @@ function DetailTitleIcon({
           <span className="fsdb-record-emoji">{emoji}</span>
         ) : Icon ? (
           <span className="fsdb-record-mark is-lg">
-            <Icon record={record} />
+            <Icon record={record} size={64} />
           </span>
         ) : (
-          <TableGlyph icon={tableIcon} className="size-8" />
+          <TableGlyph icon={tableIcon} className="size-16" />
         )}
       </button>
       {open && anchor ? (
@@ -277,6 +277,19 @@ export function RecordDetail({
                   }}
                   locked={readOnly}
                 />
+                {!readOnly ? (
+                  <BannerTitleActions
+                    value={selected.banner}
+                    writable
+                    path={collectionPath ? `${collectionPath}/${selected.id}` : undefined}
+                    title={labelOf(selected)}
+                    onChange={(next) => {
+                      void Promise.resolve(writePatch(selected, { banner: next })).then(() => {
+                        window.dispatchEvent(new Event('fsdb:change'))
+                      })
+                    }}
+                  />
+                ) : null}
                 </div>
                 <div className="fsdb-detail-title-row">
                 <div className="fsdb-detail-title-block">

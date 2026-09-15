@@ -565,7 +565,7 @@ function SharePage({
           })()}
           <div className="fsdb-detail-icon-slot">
             <span className="fsdb-detail-title-icon" aria-hidden>
-              <TableGlyph className="size-8" />
+              <TableGlyph className="size-16" />
             </span>
           </div>
           <div className="fsdb-detail-title-row">
