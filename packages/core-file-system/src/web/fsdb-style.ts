@@ -654,7 +654,6 @@ button.fsdb-detail-title-icon:hover{background:var(--dsw-hover);color:var(--dsw-
 .fsdb-share-stop{align-self:flex-start;background:transparent;color:var(--dsw-danger)}
 .fsdb-share-error{margin:0;color:var(--dsw-danger);font-size:12px}
 .fsdb-share-res-wrap{position:relative;display:inline-flex}
-.fsdb-share-res-count{margin-left:2px;min-width:14px;font-size:11px;font-weight:700;color:var(--dsw-label-2)}
 .fsdb-share-res-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:60;min-width:180px;padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:10px;box-shadow:0 8px 24px rgba(15,15,15,.2)}
 .fsdb-share-res-pop p{margin:0;color:var(--dsw-label);font-size:13px;font-weight:600}
 .fsdb-share-plugin-list{margin:4px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
