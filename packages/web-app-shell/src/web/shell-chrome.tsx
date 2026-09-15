@@ -72,7 +72,7 @@ export function ShellSettingsShortcuts() {
       <ul className="m-0 list-none p-0">
         <li className="flex items-center justify-between gap-3 px-2 py-1.5">
           <span>搜索</span>
-          <span className="settings-muted">⌘F</span>
+          <span className="settings-muted">⌘F / ⌘⇧F</span>
         </li>
         <li className="flex items-center justify-between gap-3 px-2 py-1.5">
           <span>快速选取</span>
@@ -83,7 +83,7 @@ export function ShellSettingsShortcuts() {
           <span className="settings-muted">⌘L</span>
         </li>
       </ul>
-      <p className="settings-muted m-0 px-2 pt-1">Windows 与 Linux 上 ⌘ 用 Ctrl。选取也可用 ⌘Q。编辑器内 ⌘F 为正文查找，⌘L 也可从选区气泡进入。</p>
+      <p className="settings-muted m-0 px-2 pt-1">Windows 与 Linux 上 ⌘ 用 Ctrl。选取也可用 ⌘Q。编辑器内 ⌘F 为正文查找，⌘⇧F 仍打开全局搜索。⌘L 也可从选区气泡进入。</p>
     </section>
   )
 }

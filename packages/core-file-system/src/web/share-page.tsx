@@ -10,6 +10,8 @@ import {
   ChevronRightIcon,
   CubeTransparentIcon,
   HashtagIcon,
+  MoonIcon,
+  SunIcon,
 } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
 import { parseSharePath, sharePublicPath, type ShareSnapshot } from '../share-snapshot.ts'
@@ -31,6 +33,31 @@ import { normalizePageSize } from './saved-view.ts'
 
 function passwordKey(token: string) {
   return `fsdb.share.pw:${token}`
+}
+
+const SHARE_THEME_KEY = 'biu.theme'
+
+function readShareTheme(): 'light' | 'dark' {
+  try {
+    const stored = localStorage.getItem(SHARE_THEME_KEY)
+    if (stored === 'dark' || stored === 'light') return stored
+  } catch {
+    /* ignore */
+  }
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+}
+
+function persistShareTheme(mode: 'light' | 'dark') {
+  try {
+    localStorage.setItem(SHARE_THEME_KEY, mode)
+  } catch {
+    /* ignore */
+  }
+  const root = document.documentElement
+  root.classList.toggle('dark', mode === 'dark')
+  root.classList.toggle('light', mode === 'light')
+  const meta = document.querySelector('meta[name="color-scheme"]')
+  if (meta) meta.setAttribute('content', mode)
 }
 
 async function loadSnapshot(token: string, password = ''): Promise<ShareSnapshot | { needsPassword: true } | { error: string }> {
@@ -126,6 +153,7 @@ function SharePage({
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [pluginsReady, setPluginsReady] = useState(false)
   const [pageWidth, setPageWidth] = useState(getPageWidth)
+  const [theme, setTheme] = useState(readShareTheme)
   const [reload, setReload] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   useEffect(() => subscribePageWidth(() => setPageWidth(getPageWidth())), [])
@@ -433,6 +461,20 @@ function SharePage({
             <ArrowDownTrayIcon aria-hidden className="size-4" />
           </button>
           ) : null}
+          <button
+            type="button"
+            className="chat-view-header-expand"
+            title={theme === 'dark' ? '日间模式' : '夜间模式'}
+            aria-label={theme === 'dark' ? '日间模式' : '夜间模式'}
+            data-testid="fsdb-share-theme"
+            onClick={() => {
+              const next = theme === 'dark' ? 'light' : 'dark'
+              persistShareTheme(next)
+              setTheme(next)
+            }}
+          >
+            {theme === 'dark' ? <SunIcon aria-hidden className="size-4" /> : <MoonIcon aria-hidden className="size-4" />}
+          </button>
         </div>
       </header>
       <div className="fsdb-right">
