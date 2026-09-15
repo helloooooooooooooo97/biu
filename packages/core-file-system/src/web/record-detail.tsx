@@ -423,7 +423,7 @@ export function RecordDetail({
             const showMore = !readOnly && Boolean(
               chrome?.DetailTools || onDelete || chrome?.Actions || placedActions(schema, 'detail').length,
             )
-            if (readOnly || (!onPrev && !onNext && !showMore)) return null
+            if (!onPrev && !onNext && !showMore) return null
             return (
             <nav className="fsdb-detail-float-nav" aria-label="按视图顺序切换记录">
               {onPrev || onNext ? (

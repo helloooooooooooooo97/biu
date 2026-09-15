@@ -211,4 +211,6 @@ test('share page portals sit above the share overlay', () => {
   assert.match(css, /html\.share \.fsdb-crumb-menu\.is-fixed/)
   assert.match(css, /html\.share \.fsdb-cellselect-menu/)
   assert.match(css, /z-index:360!important/)
+  assert.match(css, /html\.share \.fsdb-detail-float-nav/)
+  assert.match(css, /html\.share \.fsdb-share-page \.tasks-toolbar\{justify-content:flex-end\}/)
 })
