@@ -55,6 +55,14 @@ import {
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
   AdjustmentsHorizontalIcon,
+  ArrowDownTrayIcon,
+  CommandLineIcon,
+  InformationCircleIcon,
+  MapIcon,
+  PuzzlePieceIcon,
+  QueueListIcon,
+  SwatchIcon,
+  UserCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/16/solid'
 
@@ -831,61 +839,72 @@ function Shell(props: SlotProps) {
             onClick={() => setSettingsOpen(false)}
           >
             <div
-              className="biu-float settings-float h-[min(72vh,640px)] w-[min(672px,calc(100vw-32px))]"
+              className="biu-float settings-float"
               role="dialog"
               aria-modal="true"
               aria-label="设置"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="biu-float-head">
-                <h2 className="biu-float-title">设置</h2>
+              <nav className="settings-rail" aria-label="设置分类">
+                <p className="settings-rail-title">设置</p>
+                <ul className="settings-rail-list">
+                  {[
+                    { key: 'account', label: '账户', Icon: UserCircleIcon },
+                    { key: 'appearance', label: '外观', Icon: SwatchIcon },
+                    { key: 'plugins', label: '插件', Icon: PuzzlePieceIcon },
+                    { key: 'shortcuts', label: '快捷键', Icon: CommandLineIcon },
+                    { key: 'routes', label: '路由', Icon: MapIcon },
+                    { key: 'events', label: '事件', Icon: QueueListIcon },
+                    { key: 'update', label: '更新', Icon: ArrowDownTrayIcon },
+                    { key: 'about', label: '关于', Icon: InformationCircleIcon },
+                  ].map((item) => (
+                    <li key={item.key}>
+                      <button
+                        type="button"
+                        className={`settings-nav-btn${settingsTab === item.key ? ' is-on' : ''}`}
+                        onClick={() => setSettingsTab(item.key)}
+                      >
+                        <item.Icon {...chromeIcon} />
+                        {item.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+              <div className="settings-body">
                 <button
                   type="button"
-                  className="biu-float-close"
+                  className="biu-float-close settings-body-close"
                   title="关闭"
                   aria-label="关闭"
                   onClick={() => setSettingsOpen(false)}
                 >
                   <XMarkIcon {...chromeIcon} />
                 </button>
-              </div>
-              <div className="flex min-h-0 flex-1 overflow-hidden">
-                <nav className="w-40 shrink-0 border-r border-(--dsw-float-border) p-2">
-                  <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-                    {[
-                      { key: 'account', label: '账户' },
-                      { key: 'appearance', label: '外观' },
-                      { key: 'plugins', label: '插件' },
-                      { key: 'shortcuts', label: '快捷键' },
-                      { key: 'routes', label: '路由' },
-                      { key: 'events', label: '事件' },
-                      { key: 'update', label: '更新' },
-                      { key: 'about', label: '关于' },
-                    ].map((item) => (
-                      <li key={item.key}>
-                        <button
-                          type="button"
-                          className={`settings-nav-btn${settingsTab === item.key ? ' is-on' : ' settings-muted'}`}
-                          onClick={() => setSettingsTab(item.key)}
-                        >
-                          {item.label}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </nav>
-                <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+                <div className="settings-pane">
                   {settingsTab === 'account' ? <ShellSettingsAccount /> : null}
                   {settingsTab === 'appearance' ? <ShellSettingsAppearance /> : null}
                   {settingsTab === 'plugins' ? (
-                    <section>{props.renderSlot('sidebar')}</section>
+                    <section>
+                      <h3 className="settings-pane-title">插件</h3>
+                      <p className="settings-muted settings-pane-lead">安装、开关和管理页面块。</p>
+                      {props.renderSlot('sidebar')}
+                    </section>
                   ) : null}
                   {settingsTab === 'shortcuts' ? <ShellSettingsShortcuts /> : null}
                   {settingsTab === 'routes' ? (
-                    <section>{props.renderSlot('routes')}</section>
+                    <section>
+                      <h3 className="settings-pane-title">路由</h3>
+                      <p className="settings-muted settings-pane-lead">应用模块入口与跳转。</p>
+                      {props.renderSlot('routes')}
+                    </section>
                   ) : null}
                   {settingsTab === 'events' ? (
-                    <section>{props.renderSlot('log')}</section>
+                    <section>
+                      <h3 className="settings-pane-title">事件</h3>
+                      <p className="settings-muted settings-pane-lead">运行日志与调试输出。</p>
+                      {props.renderSlot('log')}
+                    </section>
                   ) : null}
                   {settingsTab === 'update' ? <ShellSettingsUpdate /> : null}
                   {settingsTab === 'about' ? <ShellSettingsAbout /> : null}
