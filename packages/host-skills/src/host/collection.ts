@@ -1,78 +1,33 @@
 import { recordBuiltinValues, REQUIRED_RECORD_FIELDS, type CollectionSpec, type DbRecord } from '@biu/type-file-system'
 import type { SkillsService } from './index.ts'
-import {
-  parseSkillRowId,
-  skillFileId,
-  slugify,
-  type SkillEntry,
-  type SkillRecord,
-} from './store.ts'
+import { slugify, type SkillRecord } from './store.ts'
 
-const DRAFT_DESCRIPTION = '待补充：写清什么情况下该用这个技能。填好之前这行是停用的，Agent 看不到。'
-
-function draftId(taken: readonly string[]) {
-  const used = new Set(taken)
-  let id = 'new-skill'
-  for (let n = 2; used.has(id); n++) id = `new-skill-${n}`
-  return id
-}
-
-const CREATE_DESCRIPTION =
-  '新建一个技能，写成 .biu/skills/<id>/SKILL.md（记录可以还不存在，id 就是这行的 id；不传 id 则从 name 生成）。' +
-  'description 必填且要写清「什么时候该用这个技能」——Agent 只靠它决定是否读全文，写得含糊技能就永远不会被用上。' +
-  'body 是 SKILL.md 正文（Markdown 步骤），可以先建空的再点开 SKILL.md 用 db_content 写。'
-
-const WRITE_DESCRIPTION =
-  '表格按目录展开：技能是父行，点开文件才看正文。SKILL.md 用 db_content path=/skills/<技能id>:SKILL.md；' +
-  '其它文件用 db_content path=/skills/<技能id>:<encodeURIComponent(相对路径)>。' +
-  'name / description / enabled 写在技能父行上（db_update /skills/<技能id>）。附属文件也可用 skill_write。'
-
-function asSkillRecord(skill: SkillRecord): DbRecord {
+function asRecord(skill: SkillRecord): DbRecord {
   return {
     id: skill.id,
     title: skill.name,
-    kind: 'skill',
     description: skill.description,
     enabled: skill.enabled,
-    path: skill.path,
-    dir: skill.dir,
-    bytes: skill.bytes,
+    rootPageId: skill.rootPageId,
+    entryPageId: skill.entryPageId,
+    entryPath: skill.entryPath,
+    source: skill.source,
+    importedAt: skill.importedAt,
+    directory: skill.directory,
+    syncedAt: skill.syncedAt,
     error: skill.error,
-    body: '',
-    ...recordBuiltinValues({ createdAt: skill.createdAt, updatedAt: skill.updatedAt, parentId: '' }),
-  }
-}
-
-function asEntryRecord(entry: SkillEntry, body = ''): DbRecord {
-  const parentId = entry.parentRel ? skillFileId(entry.skillId, entry.parentRel) : entry.skillId
-  return {
-    id: skillFileId(entry.skillId, entry.rel),
-    title: entry.name,
-    kind: entry.kind,
-    description: '',
-    enabled: false,
-    path: entry.path,
-    dir: '',
-    bytes: entry.bytes,
-    error: entry.error,
-    body,
-    ...recordBuiltinValues({ createdAt: entry.createdAt, updatedAt: entry.updatedAt, parentId }),
+    ...recordBuiltinValues({
+      createdAt: skill.importedAt,
+      updatedAt: skill.importedAt,
+      parentId: '',
+    }),
   }
 }
 
 export function skillsCollection(skills: SkillsService): CollectionSpec {
   const find = (id: string) => {
-    try {
-      const parsed = parseSkillRowId(id)
-      if (!parsed.rel) {
-        const skill = skills.list().find((item) => item.id === parsed.skillId)
-        return skill ? asSkillRecord(skill) : null
-      }
-      const entry = skills.readEntry(parsed.skillId, parsed.rel)
-      return asEntryRecord(entry, entry.body)
-    } catch {
-      return null
-    }
+    const skill = skills.list().find((item) => item.id === id)
+    return skill ? asRecord(skill) : null
   }
   return {
     id: 'skills',
@@ -84,152 +39,143 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
       title: '技能',
       inspector: true,
       blurb:
-        '这是技能表（按需加载的操作手册），不是插件（插件在 /plugins）也不是 MCP 服务器（那在 /mcp）。' +
-        '一行技能 = 一个 .biu/skills/<id>/ 目录，下面的文件是子行；点文件才打开正文，不要把技能行当成 SKILL.md。' +
-        '技能不是工具：正文不会进 system prompt，Agent 只看到 id、name、description，相关时才 skill_read。' +
-        `${WRITE_DESCRIPTION} ` +
-        '新建一行会得到一个停用的草稿：把「何时使用」填上再打开 enabled，它才会进 Agent 的清单。' +
-        '本表动作（只对技能父行）：create=一次填好新建；enable / disable=进出清单；uninstall=删整个目录。' +
-        'error 列有值说明缺 description，那一行不会被 Agent 看到。',
+        'Skill 仓库只保存注册信息，正文和目录树全部是 /pages 中的 Page。' +
+        'rootPageId 是技能根 Page，entryPageId 是导入的 SKILL.md Page；parentId 表示目录归属，目录 Page 正文用 @引用列出直接子 Page。' +
+        '每次对话只注入已启用技能的 name 与 description；需要时 skill_read 才读取入口 Page。' +
+        '创建可用 db_create /skills，目录导入用 db_action path=/skills/<id> action=import。' +
+        '双向同步用 sync-from-directory（文件夹到 Page）与 sync-to-directory（Page 写回文件夹）；双方都修改时会拒绝覆盖。',
       order: 50,
       icon: 'academic-cap',
     },
     records: { update: true, create: true, delete: true },
     schema: {
       labelField: 'title',
-      contentField: 'body',
-      parentField: 'parentId',
-      columns: ['title', 'kind', 'description', 'enabled', 'bytes', 'error'],
+      columns: ['title', 'description', 'enabled', 'rootPageId', 'source'],
       fields: {
         ...REQUIRED_RECORD_FIELDS,
-        title: { type: 'string', label: '名字', writable: true, description: '技能是 frontmatter 的 name；文件是文件名' },
-        kind: { type: 'select', label: '类型', enum: ['skill', 'file', 'folder'] },
+        title: { type: 'string', label: '名字', writable: true },
         description: {
           type: 'string',
           label: '何时使用',
           writable: true,
-          description: '写在技能父行上。写清什么情况下该用这个技能，Agent 只靠这句判断。',
+          description: '写清 Agent 应在什么情况下使用这个技能。',
         },
-        enabled: { type: 'boolean', label: '已启用', writable: true, description: '只对技能父行有效。false 时不进 system prompt 清单' },
-        path: { type: 'string', label: '路径' },
-        dir: { type: 'string', label: '目录' },
-        bytes: { type: 'number', label: '大小' },
+        enabled: { type: 'boolean', label: '已启用', writable: true },
+        rootPageId: { type: 'ref', label: '根页面', collection: '/pages' },
+        entryPageId: { type: 'ref', label: '入口页面', collection: '/pages' },
+        entryPath: { type: 'string', label: '入口相对路径' },
+        source: { type: 'string', label: '导入来源' },
+        directory: { type: 'string', label: '同步目录' },
+        importedAt: { type: 'datetime', label: '导入时间' },
+        syncedAt: { type: 'datetime', label: '上次同步' },
         error: { type: 'string', label: '错误' },
-        body: { type: 'file', label: '正文', writable: true, description: WRITE_DESCRIPTION },
-        parentId: { ...REQUIRED_RECORD_FIELDS.parentId, writable: false },
       },
     },
-    list: () => {
-      const out: DbRecord[] = []
-      for (const skill of skills.list()) {
-        out.push(asSkillRecord(skill))
-        for (const entry of skills.listEntries(skill.id)) {
-          out.push(asEntryRecord(entry))
-        }
-      }
-      return out
-    },
+    list: () => skills.list().map(asRecord),
     get: find,
     create: async (rows) => {
       const out: DbRecord[] = []
       for (const fields of rows) {
-        const name = String(fields.title ?? '').trim()
-        const described = String(fields.description ?? '').trim()
-        const created = skills.create({
-          id: String(fields.id ?? '').trim() || slugify(name) || draftId(skills.list().map((item) => item.id)),
-          name: name || '新技能',
-          description: described || DRAFT_DESCRIPTION,
-          body: String(fields.body ?? ''),
+        const title = String(fields.title ?? '').trim() || '新技能'
+        const description = String(fields.description ?? '').trim()
+        const requestedId = String(fields.id ?? '').trim()
+        const generatedId = slugify(title) || `skill-${Date.now().toString(36)}`
+        const created = await skills.import({
+          id: requestedId || generatedId,
+          name: title,
+          description,
+          enabled: description ? fields.enabled !== false : false,
+          draft: !description,
+          files: [{ path: 'SKILL.md', content: String(fields.body ?? '') }],
+          source: 'created-in-biu',
         })
-        if (!described) skills.setEnabled(created.id, false)
-        const row = find(created.id)
-        if (!row) throw new Error(`unknown skill: ${created.id}`)
-        out.push(row)
+        out.push(asRecord(created))
       }
       return out
     },
-    update: async (id, patch) => {
-      const parsed = parseSkillRowId(id)
-      if (parsed.rel) {
-        if (parsed.rel.includes('/') && 'title' in patch) {
-          throw new Error('文件名请在磁盘上改；表格里只编辑正文')
-        }
-        if ('body' in patch) skills.writeEntry(parsed.skillId, parsed.rel, String(patch.body ?? ''))
-        const row = find(id)
-        if (!row) throw new Error(`unknown skill file: ${id}`)
-        return row
-      }
-      if ('body' in patch) skills.writeBody(parsed.skillId, String(patch.body ?? ''))
-      const meta: { name?: unknown; description?: unknown; enabled?: unknown } = {}
-      if ('title' in patch) meta.name = patch.title
-      if ('description' in patch) meta.description = patch.description
-      if ('enabled' in patch) meta.enabled = patch.enabled
-      if (Object.keys(meta).length) skills.patch(parsed.skillId, meta)
-      const row = find(parsed.skillId)
-      if (!row) throw new Error(`unknown skill: ${parsed.skillId}`)
-      return row
+    update: (id, patch) => {
+      const next = skills.patch(id, {
+        ...(patch.title !== undefined ? { name: patch.title } : {}),
+        ...(patch.description !== undefined ? { description: patch.description } : {}),
+        ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+      })
+      return asRecord(next)
     },
     remove: (query) => {
-      const ids = (query.ids ?? []).filter(Boolean)
-      const removed: string[] = []
-      for (const id of ids) {
-        const parsed = parseSkillRowId(id)
-        if (parsed.rel) skills.removeEntry(parsed.skillId, parsed.rel)
-        else skills.remove(parsed.skillId)
-        removed.push(id)
-      }
-      return removed
+      const ids = query.ids ?? []
+      for (const id of ids) skills.remove(id)
+      return ids
     },
     actions: [
       {
-        id: 'create',
-        label: '新建技能',
+        id: 'import',
+        label: '导入目录',
         for: 'agent',
         placement: [],
         allowMissing: true,
-        description: CREATE_DESCRIPTION,
+        description:
+          '把标准 Skill 目录导入为 Page 树。files=[{path,content}]；每个目录与文本文件都会成为 Page，根目录登记到 /skills。',
         parameters: {
           type: 'object',
-          description: CREATE_DESCRIPTION,
           properties: {
-            name: { type: 'string', description: '显示名' },
-            description: { type: 'string', description: '什么时候该用这个技能（必填）' },
-            body: { type: 'string', description: 'Markdown 正文，可留空后点开 SKILL.md 写' },
+            name: { type: 'string' },
+            description: { type: 'string' },
+            files: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  path: { type: 'string' },
+                  content: { type: 'string' },
+                },
+                required: ['path', 'content'],
+              },
+            },
           },
-          required: ['description'],
+          required: ['files'],
         },
-        run: (id, _record, args = {}) => {
-          if (id.includes(':')) throw new Error('create 只对技能父行：path=/skills/<技能id>')
-          return skills.create({
+        run: (id, _record, args = {}) =>
+          skills.import({
             id,
-            name: String(args.name ?? id),
+            name: String(args.name ?? ''),
             description: String(args.description ?? ''),
-            body: String(args.body ?? ''),
-          })
-        },
+            files: Array.isArray(args.files) ? args.files as Array<{ path: string; content: string }> : [],
+            source: 'db_action',
+          }),
+      },
+      {
+        id: 'sync-from-directory',
+        label: '从文件夹同步',
+        placement: ['row', 'detail'],
+        description: '读取本地 Skill 目录中的文本文件，更新对应 Page；双方都改过时拒绝覆盖。',
+        run: (id) => skills.syncFromDirectory(id),
+      },
+      {
+        id: 'sync-to-directory',
+        label: '写回文件夹',
+        placement: ['row', 'detail'],
+        description: '把 Skill 的文件 Page 写回本地目录，入口 Page 重建为带 frontmatter 的 SKILL.md。',
+        run: (id) => skills.syncToDirectory(id),
       },
       {
         id: 'enable',
         label: '启用',
-        when: { kind: 'skill', enabled: false },
-        description: '把这个技能放回 system prompt 的可用清单（改写 SKILL.md 的 frontmatter）。',
-        run: (id) => skills.setEnabled(parseSkillRowId(id).skillId, true),
+        when: { enabled: false },
+        run: (id) => skills.setEnabled(id, true),
       },
       {
         id: 'disable',
         label: '停用',
-        when: { kind: 'skill', enabled: true },
-        description: '从 system prompt 清单里拿掉，文件留在盘上，之后 enable 就能回来。',
-        run: (id) => skills.setEnabled(parseSkillRowId(id).skillId, false),
+        when: { enabled: true },
+        run: (id) => skills.setEnabled(id, false),
       },
       {
-        id: 'uninstall',
-        label: '删除',
+        id: 'unregister',
+        label: '移出仓库',
         tone: 'danger',
-        confirm: '确定删除这个技能？整个目录会被删掉。',
-        when: { kind: 'skill' },
-        description: '删掉 .biu/skills/<id>/ 整个目录，包括附带的脚本和模板。只想停用请用 disable。',
-        run: (id) => skills.remove(parseSkillRowId(id).skillId),
+        confirm: '只移除 Skill 注册，保留所有关联 Page。确定继续？',
+        description: '从每次对话的 Skill 清单中移除，但不删除 Page，避免误删被其它文档引用的内容。',
+        run: (id) => skills.remove(id),
       },
     ],
   }

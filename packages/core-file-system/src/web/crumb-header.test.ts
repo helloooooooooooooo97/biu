@@ -52,8 +52,8 @@ describe('顶栏三级标题', () => {
 
   it('中间顶栏面包屑字重和颜色与侧栏标题对齐', () => {
     expect(style).toContain('.fsdb-crumb-btn{display:inline-flex')
-    expect(style).toMatch(/\.fsdb-crumb-btn\{[^}]*color:var\(--dsw-label\)/)
-    expect(style).toMatch(/\.fsdb-crumb-btn\{[^}]*font-weight:600/)
+    expect(style).toMatch(/\.fsdb-crumb-btn\{[^}]*color:var\(--dsw-sidebar-fg\)/)
+    expect(style).toMatch(/\.fsdb-crumb-btn\{[^}]*font-weight:500/)
     expect(style).toMatch(/\.fsdb-crumb-option\{[^}]*font-weight:600/)
   })
 

@@ -1,6 +1,8 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { createHash } from 'node:crypto'
+import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { dirname, join, posix } from 'node:path'
 import { dataPath } from '@biu/host-plugin-loader/data-dir'
+import type { Database } from '@biu/type-file-system'
 
 export type SkillMeta = {
   id: string
@@ -10,51 +12,46 @@ export type SkillMeta = {
 }
 
 export type SkillRecord = SkillMeta & {
-  /** SKILL.md 绝对路径；Agent 用它读全文。 */
-  path: string
-  dir: string
-  body: string
-  bytes: number
-  createdAt: number
-  updatedAt: number
-  /** 结构问题（例如缺 description），不影响列出但会提示。 */
+  rootPageId: string
+  entryPageId: string
+  entryPath: string
+  source: string
+  importedAt: number
+  /** 标准 Skill 目录中的相对路径 → Page id。空串是根目录 Page。 */
+  pages: Record<string, string>
+  /** 与 Page 树双向同步的本地目录及文本文件清单。 */
+  directory: string
+  filePaths: string[]
+  folderHash: string
+  pageHash: string
+  syncedAt: number
   error: string
 }
 
-export const SKILL_FILE = 'SKILL.md'
+export type SkillImportFile = {
+  path: string
+  content: string
+}
+
+export type SkillImportInput = {
+  id?: string
+  name?: string
+  description?: string
+  enabled?: boolean
+  source?: string
+  /** Biu 内新建的草稿可以先不填写用于发现的说明。 */
+  draft?: boolean
+  files: SkillImportFile[]
+}
+
+export type SkillPageDatabase = Pick<Database, 'create' | 'update' | 'writeContent' | 'content'>
 
 const ID_PATTERN = /^[a-z][a-z0-9-]{1,63}$/
-const FILE_ID_SEP = ':'
+const MAX_FILES = 500
+const MAX_TOTAL_CHARS = 5_000_000
 
-export type SkillEntryKind = 'file' | 'folder'
-
-export type SkillEntry = {
-  skillId: string
-  rel: string
-  name: string
-  kind: SkillEntryKind
-  parentRel: string
-  path: string
-  bytes: number
-  createdAt: number
-  updatedAt: number
-  /** 仅文件：打开时才读。SKILL.md 是去掉 frontmatter 的正文。 */
-  body: string
-  error: string
-}
-
-/** 记录 id 不能带 `/`（File System 路径是 /skills/<id>），相对路径编码进第二段。 */
-export function skillFileId(skillId: string, rel: string) {
-  return `${assertSkillId(skillId)}${FILE_ID_SEP}${encodeURIComponent(rel)}`
-}
-
-export function parseSkillRowId(id: string): { skillId: string; rel?: string } {
-  const raw = String(id ?? '').trim()
-  const cut = raw.indexOf(FILE_ID_SEP)
-  if (cut < 0) return { skillId: assertSkillId(raw) }
-  const rel = decodeURIComponent(raw.slice(cut + 1))
-  if (!rel || rel.includes('\0')) throw new Error(`invalid skill file id: ${id}`)
-  return { skillId: assertSkillId(raw.slice(0, cut)), rel }
+export function skillsRegistryFile(cwd = process.cwd()) {
+  return process.env.BIU_SKILLS_REGISTRY || dataPath(cwd, 'skills.json')
 }
 
 export function skillsDir(cwd = process.cwd()) {
@@ -87,310 +84,504 @@ function unquote(value: string) {
   return text
 }
 
-/**
- * SKILL.md 的 frontmatter：`key: value` 逐行读，够覆盖 name / description / enabled。
- * 不引 YAML 依赖，因此不支持嵌套结构——这也是刻意的约束，让技能文件保持能手写。
- */
+/** 标准 SKILL.md 只读取发现所需的扁平 frontmatter；正文仍作为 Page 内容。 */
 export function parseFrontmatter(text: string): { meta: Record<string, string>; body: string } {
   const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
   if (!normalized.startsWith('---\n')) return { meta: {}, body: normalized.trim() }
   const end = normalized.indexOf('\n---', 3)
   if (end < 0) return { meta: {}, body: normalized.trim() }
-  const head = normalized.slice(4, end)
-  const rest = normalized.slice(end + 4).replace(/^[^\n]*\n?/, '')
   const meta: Record<string, string> = {}
-  for (const line of head.split('\n')) {
+  for (const line of normalized.slice(4, end).split('\n')) {
     const trimmed = line.trim()
     if (!trimmed || trimmed.startsWith('#')) continue
     const cut = trimmed.indexOf(':')
     if (cut < 0) continue
     meta[trimmed.slice(0, cut).trim().toLowerCase()] = unquote(trimmed.slice(cut + 1))
   }
-  return { meta, body: rest.trim() }
+  return { meta, body: normalized.slice(end + 4).replace(/^[^\n]*\n?/, '').trim() }
 }
 
-function quoteIfNeeded(value: string) {
-  const text = value.replace(/\r?\n/g, ' ').trim()
-  return /^[\w\u4e00-\u9fa5][^:#]*$/.test(text) ? text : JSON.stringify(text)
-}
-
-export function renderSkillFile(meta: SkillMeta, body: string) {
-  const lines = [
-    '---',
-    `name: ${quoteIfNeeded(meta.name)}`,
-    `description: ${quoteIfNeeded(meta.description)}`,
-  ]
-  // enabled 只在关掉时写出来，默认开着的技能文件保持干净。
-  if (!meta.enabled) lines.push('enabled: false')
-  lines.push('---', '', body.trim(), '')
-  return lines.join('\n')
-}
-
-/** 整个技能目录的大小：附属脚本、模板都算进来，只看 SKILL.md 会低报。 */
-function dirBytes(dir: string): number {
-  let total = 0
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name)
-    // 用 Dirent 判断，symlink 既不是 file 也不是 directory，天然不会被跟进去。
-    if (entry.isDirectory()) total += dirBytes(full)
-    else if (entry.isFile()) total += statSync(full).size
-  }
-  return total
-}
-
-function readOne(dir: string, id: string): SkillRecord {
-  const path = join(dir, id, SKILL_FILE)
-  const raw = readFileSync(path, 'utf8')
-  const stat = statSync(path)
-  const { meta, body } = parseFrontmatter(raw)
-  const description = meta.description ?? ''
-  return {
-    id,
-    name: meta.name?.trim() || id,
-    description,
-    enabled: meta.enabled !== 'false',
-    path,
-    dir: join(dir, id),
-    body,
-    bytes: dirBytes(join(dir, id)),
-    createdAt: Math.round(stat.birthtimeMs || stat.mtimeMs),
-    updatedAt: Math.round(stat.mtimeMs),
-    error: description.trim() ? '' : 'SKILL.md 缺少 description，Agent 无法判断何时该用它',
-  }
-}
-
-export function listSkills(dir = skillsDir()): SkillRecord[] {
-  let entries: string[] = []
+function cleanRecord(raw: unknown): SkillRecord | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const item = raw as Partial<SkillRecord>
   try {
-    entries = readdirSync(dir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-  } catch {
-    return []
-  }
-  const out: SkillRecord[] = []
-  for (const id of entries) {
-    if (!ID_PATTERN.test(id)) continue
-    try {
-      out.push(readOne(dir, id))
-    } catch {
-      // 没有 SKILL.md 的目录不是技能，跳过。
+    const id = assertSkillId(String(item.id ?? ''))
+    const rootPageId = String(item.rootPageId ?? '').trim()
+    const entryPageId = String(item.entryPageId ?? '').trim()
+    if (!rootPageId || !entryPageId) return null
+    return {
+      id,
+      name: String(item.name ?? id).trim() || id,
+      description: String(item.description ?? '').trim(),
+      enabled: item.enabled !== false,
+      rootPageId,
+      entryPageId,
+      entryPath: String(item.entryPath ?? '').trim() ||
+        Object.entries(item.pages ?? {}).find(([, pageId]) => String(pageId) === entryPageId)?.[0] ||
+        'SKILL.md',
+      source: String(item.source ?? '').trim(),
+      importedAt: Number(item.importedAt) || Date.now(),
+      pages: item.pages && typeof item.pages === 'object' && !Array.isArray(item.pages)
+        ? Object.fromEntries(Object.entries(item.pages).map(([key, value]) => [key, String(value)]))
+        : { '': rootPageId, 'SKILL.md': entryPageId },
+      directory: String(item.directory ?? '').trim() || join(skillsDir(), id),
+      filePaths: Array.isArray(item.filePaths)
+        ? item.filePaths.map(String)
+        : Object.keys(item.pages ?? {}).filter((path) => posix.basename(path).includes('.')),
+      folderHash: String(item.folderHash ?? ''),
+      pageHash: String(item.pageHash ?? ''),
+      syncedAt: Number(item.syncedAt) || 0,
+      error: String(item.error ?? ''),
     }
-  }
-  return out.sort((a, b) => a.id.localeCompare(b.id))
-}
-
-export function readSkill(id: string, dir = skillsDir()): SkillRecord | null {
-  try {
-    return readOne(dir, assertSkillId(id))
   } catch {
     return null
   }
 }
 
-function requireSkill(id: string, dir: string) {
-  const record = readSkill(id, dir)
-  if (!record) throw new Error(`unknown skill: ${id}`)
-  return record
-}
+export class SkillRegistry {
+  constructor(private file = skillsRegistryFile()) {}
 
-export function writeSkill(meta: SkillMeta, body: string, dir = skillsDir()) {
-  const id = assertSkillId(meta.id)
-  mkdirSync(join(dir, id), { recursive: true })
-  writeFileSync(join(dir, id, SKILL_FILE), renderSkillFile({ ...meta, id }, body), 'utf8')
-  return requireSkill(id, dir)
-}
-
-export function createSkill(
-  input: { id?: string; name?: string; description?: string; body?: string },
-  dir = skillsDir(),
-) {
-  const name = String(input.name ?? '').trim()
-  const id = assertSkillId(String(input.id ?? '').trim() || slugify(name))
-  if (readSkill(id, dir)) throw new Error(`skill already exists: ${id}`)
-  const description = String(input.description ?? '').trim()
-  if (!description) throw new Error('skill description is required: Agent 靠它判断何时该读这个技能')
-  return writeSkill({ id, name: name || id, description, enabled: true }, String(input.body ?? ''), dir)
-}
-
-export function patchSkill(
-  id: string,
-  patch: { name?: unknown; description?: unknown; enabled?: unknown },
-  dir = skillsDir(),
-) {
-  const current = requireSkill(id, dir)
-  const next: SkillMeta = {
-    id: current.id,
-    name: patch.name === undefined ? current.name : String(patch.name).trim() || current.id,
-    description: patch.description === undefined ? current.description : String(patch.description).trim(),
-    enabled: patch.enabled === undefined ? current.enabled : patch.enabled !== false,
-  }
-  return writeSkill(next, current.body, dir)
-}
-
-export function writeSkillBody(id: string, body: string, dir = skillsDir()) {
-  const current = requireSkill(id, dir)
-  return writeSkill(current, body, dir)
-}
-
-export function removeSkill(id: string, dir = skillsDir()) {
-  const current = requireSkill(id, dir)
-  rmSync(current.dir, { recursive: true, force: true })
-  return { id: current.id, removed: true }
-}
-
-function compareEntries(a: SkillEntry, b: SkillEntry) {
-  if (a.name === SKILL_FILE && b.name !== SKILL_FILE) return -1
-  if (b.name === SKILL_FILE && a.name !== SKILL_FILE) return 1
-  if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1
-  return a.name.localeCompare(b.name)
-}
-
-function readFileEntry(skillId: string, skillDir: string, rel: string, parentRel: string, withBody = false): SkillEntry {
-  const full = join(skillDir, rel)
-  const stat = statSync(full)
-  const name = rel.split('/').pop() || rel
-  let body = ''
-  let error = ''
-  if (withBody) {
+  list() {
     try {
-      const raw = readFileSync(full)
-      if (raw.includes(0)) {
-        error = '二进制文件，不能当正文打开'
-      } else {
-        const text = raw.toString('utf8')
-        body = name === SKILL_FILE && !parentRel ? parseFrontmatter(text).body : text
-      }
-    } catch (caught) {
-      error = String(caught instanceof Error ? caught.message : caught)
+      const parsed = JSON.parse(readFileSync(this.file, 'utf8')) as unknown
+      if (!Array.isArray(parsed)) return []
+      return parsed.map(cleanRecord).filter((item): item is SkillRecord => Boolean(item)).sort((a, b) => a.id.localeCompare(b.id))
+    } catch {
+      return []
     }
   }
-  return {
-    skillId,
-    rel,
-    name,
-    kind: 'file',
-    parentRel,
-    path: full,
-    bytes: stat.size,
-    createdAt: Math.round(stat.birthtimeMs || stat.mtimeMs),
-    updatedAt: Math.round(stat.mtimeMs),
-    body,
-    error,
+
+  get(id: string) {
+    const wanted = assertSkillId(id)
+    return this.list().find((item) => item.id === wanted) ?? null
+  }
+
+  put(record: SkillRecord) {
+    const records = this.list().filter((item) => item.id !== record.id)
+    records.push(record)
+    records.sort((a, b) => a.id.localeCompare(b.id))
+    mkdirSync(dirname(this.file), { recursive: true })
+    const temp = `${this.file}.${process.pid}.tmp`
+    writeFileSync(temp, `${JSON.stringify(records, null, 2)}\n`, 'utf8')
+    renameSync(temp, this.file)
+    return record
+  }
+
+  patch(id: string, patch: Partial<Pick<SkillRecord, 'name' | 'description' | 'enabled'>>) {
+    const current = this.get(id)
+    if (!current) throw new Error(`unknown skill: ${id}`)
+    return this.put({
+      ...current,
+      ...(patch.name !== undefined ? { name: String(patch.name).trim() || current.id } : {}),
+      ...(patch.description !== undefined ? { description: String(patch.description).trim() } : {}),
+      ...(patch.enabled !== undefined ? { enabled: patch.enabled !== false } : {}),
+    })
+  }
+
+  remove(id: string) {
+    const wanted = assertSkillId(id)
+    const records = this.list()
+    if (!records.some((item) => item.id === wanted)) throw new Error(`unknown skill: ${id}`)
+    mkdirSync(dirname(this.file), { recursive: true })
+    writeFileSync(this.file, `${JSON.stringify(records.filter((item) => item.id !== wanted), null, 2)}\n`, 'utf8')
+    return { id: wanted, removed: true }
   }
 }
 
-function walkSkillDir(skillId: string, skillDir: string, parentRel = ''): SkillEntry[] {
-  const folder = parentRel ? join(skillDir, parentRel) : skillDir
-  let listed: import('node:fs').Dirent[] = []
+function normalizeImportFiles(input: SkillImportInput) {
+  if (!Array.isArray(input.files) || !input.files.length) throw new Error('skill import requires files')
+  if (input.files.length > MAX_FILES) throw new Error(`skill import has too many files (max ${MAX_FILES})`)
+  const raw = input.files.map((file) => ({
+    path: String(file.path ?? '').trim().replaceAll('\\', '/').replace(/^\/+/, ''),
+    content: String(file.content ?? ''),
+  }))
+  if (raw.reduce((sum, file) => sum + file.content.length, 0) > MAX_TOTAL_CHARS) {
+    throw new Error('skill import is too large')
+  }
+  for (const file of raw) {
+    if (!file.path || file.path.includes('\0')) throw new Error('skill import contains an invalid path')
+    const normalized = posix.normalize(file.path)
+    if (normalized === '..' || normalized.startsWith('../')) throw new Error(`skill file escapes its root: ${file.path}`)
+    file.path = normalized
+  }
+  if (new Set(raw.map((file) => file.path)).size !== raw.length) {
+    throw new Error('skill import contains duplicate paths')
+  }
+  const first = raw[0]!.path.split('/')[0]!
+  const hasSharedRoot = raw.every((file) => file.path.includes('/') && file.path.split('/')[0] === first)
+  return {
+    rootName: String(input.name ?? '').trim() || (hasSharedRoot ? first : ''),
+    files: raw.map((file) => ({
+      ...file,
+      path: hasSharedRoot ? file.path.slice(first.length + 1) : file.path,
+    })),
+  }
+}
+
+function readLegacyFiles(root: string, relative = ''): SkillImportFile[] {
+  const directory = relative ? join(root, relative) : root
+  let entries: import('node:fs').Dirent[]
   try {
-    listed = readdirSync(folder, { withFileTypes: true })
+    entries = readdirSync(directory, { withFileTypes: true })
   } catch {
     return []
   }
-  const visible = listed.filter((entry) => !entry.name.startsWith('.') && (entry.isDirectory() || entry.isFile()))
-  visible.sort((a, b) =>
-    compareEntries(
-      { name: a.name, kind: a.isDirectory() ? 'folder' : 'file' } as SkillEntry,
-      { name: b.name, kind: b.isDirectory() ? 'folder' : 'file' } as SkillEntry,
-    ),
-  )
-  const kids: SkillEntry[] = []
-  for (const entry of visible) {
-    const rel = parentRel ? `${parentRel}/${entry.name}` : entry.name
-    const full = join(skillDir, rel)
+  const files: SkillImportFile[] = []
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue
+    const path = relative ? `${relative}/${entry.name}` : entry.name
     if (entry.isDirectory()) {
-      const stat = statSync(full)
-      kids.push({
-        skillId,
-        rel,
-        name: entry.name,
-        kind: 'folder',
-        parentRel,
-        path: full,
-        bytes: dirBytes(full),
-        createdAt: Math.round(stat.birthtimeMs || stat.mtimeMs),
-        updatedAt: Math.round(stat.mtimeMs),
-        body: '',
-        error: '',
-      })
-      kids.push(...walkSkillDir(skillId, skillDir, rel))
+      files.push(...readLegacyFiles(root, path))
       continue
     }
-    kids.push(readFileEntry(skillId, skillDir, rel, parentRel))
+    if (!entry.isFile()) continue
+    const content = readFileSync(join(root, path))
+    if (content.includes(0)) continue
+    files.push({ path, content: content.toString('utf8') })
   }
-  return kids
+  return files
 }
 
-export function listSkillEntries(id: string, dir = skillsDir()): SkillEntry[] {
-  const skill = requireSkill(id, dir)
-  return walkSkillDir(skill.id, skill.dir)
+export function readSkillDirectory(root: string) {
+  return readLegacyFiles(root).sort((a, b) => a.path.localeCompare(b.path))
 }
 
-export function readSkillEntry(id: string, rel: string, dir = skillsDir()): SkillEntry {
-  const skill = requireSkill(id, dir)
-  const wanted = String(rel ?? '').trim().replace(/^\.\//, '')
-  if (!wanted) throw new Error('file is required')
-  const parentRel = dirname(wanted) === '.' ? '' : dirname(wanted).replaceAll('\\', '/')
-  const full = resolve(skill.dir, wanted)
-  if (relative(skill.dir, full).startsWith('..') || isAbsolute(wanted)) {
-    throw new Error(`file escapes the skill directory: ${rel}`)
+function digest(parts: string[]) {
+  const hash = createHash('sha256')
+  for (const part of parts) hash.update(`${part.length}:`).update(part)
+  return hash.digest('hex')
+}
+
+export function skillFilesHash(files: SkillImportFile[]) {
+  return digest(
+    [...files]
+      .sort((a, b) => a.path.localeCompare(b.path))
+      .flatMap((file) => [file.path, file.content]),
+  )
+}
+
+function skillPageHashFromBodies(
+  meta: Pick<SkillMeta, 'name' | 'description' | 'enabled'>,
+  filePaths: string[],
+  bodies: Record<string, string>,
+) {
+  return digest([
+    meta.name,
+    meta.description,
+    String(meta.enabled),
+    ...[...filePaths].sort().flatMap((path) => [path, bodies[path] ?? '']),
+  ])
+}
+
+export async function skillPageHash(database: SkillPageDatabase, record: SkillRecord) {
+  const bodies: Record<string, string> = {}
+  for (const path of record.filePaths) {
+    const result = await database.content(`/pages/${record.pages[path]}`) as { value?: unknown }
+    bodies[path] = String(result.value ?? '')
   }
-  const stat = statSync(full)
-  if (stat.isDirectory()) {
-    return {
-      skillId: skill.id,
-      rel: wanted,
-      name: wanted.split('/').pop() || wanted,
-      kind: 'folder',
-      parentRel,
-      path: full,
-      bytes: dirBytes(full),
-      createdAt: Math.round(stat.birthtimeMs || stat.mtimeMs),
-      updatedAt: Math.round(stat.mtimeMs),
-      body: '',
-      error: '',
+  return skillPageHashFromBodies(record, record.filePaths, bodies)
+}
+
+export function writeSkillDirectory(root: string, files: SkillImportFile[]) {
+  for (const file of files) {
+    const target = join(root, ...file.path.split('/'))
+    mkdirSync(dirname(target), { recursive: true })
+    writeFileSync(target, file.content, 'utf8')
+  }
+}
+
+/** 发现旧版 `.biu/skills/<id>/SKILL.md`，供启动时一次性迁移到 Page 树。 */
+export function legacySkillImports(root = skillsDir()): SkillImportInput[] {
+  let entries: import('node:fs').Dirent[]
+  try {
+    entries = readdirSync(root, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  const imports: SkillImportInput[] = []
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!entry.isDirectory() || !ID_PATTERN.test(entry.name)) continue
+    const files = readLegacyFiles(join(root, entry.name))
+    const skillFile = files.find((file) => posix.dirname(file.path) === '.' && file.path.toLowerCase() === 'skill.md')
+    if (!skillFile) continue
+    const parsed = parseFrontmatter(skillFile.content)
+    imports.push({
+      id: entry.name,
+      files,
+      source: 'legacy-directory-migration',
+      draft: !String(parsed.meta.description ?? '').trim(),
+    })
+  }
+  return imports
+}
+
+function createdPageId(raw: unknown) {
+  const result = raw as { items?: Array<{ path?: unknown; value?: { id?: unknown } }> }
+  const first = result?.items?.[0]
+  const direct = String(first?.value?.id ?? '').trim()
+  if (direct) return direct
+  const path = String(first?.path ?? '')
+  const id = path.split('/').filter(Boolean).pop() ?? ''
+  if (!id) throw new Error('page create did not return an id')
+  return id
+}
+
+async function createPage(database: SkillPageDatabase, title: string, parentId = '') {
+  const created = await database.create('/pages', [{ title, parentId: parentId || null, tags: [] }])
+  return createdPageId(created)
+}
+
+function mentionAttr(value: string) {
+  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replace(/[\r\n]+/g, ' ')
+}
+
+export function pageMention(pageId: string, label: string) {
+  return `[@ id="page/${mentionAttr(pageId)}" label="${mentionAttr(label)}"]`
+}
+
+export function resolveSkillRelativePath(from: string, target: string) {
+  const cleanTarget = String(target ?? '').trim().split(/[?#]/, 1)[0]!.replaceAll('\\', '/')
+  if (!cleanTarget || /^(?:[a-z]+:|\/|#)/i.test(cleanTarget)) return ''
+  const resolved = posix.normalize(posix.join(posix.dirname(from || 'SKILL.md'), cleanTarget))
+  if (resolved === '..' || resolved.startsWith('../')) return ''
+  return resolved.replace(/^\.\//, '')
+}
+
+function rewriteRelativeLinks(body: string, from: string, pages: Record<string, string>) {
+  const labels = new Map(Object.keys(pages).map((path) => [path, posix.basename(path) || path]))
+  let next = body.replace(/(!?\[[^\]]*])\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g, (whole, label: string, target: string) => {
+    const resolved = resolveSkillRelativePath(from, target)
+    const pageId = pages[resolved]
+    const mentionLabel = label.replace(/^!?\[/, '').replace(/]$/, '')
+    return pageId ? pageMention(pageId, mentionLabel || labels.get(resolved) || resolved) : whole
+  })
+  next = next.replace(/(^|[\s(])@((?:\.\.?\/)+[^\s),]+)/gm, (whole, prefix: string, target: string) => {
+    const resolved = resolveSkillRelativePath(from, target)
+    const pageId = pages[resolved]
+    return pageId ? `${prefix}${pageMention(pageId, labels.get(resolved) || resolved)}` : whole
+  })
+  return next
+}
+
+function immediateChildren(parent: string, pages: Record<string, string>) {
+  return Object.keys(pages)
+    .filter((path) => path && posix.dirname(path) === (parent || '.'))
+    .sort((a, b) => a.localeCompare(b))
+}
+
+export async function importSkillPages(database: SkillPageDatabase, input: SkillImportInput): Promise<SkillRecord> {
+  const normalized = normalizeImportFiles(input)
+  const entry = normalized.files.find((file) => posix.dirname(file.path) === '.' && file.path.toLowerCase() === 'skill.md')
+  if (!entry) throw new Error('skill import requires a root SKILL.md')
+  const parsed = parseFrontmatter(entry.content)
+  const name =
+    String(input.name ?? '').trim() ||
+    String(parsed.meta.name ?? '').trim() ||
+    normalized.rootName ||
+    'Imported Skill'
+  const id = assertSkillId(String(input.id ?? '').trim() || slugify(name))
+  const description =
+    String(input.description ?? '').trim() ||
+    String(parsed.meta.description ?? '').trim()
+  if (!description && !input.draft) throw new Error('skill description is required')
+
+  const pages: Record<string, string> = {}
+  const rootPageId = await createPage(database, name)
+  pages[''] = rootPageId
+
+  const directories = new Set<string>()
+  for (const file of normalized.files) {
+    let current = posix.dirname(file.path)
+    while (current && current !== '.') {
+      directories.add(current)
+      current = posix.dirname(current)
     }
   }
-  return readFileEntry(skill.id, skill.dir, wanted, parentRel, true)
-}
-
-export function writeSkillEntry(id: string, rel: string, content: string, dir = skillsDir()) {
-  const wanted = String(rel ?? '').trim().replace(/^\.\//, '')
-  if (wanted === SKILL_FILE) return writeSkillBody(id, content, dir)
-  writeSkillFile(id, wanted, content, dir)
-  return requireSkill(id, dir)
-}
-
-export function removeSkillEntry(id: string, rel: string, dir = skillsDir()) {
-  const entry = readSkillEntry(id, rel, dir)
-  if (entry.kind === 'folder') rmSync(entry.path, { recursive: true, force: true })
-  else unlinkSync(entry.path)
-  return { id: skillFileId(id, rel), removed: true }
-}
-
-/**
- * 把「技能内的相对路径」解析成绝对路径，越界一律拒绝。
- * 技能目录在会话工作区之外，没有 host-fs 那层沙箱兜着，这里就是唯一的边界。
- */
-export function resolveSkillFile(id: string, file: string, dir = skillsDir()) {
-  const skill = requireSkill(id, dir)
-  const rel = String(file ?? '').trim().replace(/^\.\//, '')
-  if (!rel) throw new Error('file is required')
-  if (isAbsolute(rel)) throw new Error(`file must be relative to the skill directory: ${file}`)
-  const full = resolve(skill.dir, rel)
-  if (relative(skill.dir, full).startsWith('..')) {
-    throw new Error(`file escapes the skill directory: ${file}`)
+  for (const directory of [...directories].sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b))) {
+    const parent = posix.dirname(directory)
+    pages[directory] = await createPage(database, posix.basename(directory), parent === '.' ? rootPageId : pages[parent])
   }
-  if (full === join(skill.dir, SKILL_FILE)) {
-    throw new Error(`${SKILL_FILE} 不走这里：正文用 db_content /skills/${skill.id}，元数据用 db_update`)
+  for (const file of [...normalized.files].sort((a, b) => a.path.localeCompare(b.path))) {
+    const parent = posix.dirname(file.path)
+    pages[file.path] = await createPage(database, posix.basename(file.path), parent === '.' ? rootPageId : pages[parent])
   }
-  return { skill, full, rel }
+
+  const pageBodies: Record<string, string> = {}
+  const directoryPaths = ['', ...[...directories].sort()]
+  for (const directory of directoryPaths) {
+    const children = immediateChildren(directory, pages)
+    const body = children.map((path) => `- ${pageMention(pages[path]!, posix.basename(path))}`).join('\n')
+    pageBodies[directory] = body
+    await database.writeContent(`/pages/${pages[directory]}`, body)
+  }
+  for (const file of normalized.files) {
+    const body = file.path === entry.path ? parsed.body : file.content
+    const rewritten = rewriteRelativeLinks(body, file.path, pages)
+    pageBodies[file.path] = rewritten
+    await database.writeContent(`/pages/${pages[file.path]}`, rewritten)
+  }
+
+  const enabled = input.draft
+    ? false
+    : input.enabled === undefined
+      ? parsed.meta.enabled !== 'false'
+      : input.enabled
+  const filePaths = normalized.files.map((file) => file.path).sort()
+  const syncedAt = Date.now()
+  return {
+    id,
+    name,
+    description,
+    enabled,
+    rootPageId,
+    entryPageId: pages[entry.path]!,
+    entryPath: entry.path,
+    source: String(input.source ?? normalized.rootName).trim(),
+    importedAt: syncedAt,
+    pages,
+    directory: join(skillsDir(), id),
+    filePaths,
+    folderHash: skillFilesHash(normalized.files),
+    pageHash: skillPageHashFromBodies({ name, description, enabled }, filePaths, pageBodies),
+    syncedAt,
+    error: '',
+  }
 }
 
-export function writeSkillFile(id: string, file: string, content: string, dir = skillsDir()) {
-  const { skill, full, rel } = resolveSkillFile(id, file, dir)
-  mkdirSync(dirname(full), { recursive: true })
-  writeFileSync(full, String(content ?? ''), 'utf8')
-  return { id: skill.id, file: rel, path: full, bytes: statSync(full).size }
+function importDirectories(files: SkillImportFile[]) {
+  const directories = new Set<string>()
+  for (const file of files) {
+    let current = posix.dirname(file.path)
+    while (current && current !== '.') {
+      directories.add(current)
+      current = posix.dirname(current)
+    }
+  }
+  return [...directories].sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b))
+}
+
+export async function syncSkillPagesFromFiles(
+  database: SkillPageDatabase,
+  record: SkillRecord,
+  files: SkillImportFile[],
+) {
+  const normalized = normalizeImportFiles({ id: record.id, files })
+  const entry = normalized.files.find((file) => posix.dirname(file.path) === '.' && file.path.toLowerCase() === 'skill.md')
+  if (!entry) throw new Error('skill sync requires a root SKILL.md')
+  const parsed = parseFrontmatter(entry.content)
+  const name = String(parsed.meta.name ?? '').trim() || record.name
+  const description = String(parsed.meta.description ?? '').trim()
+  const enabled = description ? parsed.meta.enabled !== 'false' : false
+  const directories = importDirectories(normalized.files)
+  const pages = { ...record.pages }
+  let created = 0
+  await database.update(`/pages/${record.rootPageId}`, { title: name })
+
+  for (const directory of directories) {
+    if (pages[directory]) continue
+    const parent = posix.dirname(directory)
+    pages[directory] = await createPage(database, posix.basename(directory), parent === '.' ? record.rootPageId : pages[parent])
+    created += 1
+  }
+  for (const file of normalized.files) {
+    if (pages[file.path]) continue
+    const parent = posix.dirname(file.path)
+    pages[file.path] = await createPage(database, posix.basename(file.path), parent === '.' ? record.rootPageId : pages[parent])
+    created += 1
+  }
+
+  const active = new Set(['', ...directories, ...normalized.files.map((file) => file.path)])
+  const detached = Object.keys(pages).filter((path) => !active.has(path)).length
+  for (const path of Object.keys(pages)) {
+    if (!active.has(path)) delete pages[path]
+  }
+
+  const pageBodies: Record<string, string> = {}
+  for (const directory of ['', ...directories]) {
+    const body = immediateChildren(directory, pages)
+      .map((path) => `- ${pageMention(pages[path]!, posix.basename(path))}`)
+      .join('\n')
+    pageBodies[directory] = body
+    await database.writeContent(`/pages/${pages[directory]}`, body)
+  }
+  for (const file of normalized.files) {
+    const body = file.path === entry.path ? parsed.body : file.content
+    const rewritten = rewriteRelativeLinks(body, file.path, pages)
+    pageBodies[file.path] = rewritten
+    await database.writeContent(`/pages/${pages[file.path]}`, rewritten)
+  }
+
+  const filePaths = normalized.files.map((file) => file.path).sort()
+  const syncedAt = Date.now()
+  return {
+    record: {
+      ...record,
+      name,
+      description,
+      enabled,
+      entryPageId: pages[entry.path]!,
+      entryPath: entry.path,
+      pages,
+      filePaths,
+      folderHash: skillFilesHash(normalized.files),
+      pageHash: skillPageHashFromBodies({ name, description, enabled }, filePaths, pageBodies),
+      syncedAt,
+    } satisfies SkillRecord,
+    created,
+    detached,
+  }
+}
+
+function quoteFrontmatter(value: string) {
+  const text = value.replace(/[\r\n]+/g, ' ').trim()
+  return /^[\w\u4e00-\u9fa5][^:#]*$/.test(text) ? text : JSON.stringify(text)
+}
+
+function renderSkillMarkdown(record: SkillRecord, body: string) {
+  const lines = [
+    '---',
+    `name: ${quoteFrontmatter(record.name)}`,
+    `description: ${quoteFrontmatter(record.description)}`,
+  ]
+  if (!record.enabled) lines.push('enabled: false')
+  lines.push('---', '', body.trim(), '')
+  return lines.join('\n')
+}
+
+function decodeMentionAttr(value: string) {
+  return value.replaceAll('\\"', '"').replaceAll('\\\\', '\\')
+}
+
+function restoreRelativeLinks(body: string, from: string, pages: Record<string, string>) {
+  const paths = new Map(Object.entries(pages).map(([path, pageId]) => [pageId, path]))
+  return body.replace(
+    /\[@\s+id="page\/([^"]+)"\s+label="([^"]*)"\s*]/g,
+    (whole, pageIdRaw: string, labelRaw: string) => {
+      const target = paths.get(decodeMentionAttr(pageIdRaw))
+      if (target === undefined) return whole
+      const relative = posix.relative(posix.dirname(from), target) || posix.basename(target)
+      return `[${decodeMentionAttr(labelRaw).replaceAll(']', '\\]')}](${relative})`
+    },
+  )
+}
+
+export async function skillFilesFromPages(database: SkillPageDatabase, record: SkillRecord) {
+  const files: SkillImportFile[] = []
+  for (const path of record.filePaths) {
+    const result = await database.content(`/pages/${record.pages[path]}`) as { value?: unknown }
+    const body = restoreRelativeLinks(String(result.value ?? ''), path, record.pages)
+    files.push({
+      path,
+      content: path === record.entryPath ? renderSkillMarkdown(record, body) : body,
+    })
+  }
+  return files.sort((a, b) => a.path.localeCompare(b.path))
+}
+
+export function resolveSkillPage(record: SkillRecord, target = '', from = '') {
+  if (!target) return { path: record.entryPath, pageId: record.entryPageId }
+  const path = resolveSkillRelativePath(from || record.entryPath, target)
+  const pageId = record.pages[path]
+  if (!path || !pageId) throw new Error(`unknown skill page: ${target}`)
+  return { path, pageId }
 }
