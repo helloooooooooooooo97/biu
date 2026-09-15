@@ -132,6 +132,7 @@ test('settings appearance toggles day and night themes', () => {
   assert.match(css, /:root \{[^}]*--dsw-sidebar-fg-active: #2c2c2b/)
   assert.match(css, /:root \{[^}]*--dsw-tag-ink: #2c2c2b/)
   assert.match(css, /html\.dark \{[^}]*--dsw-bg: #191919/)
+  assert.match(css, /html:not\(\.dark\) \.hljs/)
   assert.match(html, /biu\.theme/)
 })
 

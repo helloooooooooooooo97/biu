@@ -5191,6 +5191,50 @@ body {
   color: inherit;
 }
 
+/* github-dark 的 token 在白底/浅代码底上看不见；夜间仍走原主题。 */
+html:not(.dark) .hljs,
+html:not(.dark) .hljs-subst {
+  color: var(--dsw-label);
+  background: transparent;
+}
+html:not(.dark) .hljs-comment,
+html:not(.dark) .hljs-quote {
+  color: var(--dsw-sidebar-fg);
+}
+html:not(.dark) .hljs-keyword,
+html:not(.dark) .hljs-selector-tag,
+html:not(.dark) .hljs-literal,
+html:not(.dark) .hljs-deletion {
+  color: #9f1239;
+}
+html:not(.dark) .hljs-string,
+html:not(.dark) .hljs-doctag,
+html:not(.dark) .hljs-addition {
+  color: #166534;
+}
+html:not(.dark) .hljs-title,
+html:not(.dark) .hljs-section,
+html:not(.dark) .hljs-name,
+html:not(.dark) .hljs-selector-id {
+  color: #1d4ed8;
+}
+html:not(.dark) .hljs-number,
+html:not(.dark) .hljs-attr,
+html:not(.dark) .hljs-variable,
+html:not(.dark) .hljs-template-variable,
+html:not(.dark) .hljs-symbol {
+  color: #c2410c;
+}
+html:not(.dark) .hljs-built_in,
+html:not(.dark) .hljs-type,
+html:not(.dark) .hljs-class .hljs-title {
+  color: #6d28d9;
+}
+html:not(.dark) .hljs-meta,
+html:not(.dark) .hljs-meta .hljs-string {
+  color: #0f766e;
+}
+
 /* highlight.js 深色主题默认会滚动条很小，这里让 pre 内部横向滚动自然 */
 .chat-md pre code.hljs {
   white-space: pre;

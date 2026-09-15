@@ -167,7 +167,7 @@ function ColorMenus({
             aria-expanded={open === 'text'}
             onMouseDown={holdSelection}
           >
-            <span className="page-bubble-letter" style={{ color: color || '#F0EFED' }}>
+            <span className="page-bubble-letter" style={{ color: color || undefined }}>
               A
             </span>
           </button>
