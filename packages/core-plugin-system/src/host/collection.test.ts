@@ -93,7 +93,7 @@ test('pluginsCollection lists installed plugins and sandboxes in one table', asy
   assert.equal(draft?.shellWidth, undefined)
   assert.deepEqual(
     spec.actions?.map((item) => item.id),
-    ['sandbox', 'start', 'stop', 'pack', 'reload', 'uninstall'],
+    ['sandbox', 'start', 'stop', 'pack', 'uninstall'],
   )
   await spec.actions!.find((item) => item.id === 'start')!.run('demo', demo!)
   await spec.actions!.find((item) => item.id === 'pack')!.run('draft-hello', draft!)
