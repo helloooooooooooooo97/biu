@@ -39,7 +39,7 @@ type DrawApi = {
 }
 
 function emptyScene(): Scene {
-  return { elements: [], appState: { theme: 'dark' }, files: {} }
+  return { elements: [], appState: { theme: 'dark', showWelcomeScreen: false }, files: {} }
 }
 
 function withoutCollab(appState: unknown): Record<string, unknown> {
@@ -150,7 +150,7 @@ function cancelPending(host: Host) {
 function sceneData(scene: Scene) {
   return {
     elements: (scene.elements ?? []) as never,
-    appState: { ...withoutCollab(scene.appState), isLoading: false, collaborators: new Map() },
+    appState: { ...withoutCollab(scene.appState), isLoading: false, showWelcomeScreen: false, collaborators: new Map() },
     files: (scene.files ?? {}) as never,
   }
 }
@@ -364,7 +364,7 @@ function PersistentDraw(props: {
       <Excalidraw
         theme="dark"
         initialData={props.initialData as never}
-        viewModeEnabled={!props.expanded}
+        viewModeEnabled={false}
         zenModeEnabled={!props.expanded}
         UIOptions={UI_OPTIONS as never}
         onChange={onChange as never}
