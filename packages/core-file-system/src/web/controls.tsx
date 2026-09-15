@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { CheckCircleIcon } from '@heroicons/react/24/solid'
+import { CheckCircleIcon } from '@heroicons/react/16/solid'
 import { CellMulti } from '@biu/database-ui'
 import { overlayPortalRoot } from '@biu/public-ui'
 

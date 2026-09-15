@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowPathIcon, ArrowTopRightOnSquareIcon, CheckIcon } from '@heroicons/react/24/solid'
+import { ArrowPathIcon, ArrowTopRightOnSquareIcon, CheckIcon } from '@heroicons/react/16/solid'
 import { ensureDbSearchStyle } from '@biu/database-ui'
 import type { DbRecord, FieldSpec } from '@biu/type-file-system'
 import { listCollection, readJson } from './db-client.ts'

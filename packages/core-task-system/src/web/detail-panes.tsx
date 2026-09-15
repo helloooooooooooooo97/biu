@@ -9,7 +9,7 @@ import {
   PlayIcon,
   PlusIcon,
   XMarkIcon,
-} from '@heroicons/react/24/solid'
+} from '@heroicons/react/16/solid'
 import type { DbRecord } from '@biu/type-file-system'
 import type { FsDetailPaneProps } from '@biu/type-file-system/ui'
 

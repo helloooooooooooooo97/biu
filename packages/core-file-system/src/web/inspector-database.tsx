@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore, type ComponentType } from 'react'
-import { CircleStackIcon, XMarkIcon } from '@heroicons/react/24/solid'
+import { CircleStackIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import type { SlotProps } from '@biu/type-slots'
 import type { CollectionInfo } from '@biu/type-file-system'
 import type { CollectionChrome } from '@biu/type-file-system/ui'

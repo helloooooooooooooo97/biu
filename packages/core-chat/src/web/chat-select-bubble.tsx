@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid'
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/16/solid'
 import { getPick, textPickFromPlain } from '@biu/core-pick/web'
 
 function chatTextRange(): Range | null {

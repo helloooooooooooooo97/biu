@@ -10,7 +10,7 @@ import {
   ChevronRightIcon,
   CubeTransparentIcon,
   HashtagIcon,
-} from '@heroicons/react/24/solid'
+} from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
 import { parseSharePath, sharePublicPath, type ShareSnapshot } from '../share-snapshot.ts'
 import { parsePageBanner } from '../page-banner.ts'

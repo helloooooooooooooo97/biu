@@ -5,6 +5,6 @@ import assert from 'node:assert/strict'
 
 test('trash glyph uses the Heroicons solid can', () => {
   const src = readFileSync(resolve(import.meta.dirname, './trash-glyph.tsx'), 'utf8')
-  assert.match(src, /@heroicons\/react\/24\/solid/)
+  assert.match(src, /@heroicons\/react\/16\/solid/)
   assert.match(src, /TrashIcon/)
 })

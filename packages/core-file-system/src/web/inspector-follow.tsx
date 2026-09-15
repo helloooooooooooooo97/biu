@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { ViewfinderCircleIcon } from '@heroicons/react/24/solid'
+import { ViewfinderCircleIcon } from '@heroicons/react/16/solid'
 import {
   isInspectorAgentFollow,
   setInspectorAgentFollow,

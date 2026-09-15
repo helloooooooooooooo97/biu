@@ -1,4 +1,4 @@
-import { CodeBracketIcon } from '@heroicons/react/24/solid'
+import { CodeBracketIcon } from '@heroicons/react/16/solid'
 import type { DbRecord } from '@biu/type-file-system'
 import { togglePageSourceMode, usePageSourceMode } from './source-mode.ts'
 
