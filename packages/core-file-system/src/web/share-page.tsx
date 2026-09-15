@@ -423,6 +423,7 @@ function SharePage({
       </header>
       <div className="fsdb-right">
       <div className="fsdb-share-body fsdb-right-body">
+      <div className="app-pane-in">
       {shown ? (
         <RecordDetail
           selected={{ ...shown, banner: rewriteBanner(shown.banner, token, password) ?? shown.banner }}
@@ -491,20 +492,25 @@ function SharePage({
               onRefresh={() => setReload((n) => n + 1)}
             />
           ) : null}
-          <ShareListTable
-            schema={schema}
-            view={snapshot.view}
-            records={listed}
-            collection={snapshot.collection}
-            chrome={chrome}
-            columns={queryState?.columns}
-            wrap={queryState?.wrap}
-            truncate={queryState?.truncate}
-            onOpen={(id) => navigate(sharePublicPath(token, id))}
-          />
-          {listed.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}
+          <div className="fsdb-workspace">
+            <div className="fsdb-stage">
+              <ShareListTable
+                schema={schema}
+                view={snapshot.view}
+                records={listed}
+                collection={snapshot.collection}
+                chrome={chrome}
+                columns={queryState?.columns}
+                wrap={queryState?.wrap}
+                truncate={queryState?.truncate}
+                onOpen={(id) => navigate(sharePublicPath(token, id))}
+              />
+              {listed.length === 0 ? <p className="fsdb-empty">暂无记录</p> : null}
+            </div>
+          </div>
         </div>
       )}
+      </div>
       </div>
       </div>
     </div>

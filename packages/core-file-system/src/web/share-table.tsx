@@ -97,6 +97,8 @@ export function ShareListTable({
 
   return (
     <div className="tasks-table-wrap">
+      <div className="tasks-table-stage">
+        <div className="fsdb-check-rail" aria-hidden />
       <table
         className={`tasks-table${wrapCells ? ' is-wrap' : ''}${truncateCells ? ' is-truncate' : ''}`}
       >
@@ -146,6 +148,7 @@ export function ShareListTable({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
