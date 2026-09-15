@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { extname, join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import type { Duplex } from 'node:stream'
 import { Service, type Context } from 'cordis'
@@ -70,12 +71,20 @@ function defaultSharePort() {
   return 3142
 }
 
+function defaultPublicDir() {
+  const env = String(process.env.BIU_PUBLIC_DIR ?? '').trim()
+  if (env) return env
+  const dist = join(process.cwd(), 'dist')
+  if (existsSync(join(dist, 'index.html'))) return dist
+  return join(process.cwd(), 'public')
+}
+
 function resolveListenConfig(config?: HttpListenConfig) {
   const sharePortRaw = config?.sharePort ?? defaultSharePort()
   return {
     port: Number(config?.port ?? process.env.PORT ?? 3141),
     host: config?.host ?? process.env.HTTP_HOST ?? '127.0.0.1',
-    publicDir: config?.publicDir ?? join(process.cwd(), 'public'),
+    publicDir: config?.publicDir ?? defaultPublicDir(),
     sharePort: Number.isFinite(sharePortRaw) ? sharePortRaw : 0,
     shareHost: config?.shareHost ?? process.env.SHARE_HOST ?? '0.0.0.0',
   }
