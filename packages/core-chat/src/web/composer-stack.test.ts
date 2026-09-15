@@ -132,7 +132,7 @@ describe('composer dock stacking above sticky user', () => {
     // 加号 / 模型入口 / 芯片 / dock 按钮与项目文件夹同一套底和字色。
     expect(css).toMatch(/\.composer-plus\s*\{[^}]*color:\s*var\(--dsw-icon-active\)/s)
     expect(css).toMatch(/\.composer-model-trigger\s*\{[^}]*color:\s*var\(--dsw-icon-active\)/s)
-    expect(css).toMatch(/\.project-chip\s*\{[^}]*color:\s*var\(--dsw-label\)/s)
+    expect(css).toMatch(/\.project-chip\s*\{[^}]*color:\s*var\(--dsw-icon-active\)/s)
     expect(css).toMatch(/\.project-chip\s*\{[^}]*background:\s*var\(--dsw-bubble\)/s)
     expect(css).toMatch(/\.dock-icon-btn\s*\{[^}]*color:\s*var\(--dsw-icon-active\)/s)
     expect(css).toMatch(/\.dock-icon-btn\s*\{[^}]*background:\s*var\(--dsw-bubble\)/s)

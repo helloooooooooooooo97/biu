@@ -24,6 +24,8 @@ test('inspector header keeps opened tabs on top and a plus menu on the right', (
   assert.match(inspector, /setTab\(next\)/)
   assert.match(css, /\.inspector-empty-item\s*\{[^}]*border:\s*0/s)
   assert.match(css, /\.inspector-empty-item\s*\{[^}]*background:\s*var\(--dsw-sidebar\)/s)
+  assert.match(css, /\.inspector-empty-item\s*\{[^}]*color:\s*var\(--dsw-icon\)/s)
+  assert.match(css, /\.inspector-empty-item:hover\s*\{[^}]*color:\s*var\(--dsw-icon-active\)/s)
   assert.match(inspector, /item.Tab/)
   assert.match(inspector, /pruneOpenedForCollections/)
   assert.match(inspector, /biu:inspector-opened/)

@@ -1376,7 +1376,7 @@ body {
   border-radius: 10px;
   background: var(--dsw-sidebar);
   padding: 8px 12px;
-  color: var(--dsw-sidebar-fg);
+  color: var(--dsw-icon);
   font: inherit;
   font-size: 14px;
   font-weight: 600;
@@ -1386,7 +1386,7 @@ body {
 
 .inspector-empty-item:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-sidebar-fg-active);
+  color: var(--dsw-icon-active);
 }
 
 .inspector-add {
@@ -2952,7 +2952,7 @@ html.dark .chat-overlay-panel {
   border-radius: 999px;
   background: var(--dsw-bubble);
   padding: 0;
-  color: var(--dsw-label);
+  color: var(--dsw-icon-active);
   cursor: pointer;
   box-shadow: none;
 }
@@ -3009,7 +3009,7 @@ html.dark .chat-overlay-panel {
 }
 
 .project-chip:hover:not(:disabled) {
-  color: var(--dsw-sidebar-fg-active);
+  color: var(--dsw-icon-active);
 }
 
 .project-chip.project-chip-clear-ctx:hover:not(:disabled) {
@@ -3052,7 +3052,7 @@ html.dark .chat-overlay-panel {
 }
 
 .project-chip-muted {
-  color: var(--dsw-label);
+  color: var(--dsw-icon-active);
   cursor: default;
 }
 
@@ -3071,7 +3071,7 @@ html.dark .chat-overlay-panel {
 .project-chip.is-active {
   border-color: var(--dsw-pick-stroke);
   background: var(--dsw-pick-fill);
-  color: var(--dsw-sidebar-fg-active);
+  color: var(--dsw-icon-active);
 }
 
 .project-chip.project-chip-pick-toggle.is-active,
