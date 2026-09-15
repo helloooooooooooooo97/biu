@@ -539,8 +539,12 @@ body {
   place-items: center;
   border: 0;
   background: transparent;
-  color: var(--dsw-label-2);
+  color: var(--dsw-icon);
   cursor: pointer;
+}
+
+.shell-search-go:hover {
+  color: var(--dsw-icon-active);
 }
 
 .shell-search-input {
@@ -572,6 +576,14 @@ body {
 .shell-search-hit-tags .biu-tag {
   max-width: none;
   font-weight: 400;
+}
+
+.shell-search-scopes .biu-tag-icon {
+  color: var(--dsw-icon);
+}
+
+.shell-search-scopes .biu-tag.is-on .biu-tag-icon {
+  color: var(--dsw-icon-active);
 }
 
 .shell-search-body {
@@ -622,7 +634,12 @@ body {
   height: 20px;
   flex: none;
   place-items: center;
-  color: var(--dsw-label-2);
+  color: var(--dsw-icon);
+}
+
+.shell-search-hit.is-active .shell-search-hit-icon,
+.shell-search-hit:hover .shell-search-hit-icon {
+  color: var(--dsw-icon-active);
 }
 
 .shell-search-hit-title {
@@ -687,7 +704,7 @@ body {
   border-radius: 5px;
   padding: 3px;
   background: transparent;
-  color: var(--dsw-label-2);
+  color: var(--dsw-icon);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
@@ -695,7 +712,7 @@ body {
 
 .shell-search-hit-action:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-label-2);
+  color: var(--dsw-icon-active);
 }
 
 .shell-search-hit-action.is-danger:hover {
