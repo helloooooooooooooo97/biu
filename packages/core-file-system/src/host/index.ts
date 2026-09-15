@@ -43,7 +43,8 @@ import { publicShareUrl } from './share-origin.ts'
 import { readSharePluginWebJs, zipSharePluginSource } from './share-plugin-pack.ts'
 import { collectShareResources } from '../share-resources.ts'
 import { FacetStore } from './facets-store.ts'
-import { SharesStore } from './shares-store.ts'
+import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
+import { isReadOnlyViewId } from '../catalog-views.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { AssetConflictError, FileSystemAssets, collectAssetNames, isAssetFileName, parseIfMatch } from './assets-store.ts'
 import { facetsCollection } from './facets-collection.ts'
@@ -1729,7 +1730,10 @@ export function apply(ctx: Context) {
   ctx.http.route('POST', '/api/db/saved-views', async (route) => {
     try {
       const body = (await route.json()) as { path?: string; views?: StoredView[] }
-      savedViews.replace(String(body?.path ?? ''), Array.isArray(body?.views) ? body.views : [])
+      const path = String(body?.path ?? '')
+      const next = Array.isArray(body.views) ? body.views : []
+      dropSharesForRemovedViews(shares, path, savedViews.viewsFor(path), next)
+      savedViews.replace(path, next)
       ctx.emit('database/change')
       route.send(200, { ok: true })
     } catch (error) {
@@ -1773,10 +1777,15 @@ export function apply(ctx: Context) {
             const got = (await db.read(`${share.collection}/${share.recordId}`)) as { value?: { title?: unknown; name?: unknown } }
             title = String(got.value?.title ?? got.value?.name ?? share.recordId)
           } catch {
-            title = share.recordId
+            shares.revoke(share.token)
+            continue
           }
         } else {
           const named = savedViews.viewsFor(share.collection).find((item) => item.id === share.viewId)
+          if (!named && share.viewId && !isReadOnlyViewId(share.viewId)) {
+            shares.revoke(share.token)
+            continue
+          }
           if (named?.name) title = named.name
         }
         items.push({ ...share, title, url: publicShareUrl(route.req, share.token) })
@@ -1843,7 +1852,13 @@ export function apply(ctx: Context) {
       const snapshot = await buildShareSnapshot(db, savedViews, share)
       route.send(200, snapshot)
     } catch (error) {
-      route.send(400, { error: String(error) })
+      const msg = String(error)
+      if (share.kind === 'record' && /unknown record/.test(msg)) {
+        shares.revoke(token)
+        route.send(404, { error: 'not found' })
+        return
+      }
+      route.send(400, { error: msg })
     }
   })
   ctx.http.route('POST', '/api/share/:token', async (route) => {
@@ -1862,7 +1877,13 @@ export function apply(ctx: Context) {
       const snapshot = await buildShareSnapshot(db, savedViews, share)
       route.send(200, snapshot)
     } catch (error) {
-      route.send(400, { error: String(error) })
+      const msg = String(error)
+      if (share.kind === 'record' && /unknown record/.test(msg)) {
+        shares.revoke(token)
+        route.send(404, { error: 'not found' })
+        return
+      }
+      route.send(400, { error: msg })
     }
   })
   ctx.http.route('GET', '/api/share/:token/file/:name', async (route) => {

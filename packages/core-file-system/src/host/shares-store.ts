@@ -213,3 +213,16 @@ export class SharesStore {
     return rows.map(publicShare)
   }
 }
+
+export function dropSharesForRemovedViews(
+  shares: SharesStore,
+  collection: string,
+  previous: Array<{ id?: string }>,
+  next: Array<{ id?: string }>,
+) {
+  const keep = new Set(next.map((item) => String(item.id ?? '').trim()).filter(Boolean))
+  for (const view of previous) {
+    const id = String(view.id ?? '').trim()
+    if (id && !keep.has(id)) shares.revokeView(collection, id)
+  }
+}

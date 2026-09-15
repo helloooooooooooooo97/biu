@@ -4,7 +4,7 @@ import { Context } from 'cordis'
 import { REQUIRED_RECORD_FIELDS, type CollectionSpec } from '@biu/type-file-system'
 import { DatabaseService } from './index.ts'
 import { SavedViewsStore, viewsCollection } from './saved-views.ts'
-import { SharesStore } from './shares-store.ts'
+import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { parseSharePath } from '../share-snapshot.ts'
 
@@ -73,6 +73,15 @@ test('deleting a record revokes its share but keeps other shares', async () => {
   assert.equal(db.shares.find('record', '/notes', '', 'gone'), null)
   assert.equal(db.shares.get(keepShare.token)?.token, keepShare.token)
   assert.equal(db.shares.get(viewShare.token)?.token, viewShare.token)
+})
+
+test('dropping a saved view from replace revokes its share', () => {
+  const store = new SharesStore().open(':memory:')
+  const keep = store.upsert({ kind: 'view', collection: '/pages', viewId: 'keep' })
+  const gone = store.upsert({ kind: 'view', collection: '/pages', viewId: 'gone' })
+  dropSharesForRemovedViews(store, '/pages', [{ id: 'keep' }, { id: 'gone' }], [{ id: 'keep' }])
+  assert.equal(store.get(gone.token), null)
+  assert.equal(store.get(keep.token)?.token, keep.token)
 })
 
 test('deleting a saved view revokes that view share', async () => {
