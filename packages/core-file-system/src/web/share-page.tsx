@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { FieldSpec } from '@biu/type-file-system'
+import type { CollectionChrome } from '@biu/type-file-system/ui'
 import { ArrowDownTrayIcon } from '@heroicons/react/16/solid'
 import { parseSharePath, type ShareSnapshot } from '../share-snapshot.ts'
 import { RecordDetail } from './record-detail.tsx'
@@ -49,14 +50,25 @@ function rewriteAssetUrls(value: unknown, token: string, password: string): unkn
   return value
 }
 
-export function ShareRoot() {
+export function ShareRoot({ chrome }: { chrome?: CollectionChrome } = {}) {
   const location = useLocation()
   const parsed = parseSharePath(location.pathname)
   if (!parsed) return null
-  return <SharePage token={parsed.token} recordId={parsed.recordId} />
+  return <SharePage token={parsed.token} recordId={parsed.recordId} chrome={chrome} />
 }
 
-function SharePage({ token, recordId }: { token: string; recordId: string }) {
+function downloadShareFile(blob: Blob, name: string) {
+  const href = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = href
+  link.download = name
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(href)
+}
+
+function SharePage({ token, recordId, chrome }: { token: string; recordId: string; chrome?: CollectionChrome }) {
   ensureFsdbStyle()
   const navigate = useNavigate()
   const [password, setPassword] = useState(() => {
@@ -170,22 +182,16 @@ function SharePage({ token, recordId }: { token: string; recordId: string }) {
     )
   }
 
-  async function copyAll() {
+  function downloadShare() {
     const files = live.records.map((row) => ({
       name: markdownFileName(row),
       text: recordToMarkdown(row, contentToMarkdown(live.contents[row.id])),
     }))
     if (files.length === 1) {
-      await navigator.clipboard.writeText(files[0]!.text)
+      downloadShareFile(new Blob([files[0]!.text], { type: 'text/markdown;charset=utf-8' }), files[0]!.name)
       return
     }
-    const blob = zipMarkdownPack(files)
-    const href = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = href
-    link.download = 'share.zip'
-    link.click()
-    URL.revokeObjectURL(href)
+    downloadShareFile(zipMarkdownPack(files), 'share.zip')
   }
 
   return (
@@ -199,10 +205,10 @@ function SharePage({ token, recordId }: { token: string; recordId: string }) {
           <button
             type="button"
             className="chat-view-header-expand"
-            title="拷贝"
-            aria-label="拷贝"
+            title="下载"
+            aria-label="下载"
             data-testid="fsdb-share-download"
-            onClick={() => void copyAll()}
+            onClick={downloadShare}
           >
             <ArrowDownTrayIcon aria-hidden className="size-4" />
           </button>
@@ -213,6 +219,7 @@ function SharePage({ token, recordId }: { token: string; recordId: string }) {
         <RecordDetail
           selected={shown}
           schema={schema}
+          chrome={chrome}
           draft={{}}
           detailBody={rewriteAssetUrls(snapshot.contents[shown.id], token, password)}
           labelOf={(row) => String(row.title ?? row.id)}

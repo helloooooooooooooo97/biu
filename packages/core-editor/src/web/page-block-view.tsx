@@ -126,6 +126,8 @@ export function PageBlockView({ node, updateAttributes, editor, getPos }: NodeVi
         <div className="page-block-missing">正在复制附件…</div>
       ) : View ? (
         <View data={data} update={update} writable={editor.isEditable} />
+      ) : kind === 'html' && typeof data.html === 'string' && data.html ? (
+        <div className="page-block-html-preview" dangerouslySetInnerHTML={{ __html: data.html }} />
       ) : (
         <PageBlockMissing kind={kind} plugin={plugin} data={data} />
       )}

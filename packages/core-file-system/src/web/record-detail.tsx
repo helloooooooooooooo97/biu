@@ -271,7 +271,7 @@ export function RecordDetail({
                   locked={readOnly}
                 />
                 <div className="fsdb-detail-title-block">
-                {schema.labelField && schema.fields[schema.labelField]?.writable ? (
+                {schema.labelField && schema.fields[schema.labelField]?.writable && !readOnly ? (
                   <h1 className="fsdb-detail-title">
                     <LocalText
                       as="textarea"
@@ -341,7 +341,7 @@ export function RecordDetail({
                           field={key}
                           spec={spec}
                           value={detailBody}
-                          writable={spec.writable}
+                          writable={Boolean(spec.writable) && !readOnly}
                           path={collectionPath ? `${collectionPath}/${selected.id}` : undefined}
                           onChange={(next) => void writePatch(selected, { [key]: next })}
                         />
