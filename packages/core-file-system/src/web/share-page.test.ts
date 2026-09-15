@@ -3,13 +3,17 @@ import { resolve } from 'node:path'
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 
-test('share page uses tight side padding on small screens', () => {
+test('share page uses matching side padding on small screens', () => {
   const css = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
   const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
   assert.match(src, /fsdb-share-list/)
+  assert.match(src, /collapseToLeaf/)
+  assert.match(src, /^\s*readOnly$/m)
   assert.match(css, /@media \(max-width:720px\)\{/)
-  assert.match(css, /\.fsdb-share-page \.fsdb-detail-main > :not\(\.fsdb-page-banner\)\{padding-left:16px;padding-right:16px\}/)
-  assert.match(css, /\.fsdb-share-list\{padding:16px\}/)
+  assert.match(css, /--fsdb-share-pad:24px/)
+  assert.match(css, /\.fsdb-share-page \.fsdb-detail-main > :not\(\.fsdb-page-banner\)\{padding-left:var\(--fsdb-share-pad\);padding-right:var\(--fsdb-share-pad\)\}/)
+  assert.match(css, /\.fsdb-share-list\{padding:var\(--fsdb-share-pad\) 0\}/)
+  assert.match(css, /\.fsdb-crumbs\.is-leaf-only \.fsdb-crumb:not\(:last-child\)\{display:none\}/)
 })
 
 test('share header crumbs use collectionLabel not the path id', () => {

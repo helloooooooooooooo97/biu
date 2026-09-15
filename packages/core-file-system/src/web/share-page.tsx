@@ -374,7 +374,13 @@ function SharePage({
       <header className="chat-view-header">
         <div className="chat-view-header-left">
           {crumbs.length ? (
-            <CrumbTrail crumbs={crumbs} canCreateView={false} canCreateRecord={false} onPick={openShareTarget} />
+            <CrumbTrail
+              crumbs={crumbs}
+              canCreateView={false}
+              canCreateRecord={false}
+              collapseToLeaf
+              onPick={openShareTarget}
+            />
           ) : (
             <span className="chat-view-project-name">{snapshot.title}</span>
           )}
