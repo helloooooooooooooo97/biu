@@ -597,6 +597,8 @@ test('database extras sit after the record detail, not in the inspector', () => 
   assert.match(style, /\.fsdb-page-banner\{[^}]*height:240px/)
   assert.match(style, /\.fsdb-page-banner\.is-empty\{[^}]*height:80px/)
   assert.match(style, /\.fsdb-page-banner:hover \.fsdb-banner-title-actions/)
+  assert.match(style, /\.fsdb-banner-title-actions\{[^}]*right:80px/)
+  assert.doesNotMatch(style, /\.fsdb-banner-title-actions\{[^}]*left:80px/)
   assert.doesNotMatch(style, /\.fsdb-detail-title-row:hover \.fsdb-banner-title-actions/)
   const bannerUi = readFileSync(resolve(import.meta.dirname, './page-banner.tsx'), 'utf8')
   assert.match(bannerUi, /添加背景/)

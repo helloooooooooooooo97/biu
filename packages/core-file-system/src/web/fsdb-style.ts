@@ -398,7 +398,7 @@ const CSS = `
 .fsdb-banner-story-head,.fsdb-banner-fly-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .fsdb-banner-story-title{font-size:12px;font-weight:700;letter-spacing:.04em}
 .fsdb-banner-story-note{margin-top:4px;font-size:12px;font-weight:500;line-height:1.5;color:#D8D5D0}
-.fsdb-banner-title-actions{position:absolute;left:80px;bottom:10px;z-index:3;display:flex;align-items:center;margin:0;min-height:0;opacity:0;pointer-events:none}
+.fsdb-banner-title-actions{position:absolute;left:auto;right:80px;bottom:10px;z-index:3;display:flex;align-items:center;margin:0;min-height:0;opacity:0;pointer-events:none}
 .fsdb-page-banner:hover .fsdb-banner-title-actions,.fsdb-page-banner:focus-within .fsdb-banner-title-actions,.fsdb-banner-title-actions:has([data-state=open]){opacity:1;pointer-events:auto}
 .fsdb-banner-ico{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:28px;margin:0;border:0;border-radius:6px;padding:0 8px;background:transparent;color:var(--dsw-label-2);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
 .fsdb-banner-ico:hover,.fsdb-banner-ico[data-state=open]{background:var(--dsw-hover);color:var(--dsw-label)}
@@ -752,7 +752,8 @@ html.share .fsdb-detail-float-nav,html.share .heading-outline-host:not(.is-sheet
 .fsdb-share-page:not(.is-sheet) .fsdb-main > .fsdb-detail-icon-slot,
 .fsdb-share-page:not(.is-sheet) .fsdb-main > .tasks-toolbar{padding-left:var(--fsdb-share-pad);padding-right:var(--fsdb-share-pad)}
 .fsdb-share-list{padding:var(--fsdb-share-pad) 0}
-.fsdb-share-page .fsdb-banner-story,.fsdb-share-page .fsdb-banner-title-actions{left:var(--fsdb-share-pad);max-width:calc(100% - 2 * var(--fsdb-share-pad))}
+.fsdb-share-page .fsdb-banner-story{left:var(--fsdb-share-pad);max-width:calc(100% - 2 * var(--fsdb-share-pad))}
+.fsdb-share-page .fsdb-banner-title-actions{left:auto;right:var(--fsdb-share-pad)}
 .fsdb-share-page .fsdb-main:not(:has(> .fsdb-page-banner)),
 .fsdb-share-page .fsdb-detail-main:not(:has(> .fsdb-page-banner)){padding-top:var(--fsdb-share-pad)}
 .fsdb-share-record-nav{display:inline-flex}
