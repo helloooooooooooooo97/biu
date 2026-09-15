@@ -153,6 +153,7 @@ export function ShellSettingsAppearance() {
         <button
           type="button"
           className={`settings-theme-card${theme === 'light' ? ' is-on' : ''}`}
+          data-theme-card="light"
           aria-pressed={theme === 'light'}
           data-testid="settings-theme-light"
           onClick={() => pick('light')}
@@ -163,6 +164,7 @@ export function ShellSettingsAppearance() {
         <button
           type="button"
           className={`settings-theme-card${theme === 'dark' ? ' is-on' : ''}`}
+          data-theme-card="dark"
           aria-pressed={theme === 'dark'}
           data-testid="settings-theme-dark"
           onClick={() => pick('dark')}
