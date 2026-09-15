@@ -5855,6 +5855,13 @@ html:not(.dark) .composer-send:disabled {
   color: #5f5e5a;
 }
 
+html.dark .composer-send,
+html.dark .composer-send:disabled {
+  background: var(--dsw-label);
+  color: var(--dsw-bg);
+  border: 1px solid var(--dsw-label);
+}
+
 .composer-send:disabled {
   background: var(--dsw-bubble);
   color: var(--dsw-bg);
