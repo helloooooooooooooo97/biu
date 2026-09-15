@@ -27,20 +27,81 @@ const DIFF_COLOR: Record<string, string> = {
 }
 
 /** 草稿在本地；失焦/点到外部才写回，避免每次按键 update 把光标甩到末尾。 */
+const STYLE_ID = 'pa-card-style-v1'
+const STYLE_CSS = `
+.pa-card{
+  display:grid;
+  grid-template-columns:minmax(220px,1fr) minmax(240px,1.12fr);
+  min-height:280px;
+  overflow:hidden;
+  border:1px solid var(--dsw-border);
+  border-radius:12px;
+  background:var(--dsw-bg);
+  color:var(--dsw-label);
+  font:13px/1.55 ui-sans-serif,system-ui,-apple-system,sans-serif;
+  box-shadow:0 1px 2px rgba(15,15,15,.04);
+}
+@media (max-width:640px){
+  .pa-card{grid-template-columns:1fr}
+  .pa-prompt{border-right:0;border-bottom:1px solid var(--dsw-border)}
+}
+.pa-prompt{min-width:0;padding:16px 18px 18px;background:color-mix(in srgb,var(--dsw-hover) 70%,var(--dsw-bg))}
+.pa-prompt-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.pa-kicker{font-size:11px;font-weight:650;letter-spacing:.06em;color:var(--dsw-label-3)}
+.pa-diff{
+  margin-left:auto;border:0;border-radius:999px;padding:2px 9px;
+  background:color-mix(in srgb,var(--pa-diff,#0f7b6c) 14%,transparent);
+  color:var(--pa-diff,#0f7b6c);font:700 11px/1.4 inherit;cursor:pointer;outline:none;
+}
+.pa-diff:disabled{cursor:default;opacity:.85}
+.pa-title,.pa-body,.pa-code{
+  width:100%;box-sizing:border-box;border:0;outline:none;background:transparent;color:inherit;font:inherit;resize:vertical;
+}
+.pa-title{display:block;margin:0 0 10px;padding:0;font-size:20px;font-weight:700;letter-spacing:-.02em;line-height:1.25}
+.pa-body{min-height:160px;color:var(--dsw-label-2)}
+.pa-code-col{min-width:0;display:flex;flex-direction:column;background:var(--dsw-chat-code-bg,var(--dsw-sidebar))}
+.pa-code-head{
+  display:flex;align-items:center;gap:8px;flex:none;padding:8px 12px;
+  border-bottom:1px solid var(--dsw-border);font-size:12px;
+}
+.pa-lang{
+  margin-left:auto;border:1px solid var(--dsw-border);border-radius:6px;padding:2px 8px;
+  background:var(--dsw-input,transparent);color:var(--dsw-label);font:600 12px inherit;cursor:pointer;outline:none;
+}
+.pa-code{
+  flex:1;min-height:200px;padding:12px 14px;resize:none;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.6;
+  color:var(--dsw-label);
+}
+`
+
+function useAlgoStyle() {
+  useEffect(() => {
+    for (const stale of document.querySelectorAll('style[id^="pa-card-style"]')) {
+      if (stale.id !== STYLE_ID) stale.remove()
+    }
+    const existing = document.getElementById(STYLE_ID)
+    const el = existing instanceof HTMLStyleElement ? existing : document.createElement('style')
+    el.id = STYLE_ID
+    el.textContent = STYLE_CSS
+    if (el.parentNode !== document.head) document.head.appendChild(el)
+  }, [])
+}
+
 function DraftField({
   as: Tag,
   value,
   onCommit,
   readOnly,
   testId,
-  style,
+  className,
 }: {
   as: 'input' | 'textarea'
   value: string
   onCommit: (next: string) => void
   readOnly?: boolean
   testId: string
-  style: Record<string, unknown>
+  className: string
 }) {
   const [draft, setDraft] = useState(value)
   const focused = useRef(false)
@@ -80,7 +141,7 @@ function DraftField({
         event.stopPropagation()
       }}
       onChange={(event) => setDraft(event.currentTarget.value)}
-      style={style}
+      className={className}
     />
   )
 }
@@ -101,60 +162,19 @@ function AlgorithmCard({
   const code = String(data.code ?? '')
   const accent = DIFF_COLOR[difficulty] ?? '#00b8a3'
   const ro = !writable
-
-  const field = {
-    width: '100%',
-    boxSizing: 'border-box' as const,
-    border: 'none',
-    outline: 'none',
-    background: 'transparent',
-    color: 'inherit',
-    font: 'inherit',
-    resize: 'vertical' as const,
-  }
+  useAlgoStyle()
 
   return (
-    <div
-      data-testid="page-algorithm-card"
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        minHeight: 280,
-        borderRadius: 10,
-        overflow: 'hidden',
-        border: '1px solid #30363d',
-        background: '#1e1e1e',
-        color: '#e6edf3',
-        font: '13px/1.5 ui-sans-serif, system-ui, sans-serif',
-      }}
-    >
-      <section
-        style={{
-          flex: '1 1 240px',
-          minWidth: 220,
-          maxWidth: '50%',
-          padding: '14px 16px 16px',
-          background: '#262626',
-          borderRight: '1px solid #30363d',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', opacity: 0.55 }}>DESCRIPTION</span>
+    <div data-testid="page-algorithm-card" className="pa-card" style={{ ['--pa-diff' as string]: accent }}>
+      <section className="pa-prompt">
+        <div className="pa-prompt-head">
+          <span className="pa-kicker">题目</span>
           <select
             data-testid="page-algorithm-diff"
+            className="pa-diff"
             disabled={ro}
             value={difficulty}
             onChange={(event) => update({ difficulty: event.target.value })}
-            style={{
-              marginLeft: 'auto',
-              border: 'none',
-              borderRadius: 999,
-              padding: '2px 8px',
-              background: 'transparent',
-              color: accent,
-              fontWeight: 700,
-              fontSize: 12,
-            }}
           >
             <option>Easy</option>
             <option>Medium</option>
@@ -167,7 +187,7 @@ function AlgorithmCard({
           readOnly={ro}
           value={title}
           onCommit={(next) => update({ title: next })}
-          style={{ ...field, fontSize: 18, fontWeight: 700, marginBottom: 10 }}
+          className="pa-title"
         />
         <DraftField
           as="textarea"
@@ -175,27 +195,18 @@ function AlgorithmCard({
           readOnly={ro}
           value={prompt}
           onCommit={(next) => update({ prompt: next })}
-          style={{ ...field, minHeight: 160 }}
+          className="pa-body"
         />
       </section>
-      <section style={{ flex: '1 1 260px', minWidth: 240, display: 'flex', flexDirection: 'column', background: '#1e1e1e' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '8px 12px',
-            borderBottom: '1px solid #30363d',
-            fontSize: 12,
-          }}
-        >
-          <span style={{ opacity: 0.55, fontWeight: 700 }}>Code</span>
+      <section className="pa-code-col">
+        <div className="pa-code-head">
+          <span className="pa-kicker">代码</span>
           <select
             data-testid="page-algorithm-lang"
+            className="pa-lang"
             disabled={ro}
             value={lang}
             onChange={(event) => update({ lang: event.target.value })}
-            style={{ marginLeft: 'auto', background: '#262626', color: 'inherit', border: '1px solid #30363d', borderRadius: 6, padding: '2px 8px' }}
           >
             <option value="python">Python</option>
             <option value="javascript">JavaScript</option>
@@ -210,16 +221,7 @@ function AlgorithmCard({
           readOnly={ro}
           value={code}
           onCommit={(next) => update({ code: next })}
-          style={{
-            ...field,
-            flex: 1,
-            minHeight: 200,
-            padding: 12,
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-            fontSize: 12,
-            lineHeight: 1.55,
-            color: '#d4d4d4',
-          }}
+          className="pa-code"
         />
       </section>
     </div>
@@ -247,7 +249,7 @@ export function apply(ctx: {
     label: '算法题',
     blockType: 'algorithm',
     blockTypeLabel: '算法题',
-    hint: 'LeetCode 风：左题目右代码',
+    hint: '左右分栏：题面 + 代码，跟随页面主题',
     aliases: ['leetcode', 'algo', '算法', 'lc'],
     defaults: DEFAULTS,
     View: AlgorithmCard,

@@ -198,6 +198,11 @@ function useTerminalStyle() {
     const el = existing instanceof HTMLStyleElement ? existing : document.createElement('style')
     el.id = id
     el.textContent = `
+.gt-dots{display:inline-flex;align-items:center;gap:6px;position:absolute;left:12px}
+.gt-dots i{width:8px;height:8px;border-radius:50%;display:block}
+.gt-dots .is-close{background:#ff5f57}
+.gt-dots .is-min{background:#febc2e}
+.gt-dots .is-max{background:#28c840}
 .gt-pane .xterm { padding: 0 !important; height: 100%; }
 /* 终端内部透明，露出外层窗口的毛玻璃背景 */
 .gt-pane .xterm-screen { background: transparent !important; }
@@ -284,7 +289,7 @@ function HistoryPanel({ history, onClear }: { history: HistoryEntry[]; onClear: 
       style={{
         flex: 'none',
         borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-        background: 'rgba(0,0,0,0.28)',
+        background: 'rgba(0,0,0,0.16)',
       }}
     >
       <div
@@ -621,29 +626,35 @@ function GlobalTerminal() {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        borderRadius: 10,
-        background: 'color-mix(in srgb, var(--dsw-sidebar, #202020) 30%, transparent)',
-        backdropFilter: 'blur(40px) saturate(1.8)',
-        WebkitBackdropFilter: 'blur(40px) saturate(1.8)',
-        boxShadow: '0 0 0 1px var(--dsw-border, rgba(242,241,237,0.1)), 0 24px 64px rgba(0,0,0,0.42)',
+        borderRadius: 12,
+        background: 'color-mix(in srgb, var(--dsw-sidebar, #202020) 42%, rgba(12,12,12,.72))',
+        backdropFilter: 'blur(40px) saturate(1.6)',
+        WebkitBackdropFilter: 'blur(40px) saturate(1.6)',
+        boxShadow: '0 0 0 1px rgba(255,255,255,.08), 0 24px 64px rgba(0,0,0,0.42)',
         color: 'var(--dsw-label, #f0efed)',
         font: '11px ui-sans-serif, -apple-system, system-ui, sans-serif',
       }}
     >
       <header
         style={{
-          height: 34,
-          flex: '0 0 34px',
+          position: 'relative',
+          height: 36,
+          flex: '0 0 36px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           padding: '0 12px',
-          borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-          background: 'color-mix(in srgb, var(--dsw-label, #f0efed) 4%, transparent)',
+          borderBottom: '1px solid rgba(255,255,255,.06)',
+          background: 'rgba(0,0,0,.18)',
           userSelect: 'none',
         }}
       >
-        <span style={{ color: 'var(--dsw-label-3, rgba(242,241,237,0.45))', fontWeight: 500 }}>zsh</span>
+        <span className="gt-dots" aria-hidden>
+          <i className="is-close" />
+          <i className="is-min" />
+          <i className="is-max" />
+        </span>
+        <span style={{ color: 'rgba(242,241,237,.72)', fontWeight: 600, letterSpacing: '-.01em' }}>终端</span>
       </header>
       <HistoryPanel history={history} onClear={() => onHistory([])} />
       <section

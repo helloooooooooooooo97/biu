@@ -613,16 +613,15 @@ function CodeRunnerBlock({ data, update, writable }: BlockProps) {
       onMouseDown={(e) => startDrag(e, kind)}
       onDoubleClick={(e) => { e.stopPropagation(); resetDrag(kind) }}
       style={{
-        height: 9,
+        height: 7,
         cursor: 'ns-resize',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        borderTop: '1px solid var(--dsw-border)',
-        background: 'var(--dsw-hover)',
+        background: 'transparent',
       }}
     >
-      <span style={{ width: 40, height: 3, borderRadius: 2, background: 'var(--dsw-label-3)', opacity: 0.45 }} />
+      <span style={{ width: 28, height: 3, borderRadius: 99, background: 'var(--dsw-label-3)', opacity: 0.35 }} />
     </div>
   )
 
@@ -648,22 +647,24 @@ function CodeRunnerBlock({ data, update, writable }: BlockProps) {
       style={{
         margin: '8px 0',
         border: '1px solid var(--dsw-border)',
-        borderRadius: 10,
+        borderRadius: 12,
         background: 'var(--dsw-chat-code-bg, var(--dsw-sidebar))',
         overflow: 'hidden',
         fontFamily: 'var(--font-mono)',
         fontSize: '13px',
         width: '100%',
+        boxShadow: '0 1px 2px rgba(15,15,15,.04)',
       }}
     >
       {/* toolbar */}
       <div
         style={{
           display: 'flex',
-          gap: 8,
-          padding: '6px 10px',
+          gap: 6,
+          padding: '7px 10px',
           borderBottom: collapsed ? 'none' : '1px solid var(--dsw-border)',
           alignItems: 'center',
+          background: 'color-mix(in srgb, var(--dsw-hover) 55%, transparent)',
         }}
       >
         {canCollapse && (
@@ -677,14 +678,14 @@ function CodeRunnerBlock({ data, update, writable }: BlockProps) {
             }}
             title={collapsed ? '\u5c55\u5f00' : '\u6536\u8d77'}
             style={{
-              width: 20,
-              height: 20,
+              width: 22,
+              height: 22,
               lineHeight: 1,
               padding: 0,
-              borderRadius: 5,
-              border: '1px solid var(--dsw-border)',
-              background: 'var(--dsw-hover)',
-              color: 'var(--dsw-label)',
+              borderRadius: 6,
+              border: 0,
+              background: 'transparent',
+              color: 'var(--dsw-icon)',
               fontSize: 11,
               cursor: 'pointer',
             }}
@@ -692,7 +693,7 @@ function CodeRunnerBlock({ data, update, writable }: BlockProps) {
             {collapsed ? '\u25b8' : '\u25be'}
           </button>
         )}
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--dsw-label-3)', textTransform: 'uppercase' as const }}>
+        <span style={{ fontSize: 11, fontWeight: 650, color: 'var(--dsw-label-3)' }}>
           {langInfo.label}
         </span>
         {!ro && (
@@ -703,7 +704,7 @@ function CodeRunnerBlock({ data, update, writable }: BlockProps) {
               padding: '2px 8px',
               borderRadius: 6,
               border: '1px solid var(--dsw-border)',
-              background: 'var(--dsw-input, transparent)',
+              background: 'transparent',
               color: 'var(--dsw-label)',
               fontSize: 12,
               cursor: 'pointer',
@@ -723,18 +724,18 @@ function CodeRunnerBlock({ data, update, writable }: BlockProps) {
             }}
             disabled={running || !localCode.trim()}
             style={{
-              padding: '3px 12px',
+              padding: '3px 11px',
               borderRadius: 6,
-              border: '1px solid var(--dsw-border)',
-              background: 'var(--dsw-hover)',
-              color: 'var(--dsw-label)',
-              fontWeight: 600,
+              border: 0,
+              background: 'var(--dsw-label)',
+              color: 'var(--dsw-bg)',
+              fontWeight: 650,
               fontSize: 12,
               cursor: running ? 'not-allowed' : 'pointer',
               opacity: running ? 0.5 : 1,
             }}
           >
-            {running ? '\u23d3 \u8fd0\u884c\u4e2d' : '\u25b6 \u8fd0\u884c'}
+            {running ? '运行中' : '运行'}
           </button>
         )}
         {output.length > 0 && (
@@ -745,11 +746,11 @@ function CodeRunnerBlock({ data, update, writable }: BlockProps) {
               focusCode()
             }}
             style={{
-              padding: '3px 10px',
+              padding: '3px 8px',
               borderRadius: 6,
-              border: '1px solid var(--dsw-border)',
-              background: 'var(--dsw-hover)',
-              color: 'var(--dsw-label)',
+              border: 0,
+              background: 'transparent',
+              color: 'var(--dsw-label-3)',
               fontSize: 12,
               cursor: 'pointer',
             }}
@@ -759,11 +760,11 @@ function CodeRunnerBlock({ data, update, writable }: BlockProps) {
         )}
         {collapsed && (
           <span style={{ color: 'var(--dsw-label-3)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {`${lineCount} \u884c\u00b7 ${preview}`}
+            {`${lineCount} \u884c · ${preview}`}
           </span>
         )}
         <span style={{ marginLeft: 'auto', color: 'var(--dsw-label-3)', fontSize: 11, whiteSpace: 'nowrap' }}>
-          {!collapsed && (codeOverflow ? '\u5185\u5bb9\u8f83\u957f\uff0c\u53ef\u62d6\u52a8\u6216\u6536\u8d77  ' : '')}
+          {!collapsed && (codeOverflow ? '可拖动高度  ' : '')}
           Ctrl+Enter
         </span>
       </div>
@@ -794,7 +795,8 @@ function CodeRunnerBlock({ data, update, writable }: BlockProps) {
                 ref={outRef}
                 style={{
                   borderTop: '1px solid var(--dsw-border)',
-                  padding: '10px 12px',
+                  padding: '10px 14px',
+                  background: 'color-mix(in srgb, var(--dsw-hover) 35%, transparent)',
                   height: outH,
                   maxHeight: MAX_DRAG_OUT_H,
                   boxSizing: 'border-box',
