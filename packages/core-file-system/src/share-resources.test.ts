@@ -1,10 +1,15 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { collectShareResources, mintSharePin, shareResourceTypeCount } from './share-resources.ts'
+import { collectShareResources, mintSharePin, shareClipboardText, shareResourceTypeCount } from './share-resources.ts'
 
 test('mintSharePin is a six-digit code', () => {
   const pin = mintSharePin()
   assert.match(pin, /^\d{6}$/)
+})
+
+test('share clipboard includes the pin when password is on', () => {
+  assert.equal(shareClipboardText('https://x/share/a'), 'https://x/share/a')
+  assert.equal(shareClipboardText('https://x/share/a', '482901'), 'https://x/share/a\n密码 482901')
 })
 
 test('collectShareResources splits page files, plugins and facets', () => {

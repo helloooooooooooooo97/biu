@@ -660,6 +660,9 @@ button.fsdb-detail-title-icon:hover{background:var(--dsw-hover);color:var(--dsw-
 .fsdb-share-link{display:flex;align-items:center;gap:6px;border:1px solid var(--dsw-border);border-radius:8px;padding:4px 6px;background:var(--dsw-input)}
 .fsdb-share-link input{flex:1;min-width:0;border:0;background:transparent;color:var(--dsw-label);font:inherit;font-size:12px;outline:none}
 .fsdb-share-copy{background:transparent;color:var(--dsw-label)}
+.fsdb-share-link .fsdb-share-copy{flex:none;max-width:42%;padding:6px 8px;background:var(--dsw-pick,#2383e2);color:#fff;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fsdb-share-link .fsdb-share-copy:hover{filter:brightness(1.05);background:var(--dsw-pick,#2383e2);color:#fff}
+.fsdb-share-link .fsdb-share-copy:disabled{opacity:.55;cursor:not-allowed}
 .fsdb-share-copy:hover,.fsdb-share-stop:hover{background:var(--dsw-hover)}
 .fsdb-share-switch{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;color:var(--dsw-label);font-size:13px}
 .fsdb-share-switch span{display:flex;flex-direction:column;gap:2px;min-width:0}
