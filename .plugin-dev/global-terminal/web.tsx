@@ -198,11 +198,6 @@ function useTerminalStyle() {
     const el = existing instanceof HTMLStyleElement ? existing : document.createElement('style')
     el.id = id
     el.textContent = `
-.gt-dots{display:inline-flex;align-items:center;gap:6px;position:absolute;left:12px}
-.gt-dots i{width:8px;height:8px;border-radius:50%;display:block}
-.gt-dots .is-close{background:#ff5f57}
-.gt-dots .is-min{background:#febc2e}
-.gt-dots .is-max{background:#28c840}
 .gt-pane .xterm { padding: 0 !important; height: 100%; }
 /* 终端内部透明，露出外层窗口的毛玻璃背景 */
 .gt-pane .xterm-screen { background: transparent !important; }
@@ -637,7 +632,6 @@ function GlobalTerminal() {
     >
       <header
         style={{
-          position: 'relative',
           height: 36,
           flex: '0 0 36px',
           display: 'flex',
@@ -649,11 +643,6 @@ function GlobalTerminal() {
           userSelect: 'none',
         }}
       >
-        <span className="gt-dots" aria-hidden>
-          <i className="is-close" />
-          <i className="is-min" />
-          <i className="is-max" />
-        </span>
         <span style={{ color: 'rgba(242,241,237,.72)', fontWeight: 600, letterSpacing: '-.01em' }}>终端</span>
       </header>
       <HistoryPanel history={history} onClear={() => onHistory([])} />

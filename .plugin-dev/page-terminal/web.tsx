@@ -132,11 +132,6 @@ const STYLE_CSS = `
   background:#141414;color:rgba(242,241,237,.5);
   font:12px/1 ui-sans-serif,system-ui,sans-serif;user-select:none;
 }
-.pt-dots{display:inline-flex;align-items:center;gap:6px;flex:none}
-.pt-dots i{width:8px;height:8px;border-radius:50%;display:block}
-.pt-dots .is-close{background:#ff5f57}
-.pt-dots .is-min{background:#febc2e}
-.pt-dots .is-max{background:#28c840}
 .pt-title{color:rgba(242,241,237,.78);font-weight:600;letter-spacing:-.01em}
 .pt-history{border-bottom:1px solid rgba(255,255,255,.06);background:#161616}
 .pt-pane .xterm { padding: 0 !important; height: 100%; }
@@ -643,16 +638,6 @@ function IconButton({
   )
 }
 
-function TrafficLights() {
-  return (
-    <span className="pt-dots" aria-hidden>
-      <i className="is-close" />
-      <i className="is-min" />
-      <i className="is-max" />
-    </span>
-  )
-}
-
 function GearIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -960,7 +945,6 @@ function PageTerminal({
       }}
     >
       <header className="pt-head">
-        <TrafficLights />
         <span className="pt-title">终端</span>
         <span style={{ flex: 1 }} />
         <div ref={settingsWrap} style={{ position: 'relative', flex: '0 0 auto' }}>
