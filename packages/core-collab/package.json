@@ -14,8 +14,11 @@
     "react": "^19.1.1"
   },
   "dependencies": {
+    "@biu/core-editor": "0.1.0",
     "@biu/host-plugin-loader": "0.1.0",
+    "@biu/host-sessions": "0.1.0",
     "@biu/type-file-system": "0.1.0",
+    "@biu/type-http": "0.1.0",
     "@hocuspocus/provider": "^4.7.0",
     "@hocuspocus/server": "^4.7.0",
     "yjs": "^13.6.31"

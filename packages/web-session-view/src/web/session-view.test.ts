@@ -21,6 +21,24 @@ function mockFetch(handlers: Record<string, (init?: RequestInit) => unknown>) {
         json: async () => body,
       } as Response
     }
+    if (url.includes('/api/db/list')) {
+      const list = handlers['/api/sessions']
+      if (list) {
+        const body = list() as { sessions?: unknown[] }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: body.sessions ?? [] }),
+        } as Response
+      }
+    }
+    if (url.includes('/api/db/create')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ items: [{ value: { id: 's-new' } }] }),
+      } as Response
+    }
     return { ok: false, status: 404, json: async () => ({}) } as Response
   }) as typeof fetch
   return calls
@@ -472,6 +490,9 @@ test('load fetches full session turns and skips trajectory until ensureTrajector
     if (url.includes('/api/sessions') && !url.includes('/s1')) {
       return { ok: true, status: 200, json: async () => ({ sessions: [] }) } as Response
     }
+    if (url.includes('/api/db/list')) {
+      return { ok: true, status: 200, json: async () => ({ items: [] }) } as Response
+    }
     if (url.includes('/api/approvals')) {
       return { ok: true, status: 200, json: async () => ({ mode: 'auto', pending: [] }) } as Response
     }
@@ -557,6 +578,9 @@ test('fetchEventDetail and fetchEventRequest hit fine-grained APIs', async () =>
         }),
       } as Response
     }
+    if (url.includes('/api/db/list')) {
+      return { ok: true, status: 200, json: async () => ({ items: [] }) } as Response
+    }
     if (url.includes('/api/sessions')) {
       return { ok: true, status: 200, json: async () => ({ sessions: [] }) } as Response
     }
@@ -615,6 +639,9 @@ test('load keeps previous chat visible until new session fetch resolves', async 
         }),
       } as Response
     }
+    if (url.includes('/api/db/list')) {
+      return { ok: true, status: 200, json: async () => ({ items: [] }) } as Response
+    }
     if (url.includes('/api/sessions')) {
       return { ok: true, status: 200, json: async () => ({ sessions: [] }) } as Response
     }
@@ -663,6 +690,9 @@ test('second load of same session hits memory cache without waiting on fetch', a
           totalTurns: 1,
         }),
       } as Response
+    }
+    if (url.includes('/api/db/list')) {
+      return { ok: true, status: 200, json: async () => ({ items: [] }) } as Response
     }
     if (url.includes('/api/sessions')) {
       return { ok: true, status: 200, json: async () => ({ sessions: [] }) } as Response
@@ -716,6 +746,9 @@ test('loadOlder prepends earlier turns', async () => {
         }),
       } as Response
     }
+    if (url.includes('/api/db/list')) {
+      return { ok: true, status: 200, json: async () => ({ items: [] }) } as Response
+    }
     if (url.includes('/api/sessions')) {
       return { ok: true, status: 200, json: async () => ({ sessions: [] }) } as Response
     }
@@ -745,8 +778,8 @@ test('deleteSession clears active session when list empty', async () => {
     const url = String(input)
     const method = init?.method ?? 'GET'
     calls.push({ url, method })
-    if (url.endsWith('/api/sessions') && method === 'GET') {
-      return { ok: true, status: 200, json: async () => ({ sessions }) } as Response
+    if (url.includes('/api/db/list')) {
+      return { ok: true, status: 200, json: async () => ({ items: sessions }) } as Response
     }
     if (url.includes('/api/sessions/s1') && method === 'DELETE') {
       sessions = []
@@ -782,8 +815,8 @@ test('deleteSession removes from list before DELETE resolves', async () => {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = init?.method ?? 'GET'
-    if (url.endsWith('/api/sessions') && method === 'GET') {
-      return { ok: true, status: 200, json: async () => ({ sessions }) } as Response
+    if (url.includes('/api/db/list')) {
+      return { ok: true, status: 200, json: async () => ({ items: sessions }) } as Response
     }
     if (url.includes('/api/sessions/s1') && method === 'DELETE') {
       return deleteGate
@@ -829,6 +862,9 @@ test('ensureTrajectory keeps live index on chat route after new session navigate
         }),
       } as Response
     }
+    if (url.includes('/api/db/list')) {
+      return { ok: true, status: 200, json: async () => ({ items: [] }) } as Response
+    }
     if (url.includes('/api/sessions')) {
       return { ok: true, status: 200, json: async () => ({ sessions: [] }) } as Response
     }
@@ -869,8 +905,8 @@ test('forkCurrent inserts the child into the sidebar list', async () => {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = init?.method ?? 'GET'
-    if (url.endsWith('/api/sessions') && method === 'GET') {
-      return { ok: true, status: 200, json: async () => ({ sessions }) } as Response
+    if (url.includes('/api/db/list')) {
+      return { ok: true, status: 200, json: async () => ({ items: sessions }) } as Response
     }
     if (url.includes('/api/sessions/s1/fork') && method === 'POST') {
       sessions = [

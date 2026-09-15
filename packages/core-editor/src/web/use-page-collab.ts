@@ -18,6 +18,18 @@ function wsUrl() {
   return `${proto}://${location.host}/collaboration`
 }
 
+function shareAuthFor(pageId: string) {
+  try {
+    const raw = sessionStorage.getItem('biu_share_auth')
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { token?: string; pageId?: string; role?: string; name?: string; guestId?: string }
+    if (!parsed.token || parsed.pageId !== pageId) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
 export function usePageCollab(pageId: string): PageCollab {
   const [ydoc] = useState(() => new Y.Doc())
   const [guest, setGuest] = useState<CollabGuest>(() => ({ id: 'pending', color: '#2563eb', name: '' }))
@@ -43,6 +55,13 @@ export function usePageCollab(pageId: string): PageCollab {
         }
       } catch {
         /* not signed in */
+      }
+      const share = shareAuthFor(pageId)
+      if (share?.token) {
+        const identity = { id: share.guestId || 'share', name: share.name || '访客', color: colorForId(share.guestId || pageId) }
+        setMember({ id: identity.id, name: identity.name, role: share.role || 'viewer', color: identity.color })
+        setGuest(identity)
+        return { token: share.token, identity }
       }
       return { token: '', identity: null as CollabGuest | null }
     })().then((result) => {

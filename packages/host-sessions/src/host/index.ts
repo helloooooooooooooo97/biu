@@ -30,6 +30,7 @@ import {
 import { rebuildHealedEvents } from './session-heal.ts'
 import { sessionsCollection } from './sessions-collection.ts'
 import { eventsCollection } from './events-collection.ts'
+import { currentSessionId } from './session-scope.ts'
 
 export type { SessionEvent, SessionEventBody, SessionProject, SessionRecord, SessionMascot, SessionConfig }
 export { SESSION_FORMAT_VERSION, normalizeSessionConfig, mergeSessionConfig }
@@ -305,16 +306,40 @@ export class SessionsService extends Service {
     })
   }
 
+  private identityMemberId() {
+    try {
+      return String(this.ctx.identity?.currentMemberId?.() ?? '').trim()
+    } catch {
+      return ''
+    }
+  }
+
+  private async lineageForNew(opts: { ownerMemberId?: string; parentSessionId?: string; config?: SessionConfig } = {}) {
+    const parentSessionId = String(opts.parentSessionId || opts.config?.parentSessionId || currentSessionId() || '').trim()
+    let ownerMemberId = String(opts.ownerMemberId || opts.config?.ownerMemberId || '').trim()
+    if (!ownerMemberId && parentSessionId) {
+      const parent = this.cache.get(parentSessionId) ?? (await this.get(parentSessionId).catch(() => undefined))
+      ownerMemberId = String(parent?.config?.ownerMemberId ?? '').trim()
+    }
+    if (!ownerMemberId) ownerMemberId = this.identityMemberId()
+    return {
+      ...(ownerMemberId ? { ownerMemberId } : {}),
+      ...(parentSessionId ? { parentSessionId } : {}),
+    }
+  }
+
   async create(
     id: string = crypto.randomUUID(),
-    opts: { title?: string; config?: SessionConfig } = {},
+    opts: { title?: string; config?: SessionConfig; ownerMemberId?: string; parentSessionId?: string } = {},
   ) {
     const used = await this.collectUsedMascots()
     const mascot = pickSessionMascot(id, used)
     const title = opts.title?.trim() || nameFromSessionMascot(mascot)
+    const lineage = await this.lineageForNew(opts)
     const seeded = normalizeSessionConfig({
       ...(opts.config ?? {}),
       title,
+      ...lineage,
     })
     const record: SessionRecord = {
       id,
@@ -340,6 +365,13 @@ export class SessionsService extends Service {
     const healed = await this.healOpenTurnsOnLoad(loaded)
     this.cache.set(id, healed)
     return healed
+  }
+
+  async getVisible(id: string) {
+    const record = await this.get(id)
+    if (!record) return undefined
+    if (!(await this.sessionVisible(id, record.config?.ownerMemberId))) return undefined
+    return record
   }
 
   /**
@@ -495,6 +527,10 @@ export class SessionsService extends Service {
     const mascot = pickSessionMascot(childId, used)
     const sourceConfig = { ...(source.config ?? {}) }
     delete sourceConfig.inspector
+    const lineage = await this.lineageForNew({
+      parentSessionId: sourceId,
+      ownerMemberId: sourceConfig.ownerMemberId,
+    })
     const record: SessionRecord = {
       id: childId,
       version: source.version,
@@ -504,6 +540,7 @@ export class SessionsService extends Service {
       config: normalizeSessionConfig({
         ...sourceConfig,
         title: nameFromSessionMascot(mascot),
+        ...lineage,
       }),
     }
     await this.persist(record)
@@ -557,9 +594,19 @@ export class SessionsService extends Service {
       if (next.mascot && next.title === item.id.slice(0, 8)) {
         next = { ...next, title: nameFromSessionMascot(next.mascot) }
       }
-      out.push(next)
+      if (await this.sessionVisible(next.id, next.config?.ownerMemberId)) out.push(next)
     }
     return out
+  }
+
+  private async sessionVisible(id: string, ownerMemberId?: string) {
+    try {
+      const fn = this.ctx.database.canSeeRecord
+      if (!fn) return true
+      return await fn({ collection: '/sessions', recordId: id, ownerMemberId })
+    } catch {
+      return true
+    }
   }
 
   private async collectUsedMascots(): Promise<AssignedMascot[]> {
@@ -642,4 +689,10 @@ export const inject = ['sessionStore']
 
 export function apply(ctx: Context) {
   new SessionsService(ctx)
+}
+
+declare module 'cordis' {
+  interface Context {
+    identity?: { currentMemberId(): string }
+  }
 }

@@ -1094,6 +1094,7 @@ export const DataSidebar = memo(function DataSidebar({
     >
       <div className="app-side-bar-head app-side-bar-head-brand" data-biu-ignore>
         <SidebarBrandLockup />
+        <span className="sidebar-brand-account" data-testid="sidebar-brand-account" />
         <button
           type="button"
           className="chat-view-header-expand"

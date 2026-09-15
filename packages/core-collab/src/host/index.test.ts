@@ -8,8 +8,9 @@ import { createCollabServer } from './collab-server.ts'
 import { membersCollection } from './members-collection.ts'
 import { PresenceStore } from './presence.ts'
 import { MembersStore } from './members-store.ts'
+import { SharesStore } from './shares-store.ts'
 import { YjsStore } from './yjs-store.ts'
-import { readSession, signSession } from './session.ts'
+import { readSession, readShareAccess, signSession, signShareAccess } from './session.ts'
 
 test('first member is owner; invite joins as editor once', () => {
   const store = new MembersStore(join(mkdtempSync(join(tmpdir(), 'biu-mem-')), 'm.sqlite'))
@@ -63,8 +64,15 @@ test('collab hooks persist yjs and mark viewers read-only', async () => {
   const viewer = members.list().find((row) => row.role === 'viewer')
   assert.ok(viewer)
   const yjs = new YjsStore(join(dir, 'yjs'))
+  const shares = new SharesStore(join(dir, 's.sqlite'))
   const secret = 'secret'
-  const hp = createCollabServer(members, yjs, (token) => readSession(secret, token))
+  const hp = createCollabServer(
+    members,
+    yjs,
+    (token) => readSession(secret, token),
+    shares,
+    (token) => readShareAccess(secret, token),
+  )
   const ownerConn = { readOnly: false }
   await hp.configuration.onAuthenticate?.({
     token: signSession(secret, owner.id),
@@ -72,6 +80,16 @@ test('collab hooks persist yjs and mark viewers read-only', async () => {
     connectionConfig: ownerConn,
   } as never)
   assert.equal(ownerConn.readOnly, false)
+  await assert.rejects(
+    () =>
+      hp.configuration.onAuthenticate?.({
+        token: signSession(secret, viewer.id),
+        documentName: 'page.p1',
+        connectionConfig: { readOnly: false },
+      } as never),
+    /not shared/,
+  )
+  const share = shares.create('p1', 'viewer', owner.id)
   const viewerConn = { readOnly: false }
   await hp.configuration.onAuthenticate?.({
     token: signSession(secret, viewer.id),
@@ -79,6 +97,13 @@ test('collab hooks persist yjs and mark viewers read-only', async () => {
     connectionConfig: viewerConn,
   } as never)
   assert.equal(viewerConn.readOnly, true)
+  const guestConn = { readOnly: false }
+  await hp.configuration.onAuthenticate?.({
+    token: signShareAccess(secret, { token: share.token, pageId: 'p1', role: 'viewer', guestId: 'g1', name: '丙' }),
+    documentName: 'page.p1',
+    connectionConfig: guestConn,
+  } as never)
+  assert.equal(guestConn.readOnly, true)
   const doc = new Y.Doc()
   doc.getMap('meta').set('k', 1)
   await hp.configuration.onStoreDocument?.({ documentName: 'page.p1', document: doc } as never)
@@ -101,6 +126,18 @@ test('register then login with name and password', () => {
   assert.equal(owner.role, 'owner')
   assert.equal(store.login('翠云安', 'secret').id, owner.id)
   assert.throws(() => store.login('翠云安', 'wrong'))
+  const editor = store.register('同事', 'pass')
+  assert.equal(editor.role, 'editor')
+})
+
+test('default admin is root / 123456 and later registers are editors', () => {
+  const store = new MembersStore(join(mkdtempSync(join(tmpdir(), 'biu-mem-')), 'm.sqlite'))
+  const admin = store.ensureDefaultAdmin()
+  assert.equal(admin.name, 'root')
+  assert.equal(admin.role, 'owner')
+  assert.equal(store.login('root', '123456').id, admin.id)
+  const again = store.ensureDefaultAdmin()
+  assert.equal(again.id, admin.id)
   const editor = store.register('同事', 'pass')
   assert.equal(editor.role, 'editor')
 })

@@ -160,6 +160,7 @@ export const ShellSidebarFrame = memo(function ShellSidebarFrame({
       ) : null}
       <div className="app-side-bar-head app-side-bar-head-brand" data-biu-ignore>
         <SidebarBrandLockup />
+        <span className="sidebar-brand-account" data-testid="sidebar-brand-account" />
         {!visible || narrow ? (
           <button
             type="button"

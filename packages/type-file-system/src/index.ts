@@ -41,7 +41,7 @@ export type AttachmentValue = { name: string; href: string; bytes?: number }
 
 export type PersonKind = 'user' | 'agent' | 'system'
 
-export type PersonValue = { kind: PersonKind; name: string; sessionId?: string }
+export type PersonValue = { kind: PersonKind; name: string; sessionId?: string; memberId?: string }
 
 export function asPerson(value: unknown): PersonValue | null {
   if (value == null || value === '') return null
@@ -65,7 +65,8 @@ export function asPerson(value: unknown): PersonValue | null {
     String(rec.name ?? rec.title ?? '').trim() ||
     (kind === 'system' ? '系统' : kind === 'user' ? '用户' : sessionId.slice(0, 8) || '')
   if (!name && !sessionId) return null
-  return { kind, name: name || 'Agent', ...(sessionId ? { sessionId } : {}) }
+  const memberId = String(rec.memberId ?? '').trim()
+  return { kind, name: name || 'Agent', ...(sessionId ? { sessionId } : {}), ...(memberId ? { memberId } : {}) }
 }
 
 export function personKey(person: PersonValue | null | undefined): string {
@@ -674,6 +675,19 @@ export type ListPage = {
   columns?: string[]
 }
 
+export type RecordAccessInput = {
+  collection: string
+  recordId: string
+  ownerMemberId?: string
+  pageId?: string
+}
+
+export type PageAccess = {
+  canSeeRecord?: (input: RecordAccessInput) => boolean | Promise<boolean>
+  canSeePage?: (pageId: string, ownerMemberId?: string) => boolean | Promise<boolean>
+  resolveOwnerMemberId: () => Promise<string>
+}
+
 /** File System 实现必须满足的服务面。换实现时只要还叫 ctx.database 并遵守这套方法。 */
 export interface Database {
   register(spec: CollectionSpec): unknown
@@ -687,6 +701,8 @@ export interface Database {
   /** 单独读写记录正文（content 字段），不走 list/read。 */
   content(path: string): Promise<unknown>
   writeContent(path: string, value: unknown): Promise<unknown>
+  setPageAccess?(access: PageAccess): void
+  canSeeRecord?(input: RecordAccessInput): Promise<boolean>
 }
 
 declare module 'cordis' {

@@ -4,8 +4,7 @@ import { readFile } from 'node:fs/promises'
 import type { Duplex } from 'node:stream'
 import { Service, type Context } from 'cordis'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { HUB_CHANGE } from '@biu/type-http'
-import type { Method, RouteContext, RouteHandler } from '@biu/type-http'
+import { HUB_CHANGE, httpRequest, type Method, type RouteContext, type RouteHandler } from '@biu/type-http'
 
 interface Route {
   method: Method
@@ -219,7 +218,7 @@ export class HttpService extends Service {
       }
       const started = Date.now()
       try {
-        await match.handler(context)
+        await httpRequest.run({ cookie: req.headers.cookie }, () => match.handler(context))
       } catch (error) {
         this.ctx.logger('http').error(error)
         if (!res.headersSent) context.send(500, { error: String(error) })

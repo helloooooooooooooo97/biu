@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { AsyncLocalStorage } from 'node:async_hooks'
 
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -25,3 +26,9 @@ export interface PageSpec {
 export const HUB_CHANGE = 'hub/change' as const
 export const HUB_CHANNEL_SNAPSHOT = 'snapshot' as const
 export const HUB_CHANNEL_EVENT = 'event' as const
+
+export const httpRequest = new AsyncLocalStorage<{ cookie?: string; unrestricted?: boolean }>()
+
+export function currentHttpCookie() {
+  return httpRequest.getStore()?.cookie
+}

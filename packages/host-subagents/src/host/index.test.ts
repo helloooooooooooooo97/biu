@@ -9,6 +9,7 @@ import * as llm from '@biu/host-llm'
 import * as agentLoop from '@biu/host-agent-loop'
 import * as agents from '@biu/host-agents'
 import * as subagents from '@biu/host-subagents'
+import { runWithSession } from '@biu/host-sessions/scope'
 
 async function spine() {
   const ctx = new Context()
@@ -30,6 +31,19 @@ test('in-process subagent uses its own session', async () => {
   assert.match(result.text, /child/)
   const parent = await ctx.sessions.create()
   assert.notEqual(result.sessionId, parent.id)
+})
+
+test('spawn without inherit still belongs to the parent agent person', async () => {
+  const ctx = await spine()
+  ctx.identity = { currentMemberId: () => 'm_person' }
+  const parent = await ctx.sessions.create()
+  assert.equal(parent.config?.ownerMemberId, 'm_person')
+  const result = await runWithSession(parent.id, () =>
+    ctx.tools.invoke('subagent_spawn', { prompt: 'child' }),
+  ) as { sessionId: string }
+  const child = await ctx.sessions.require(result.sessionId)
+  assert.equal(child.config?.ownerMemberId, 'm_person')
+  assert.equal(child.config?.parentSessionId, parent.id)
 })
 
 test('inherit forks parent log into the child session', async () => {

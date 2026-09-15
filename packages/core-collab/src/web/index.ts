@@ -3,6 +3,7 @@ import type { DatabaseUi } from '@biu/type-file-system/ui'
 import type { SlotsService } from '@biu/web-slots'
 import { AuthGate, AccountChip } from './member-auth.tsx'
 import { membersChrome } from './member-chrome.tsx'
+import { ShareShell, mountShareStyle } from './share-shell.tsx'
 import { MEMBER_AUTH_STYLE } from './member-auth-style.ts'
 
 export const name = 'core-collab-ui'
@@ -19,10 +20,12 @@ function ensureAuthStyle() {
 
 export function apply(ctx: Context) {
   ensureAuthStyle()
+  mountShareStyle()
   const ui = ctx.get('databaseUi') as DatabaseUi
   ctx.effect(() => ui.decorate('/members', membersChrome).dispose)
   const slots = ctx.get('slots') as SlotsService
   slots.place('root-overlays', AuthGate, { key: 'member-auth', order: 0 })
+  slots.place('root-overlays', ShareShell, { key: 'page-share-shell', order: 1 })
   slots.place('root-overlays', AccountChip, { key: 'member-account', order: 5 })
   const snapshot = ctx.get('snapshot') as { onMessage?: (type: string, handler: (payload: unknown) => void) => () => void } | undefined
   ctx.effect(() => {

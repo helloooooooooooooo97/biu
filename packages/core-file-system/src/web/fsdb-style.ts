@@ -475,6 +475,7 @@ const CSS = `
 .fsdb-prop-val .fsdb-plain-input:focus{text-overflow:clip}
 .fsdb-prop-val .fsdb-link{display:block;overflow-wrap:normal}
 .fsdb-detail-title-row{display:flex;align-items:flex-start;gap:12px;min-width:0;padding-bottom:16px}
+.fsdb-detail-header{flex:none;margin-left:auto;padding-top:6px}
 .fsdb-detail-title-block{position:relative;display:flex;flex:1;min-width:0;flex-direction:column;gap:6px}
 .fsdb-detail-actionbar{position:sticky;top:calc(100% - 35px);z-index:26;display:flex;justify-content:center;width:100%;height:0;min-height:0;overflow:visible;pointer-events:none}
 .fsdb-page.is-plugins .fsdb-detail-actionbar{top:calc(100% - 55px)}

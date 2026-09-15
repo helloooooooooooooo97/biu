@@ -44,6 +44,8 @@ export type CollectionChrome = {
   Action?: ComponentType<FsActionProps>
   /** 整组动作。有则宿主不再按条 map，前端完全由登记方 decorate。 */
   Actions?: ComponentType<FsActionsProps>
+  /** 详情标题行右侧（例如页面分享）。 */
+  DetailHeader?: ComponentType<{ record: DbRecord }>
   /** 详情侧栏「⋯」菜单里的操作（例如源码模式）。 */
   DetailTools?: ComponentType<{ record: DbRecord; onDone?: () => void }>
   /** 记录独立图标属性。有 emoji 用 emoji；不传则详情/侧栏/面包屑用集合 glyph。 */

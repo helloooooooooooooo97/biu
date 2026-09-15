@@ -6,6 +6,7 @@ import { projectTrajectoryRows } from './trajectory-index.ts'
 type SessionRecordLike = {
   id: string
   events: SessionEvent[]
+  config?: { ownerMemberId?: string }
 }
 
 type SessionsLike = {
@@ -26,7 +27,14 @@ export function parseEventRecordId(id: string) {
   return { sessionId, seq }
 }
 
-function asRecord(sessionId: string, event: SessionEvent, summary: string, turn: number | null, step: number | null): DbRecord {
+function asRecord(
+  sessionId: string,
+  event: SessionEvent,
+  summary: string,
+  turn: number | null,
+  step: number | null,
+  ownerMemberId = '',
+): DbRecord {
   return {
     id: eventRecordId(sessionId, event.seq),
     title: summary,
@@ -36,8 +44,13 @@ function asRecord(sessionId: string, event: SessionEvent, summary: string, turn:
     turn,
     step,
     ts: event.ts,
+    ownerMemberId,
     ...recordBuiltinValues({ createdAt: event.ts, updatedAt: event.ts }),
   }
+}
+
+function ownerOf(record: SessionRecordLike) {
+  return String(record.config?.ownerMemberId ?? '').trim()
 }
 
 export function eventsCollection(sessions: SessionsLike): CollectionSpec {
@@ -53,7 +66,7 @@ export function eventsCollection(sessions: SessionsLike): CollectionSpec {
       for (const row of rows) {
         const event = bySeq.get(row.seq)
         if (!event) continue
-        out.push(asRecord(record.id, event, row.summary, row.turn, row.step))
+        out.push(asRecord(record.id, event, row.summary, row.turn, row.step, ownerOf(record)))
       }
     }
     return out
@@ -95,7 +108,7 @@ export function eventsCollection(sessions: SessionsLike): CollectionSpec {
         const event = record.events.find((item) => item.seq === parsed.seq)
         if (!event) return null
         const row = projectTrajectoryRows(record.events.filter((item) => item.seq === parsed.seq))[0]
-        return asRecord(record.id, event, row?.summary ?? event.type, row?.turn ?? null, row?.step ?? null)
+        return asRecord(record.id, event, row?.summary ?? event.type, row?.turn ?? null, row?.step ?? null, ownerOf(record))
       } catch {
         return null
       }

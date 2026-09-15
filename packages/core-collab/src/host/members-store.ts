@@ -12,6 +12,9 @@ export type Invite = {
   createdAt: number
 }
 
+export const DEFAULT_ADMIN_NAME = 'root'
+export const DEFAULT_ADMIN_PASSWORD = '123456'
+
 export class MembersStore {
   private db: DatabaseSync
 
@@ -65,6 +68,20 @@ export class MembersStore {
       | undefined
     if (!row || !isRole(row.role)) return undefined
     return { id: row.id, name: row.name, role: row.role, createdAt: row.created_at }
+  }
+
+  ensureDefaultAdmin(): Member {
+    const password = hashPassword(DEFAULT_ADMIN_PASSWORD)
+    const existing = this.findByName(DEFAULT_ADMIN_NAME)
+    if (existing) {
+      this.db.prepare('UPDATE members SET role = ?, password_hash = ? WHERE id = ?').run('owner', password, existing.id)
+      return this.get(existing.id)!
+    }
+    const member: Member = { id: newId('m'), name: DEFAULT_ADMIN_NAME, role: 'owner', createdAt: Date.now() }
+    this.db
+      .prepare('INSERT INTO members (id, name, role, created_at, password_hash) VALUES (?, ?, ?, ?, ?)')
+      .run(member.id, member.name, member.role, member.createdAt, password)
+    return member
   }
 
   bootstrap(name: string, password = ''): Member {

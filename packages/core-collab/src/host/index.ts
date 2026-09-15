@@ -1,21 +1,24 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
-import type { Context } from 'cordis'
+import { Service, type Context } from 'cordis'
 import { dataPath } from '@biu/host-plugin-loader/data-dir'
-import { MembersStore } from './members-store.ts'
+import { MembersStore, DEFAULT_ADMIN_NAME, DEFAULT_ADMIN_PASSWORD } from './members-store.ts'
 import { membersCollection } from './members-collection.ts'
-import { cookieValue, isRole, readSession, setCookieHeader, clearCookieHeader, signSession } from './session.ts'
+import { cookieValue, isRole, newId, readSession, readShareAccess, setCookieHeader, clearCookieHeader, signSession, signShareAccess } from './session.ts'
 import { createCollabServer, incomingToRequest } from './collab-server.ts'
 import { YjsStore } from './yjs-store.ts'
+import { isShareRole, SharesStore } from './shares-store.ts'
 import { PRESENCE_CHANNEL, PresenceStore } from './presence.ts'
+import { createPageVisibility, createPageOwnership, withUnrestrictedPageAccess } from './page-visibility.ts'
 
 export const name = 'core-collab'
 export const inject = ['http', 'database']
 
-export { MembersStore } from './members-store.ts'
+export { MembersStore, DEFAULT_ADMIN_NAME, DEFAULT_ADMIN_PASSWORD } from './members-store.ts'
+export { SharesStore } from './shares-store.ts'
 export { YjsStore, pageDocName } from './yjs-store.ts'
-export { canEdit, canInvite, signSession, readSession } from './session.ts'
+export { canEdit, canInvite, signSession, readSession, signShareAccess, readShareAccess, shareTokenFromPath } from './session.ts'
 
 function workspaceSecret(root: string) {
   const file = join(dataPath(root, 'collab'), 'secret')
@@ -33,10 +36,26 @@ export function apply(ctx: Context) {
   const root = process.cwd()
   const secret = workspaceSecret(root)
   const members = new MembersStore(join(dataPath(root, 'collab'), 'members.sqlite'))
+  members.ensureDefaultAdmin()
+  const shares = new SharesStore(join(dataPath(root, 'collab'), 'shares.sqlite'))
   const yjs = new YjsStore(join(dataPath(root, 'collab'), 'yjs'))
   const presence = new PresenceStore()
   const sessionOf = (token: string) => readSession(secret, token)
-  const collab = createCollabServer(members, yjs, sessionOf)
+  const collab = createCollabServer(
+    members,
+    yjs,
+    sessionOf,
+    shares,
+    (token) => readShareAccess(secret, token),
+    (memberId, pageId) => {
+      const facets = (
+        ctx.database as {
+          facets?: { recordMeta: (collection: string, recordId: string) => { createdBy?: { memberId?: string } | null } | null }
+        }
+      ).facets
+      return facets?.recordMeta('/pages', pageId)?.createdBy?.memberId === memberId
+    },
+  )
   const publicOrigin = (host?: string) => String(process.env.PUBLIC_ORIGIN ?? `http://${host ?? '127.0.0.1:5173'}`).replace(/\/$/, '')
   ctx.database.register(
     membersCollection(members, (role) => {
@@ -49,6 +68,31 @@ export function apply(ctx: Context) {
     const id = readSession(secret, token) || readSession(secret, cookieValue(cookie))
     return id ? members.get(id) : undefined
   }
+  const sessionsOf = () => {
+    try {
+      return ctx.get('sessions') as {
+        get?: (id: string) => Promise<{ config?: { ownerMemberId?: string; parentSessionId?: string } } | undefined>
+        peek?: (id: string) => { config?: { ownerMemberId?: string; parentSessionId?: string } } | undefined
+      }
+    } catch {
+      return undefined
+    }
+  }
+  const pageOwnership = createPageOwnership(members, secret, sessionsOf)
+  const pageVisibility = createPageVisibility(members, shares, pageOwnership)
+  ctx.database.setPageAccess?.({
+    canSeeRecord: (input) => pageVisibility.canSeeRecord(input),
+    canSeePage: (pageId, ownerMemberId) => pageVisibility.canSeePage(pageId, ownerMemberId),
+    resolveOwnerMemberId: () => pageOwnership.resolveOwnerMemberId(),
+  })
+  new (class WorkspaceIdentity extends Service {
+    constructor() {
+      super(ctx, 'identity')
+    }
+    currentMemberId() {
+      return pageOwnership.currentMemberId()
+    }
+  })()
 
   ctx.http.route('GET', '/api/members/me', (route) => {
     const member = memberFromReq(route.req.headers.cookie)
@@ -148,6 +192,118 @@ export function apply(ctx: Context) {
       return
     }
     route.send(200, { members: members.list() })
+  })
+
+  const pageMeta = async (pageId: string) => {
+    const database = ctx.get('database') as {
+      read: (path: string) => Promise<{ value?: { title?: unknown; name?: unknown } }>
+      content: (path: string) => Promise<{ value?: unknown }>
+    }
+    const path = `/pages/${pageId}`
+    let title = pageId
+    let content: unknown = ''
+    try {
+      const read = await withUnrestrictedPageAccess(() => database.read(path))
+      title = String(read?.value?.title ?? read?.value?.name ?? '').trim() || pageId
+    } catch {
+      /* page may not exist yet */
+    }
+    try {
+      content = (await withUnrestrictedPageAccess(() => database.content(path))).value ?? ''
+    } catch {
+      content = ''
+    }
+    return { title, content }
+  }
+
+  ctx.http.route('POST', '/api/shares', async (route) => {
+    const actor = memberFromReq(route.req.headers.cookie)
+    if (!actor || actor.role !== 'owner') {
+      route.send(403, { error: 'owner required' })
+      return
+    }
+    const body = (await route.json<{ pageId?: string; role?: string }>()) ?? {}
+    const role = isShareRole(body.role) ? body.role : 'editor'
+    try {
+      const share = shares.create(String(body.pageId ?? ''), role, actor.id)
+      const origin = publicOrigin(String(route.req.headers.host ?? ''))
+      route.send(200, { ...share, url: `${origin}/share/${encodeURIComponent(share.token)}` })
+    } catch (error) {
+      route.send(400, { error: String(error) })
+    }
+  })
+
+  ctx.http.route('GET', '/api/shares', (route) => {
+    const actor = memberFromReq(route.req.headers.cookie)
+    if (!actor || actor.role !== 'owner') {
+      route.send(403, { error: 'owner required' })
+      return
+    }
+    const pageId = String(route.query.get('pageId') ?? '')
+    const origin = publicOrigin(String(route.req.headers.host ?? ''))
+    route.send(200, {
+      shares: shares.list(pageId).map((item) => ({
+        pageId: item.pageId,
+        role: item.role,
+        createdAt: item.createdAt,
+        locked: item.role === 'viewer',
+        url: `${origin}/share/${encodeURIComponent(item.token)}`,
+      })),
+    })
+  })
+
+  ctx.http.route('DELETE', '/api/shares', (route) => {
+    const actor = memberFromReq(route.req.headers.cookie)
+    if (!actor || actor.role !== 'owner') {
+      route.send(403, { error: 'owner required' })
+      return
+    }
+    const pageId = String(route.query.get('pageId') ?? '')
+    route.send(200, { ok: shares.revokePage(pageId) })
+  })
+
+  ctx.http.route('GET', '/api/shares/:token', async (route) => {
+    const token = String(route.params.token ?? '')
+    const share = shares.getByToken(token)
+    if (!share) {
+      route.send(404, { error: 'unknown share' })
+      return
+    }
+    const meta = await pageMeta(share.pageId)
+    route.send(200, { pageId: share.pageId, role: share.role, locked: share.role === 'viewer', title: meta.title })
+  })
+
+  ctx.http.route('POST', '/api/shares/:token/enter', async (route) => {
+    const token = String(route.params.token ?? '')
+    const share = shares.getByToken(token)
+    if (!share) {
+      route.send(404, { error: 'unknown share' })
+      return
+    }
+    const body = (await route.json<{ name?: string }>()) ?? {}
+    const name = String(body.name ?? '').trim()
+    if (!name) {
+      route.send(400, { error: 'name required' })
+      return
+    }
+    const guestId = newId('g')
+    const access = signShareAccess(secret, {
+      token,
+      pageId: share.pageId,
+      role: share.role,
+      guestId,
+      name,
+    })
+    const meta = await pageMeta(share.pageId)
+    route.send(200, {
+      token: access,
+      pageId: share.pageId,
+      role: share.role,
+      locked: share.role === 'viewer',
+      title: meta.title,
+      content: meta.content,
+      guest: { id: guestId, name },
+    })
   })
 
   const bumpPresence = (pageId: string) => {

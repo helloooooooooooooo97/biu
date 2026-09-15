@@ -7,6 +7,7 @@ import {
   readCordisPlugins,
   type CordisPluginEntry,
 } from '@biu/host-plugin-loader'
+import { filterPluginEntries, runtimeMode } from '@biu/host-plugin-loader/runtime'
 
 const rootDir = findRepoRoot()
 
@@ -20,7 +21,7 @@ export function pluginCatalogLayer(item: CordisPluginEntry): CatalogEntry['layer
 
 /** 只读 cordis.plugins.json 的 plugins 表。 */
 export async function resolveCatalog(): Promise<CatalogEntry[]> {
-  const external = readCordisPlugins(rootDir)
+  const external = filterPluginEntries(readCordisPlugins(rootDir), runtimeMode())
   const entries: CatalogEntry[] = []
   const seen = new Set<string>()
 
