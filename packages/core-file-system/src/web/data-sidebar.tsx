@@ -726,6 +726,7 @@ export const DataSidebar = memo(function DataSidebar({
               >
                 {name}
               </button>
+            </div>
               <ChatCount count={listed.length} />
               <button
                 type="button"
@@ -741,7 +742,6 @@ export const DataSidebar = memo(function DataSidebar({
               >
                 <PlusIcon className="size-4 shrink-0" />
               </button>
-            </div>
           </div>
           <SidebarFold open={open} className="sidebar-session-list min-w-0">
             {listed.map((view) => {
