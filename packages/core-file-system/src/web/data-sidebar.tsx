@@ -925,7 +925,7 @@ export const DataSidebar = memo(function DataSidebar({
                             {label}
                           </button>
                         </div>
-                        <span className="grid size-6 shrink-0 place-items-center" title={tableName} aria-label={tableName}>
+                        <span className="sidebar-trail-icon" title={tableName} aria-label={tableName}>
                           {table?.view?.icon ? <TableGlyph icon={table.view.icon} /> : <ShareIcon className="size-4 shrink-0 opacity-70" />}
                         </span>
                       </div>
@@ -1027,7 +1027,7 @@ export const DataSidebar = memo(function DataSidebar({
                             </button>
                           </div>
                           {nested ? <ChatCount count={kidCount} title={`${kidCount} 个子记录`} /> : null}
-                          <span className="grid size-6 shrink-0 place-items-center" title={tableName} aria-label={tableName}>
+                          <span className="sidebar-trail-icon" title={tableName} aria-label={tableName}>
                             <TableGlyph icon={table.view?.icon} />
                           </span>
                           {nested ? (
@@ -1129,7 +1129,7 @@ export const DataSidebar = memo(function DataSidebar({
                             </button>
                           </div>
                           <ChatCount count={getPreviewTotal(viewTotalKey(table.path, view))} />
-                          <span className="grid size-6 shrink-0 place-items-center" title={tableName} aria-label={tableName}>
+                          <span className="sidebar-trail-icon" title={tableName} aria-label={tableName}>
                             <TableGlyph icon={table.view?.icon} />
                           </span>
                           <button

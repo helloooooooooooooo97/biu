@@ -2133,7 +2133,8 @@ body {
 .app-side-bar.is-narrow .sidebar-chat-count,
 .app-side-bar.is-narrow .sidebar-tag,
 .app-side-bar.is-narrow .chat-session-row-delete,
-.app-side-bar.is-narrow .chat-session-row-star {
+.app-side-bar.is-narrow .chat-session-row-star,
+.app-side-bar.is-narrow .sidebar-trail-icon {
   display: none;
 }
 
@@ -2405,6 +2406,33 @@ body {
 .sidebar-add:hover {
   background: var(--dsw-hover);
   color: var(--dsw-sidebar-fg-active);
+}
+
+.sidebar-trail-icon {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 0;
+  min-width: 0;
+  height: 24px;
+  overflow: hidden;
+  color: var(--dsw-icon);
+  opacity: 0;
+  line-height: 0;
+  transition: width 150ms ease, opacity 150ms ease;
+}
+
+.sidebar-trail-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.chat-session-row:hover .sidebar-trail-icon,
+.sidebar-trail-icon:focus-within {
+  width: 24px;
+  min-width: 24px;
+  opacity: 1;
 }
 
 .sidebar-rail-icon {
