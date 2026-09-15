@@ -2511,6 +2511,13 @@ html.dark .chat-overlay-panel {
   color: var(--dsw-icon-active);
 }
 
+.chat-session-row-star.is-on,
+.chat-session-row-star.is-on:hover,
+.app-side-bar .chat-session-row-star.is-on svg,
+.app-side-bar .chat-session-row-star.is-on:hover svg {
+  color: #e8b84a;
+}
+
 .chat-session-row:hover .sidebar-rail-icon,
 .chat-session-row.is-active .sidebar-rail-icon,
 .app-side-actions-item:hover .sidebar-rail-icon,
