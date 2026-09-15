@@ -860,10 +860,10 @@ body {
   border-radius: 6px;
   background: transparent;
   padding: 4px 10px;
-  color: var(--dsw-label);
+  color: var(--dsw-sidebar-fg-active);
   font: inherit;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.2;
   text-align: center;
   text-overflow: ellipsis;
@@ -1076,21 +1076,21 @@ body {
   border-radius: 6px;
   background: transparent;
   padding: 0 8px;
-  color: var(--dsw-label);
+  color: var(--dsw-sidebar-fg);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
 }
 
 .inspector-tab:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-label);
+  color: var(--dsw-sidebar-fg);
 }
 
 .inspector-tab.is-active {
   background: var(--dsw-hover);
-  color: var(--dsw-label);
+  color: var(--dsw-sidebar-fg-active);
 }
 
 .inspector-tab.is-agent-working {
@@ -1122,6 +1122,16 @@ body {
   max-width: none;
   min-width: max-content;
   overflow: visible;
+}
+
+.inspector-crumb-tab .fsdb-crumb-btn,
+.inspector-crumb-tab .fsdb-crumb-btn:hover,
+.inspector-crumb-tab .fsdb-crumb-btn.is-open,
+.inspector-crumb-tab .fsdb-crumb:last-child .fsdb-crumb-btn,
+.inspector-crumb-tab .fsdb-crumb:last-child .fsdb-crumb-btn:hover,
+.inspector-crumb-tab .fsdb-crumb:last-child .fsdb-crumb-btn.is-open {
+  color: inherit;
+  font-weight: inherit;
 }
 
 .inspector-crumb-tab .inspector-crumb-full .fsdb-crumb:not(:last-child) {
@@ -1525,13 +1535,13 @@ body {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-label);
+  color: var(--dsw-icon);
   cursor: pointer;
 }
 
 .chat-view-header-expand:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-label);
+  color: var(--dsw-icon);
 }
 
 .chat-view-project {
@@ -1540,14 +1550,15 @@ body {
   max-width: 220px;
   align-items: center;
   gap: 6px;
-  color: var(--dsw-label);
+  color: var(--dsw-sidebar-fg);
+  font-weight: 500;
 }
 
 .chat-view-project-icon {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  color: var(--dsw-label);
+  color: var(--dsw-icon);
 }
 
 .chat-view-project-name {
@@ -6229,7 +6240,7 @@ html:not(.dark) .composer-plus {
 
 .chat-view-header-expand.is-active {
   background: var(--dsw-hover);
-  color: var(--dsw-label);
+  color: var(--dsw-icon);
 }
 
 /* ===== Mascot Dance Stage（彩蛋）===== */
