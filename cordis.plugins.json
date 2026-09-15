@@ -117,6 +117,16 @@
       "enabled": true
     },
     {
+      "id": "skills",
+      "name": "技能",
+      "layer": "capability",
+      "blurb": "技能表 /skills：按需加载的操作手册。正文不进 system prompt，Agent 只看到 description，相关时才 skill_read 读全文。不是插件（/plugins）也不是 MCP 服务器（/mcp）。",
+      "package": "@biu/host-skills",
+      "web": "@biu/host-skills/web",
+      "togglable": true,
+      "enabled": true
+    },
+    {
       "id": "core-page",
       "name": "Core-Page",
       "layer": "core",

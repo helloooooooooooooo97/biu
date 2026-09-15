@@ -1,3 +1,4 @@
+export { RenderBoundary } from './render-boundary.tsx'
 export { SidebarFold } from './sidebar-fold.tsx'
 export { ChatCount } from './chat-count.tsx'
 export { BoolBox } from './bool-box.tsx'

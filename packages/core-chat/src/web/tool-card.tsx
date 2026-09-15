@@ -1,6 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Image } from 'antd'
-import { ChevronDownIcon, ChevronRightIcon, MapIcon } from '@heroicons/react/16/solid'
+import {
+  ArrowsPointingOutIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  MapIcon,
+  XMarkIcon,
+} from '@heroicons/react/16/solid'
 import type { ChatToolPart } from '@biu/web-session-view'
 import { pickDomAttrs } from '@biu/core-pick/web'
 import {
@@ -75,7 +82,135 @@ function ArtifactGallery({ artifacts }: { artifacts: NonNullable<Extract<Formatt
   )
 }
 
-function DetailView({ detail }: { detail: FormattedDetail }) {
+function fmtChartY(value: number): string {
+  if (Math.abs(value) >= 1000) return `${(value / 1000).toFixed(1)}k`
+  if (Number.isInteger(value)) return String(value)
+  return value.toFixed(1)
+}
+
+function MetricChart({ detail, tall = false }: { detail: Extract<FormattedDetail, { kind: 'chart' }>; tall?: boolean }) {
+  const width = 800
+  const height = tall ? 460 : 200
+  const padL = 50
+  const padR = 12
+  const padT = 18
+  const padB = 28
+  const plotW = width - padL - padR
+  const plotH = height - padT - padB
+  let yMin = Infinity
+  let yMax = -Infinity
+  let xMin = Infinity
+  let xMax = -Infinity
+  for (const series of detail.series) {
+    for (const point of series.points) {
+      xMin = Math.min(xMin, point.x)
+      xMax = Math.max(xMax, point.x)
+      if (point.y != null && Number.isFinite(point.y)) {
+        yMin = Math.min(yMin, point.y)
+        yMax = Math.max(yMax, point.y)
+      }
+    }
+  }
+  if (!Number.isFinite(yMin) || !Number.isFinite(yMax)) {
+    yMin = 0
+    yMax = 1
+  }
+  if (yMin === yMax) {
+    yMin = Math.min(0, yMin)
+    yMax = yMax || 1
+  }
+  const yPad = (yMax - yMin) * 0.1
+  yMin = yMin - yPad
+  yMax = yMax + yPad
+  if (!Number.isFinite(xMin) || xMin === xMax) {
+    xMin = 0
+    xMax = 1
+  }
+  const xScale = (x: number) => (xMin === xMax ? plotW / 2 : ((x - xMin) / (xMax - xMin)) * plotW)
+  const yScale = (y: number) => plotH - ((y - yMin) / (yMax - yMin)) * plotH
+  const ticks = Array.from({ length: 5 }, (_, i) => yMin + ((yMax - yMin) * i) / 4)
+  const axisPts = detail.series[0]?.points ?? []
+  const labelCount = Math.min(6, axisPts.length)
+  const xLabels: { x: number; label: string }[] = []
+  if (labelCount > 1) {
+    for (let i = 0; i < labelCount; i += 1) {
+      const point = axisPts[Math.floor(((axisPts.length - 1) * i) / (labelCount - 1))]
+      if (!point) continue
+      xLabels.push({
+        x: point.x,
+        label: new Date(point.x).toLocaleTimeString('zh-CN', { hour12: false }),
+      })
+    }
+  }
+
+  return (
+    <div className="tool-chart">
+      <div className="tool-chart-head">
+        <span>{detail.title}</span>
+        <span>{detail.series.length} 条曲线</span>
+      </div>
+      <svg className="tool-chart-svg" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
+        {ticks.map((tick) => {
+          const y = padT + yScale(tick)
+          return (
+            <g key={tick}>
+              <line x1={padL} y1={y} x2={width - padR} y2={y} className="tool-chart-grid" />
+              <text x={padL - 4} y={y + 3} textAnchor="end" className="tool-chart-label">
+                {fmtChartY(tick)}
+              </text>
+            </g>
+          )
+        })}
+        {xLabels.map((item) => (
+          <text key={`${item.x}-${item.label}`} x={padL + xScale(item.x)} y={height - 6} textAnchor="middle" className="tool-chart-label">
+            {item.label}
+          </text>
+        ))}
+        {detail.series.map((series) => {
+          const valid = series.points.filter((p) => p.y != null && Number.isFinite(p.y)) as { x: number; y: number }[]
+          if (valid.length < 2) return null
+          const d = valid
+            .map((p, i) => `${i === 0 ? 'M' : 'L'} ${padL + xScale(p.x)} ${padT + yScale(p.y)}`)
+            .join(' ')
+          const last = valid[valid.length - 1]!
+          return (
+            <g key={series.name}>
+              <path d={d} fill="none" stroke={series.color} strokeWidth="1.6" />
+              <circle cx={padL + xScale(last.x)} cy={padT + yScale(last.y)} r="2.2" fill={series.color} />
+            </g>
+          )
+        })}
+        {detail.series.map((series, i) => (
+          <g key={`legend-${series.name}`}>
+            <rect x={padL + i * 130} y="3" width="10" height="3" rx="1" fill={series.color} />
+            <text x={padL + i * 130 + 14} y="8" className="tool-chart-label">
+              {series.name.length > 16 ? `${series.name.slice(0, 16)}…` : series.name}
+            </text>
+          </g>
+        ))}
+      </svg>
+      {detail.stats.length ? (
+        <div className="tool-chart-stats">
+          {detail.stats.map((stat) => (
+            <span key={stat.name}>
+              <b>{stat.name}</b> min={fmtChartY(stat.min)} max={fmtChartY(stat.max)} avg={fmtChartY(stat.avg)}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <details className="tool-chart-json">
+        <summary>原始 JSON</summary>
+        <pre>{detail.text}</pre>
+      </details>
+    </div>
+  )
+}
+
+function DetailView({ detail, tall = false }: { detail: FormattedDetail; tall?: boolean }) {
+  if (detail.kind === 'chart') {
+    return <MetricChart detail={detail} tall={tall} />
+  }
+
   if (detail.kind === 'bash') {
     const hasOut = Boolean(detail.stdout)
     const hasErr = Boolean(detail.stderr)
@@ -120,7 +255,17 @@ function DetailView({ detail }: { detail: FormattedDetail }) {
   )
 }
 
-function ToolBody({ parsed, rawArguments, detail }: { parsed: ParsedToolCall; rawArguments: string; detail?: string }) {
+function ToolBody({
+  parsed,
+  rawArguments,
+  detail,
+  tall = false,
+}: {
+  parsed: ParsedToolCall
+  rawArguments: string
+  detail?: string
+  tall?: boolean
+}) {
   const formatted = formatToolDetail(detail, parsed.kind)
 
   if (parsed.kind === 'str_replace') {
@@ -129,7 +274,7 @@ function ToolBody({ parsed, rawArguments, detail }: { parsed: ParsedToolCall; ra
       <div className="space-y-2">
         <DiffBlock path={parsed.path} lines={lines} />
         {formatted && formatted.kind === 'text' && !formatted.text.startsWith('The file ') ? (
-          <DetailView detail={formatted} />
+          <DetailView detail={formatted} tall={tall} />
         ) : null}
       </div>
     )
@@ -141,7 +286,7 @@ function ToolBody({ parsed, rawArguments, detail }: { parsed: ParsedToolCall; ra
       <div className="space-y-2">
         <DiffBlock path={parsed.path} lines={lines} />
         {formatted && formatted.kind === 'text' && !formatted.text.startsWith('File created') ? (
-          <DetailView detail={formatted} />
+          <DetailView detail={formatted} tall={tall} />
         ) : null}
       </div>
     )
@@ -153,7 +298,7 @@ function ToolBody({ parsed, rawArguments, detail }: { parsed: ParsedToolCall; ra
       <div className="space-y-2">
         <DiffBlock path={`${parsed.path} · after line ${parsed.insertLine}`} lines={lines} />
         {formatted && formatted.kind === 'text' && !formatted.text.startsWith('The file ') ? (
-          <DetailView detail={formatted} />
+          <DetailView detail={formatted} tall={tall} />
         ) : null}
       </div>
     )
@@ -166,7 +311,7 @@ function ToolBody({ parsed, rawArguments, detail }: { parsed: ParsedToolCall; ra
           <span className="text-(--dsw-label-3)">$ </span>
           {parsed.command}
         </pre>
-        {formatted ? <DetailView detail={formatted} /> : null}
+        {formatted ? <DetailView detail={formatted} tall={tall} /> : null}
       </div>
     )
   }
@@ -178,7 +323,7 @@ function ToolBody({ parsed, rawArguments, detail }: { parsed: ParsedToolCall; ra
           {parsed.path}
           {parsed.viewRange ? `:${parsed.viewRange[0]}-${parsed.viewRange[1]}` : ''}
         </div>
-        {formatted ? <DetailView detail={formatted} /> : null}
+        {formatted ? <DetailView detail={formatted} tall={tall} /> : null}
       </div>
     )
   }
@@ -190,8 +335,58 @@ function ToolBody({ parsed, rawArguments, detail }: { parsed: ParsedToolCall; ra
           {prettyJsonString(rawArguments)}
         </pre>
       ) : null}
-      {formatted ? <DetailView detail={formatted} /> : null}
+      {formatted ? <DetailView detail={formatted} tall={tall} /> : null}
     </div>
+  )
+}
+
+/**
+ * 工具结果放大层：沿用 .biu-float 浮层皮，内容仍是同一个 ToolBody。
+ * 挂到 document.body，避免被工具卡自身的 overflow 和检查器的 z-index 裁掉。
+ */
+function ToolZoom({
+  title,
+  parsed,
+  rawArguments,
+  detail,
+  onClose,
+}: {
+  title: string
+  parsed: ParsedToolCall
+  rawArguments: string
+  detail?: string
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  if (typeof document === 'undefined') return null
+  return createPortal(
+    <div className="biu-float-overlay tool-zoom-overlay" data-testid="tool-zoom" onClick={onClose}>
+      <div
+        className="biu-float tool-zoom"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${title} 全屏`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="biu-float-head">
+          <h2 className="biu-float-title">{title}</h2>
+          <button type="button" className="biu-float-close" title="关闭" aria-label="关闭" onClick={onClose}>
+            <XMarkIcon className="size-4" aria-hidden />
+          </button>
+        </div>
+        <div className="tool-zoom-body">
+          <ToolBody parsed={parsed} rawArguments={rawArguments} detail={detail} tall />
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -211,6 +406,7 @@ export function ToolCard({
     [node.result?.detail, parsed.kind],
   )
   const [open, setOpen] = useState(() => shouldAutoOpenTool(parsed, node.result?.detail))
+  const [zoom, setZoom] = useState(false)
   const summary = toolSummary(parsed, node.result?.detail || node.arguments || '…')
   const title = toolTitle(parsed, node.name)
   const previewLines = useMemo(() => {
@@ -219,6 +415,7 @@ export function ToolCard({
   }, [parsed, open])
   const collapsedArtifacts =
     !open && formatted?.kind === 'bash' && formatted.artifacts?.length ? formatted.artifacts : null
+  const collapsedChart = !open && formatted?.kind === 'chart' ? formatted : null
 
   const running = !node.result || Boolean(node.result.streaming)
   const status = running
@@ -254,6 +451,16 @@ export function ToolCard({
         <button
           type="button"
           className="tool-call-inspect"
+          title="全屏查看结果"
+          aria-label={`全屏查看 ${title} 的结果`}
+          data-testid="tool-call-zoom"
+          onClick={() => setZoom(true)}
+        >
+          <ArrowsPointingOutIcon className="size-3.5" aria-hidden />
+        </button>
+        <button
+          type="button"
+          className="tool-call-inspect"
           title="在轨迹中查看"
           aria-label="在轨迹中查看"
           onClick={() => onInspect(node.callId)}
@@ -271,10 +478,24 @@ export function ToolCard({
           <ArtifactGallery artifacts={collapsedArtifacts} />
         </div>
       ) : null}
+      {collapsedChart ? (
+        <div className="tool-call-body">
+          <MetricChart detail={collapsedChart} />
+        </div>
+      ) : null}
       {open ? (
         <div className="tool-call-body">
           <ToolBody parsed={parsed} rawArguments={node.arguments} detail={node.result?.detail} />
         </div>
+      ) : null}
+      {zoom ? (
+        <ToolZoom
+          title={title}
+          parsed={parsed}
+          rawArguments={node.arguments}
+          detail={node.result?.detail}
+          onClose={() => setZoom(false)}
+        />
       ) : null}
     </div>
   )

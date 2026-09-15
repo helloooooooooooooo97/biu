@@ -6,6 +6,7 @@ export type ParsedToolCall =
   | { kind: 'insert'; path: string; insertLine: number; newStr: string }
   | { kind: 'view'; path: string; viewRange?: [number, number] }
   | { kind: 'bash'; command: string }
+  | { kind: 'mcp'; server: string; tool: string; raw: string }
   | { kind: 'raw'; label: string; raw: string }
 
 const DIFF_LINE_CAP = 400
@@ -92,10 +93,214 @@ export type ToolArtifact = {
   source?: string
 }
 
+export type ChartPoint = { x: number; y: number | null }
+
+export type ChartSeries = { name: string; color: string; points: ChartPoint[] }
+
+export type ChartStat = { name: string; min: number; max: number; avg: number }
+
 export type FormattedDetail =
   | { kind: 'bash'; code: number | null; stdout: string; stderr: string; artifacts?: ToolArtifact[] }
   | { kind: 'text'; text: string }
   | { kind: 'json'; text: string }
+  | { kind: 'chart'; title: string; series: ChartSeries[]; stats: ChartStat[]; text: string }
+
+const TIME_KEYS = ['timestamp', 'time', 'ts', 'datetime', 'date']
+const SKIP_METRIC_KEYS = new Set([
+  ...TIME_KEYS,
+  'id',
+  'rank',
+  'port',
+  'index',
+  'idx',
+  'pid',
+  'thread',
+  'year',
+  'month',
+  'day',
+  'hour',
+  'minute',
+])
+const RECORD_LIST_KEYS = ['records', 'rows', 'results', 'metrics', 'points', 'items', 'list', 'data']
+const CHART_COLORS = [
+  'var(--dsw-pick)',
+  'var(--dsw-ok)',
+  'var(--dsw-danger)',
+  '#c9a227',
+  '#7c5cbf',
+  '#3aa6a0',
+  '#d67e30',
+  '#4c8eb5',
+]
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null
+}
+
+function toFinite(value: unknown): number | null {
+  if (typeof value === 'boolean') return null
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() && /^-?\d+(\.\d+)?$/.test(value.trim())) {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+export function parseTs(value: unknown, index: number): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 0 && value < 1e12 ? value * 1000 : value
+  }
+  const raw = String(value ?? '')
+  const direct = Date.parse(raw)
+  if (!Number.isNaN(direct)) return direct
+  const tod = Date.parse(`1970-01-01T${raw}`)
+  if (!Number.isNaN(tod)) return tod + index
+  return index
+}
+
+function unwrapToolPayload(raw: unknown): unknown {
+  const obj = asRecord(raw)
+  if (!obj || !Array.isArray(obj.content)) return raw
+  const texts = obj.content
+    .map((item) => {
+      const row = asRecord(item)
+      return typeof row?.text === 'string' ? row.text : null
+    })
+    .filter((item): item is string => Boolean(item))
+  if (texts.length !== 1) return raw
+  const inner = parseJsonValue(texts[0]!)
+  return inner !== undefined ? inner : texts[0]
+}
+
+function prettyUnknown(value: unknown, fallback: string): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return fallback
+  }
+}
+
+function findTimeKey(row: Record<string, unknown>): string | null {
+  for (const key of TIME_KEYS) {
+    if (row[key] != null && row[key] !== '') return key
+  }
+  return null
+}
+
+function metricKeys(row: Record<string, unknown>): string[] {
+  return Object.keys(row).filter((key) => {
+    if (SKIP_METRIC_KEYS.has(key)) return false
+    return toFinite(row[key]) != null
+  })
+}
+
+function chartStats(name: string, points: ChartPoint[]): ChartStat | null {
+  const vals = points.map((p) => p.y).filter((y): y is number => y != null && Number.isFinite(y))
+  if (!vals.length) return null
+  const min = Math.min(...vals)
+  const max = Math.max(...vals)
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length
+  return { name, min, max, avg }
+}
+
+function finishChart(title: string, series: ChartSeries[], text: string): Extract<FormattedDetail, { kind: 'chart' }> | null {
+  const usable = series.filter((s) => s.points.filter((p) => p.y != null).length >= 2).slice(0, 8)
+  if (!usable.length) return null
+  return {
+    kind: 'chart',
+    title,
+    series: usable,
+    stats: usable.map((s) => chartStats(s.name, s.points)).filter((s): s is ChartStat => Boolean(s)),
+    text,
+  }
+}
+
+function chartFromRecords(rows: unknown[], text: string): Extract<FormattedDetail, { kind: 'chart' }> | null {
+  if (rows.length < 2) return null
+  const first = asRecord(rows[0])
+  if (!first) return null
+  const timeKey = findTimeKey(first)
+  if (!timeKey) return null
+  const names = metricKeys(first)
+  if (!names.length) return null
+  const series = names.map((name, i) => ({
+    name,
+    color: CHART_COLORS[i % CHART_COLORS.length]!,
+    points: rows.map((row, idx) => {
+      const item = asRecord(row) ?? {}
+      return { x: parseTs(item[timeKey], idx), y: toFinite(item[name]) }
+    }),
+  }))
+  return finishChart(`监控指标 (${rows.length} 点)`, series, text)
+}
+
+function chartFromPairs(name: string, list: unknown[], text: string): Extract<FormattedDetail, { kind: 'chart' }> | null {
+  if (list.length < 2) return null
+  const points: ChartPoint[] = []
+  for (let i = 0; i < list.length; i += 1) {
+    const row = list[i]
+    if (Array.isArray(row) && row.length >= 2) {
+      points.push({ x: parseTs(row[0], i), y: toFinite(row[1]) })
+      continue
+    }
+    const item = asRecord(row)
+    if (!item) return null
+    const x = item.time ?? item.timestamp ?? item.ts
+    const y = item.count ?? item.value ?? item.y
+    if (x == null || y == null) return null
+    points.push({ x: parseTs(x, i), y: toFinite(y) })
+  }
+  return finishChart(name, [{ name, color: CHART_COLORS[0]!, points }], text)
+}
+
+function findRecordList(data: unknown): unknown[] | null {
+  if (Array.isArray(data)) return data
+  const obj = asRecord(data)
+  if (!obj) return null
+  for (const key of RECORD_LIST_KEYS) {
+    const nested = obj[key]
+    if (Array.isArray(nested) && nested.length >= 2 && asRecord(nested[0])) return nested
+  }
+  const inner = asRecord(obj.data)
+  if (inner) {
+    for (const key of RECORD_LIST_KEYS) {
+      const nested = inner[key]
+      if (Array.isArray(nested) && nested.length >= 2 && asRecord(nested[0])) return nested
+    }
+  }
+  return null
+}
+
+function findPairList(data: Record<string, unknown>): { name: string; list: unknown[] } | null {
+  const timeline = asRecord(data.active_counts_timeline)
+  const active = timeline?.active_counts
+  if (Array.isArray(active) && active.length >= 2) return { name: 'active_count', list: active }
+  for (const [key, value] of Object.entries(data)) {
+    if (!Array.isArray(value) || value.length < 2) continue
+    const first = value[0]
+    const looksPair =
+      (Array.isArray(first) && first.length >= 2 && toFinite(first[1]) != null) ||
+      (asRecord(first) != null && (asRecord(first)?.count != null || asRecord(first)?.value != null))
+    if (looksPair && !asRecord(first)?.timestamp) return { name: key, list: value }
+  }
+  const inner = asRecord(data.data)
+  return inner ? findPairList(inner) : null
+}
+
+function extractChart(data: unknown, text: string): Extract<FormattedDetail, { kind: 'chart' }> | null {
+  const rows = findRecordList(data)
+  if (rows) {
+    const chart = chartFromRecords(rows, text)
+    if (chart) return chart
+  }
+  const obj = asRecord(data)
+  if (!obj) return null
+  const pair = findPairList(obj)
+  if (!pair) return null
+  return chartFromPairs(pair.name, pair.list, text)
+}
 
 function parseArtifacts(raw: unknown): ToolArtifact[] | undefined {
   if (!Array.isArray(raw) || raw.length === 0) return undefined
@@ -145,6 +350,11 @@ export function formatToolDetail(detail: string | undefined, toolKind?: ParsedTo
 
   const parsed = parseJsonValue(trimmed)
   if (parsed !== undefined && (typeof parsed === 'object' || Array.isArray(parsed))) {
+    const payload = unwrapToolPayload(parsed)
+    const text = prettyUnknown(payload, JSON.stringify(parsed, null, 2))
+    const chart = extractChart(payload, text)
+    if (chart) return chart
+    if (payload !== parsed) return { kind: 'json', text }
     return { kind: 'json', text: JSON.stringify(parsed, null, 2) }
   }
   return { kind: 'text', text: detail }
@@ -226,6 +436,22 @@ export function parseToolCall(name: string, argumentsJson: string): ParsedToolCa
     return { kind: 'create', path, fileText }
   }
 
+  if (name === 'mcp_call' || name === 'execute_tools') {
+    const gateway = asString(args?.name) ?? asString(args?.tool_name) ?? name
+    const inner = asRecord(args?.arguments)
+    const nested = asString(inner?.tool_name) ?? asString(inner?.name)
+    const tool =
+      nested && (gateway === 'execute_tools' || gateway === 'mcp_call' || name === 'execute_tools')
+        ? nested
+        : gateway
+    return {
+      kind: 'mcp',
+      server: asString(args?.server) ?? '',
+      tool,
+      raw: argumentsJson,
+    }
+  }
+
   return { kind: 'raw', label: name, raw: argumentsJson }
 }
 
@@ -303,6 +529,13 @@ export function toolSummary(parsed: ParsedToolCall, fallback: string): string {
       const one = parsed.command.replace(/\s+/g, ' ').trim()
       return one.length > 72 ? `${one.slice(0, 72)}…` : one || compactJsonSummary(fallback)
     }
+    case 'mcp': {
+      const args = parseJsonObject(parsed.raw)
+      const gatewayArgs = asRecord(args?.arguments)
+      const leaf = gatewayArgs?.arguments ?? args?.arguments
+      const inner = leaf != null ? JSON.stringify(leaf) : fallback
+      return compactJsonSummary(inner) || parsed.tool
+    }
     case 'raw':
       return compactJsonSummary(fallback) || '…'
   }
@@ -320,6 +553,8 @@ export function toolTitle(parsed: ParsedToolCall, name: string): string {
       return 'View'
     case 'bash':
       return 'Bash'
+    case 'mcp':
+      return parsed.tool
     case 'raw':
       return name
   }
@@ -328,6 +563,9 @@ export function toolTitle(parsed: ParsedToolCall, name: string): string {
 export function shouldAutoOpenTool(parsed: ParsedToolCall, detail?: string): boolean {
   if (parsed.kind === 'str_replace' || parsed.kind === 'create' || parsed.kind === 'insert') return true
   if (!detail) return false
+  const formatted = formatToolDetail(detail, parsed.kind)
+  if (formatted?.kind === 'chart') return true
+  if (formatted?.kind === 'bash' && formatted.artifacts?.length) return true
   try {
     const obj = JSON.parse(detail) as { artifacts?: unknown }
     return Array.isArray(obj.artifacts) && obj.artifacts.length > 0

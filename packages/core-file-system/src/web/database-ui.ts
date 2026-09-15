@@ -1,8 +1,9 @@
 import { Service, type Context } from 'cordis'
 import type { CollectionChrome, CollectionRowViewType, CollectionViewType, DatabaseUi } from '@biu/type-file-system/ui'
+import { DEFAULT_CHROME_PATH } from '@biu/type-file-system/ui'
 import { normalizeCollectionPath } from '../paths.ts'
 
-export { normalizeCollectionPath }
+export { normalizeCollectionPath, DEFAULT_CHROME_PATH }
 
 export const ALL_ROW_VIEWS_PATH = '*'
 
@@ -138,7 +139,8 @@ export class DatabaseUiService extends Service implements DatabaseUi {
     const key = normalizeCollectionPath(path)
     const cached = this.snapshot.get(key)
     if (cached) return cached
-    const merged = mergeChrome(this.layers.get(key) ?? [])
+    const defaults = key === DEFAULT_CHROME_PATH ? [] : (this.layers.get(DEFAULT_CHROME_PATH) ?? [])
+    const merged = mergeChrome([...defaults, ...(this.layers.get(key) ?? [])])
     this.snapshot.set(key, merged)
     return merged
   }

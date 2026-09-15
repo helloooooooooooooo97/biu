@@ -1,6 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { Context } from 'cordis'
+import { DEFAULT_CHROME_PATH } from '@biu/type-file-system/ui'
 import { DatabaseUiService, normalizeCollectionPath } from './database-ui.ts'
 
 test('normalizeCollectionPath strips trailing slash', () => {
@@ -83,6 +84,21 @@ test('decorate panes with the same id keep a single pane', () => {
   assert.equal(panes.length, 1)
   assert.equal(panes[0]?.label, '脚本 B')
   assert.equal(panes[0]?.Pane, PaneB)
+})
+
+test('default chrome applies to every table and a later table layer wins', () => {
+  const ctx = new Context()
+  const ui = new DatabaseUiService(ctx)
+  const DefaultContent = () => null
+  const OverrideContent = () => null
+  const DefaultTools = () => null
+  ui.decorate(DEFAULT_CHROME_PATH, { Content: DefaultContent, DetailTools: DefaultTools })
+  assert.equal(ui.chrome('/skills').Content, DefaultContent)
+  assert.equal(ui.chrome('/mcp').Content, DefaultContent)
+  assert.equal(ui.chrome('/skills').DetailTools, DefaultTools)
+  ui.decorate('/skills', { Content: OverrideContent })
+  assert.equal(ui.chrome('/skills').Content, OverrideContent)
+  assert.equal(ui.chrome('/mcp').Content, DefaultContent)
 })
 
 test('registerView is scoped to the collection that registered it', () => {

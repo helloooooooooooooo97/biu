@@ -1,0 +1,21 @@
+{
+  "name": "@biu/host-skills",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "技能缝：.biu/skills 可插拔，按需加载不占上下文",
+  "exports": {
+    ".": "./src/host/index.ts",
+    "./store": "./src/host/store.ts",
+    "./web": "./src/web/index.tsx"
+  },
+  "peerDependencies": {
+    "cordis": "4.0.0-rc.8",
+    "react": "^19.1.1"
+  },
+  "dependencies": {
+    "@biu/core-editor": "0.1.0",
+    "@biu/host-plugin-loader": "0.1.0",
+    "@biu/type-file-system": "0.1.0"
+  }
+}

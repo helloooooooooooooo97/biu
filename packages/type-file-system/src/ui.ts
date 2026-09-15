@@ -102,6 +102,9 @@ export type CollectionViewType = {
   View: ComponentType<FsViewProps>
 }
 
+/** 所有表共用的默认 chrome。具体表再 decorate 时后写覆盖。 */
+export const DEFAULT_CHROME_PATH = '/*'
+
 export type CollectionRowViewType = {
   id: string
   label: string

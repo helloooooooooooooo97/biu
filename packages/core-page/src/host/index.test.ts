@@ -23,6 +23,12 @@ test('markdown frontmatter roundtrips YAML properties and body', () => {
   assert.equal(body, '正文第一段\n')
 })
 
+test('markdown frontmatter preserves leading blank lines in the body', () => {
+  const body = '\n\n第一段\n'
+  const raw = dumpMarkdown({ title: '首页' }, body)
+  assert.equal(splitMarkdown(raw).body, body)
+})
+
 test('page plugin stores pages in SQLite under .biu', async () => {
   const ctx = new Context()
   const registered: CollectionSpec[] = []

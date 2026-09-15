@@ -71,9 +71,10 @@ test('brand mascot lives at the corner; sidebar head is title plus collapse', ()
   assert.match(css, /\.brand-agent-menu\s*\{[^}]*width:\s*320px/s)
   assert.match(css, /\.brand-agent-menu\s*\{[^}]*border:\s*0/s)
   assert.match(css, /\.chat-sidebar-popover\s*\{/)
+  // 选中行仍靠 ::before 铺一层底色，但底色随主题走，只断言它被设置。
   assert.match(
     css,
-    /\.chat-sidebar-popover \.chat-session-row\.is-active::before\s*\{[^}]*background:\s*rgba\(242,\s*241,\s*237,\s*0\.12\)/s,
+    /\.chat-sidebar-popover \.chat-session-row\.is-active::before\s*\{[^}]*background:\s*[^;]+;/s,
   )
   assert.doesNotMatch(css, /\.os-dock-tile svg\s*\{/)
   assert.doesNotMatch(css, /\.brand-agent-menu svg[\s\S]{0,80}unset/)
@@ -85,13 +86,14 @@ test('brand mascot lives at the corner; sidebar head is title plus collapse', ()
   assert.match(css, /\.chat-dock-toolbar \.brand-corner-cluster\s*\{[^}]*position:\s*relative/s)
   assert.match(css, /\.brand-corner-cluster\s*\{[^}]*z-index:\s*200/s)
   assert.doesNotMatch(css, /\.os-dock \.brand-corner-cluster/)
-  assert.match(css, /\.chat-view-header-expand\s*\{[^}]*color:\s*#F0EFED/s)
-  assert.match(css, /\.chat-view-header-expand:hover\s*\{[^}]*color:\s*#F0EFED/s)
-  assert.match(css, /\.chat-view-header-expand\.is-active\s*\{[^}]*color:\s*#F0EFED/s)
-  assert.match(css, /\.chat-view-project\s*\{[^}]*color:\s*#F0EFED/s)
-  assert.match(css, /\.chat-view-session-title\s*\{[^}]*color:\s*#F0EFED/s)
-  assert.match(css, /\.chat-overlay-panel \.chat-view-header\s*\{[^}]*color:\s*#F0EFED/s)
-  assert.match(css, /\.inspector-tab\s*\{[^}]*color:\s*#F0EFED/s)
+  // 头部这几处文字必须同属前景色 token，断言引用关系而不是当前主题的色值。
+  assert.match(css, /\.chat-view-header-expand\s*\{[^}]*color:\s*var\(--dsw-label\)/s)
+  assert.match(css, /\.chat-view-header-expand:hover\s*\{[^}]*color:\s*var\(--dsw-label\)/s)
+  assert.match(css, /\.chat-view-header-expand\.is-active\s*\{[^}]*color:\s*var\(--dsw-label\)/s)
+  assert.match(css, /\.chat-view-project\s*\{[^}]*color:\s*var\(--dsw-label\)/s)
+  assert.match(css, /\.chat-view-session-title\s*\{[^}]*color:\s*var\(--dsw-label\)/s)
+  assert.match(css, /\.chat-overlay-panel \.chat-view-header\s*\{[^}]*color:\s*var\(--dsw-label\)/s)
+  assert.match(css, /\.inspector-tab\s*\{[^}]*color:\s*var\(--dsw-label\)/s)
 })
 
 test('shell columns stay three tracks without animating on window resize', () => {

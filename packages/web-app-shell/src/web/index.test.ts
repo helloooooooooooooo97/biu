@@ -97,7 +97,8 @@ test('settings and session config floats match search chrome', () => {
   const shell = readFileSync(resolve(import.meta.dirname, './index.tsx'), 'utf8')
   const dialog = readFileSync(resolve(import.meta.dirname, '../../../web-session-view/src/web/session-config-dialog.tsx'), 'utf8')
   const css = readFileSync(resolve(import.meta.dirname, '../../../../web/style.css'), 'utf8')
-  assert.match(css, /--dsw-float:\s*#202020/)
+  // 浮层底色 token 必须存在并有值，具体色值交给主题决定。
+  assert.match(css, /--dsw-float:\s*[^;]+;/)
   assert.match(css, /\.biu-float-close/)
   assert.match(css, /\.shell-search-dialog[\s\S]*background:\s*var\(--dsw-float\)/)
   assert.match(shell, /className="biu-float /)

@@ -16,6 +16,7 @@ import type { SandboxService } from '@biu/host-sandbox'
 import type { ShellService } from '@biu/host-shell'
 import type { JobsService } from '@biu/host-jobs'
 import type { McpService } from '@biu/host-mcp'
+import type { SkillsService } from '@biu/host-skills'
 import type { TerminalService } from '@biu/host-terminal'
 import type { LspService } from '@biu/host-lsp'
 import type { WebService } from '@biu/host-web'
@@ -46,6 +47,7 @@ declare module 'cordis' {
     shell: ShellService
     jobs: JobsService
     mcp: McpService
+    skills: SkillsService
     terminals: TerminalService
     lsp: LspService
     web: WebService

@@ -64,13 +64,13 @@ test('list and detail share the chat column max width with side padding', () => 
   assert.match(css, /\.tasks-viewdd-check\{[^}]*width:22px/)
   assert.doesNotMatch(css, /\.tasks-viewdd-item-actions\{[^}]*visibility:hidden/)
   assert.match(css, /\.tasks-viewdd-act\{[^}]*width:22px/)
-  assert.match(css, /\.tasks-viewdd-act\{[^}]*color:#B6B5B2/)
+  assert.match(css, /\.tasks-viewdd-act\{[^}]*color:var\(--dsw-label-2\)/)
   assert.match(css, /\.fsdb-checkrow\{[^}]*font-weight:600/)
   assert.match(css, /\.fsdb-checkrow\.is-on\{[^}]*font-weight:600/)
   assert.doesNotMatch(css, /\.fsdb-checkrow\.is-on\{[^}]*font-weight:650/)
   assert.match(css, /\.fsdb-col-facet-dot\{/)
   assert.match(css, /\.fsdb-page \.fsdb-query-menu\{/)
-  assert.match(css, /\.fsdb-query-grip\{[^}]*color:#B6B5B2/)
+  assert.match(css, /\.fsdb-query-grip\{[^}]*color:var\(--dsw-label-2\)/)
   assert.match(css, /\.fsdb-query-grip\{[^}]*cursor:grab/)
   assert.match(css, /\.fsdb-query-drag-overlay\{/)
   assert.match(css, /\.fsdb-col-drag-row\{/)
@@ -93,9 +93,9 @@ test('list and detail share the chat column max width with side padding', () => 
   assert.match(css, /\.fsdb-page \.tasks-table th:last-child,\.fsdb-page \.tasks-table td:last-child\{[^}]*border-right:0/)
 })
 
-test('title cell hover icons use F0EFED', () => {
-  assert.match(css, /\.fsdb-page \.tasks-title-open\{[^}]*color:#F0EFED/)
-  assert.match(css, /\.fsdb-page \.tasks-title-open:hover\{[^}]*color:#F0EFED/)
+test('title cell hover icons take the primary label color', () => {
+  assert.match(css, /\.fsdb-page \.tasks-title-open\{[^}]*color:var\(--dsw-label\)/)
+  assert.match(css, /\.fsdb-page \.tasks-title-open:hover\{[^}]*color:var\(--dsw-label\)/)
   assert.match(css, /\.fsdb-page \.tasks-title-aside\{[^}]*gap:2px/)
   assert.match(css, /\.fsdb-page \.tasks-row-tools-slot\{[^}]*gap:2px/)
   assert.match(css, /\.fsdb-page \.tasks-row-actions\{[^}]*gap:2px/)
@@ -103,21 +103,27 @@ test('title cell hover icons use F0EFED', () => {
   assert.match(css, /\.fsdb-page \.tasks-icon-btn\{[^}]*border-radius:5px/)
   assert.doesNotMatch(css, /\.fsdb-page \.tasks-title-open\{[^}]*width:24px/)
   assert.doesNotMatch(css, /\.fsdb-page \.tasks-title-zoom\{[^}]*width:24px/)
-  assert.match(css, /\.fsdb-page \.tasks-row-tools \.tasks-icon-btn,\.fsdb-page \.tasks-row-actions \.tasks-icon-btn\{[^}]*color:#F0EFED/)
+  assert.match(css, /\.fsdb-page \.tasks-row-tools \.tasks-icon-btn,\.fsdb-page \.tasks-row-actions \.tasks-icon-btn\{[^}]*color:var\(--dsw-label\)/)
   assert.match(
     css,
     /\.fsdb-page \.tasks-table tr:hover td:has\(\.fsdb-title-host\) \.tasks-title-open,\.fsdb-page \.tasks-title-open:focus-visible,\.fsdb-page \.tasks-table tr:hover td:has\(\.fsdb-title-host\) \.tasks-row-tools \.tasks-icon-btn,\.fsdb-page \.tasks-table tr:hover td:has\(\.fsdb-title-host\) \.tasks-row-actions \.tasks-icon-btn\{[^}]*background:var\(--dsw-hover\)/,
   )
 })
 
-test('list properties keep muted colors; detail property column uses ACA9A4 keys and F0EFED values', () => {
-  assert.match(css, /\.fsdb-proprow-k,\.fsdb-prop>span:first-child\{[^}]*color:#7B7B79/)
-  assert.match(css, /\.fsdb-proprow-v,\.fsdb-prop-val,\.fsdb-detail-id\{[^}]*color:#7C7A76/)
-  assert.match(css, /\.fsdb-schema-prop-k\{[^}]*color:#7B7B79/)
-  assert.match(css, /\.fsdb-proprow-k svg,\.fsdb-prop>span:first-child svg,\.fsdb-schema-prop-k svg\{[^}]*color:#F0EFED/)
-  assert.match(css, /\.fsdb-detail-aside \.fsdb-proprow-k,\.fsdb-detail-aside \.fsdb-prop>span:first-child,\.fsdb-detail-aside \.fsdb-proprow-label\{[^}]*color:#ACA9A4/)
-  assert.match(css, /\.fsdb-detail-aside \.fsdb-proprow-k svg,\.fsdb-detail-aside \.fsdb-prop>span:first-child svg\{[^}]*color:#ACA9A4/)
-  assert.match(css, /\.fsdb-detail-aside \.fsdb-proprow-v,\.fsdb-detail-aside \.fsdb-prop-val,\.fsdb-detail-aside \.fsdb-detail-id,\.fsdb-detail-aside \.fsdb-plain-input\{[^}]*color:#F0EFED/)
+test('list properties stay on the weakest label tier; detail aside lifts keys one tier and values to primary', () => {
+  assert.match(css, /\.fsdb-proprow-k,\.fsdb-prop>span:first-child\{[^}]*color:var\(--dsw-label-3\)/)
+  assert.match(css, /\.fsdb-proprow-v,\.fsdb-prop-val,\.fsdb-detail-id\{[^}]*color:var\(--dsw-label-3\)/)
+  assert.match(css, /\.fsdb-schema-prop-k\{[^}]*color:var\(--dsw-label-3\)/)
+  assert.match(css, /\.fsdb-proprow-k svg,\.fsdb-prop>span:first-child svg,\.fsdb-schema-prop-k svg\{[^}]*color:var\(--dsw-label\)/)
+  assert.match(
+    css,
+    /\.fsdb-detail-aside \.fsdb-proprow-k,\.fsdb-detail-aside \.fsdb-prop>span:first-child,\.fsdb-detail-aside \.fsdb-proprow-label\{[^}]*color:var\(--dsw-label-2\)/,
+  )
+  assert.match(css, /\.fsdb-detail-aside \.fsdb-proprow-k svg,\.fsdb-detail-aside \.fsdb-prop>span:first-child svg\{[^}]*color:var\(--dsw-label-2\)/)
+  assert.match(
+    css,
+    /\.fsdb-detail-aside \.fsdb-proprow-v,\.fsdb-detail-aside \.fsdb-prop-val,\.fsdb-detail-aside \.fsdb-detail-id,\.fsdb-detail-aside \.fsdb-plain-input\{[^}]*color:var\(--dsw-label\)/,
+  )
 })
 
 test('usage figures in collection cells match the table font size', () => {
@@ -162,7 +168,7 @@ test('table columns resize with a Super Tag blue highlight on the divider', () =
 
 test('selected table cells use Super Tag blue when writable and gray when locked', () => {
   assert.match(css, /\.fsdb-page \.tasks-table td\.is-cell-on\{[^}]*box-shadow:inset 0 0 0 2px var\(--dsw-pick/)
-  assert.match(css, /\.fsdb-page \.tasks-table td\.is-cell-on\.is-cell-ro\{[^}]*box-shadow:inset 0 0 0 2px #787774/)
+  assert.match(css, /\.fsdb-page \.tasks-table td\.is-cell-on\.is-cell-ro\{[^}]*box-shadow:inset 0 0 0 2px var\(--dsw-label-3\)/)
   assert.match(css, /\.fsdb-page \.tasks-table td \.db-cell-select-trigger,.fsdb-page \.tasks-table td \.fsdb-cellselect-trigger\{[^}]*width:100%/)
   assert.match(css, /\.fsdb-page \.tasks-table td \.db-cell-select-trigger,.fsdb-page \.tasks-table td \.fsdb-cellselect-trigger\{[^}]*max-width:none/)
   assert.match(css, /\.fsdb-page \.tasks-table td \.db-cell-select-trigger,.fsdb-page \.tasks-table td \.fsdb-cellselect-trigger\{[^}]*background:transparent/)
@@ -175,7 +181,7 @@ test('selected table cells use Super Tag blue when writable and gray when locked
   assert.match(css, /\.fsdb-file-tools\{[^}]*gap:2px/)
   assert.match(css, /\.fsdb-file-tools \.tasks-icon-btn\{[^}]*padding:3px/)
   assert.match(css, /\.fsdb-files\{[^}]*flex-direction:column/)
-  assert.match(css, /\.fsdb-cell-pop\{[^}]*background:#202020/)
+  assert.match(css, /\.fsdb-cell-pop\{[^}]*background:var\(--dsw-sidebar\)/)
   assert.match(css, /\.fsdb-cell-pop\.is-select,\.fsdb-cell-pop\.is-multi-select,\.fsdb-cell-pop\.is-facet,\.fsdb-cell-pop\.is-attachment,\.fsdb-cell-pop\.is-image,\.fsdb-cell-pop\.is-person,\.fsdb-cell-pop\.is-record-link,\.fsdb-cell-pop\.is-ref,\.fsdb-cell-pop\.is-multi-ref\{[^}]*min-width:280px/)
   assert.match(css, /\.fsdb-cell-pop-url\{[^}]*width:100%/)
   assert.match(css, /\.fsdb-ref-chips\{[^}]*display:inline-flex/)

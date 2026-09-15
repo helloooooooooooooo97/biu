@@ -27,5 +27,30 @@ test('tool panels match the step bar: sidebar fill, no border', () => {
   assert.match(css, /\.tool-call-head:hover \.tool-call-inspect/s)
   assert.match(source, /tool-call-chars/)
   assert.match(source, /toolOutputChars/)
+  assert.match(source, /detail\.kind === 'chart'/)
+  assert.match(source, /className="tool-chart"/)
+})
+
+test('any tool result can be zoomed: shared float chrome, no height caps inside', () => {
+  const source = readFileSync(resolve(import.meta.dirname, './tool-card.tsx'), 'utf8')
+  const css = readFileSync(resolve(import.meta.dirname, '../../../../web/style.css'), 'utf8')
+  // 放大按钮挂在每张卡的头上，不限工具类型
+  assert.match(source, /data-testid="tool-call-zoom"/)
+  assert.match(source, /ArrowsPointingOutIcon/)
+  // 浮层沿用 .biu-float，且挂到 body 以躲开卡片 overflow 和检查器 z-index
+  assert.match(source, /className="biu-float-overlay[^"]*" data-testid="tool-zoom"/)
+  assert.match(source, /createPortal\([\s\S]*document\.body/)
+  assert.match(source, /event\.key === 'Escape'/)
+  // 全屏里复用同一个 ToolBody，只是换成高画布
+  assert.match(source, /<ToolBody parsed=\{parsed\} rawArguments=\{rawArguments\} detail=\{detail\} tall \/>/)
+  assert.match(source, /const height = tall \? 460 : 200/)
+  // 卡片里的 max-h-* 必须在放大层内失效，否则放大了还是只能看一小截
+  assert.match(css, /\.tool-zoom-body pre,[\s\S]*?max-height:\s*none/)
+  // 放大就是全屏：撑满 overlay，并让开 .biu-float-overlay 的居中内边距
+  assert.match(css, /\.tool-zoom\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/s)
+  assert.match(css, /\.tool-zoom-overlay\s*\{[^}]*padding:\s*0/s)
+  // 全屏下关闭按钮不能被内容挤走
+  assert.match(css, /\.tool-zoom > \.biu-float-head\s*\{[^}]*flex:\s*none/s)
+  assert.match(source, /biu-float-overlay tool-zoom-overlay/)
   assert.match(css, /\.tool-call-chars\s*\{[^}]*tabular-nums/s)
 })

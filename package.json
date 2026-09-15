@@ -33,6 +33,7 @@
     "@excalidraw/excalidraw": "^0.18.1",
     "@heroicons/react": "^2.2.0",
     "@lezer/highlight": "^1.2.3",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@tanstack/react-virtual": "^3.14.10",
     "@tiptap/extension-bubble-menu": "^3.30.5",
     "@tiptap/extension-code-block-lowlight": "^3.30.5",

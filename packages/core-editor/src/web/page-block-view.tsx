@@ -2,6 +2,7 @@ import { memo, useEffect, useLayoutEffect, useRef, type MouseEvent } from 'react
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
 import { PlayIcon } from '@heroicons/react/16/solid'
+import { RenderBoundary } from '@biu/public-ui'
 import { getPageEditor, usePageEditorVersion } from './service.ts'
 import { formatPageBlockFence, requestEnablePageBlockPlugin } from './page-block-meta.ts'
 import { bindPageBlockPlugin } from './page-block-plugin-host.ts'
@@ -135,7 +136,10 @@ export const PageBlockView = memo(function PageBlockView({ node, updateAttribute
       {cloneFrom ? (
         <div className="page-block-missing">正在复制附件…</div>
       ) : View ? (
-        <View data={data} update={update} writable={editor.isEditable} />
+        // 文档里的插件块崩了只烂这一块，不该让整个应用白屏。
+        <RenderBoundary label={plugin || kind}>
+          <View data={data} update={update} writable={editor.isEditable} />
+        </RenderBoundary>
       ) : (
         <PageBlockMissing kind={kind} plugin={plugin} data={data} />
       )}

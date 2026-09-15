@@ -68,8 +68,9 @@ test('plus menu can add another database tab', () => {
 test('inspector header tabs sit on the same vertical center as the main header', () => {
   assert.match(css, /\.app-side-bar-head\s*\{[^}]*align-items:\s*center/s)
   assert.match(css, /\.inspector-tabs\s*\{[^}]*align-items:\s*center/s)
-  assert.match(css, /\.session-inspector\s*\{[^}]*background:\s*#191919/s)
-  assert.match(css, /\.session-inspector \.app-side-bar-head\s*\{[^}]*background:\s*#191919/s)
+  // 检查器与它的头栏必须和主画布共用同一个底色 token，才不会露出接缝。
+  assert.match(css, /\.session-inspector\s*\{[^}]*background:\s*var\(--dsw-bg\)/s)
+  assert.match(css, /\.session-inspector \.app-side-bar-head\s*\{[^}]*background:\s*var\(--dsw-bg\)/s)
   assert.match(css, /\.inspector-tabs\s*\{[^}]*padding:\s*0/s)
   assert.doesNotMatch(css, /\.inspector-tabs\s*\{[^}]*padding-bottom:\s*8px/s)
   assert.match(css, /\.inspector-tab\s*\{[^}]*padding:\s*0 8px/s)
