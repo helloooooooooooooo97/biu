@@ -2748,10 +2748,12 @@ export function CollectionBrowser({
             })
           }}
         />
-        <div className="fsdb-detail-title-row">
+        <div className="fsdb-detail-icon-slot">
           <span className="fsdb-detail-title-icon" aria-hidden>
             <TableGlyph icon={currentTable?.view?.icon} className="size-8" />
           </span>
+        </div>
+        <div className="fsdb-detail-title-row">
           <div className="fsdb-detail-title-block">
           <h1 className="fsdb-detail-title">{activeView?.name ?? title}</h1>
           </div>
