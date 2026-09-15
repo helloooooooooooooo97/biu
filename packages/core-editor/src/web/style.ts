@@ -46,6 +46,9 @@ export const PAGE_EDITOR_STYLE = `
 .page-editor .tiptap blockquote{margin-left:0;padding-left:14px;border-left:3px solid var(--dsw-border);color:var(--dsw-label-2)}
 .page-editor .tiptap hr{border:0;border-top:1px solid var(--dsw-border);margin:18px 0}
 .page-editor .tiptap img{display:block;max-width:100%;height:auto;margin:8px 0;border-radius:8px}
+.page-editor .page-block[data-page-block=excalidraw] img{margin:0;max-width:none;height:unset;border-radius:0}
+.page-editor .page-block[data-page-block=excalidraw] svg,.page-editor .page-block[data-page-block=excalidraw] canvas{display:block;max-width:none;margin:0;border-radius:0}
+.page-editor .page-block[data-page-block=excalidraw] .welcome-screen-center{display:none}
 .page-editor .tiptap table{width:100%;margin:8px 0;border-collapse:collapse;table-layout:fixed}
 .page-editor .tiptap th,.page-editor .tiptap td{border:1px solid var(--dsw-border);padding:6px 8px;vertical-align:top}
 .page-editor .tiptap th{background:var(--dsw-hover);font-weight:650;text-align:left}
