@@ -169,7 +169,7 @@ function applyPatch(current: PageRow, patch: Record<string, unknown>): PageRow {
       typeof patch.title === 'string' && patch.title.trim()
         ? patch.title.trim()
         : current.title,
-    notes: notes ?? current.notes,
+    notes: 'notes' in patch ? (notes ?? '') : current.notes,
     tags: 'tags' in patch ? asStringList(patch.tags) : current.tags,
     parentId: 'parentId' in patch
       ? patch.parentId == null || patch.parentId === '' ? null : String(patch.parentId)

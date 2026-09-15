@@ -482,6 +482,9 @@ test('content is omitted from list/read and served on its own path', async () =>
   assert.deepEqual(body.value, { kind: 'note', body: { a: 1 } })
   const written = await db.writeContent('/docs/n1', { kind: 'note', body: { a: 2 } })
   assert.deepEqual(written.value, { kind: 'note', body: { a: 2 } })
+  const cleared = await db.writeContent('/docs/n1', '')
+  assert.equal(cleared.value, '')
+  assert.equal((await db.content('/docs/n1')).value, '')
 })
 
 test('writeContent string fields keep JSON objects instead of [object Object]', async () => {
