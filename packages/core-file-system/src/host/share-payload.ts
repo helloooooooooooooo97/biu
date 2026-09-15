@@ -2,6 +2,7 @@ import type { CollectionSchema, Database, DbRecord } from '@biu/type-file-system
 import { collectAssetNames } from './assets-store.ts'
 import type { SavedViewsStore } from './saved-views.ts'
 import { freezeSchema, type ShareSnapshot } from '../share-snapshot.ts'
+import { collectShareResources } from '../share-resources.ts'
 import type { ShareRecord } from './shares-store.ts'
 import { encodeListFilter, resolveViewFilterTree } from '../query-logic.ts'
 
@@ -21,6 +22,20 @@ function asRecordRead(raw: unknown) {
 
 function asContentRead(raw: unknown) {
   return raw as { value?: unknown }
+}
+
+function withResources(
+  snap: Omit<ShareSnapshot, 'resources' | 'pluginIds' | 'sharePlugins' | 'allowCopy'>,
+  share: ShareRecord,
+): ShareSnapshot {
+  const resources = collectShareResources(snap.records, snap.contents, snap.records.map((row) => String(row.id)))
+  return {
+    ...snap,
+    resources: { pages: resources.pages, plugins: resources.plugins, collections: resources.collections },
+    pluginIds: share.sharePlugins ? resources.pluginIds : [],
+    sharePlugins: share.sharePlugins,
+    allowCopy: share.allowCopy,
+  }
 }
 
 export async function buildShareSnapshot(
@@ -43,7 +58,7 @@ export async function buildShareSnapshot(
       content = null
     }
     const contents = { [record.id]: content }
-    return {
+    return withResources({
       kind: 'record',
       collection: share.collection,
       viewId: share.viewId,
@@ -53,7 +68,7 @@ export async function buildShareSnapshot(
       records: [{ ...record, [schema.contentField ?? 'notes']: undefined }],
       contents,
       assets: [...collectAssetNames(record, content)],
-    }
+    }, share)
   }
   const stored = savedViews.viewsFor(share.collection).find((item) => item.id === share.viewId)
   const view = {
@@ -83,7 +98,7 @@ export async function buildShareSnapshot(
       contents[row.id] = null
     }
   }
-  return {
+  return withResources({
     kind: 'view',
     collection: share.collection,
     viewId: share.viewId,
@@ -94,5 +109,5 @@ export async function buildShareSnapshot(
     records,
     contents,
     assets: [...collectAssetNames(...records, ...Object.values(contents))],
-  }
+  }, share)
 }

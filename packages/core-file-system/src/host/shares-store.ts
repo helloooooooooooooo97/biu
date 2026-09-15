@@ -19,6 +19,8 @@ type ShareRow = {
   record_id: string
   password_salt: string
   password_hash: string
+  share_plugins: number
+  allow_copy: number
   created_at: number
   updated_at: number
 }
@@ -43,6 +45,8 @@ function publicShare(row: ShareRow): ShareRecord {
     viewId: row.view_id,
     recordId: row.record_id,
     hasPassword: Boolean(row.password_hash),
+    sharePlugins: Boolean(row.share_plugins),
+    allowCopy: row.allow_copy !== 0,
     createdAt: Number(row.created_at) || 0,
     updatedAt: Number(row.updated_at) || 0,
   }
@@ -66,12 +70,24 @@ export class SharesStore {
         record_id TEXT NOT NULL DEFAULT '',
         password_salt TEXT NOT NULL DEFAULT '',
         password_hash TEXT NOT NULL DEFAULT '',
+        share_plugins INTEGER NOT NULL DEFAULT 0,
+        allow_copy INTEGER NOT NULL DEFAULT 1,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
       CREATE UNIQUE INDEX IF NOT EXISTS shares_target ON shares(kind, collection, view_id, record_id);
     `)
+    this.ensureFlagColumns()
     return this
+  }
+
+  private ensureFlagColumns() {
+    const db = this.db
+    if (!db) return
+    const cols = db.prepare('PRAGMA table_info(shares)').all() as Array<{ name: string }>
+    const names = new Set(cols.map((col) => col.name))
+    if (!names.has('share_plugins')) db.exec('ALTER TABLE shares ADD COLUMN share_plugins INTEGER NOT NULL DEFAULT 0')
+    if (!names.has('allow_copy')) db.exec('ALTER TABLE shares ADD COLUMN allow_copy INTEGER NOT NULL DEFAULT 1')
   }
 
   private conn() {
@@ -109,6 +125,8 @@ export class SharesStore {
     viewId?: string
     recordId?: string
     password?: string | null
+    sharePlugins?: boolean
+    allowCopy?: boolean
   }): ShareRecord {
     const kind = asKind(input.kind)
     if (!kind) throw new Error('invalid share kind')
@@ -132,15 +150,31 @@ export class SharesStore {
       salt = next.salt
       hash = next.hash
     }
+    const sharePlugins = input.sharePlugins ?? existing?.sharePlugins ?? false
+    const allowCopy = input.allowCopy ?? existing?.allowCopy ?? true
     const token = existing?.token ?? mintToken()
     this.conn().prepare(`
-      INSERT INTO shares (token, kind, collection, view_id, record_id, password_salt, password_hash, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO shares (token, kind, collection, view_id, record_id, password_salt, password_hash, share_plugins, allow_copy, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(kind, collection, view_id, record_id) DO UPDATE SET
         password_salt=excluded.password_salt,
         password_hash=excluded.password_hash,
+        share_plugins=excluded.share_plugins,
+        allow_copy=excluded.allow_copy,
         updated_at=excluded.updated_at
-    `).run(token, kind, collection, viewId, recordId, salt, hash, existing?.createdAt ?? now, now)
+    `).run(
+      token,
+      kind,
+      collection,
+      viewId,
+      recordId,
+      salt,
+      hash,
+      sharePlugins ? 1 : 0,
+      allowCopy ? 1 : 0,
+      existing?.createdAt ?? now,
+      now,
+    )
     return this.get(token)!
   }
 

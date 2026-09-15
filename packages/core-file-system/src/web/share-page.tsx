@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { FieldSpec } from '@biu/type-file-system'
 import type { CollectionChrome } from '@biu/type-file-system/ui'
-import { ArrowDownTrayIcon } from '@heroicons/react/16/solid'
+import { ArrowDownTrayIcon, CubeTransparentIcon } from '@heroicons/react/16/solid'
 import { parseSharePath, type ShareSnapshot } from '../share-snapshot.ts'
+import { shareResourceTypeCount } from '../share-resources.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { formatField, defaultColumnKeys } from './fields.ts'
 import { contentToMarkdown, markdownFileName, recordToMarkdown, zipMarkdownPack } from './export-markdown.ts'
@@ -82,6 +83,7 @@ function SharePage({ token, recordId, chrome }: { token: string; recordId: strin
   const [locked, setLocked] = useState(false)
   const [error, setError] = useState('')
   const [snapshot, setSnapshot] = useState<ShareSnapshot | null>(null)
+  const [resourcesOpen, setResourcesOpen] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -202,6 +204,54 @@ function SharePage({ token, recordId, chrome }: { token: string; recordId: strin
           <span className="fsdb-share-badge">只读</span>
         </div>
         <div className="chat-view-header-right">
+          {snapshot.resources ? (
+            <div className="fsdb-share-res-wrap">
+              <button
+                type="button"
+                className="chat-view-header-expand"
+                title="关联资源"
+                aria-label="关联资源"
+                data-testid="fsdb-share-resources"
+                onClick={() => setResourcesOpen((open) => !open)}
+              >
+                <CubeTransparentIcon aria-hidden className="size-4" />
+                <span className="fsdb-share-res-count">{shareResourceTypeCount(snapshot.resources)}</span>
+              </button>
+              {resourcesOpen ? (
+                <div className="fsdb-share-res-pop" data-testid="fsdb-share-resources-pop">
+                  <p>页面 {snapshot.resources.pages}</p>
+                  <p>插件 {snapshot.resources.plugins}</p>
+                  <p>合集 {snapshot.resources.collections}</p>
+                  {snapshot.sharePlugins && snapshot.pluginIds?.length ? (
+                    <ul className="fsdb-share-plugin-list">
+                      {snapshot.pluginIds.map((id) => (
+                        <li key={id}>
+                          <button
+                            type="button"
+                            className="fsdb-share-copy"
+                            onClick={() => {
+                              const href = `/api/share/${encodeURIComponent(token)}/plugin/${encodeURIComponent(id)}`
+                              const link = document.createElement('a')
+                              link.href = password
+                                ? `${href}?password=${encodeURIComponent(password)}`
+                                : href
+                              link.download = `${id}.zip`
+                              document.body.appendChild(link)
+                              link.click()
+                              link.remove()
+                            }}
+                          >
+                            下载 {id}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {snapshot.allowCopy !== false ? (
           <button
             type="button"
             className="chat-view-header-expand"
@@ -212,6 +262,7 @@ function SharePage({ token, recordId, chrome }: { token: string; recordId: strin
           >
             <ArrowDownTrayIcon aria-hidden className="size-4" />
           </button>
+          ) : null}
         </div>
       </header>
       <div className="fsdb-share-body">

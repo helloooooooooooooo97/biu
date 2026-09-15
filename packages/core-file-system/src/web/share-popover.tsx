@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CheckIcon, LinkIcon, ShareIcon } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
 import { readJson } from './db-client.ts'
+import { mintSharePin, type ShareResourceStats } from '../share-resources.ts'
 
 export type ShareKind = 'view' | 'record'
 
@@ -17,6 +18,13 @@ type ShareInfo = {
   token: string
   url: string
   hasPassword: boolean
+  sharePlugins: boolean
+  allowCopy: boolean
+}
+
+type SharePayload = {
+  share: ShareInfo | null
+  resources?: ShareResourceStats
 }
 
 export function ShareButton({ target }: { target: ShareTarget | null }) {
@@ -48,30 +56,39 @@ export function ShareButton({ target }: { target: ShareTarget | null }) {
 
 function SharePanel({ target }: { target: ShareTarget }) {
   const [share, setShare] = useState<ShareInfo | null>(null)
-  const [password, setPassword] = useState('')
+  const [resources, setResources] = useState<ShareResourceStats>({ pages: 0, plugins: 0, collections: 0, pluginIds: [] })
+  const [pin, setPin] = useState('')
   const [usePassword, setUsePassword] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'link' | 'pin' | ''>('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  const params = new URLSearchParams({
+    kind: target.kind,
+    collection: target.collection,
+    viewId: target.viewId ?? '',
+    recordId: target.recordId ?? '',
+  })
+
   useEffect(() => {
-    const params = new URLSearchParams({
-      kind: target.kind,
-      collection: target.collection,
-      viewId: target.viewId ?? '',
-      recordId: target.recordId ?? '',
-    })
-    void readJson<{ share: ShareInfo | null }>(`/api/db/shares?${params}`).then((data) => {
+    void readJson<SharePayload>(`/api/db/shares?${params}`).then((data) => {
       setShare(data.share)
+      if (data.resources) setResources(data.resources)
       setUsePassword(Boolean(data.share?.hasPassword))
+      if (!data.share?.hasPassword) setPin('')
     }).catch(() => setShare(null))
   }, [target.kind, target.collection, target.viewId, target.recordId])
 
-  async function publish(patch: { password?: string | null; enabled?: boolean }) {
+  async function publish(patch: {
+    password?: string | null
+    enabled?: boolean
+    sharePlugins?: boolean
+    allowCopy?: boolean
+  }) {
     setBusy(true)
     setError('')
     try {
-      const data = await readJson<{ share: ShareInfo | null }>('/api/db/shares', {
+      const data = await readJson<SharePayload>('/api/db/shares', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -83,7 +100,11 @@ function SharePanel({ target }: { target: ShareTarget }) {
         }),
       })
       setShare(data.share)
-      if (patch.enabled === false) setPassword('')
+      if (data.resources) setResources(data.resources)
+      if (patch.enabled === false) {
+        setPin('')
+        setUsePassword(false)
+      }
     } catch (err) {
       setError(String(err instanceof Error ? err.message : err))
     } finally {
@@ -91,22 +112,39 @@ function SharePanel({ target }: { target: ShareTarget }) {
     }
   }
 
-  async function copyLink() {
-    if (!share?.url) return
+  async function copyText(text: string, kind: 'link' | 'pin') {
+    if (!text) return
     try {
-      await navigator.clipboard.writeText(share.url)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
+      await navigator.clipboard.writeText(text)
+      setCopied(kind)
+      window.setTimeout(() => setCopied(''), 1600)
     } catch {
-      setError('无法复制链接')
+      setError('无法复制')
     }
+  }
+
+  function togglePassword(on: boolean) {
+    setUsePassword(on)
+    if (!on) {
+      setPin('')
+      if (share) void publish({ password: '' })
+      return
+    }
+    const next = mintSharePin()
+    setPin(next)
+    void publish({ password: next })
   }
 
   return (
     <div className="fsdb-share-panel" role="dialog" aria-label="分享" data-testid="fsdb-share-panel">
       <div className="fsdb-share-head">
-        <strong>分享到网上</strong>
-        <p>任何有链接的人都可以查看这份内容。只读，看不到你没分享的东西。</p>
+        <strong>分享</strong>
+        <p>有链接的人可以只读查看这一份内容。</p>
+      </div>
+      <div className="fsdb-share-stats" data-testid="fsdb-share-resources">
+        <span>页面 {resources.pages}</span>
+        <span>插件 {resources.plugins}</span>
+        <span>合集 {resources.collections}</span>
       </div>
       {!share ? (
         <button
@@ -116,48 +154,77 @@ function SharePanel({ target }: { target: ShareTarget }) {
           data-testid="fsdb-share-enable"
           onClick={() => void publish({})}
         >
-          开启分享
+          生成链接
         </button>
       ) : (
         <>
           <div className="fsdb-share-link">
             <LinkIcon aria-hidden className="size-4" />
-            <input readOnly value={share.url} data-testid="fsdb-share-url" />
-            <button type="button" className="fsdb-share-copy" data-testid="fsdb-share-copy" onClick={() => void copyLink()}>
-              {copied ? <CheckIcon aria-hidden className="size-4" /> : '复制'}
+            <input readOnly value={share.url} data-testid="fsdb-share-url" onFocus={(event) => event.currentTarget.select()} />
+            <button type="button" className="fsdb-share-copy" data-testid="fsdb-share-copy" onClick={() => void copyText(share.url, 'link')}>
+              {copied === 'link' ? <CheckIcon aria-hidden className="size-4" /> : '复制'}
             </button>
           </div>
-          <label className="fsdb-share-check">
+          <label className="fsdb-share-switch">
+            <span>
+              <strong>密码保护</strong>
+              <em>打开后自动填入 6 位密码</em>
+            </span>
             <input
               type="checkbox"
               checked={usePassword}
-              onChange={(event) => {
-                const on = event.target.checked
-                setUsePassword(on)
-                if (!on) void publish({ password: '' })
-              }}
+              disabled={busy}
+              data-testid="fsdb-share-password-toggle"
+              onChange={(event) => togglePassword(event.target.checked)}
             />
-            密码保护
           </label>
           {usePassword ? (
             <div className="fsdb-share-password">
               <input
-                type="password"
-                placeholder={share.hasPassword ? '已设置密码，输入新密码可更换' : '设置密码'}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                type="text"
+                inputMode="numeric"
+                value={pin}
+                placeholder={share.hasPassword && !pin ? '已设置，可换新密码' : '6 位密码'}
                 data-testid="fsdb-share-password"
+                onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                onBlur={() => {
+                  if (pin.length === 6) void publish({ password: pin })
+                }}
               />
-              <button
-                type="button"
-                disabled={busy || !password}
-                onClick={() => void publish({ password })}
-              >
-                保存
+              <button type="button" className="fsdb-share-copy" disabled={busy} onClick={() => togglePassword(true)}>
+                换一换
+              </button>
+              <button type="button" className="fsdb-share-copy" disabled={!pin} onClick={() => void copyText(pin, 'pin')}>
+                {copied === 'pin' ? <CheckIcon aria-hidden className="size-4" /> : '复制'}
               </button>
             </div>
           ) : null}
-          <p className="fsdb-share-perm">权限：可以查看（只读）· 可以拷贝</p>
+          <label className="fsdb-share-switch">
+            <span>
+              <strong>分享插件</strong>
+              <em>把用到的插件源码交给对方下载</em>
+            </span>
+            <input
+              type="checkbox"
+              checked={share.sharePlugins}
+              disabled={busy}
+              data-testid="fsdb-share-plugins"
+              onChange={(event) => void publish({ sharePlugins: event.target.checked })}
+            />
+          </label>
+          <label className="fsdb-share-switch">
+            <span>
+              <strong>允许拷贝</strong>
+              <em>对方可下载页面内容</em>
+            </span>
+            <input
+              type="checkbox"
+              checked={share.allowCopy !== false}
+              disabled={busy}
+              data-testid="fsdb-share-allow-copy"
+              onChange={(event) => void publish({ allowCopy: event.target.checked })}
+            />
+          </label>
           <button
             type="button"
             className="fsdb-share-stop"

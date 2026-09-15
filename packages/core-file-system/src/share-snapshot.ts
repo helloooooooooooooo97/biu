@@ -11,6 +11,8 @@ export type ShareRecord = {
   viewId: string
   recordId: string
   hasPassword: boolean
+  sharePlugins: boolean
+  allowCopy: boolean
   createdAt: number
   updatedAt: number
 }
@@ -26,6 +28,14 @@ export type ShareSnapshot = {
   records: DbRecord[]
   contents: Record<string, unknown>
   assets: string[]
+  resources: {
+    pages: number
+    plugins: number
+    collections: number
+  }
+  pluginIds: string[]
+  sharePlugins: boolean
+  allowCopy: boolean
 }
 
 export function freezeSchema(schema: CollectionSchema): CollectionSchema {

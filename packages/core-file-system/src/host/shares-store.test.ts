@@ -17,6 +17,8 @@ test('share tokens mint unique links and can set a password', () => {
   const locked = store.upsert({ kind: 'view', collection: '/pages', viewId: 'board', password: 'secret' })
   assert.equal(locked.token, a.token)
   assert.equal(locked.hasPassword, true)
+  assert.equal(locked.sharePlugins, false)
+  assert.equal(locked.allowCopy, true)
   assert.equal(store.verifyPassword(a.token, 'secret'), true)
   assert.equal(store.verifyPassword(a.token, 'nope'), false)
 })
@@ -30,6 +32,16 @@ test('record shares stay isolated from view shares', () => {
   store.revokeTarget('record', '/pages', '', 'p001')
   assert.equal(store.find('record', '/pages', '', 'p001'), null)
   assert.ok(store.get(view.token))
+})
+
+test('share flags persist plugin source and copy', () => {
+  const store = new SharesStore().open(':memory:')
+  const share = store.upsert({ kind: 'record', collection: '/pages', recordId: 'p1', sharePlugins: true, allowCopy: false })
+  assert.equal(share.sharePlugins, true)
+  assert.equal(share.allowCopy, false)
+  const again = store.upsert({ kind: 'record', collection: '/pages', recordId: 'p1' })
+  assert.equal(again.sharePlugins, true)
+  assert.equal(again.allowCopy, false)
 })
 
 test('parseSharePath only accepts /share tokens', () => {
@@ -67,4 +79,6 @@ test('record snapshot only includes the shared row', async () => {
   assert.deepEqual(snap.records.map((row) => row.id), ['open'])
   assert.equal(snap.contents.open, 'ok')
   assert.equal(snap.schema.fields.title?.writable, false)
+  assert.equal(snap.allowCopy, true)
+  assert.equal(snap.sharePlugins, false)
 })

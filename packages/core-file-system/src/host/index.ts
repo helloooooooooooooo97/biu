@@ -39,6 +39,8 @@ import {
 import { parsePageBanner, type PageBanner } from '../page-banner.ts'
 import { SavedViewsStore, clientViewFromDbRow, viewsCollection, type StoredView } from './saved-views.ts'
 import { publicShareUrl } from './share-origin.ts'
+import { zipSharePluginSource } from './share-plugin-pack.ts'
+import { collectShareResources } from '../share-resources.ts'
 import { FacetStore } from './facets-store.ts'
 import { SharesStore } from './shares-store.ts'
 import { buildShareSnapshot } from './share-payload.ts'
@@ -1711,10 +1713,36 @@ export function apply(ctx: Context) {
     if (query) return query
     return String(body?.password ?? '')
   }
-  ctx.http.route('GET', '/api/db/shares', (route) => {
-    const kind = route.query.get('kind') === 'record' ? 'record' : 'view'
-    const share = shares.find(kind, route.query.get('collection') || '', route.query.get('viewId') || '', route.query.get('recordId') || '')
-    route.send(200, share ? { share: { ...share, url: publicShareUrl(route.req, share.token) } } : { share: null })
+  const sharePreviewOf = async (kind: 'view' | 'record', collection: string, viewId: string, recordId: string) => {
+    try {
+      const snap = await buildShareSnapshot(db, savedViews, {
+        token: '',
+        kind,
+        collection,
+        viewId,
+        recordId,
+        hasPassword: false,
+        sharePlugins: true,
+        allowCopy: true,
+        createdAt: 0,
+        updatedAt: 0,
+      })
+      return collectShareResources(snap.records, snap.contents, snap.records.map((row) => String(row.id)))
+    } catch {
+      return { pages: 0, plugins: 0, collections: 0, pluginIds: [] as string[] }
+    }
+  }
+  ctx.http.route('GET', '/api/db/shares', async (route) => {
+    const kind = route.query.get('kind') === 'record' ? 'record' as const : 'view' as const
+    const collection = route.query.get('collection') || ''
+    const viewId = route.query.get('viewId') || ''
+    const recordId = route.query.get('recordId') || ''
+    const share = shares.find(kind, collection, viewId, recordId)
+    const resources = await sharePreviewOf(kind, collection, viewId, recordId)
+    route.send(200, {
+      share: share ? { ...share, url: publicShareUrl(route.req, share.token) } : null,
+      resources,
+    })
   })
   ctx.http.route('POST', '/api/db/shares', async (route) => {
     try {
@@ -1725,6 +1753,8 @@ export function apply(ctx: Context) {
         recordId?: string
         password?: string | null
         enabled?: boolean
+        sharePlugins?: boolean
+        allowCopy?: boolean
       }
       const kind = body.kind === 'record' ? 'record' as const : 'view' as const
       if (body.enabled === false) {
@@ -1738,6 +1768,8 @@ export function apply(ctx: Context) {
         viewId: body.viewId,
         recordId: body.recordId,
         password: body.password,
+        sharePlugins: body.sharePlugins,
+        allowCopy: body.allowCopy,
       })
       route.send(200, { share: { ...share, url: publicShareUrl(route.req, share.token) } })
     } catch (error) {
@@ -1806,6 +1838,43 @@ export function apply(ctx: Context) {
         etag: `"${etag}"`,
       })
       route.res.end(bytes)
+    } catch {
+      route.send(404, { error: 'not found' })
+    }
+  })
+  ctx.http.route('GET', '/api/share/:token/plugin/:id', async (route) => {
+    const token = route.params.token ?? ''
+    const share = shares.get(token)
+    if (!share) {
+      route.send(404, { error: 'not found' })
+      return
+    }
+    if (share.hasPassword && !shares.verifyPassword(token, sharePasswordOf(route))) {
+      route.send(401, { needsPassword: true })
+      return
+    }
+    if (!share.sharePlugins) {
+      route.send(403, { error: 'plugins are not shared' })
+      return
+    }
+    const id = String(route.params.id ?? '').replace(/\.zip$/i, '')
+    try {
+      const snapshot = await buildShareSnapshot(db, savedViews, share)
+      if (!snapshot.pluginIds.includes(id)) {
+        route.send(404, { error: 'not found' })
+        return
+      }
+      const zip = zipSharePluginSource(process.cwd(), id)
+      if (!zip) {
+        route.send(404, { error: 'not found' })
+        return
+      }
+      route.res.writeHead(200, {
+        'content-type': 'application/zip',
+        'content-disposition': `attachment; filename="${id}.zip"`,
+        'cache-control': 'no-store',
+      })
+      route.res.end(Buffer.from(zip))
     } catch {
       route.send(404, { error: 'not found' })
     }
