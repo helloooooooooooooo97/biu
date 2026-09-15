@@ -10,7 +10,7 @@ import {
   ShareIcon,
   Squares2X2Icon,
   StarIcon,
-} from '@heroicons/react/24/solid'
+} from '@heroicons/react/16/solid'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import type { CollectionInfo, CollectionSchema, DbRecord } from '@biu/type-file-system'
 import { groupField, groupRecords, parentFieldKey, treeChildren } from './fields.ts'

@@ -15,7 +15,7 @@ import {
   Squares2X2Icon,
   StopIcon,
   TableCellsIcon,
-} from '@heroicons/react/24/solid'
+} from '@heroicons/react/16/solid'
 import { TagChip, TagChips } from '@biu/public-ui'
 import { SidebarMascot, resolveSessionMascot } from '@biu/public-mascot'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'

@@ -1,6 +1,6 @@
 import type { Context } from 'cordis'
 import type { SlotsService } from '@biu/web-slots'
-import { CursorArrowRaysIcon } from '@heroicons/react/24/solid'
+import { CursorArrowRaysIcon } from '@heroicons/react/16/solid'
 import { PickService, getPick, usePickState } from './service.ts'
 import { PickOverlay } from './overlay.tsx'
 

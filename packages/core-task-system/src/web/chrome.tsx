@@ -1,4 +1,4 @@
-import { LockClosedIcon } from '@heroicons/react/24/solid'
+import { LockClosedIcon } from '@heroicons/react/16/solid'
 import type { DbRecord } from '@biu/type-file-system'
 import type { CollectionChrome, FsCellProps } from '@biu/type-file-system/ui'
 import { ReportsPane, ScriptPane } from './detail-panes.tsx'

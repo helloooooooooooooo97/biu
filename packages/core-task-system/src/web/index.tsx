@@ -1,5 +1,5 @@
 import type { Context } from 'cordis'
-import { ShareIcon } from '@heroicons/react/24/solid'
+import { ShareIcon } from '@heroicons/react/16/solid'
 import type { DatabaseUi } from '@biu/type-file-system/ui'
 import { tasksChrome } from './chrome.tsx'
 import { TaskDepGraph } from './graph-view.tsx'

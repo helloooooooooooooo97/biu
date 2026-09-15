@@ -3,7 +3,7 @@ import type { Context } from 'cordis'
 import { useSlotEntries, type SlotsService } from '@biu/web-slots'
 import type { SlotProps } from '@biu/type-slots'
 
-import { XMarkIcon, MinusIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, Bars2Icon } from '@heroicons/react/24/solid'
+import { XMarkIcon, MinusIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, Bars2Icon } from '@heroicons/react/16/solid'
 import type { DatabaseUi } from '@biu/type-file-system/ui'
 import { pluginsChrome } from './chrome.tsx'
 import { listenEnablePageBlockPlugin } from './page-block-plugin.ts'

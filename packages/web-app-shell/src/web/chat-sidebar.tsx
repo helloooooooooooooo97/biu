@@ -32,7 +32,7 @@ import {
   TagIcon,
   FolderMinusIcon,
   BookmarkSlashIcon,
-} from '@heroicons/react/24/solid'
+} from '@heroicons/react/16/solid'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 
 /** 项目/标签分组视图的持久化 key。 */

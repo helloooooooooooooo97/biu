@@ -55,7 +55,7 @@ import {
   ChevronDoubleRightIcon,
   AdjustmentsHorizontalIcon,
   XMarkIcon,
-} from '@heroicons/react/24/solid'
+} from '@heroicons/react/16/solid'
 
 export const name = 'shell'
 export const inject = ['slots', 'snapshot', 'sessionView', 'projectView', 'appModules']

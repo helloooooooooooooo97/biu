@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from
 import { HeadlessPopover } from '@biu/public-ui'
 import { SourceEditor, type SourceEditorHandle } from './source-editor.tsx'
 import { usePageSourceMode } from './source-mode.ts'
-import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid'
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/16/solid'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import type { Editor } from '@tiptap/core'

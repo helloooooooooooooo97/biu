@@ -9,7 +9,7 @@ import {
   PaintBrushIcon,
   PauseIcon,
   Squares2X2Icon,
-} from '@heroicons/react/24/solid'
+} from '@heroicons/react/16/solid'
 import type { SlotProps } from '@biu/web-slots'
 import { bindSessionView, type ChatNode, type DispatchedTaskRow, type SessionViewService } from '@biu/web-session-view'
 import { BrandCornerMascot, SidebarMascot, resolveSessionMascot } from '@biu/public-mascot'

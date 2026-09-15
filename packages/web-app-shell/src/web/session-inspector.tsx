@@ -16,7 +16,7 @@ import {
   TagIcon,
   BoltIcon,
   EyeIcon,
-} from '@heroicons/react/24/solid'
+} from '@heroicons/react/16/solid'
 import { chromeIcon } from './chrome-icon.ts'
 import {
   bindSessionView,
