@@ -656,129 +656,141 @@ function CodeRunnerBlock({ data, update, writable }: BlockProps) {
         boxShadow: '0 1px 2px rgba(15,15,15,.04)',
       }}
     >
-      {/* toolbar */}
+      {/* toolbar：左语言 / 右运行+清空 */}
       <div
         style={{
           display: 'flex',
-          gap: 6,
+          justifyContent: 'space-between',
+          gap: 8,
           padding: '7px 10px',
           borderBottom: collapsed ? 'none' : '1px solid var(--dsw-border)',
           alignItems: 'center',
           background: 'color-mix(in srgb, var(--dsw-hover) 55%, transparent)',
         }}
       >
-        {canCollapse && (
-          <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              persist()
-              const next = !collapsed
-              if (!next) wantFocus.current = true
-              update({ collapsed: next })
-            }}
-            title={collapsed ? '\u5c55\u5f00' : '\u6536\u8d77'}
-            style={{
-              width: 22,
-              height: 22,
-              lineHeight: 1,
-              padding: 0,
-              borderRadius: 6,
-              border: 0,
-              background: 'transparent',
-              color: 'var(--dsw-icon)',
-              fontSize: 11,
-              cursor: 'pointer',
-            }}
-          >
-            {collapsed ? '\u25b8' : '\u25be'}
-          </button>
-        )}
-        <span style={{ fontSize: 11, fontWeight: 650, color: 'var(--dsw-label-3)' }}>
-          {langInfo.label}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          {canCollapse && (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                persist()
+                const next = !collapsed
+                if (!next) wantFocus.current = true
+                update({ collapsed: next })
+              }}
+              title={collapsed ? '\u5c55\u5f00' : '\u6536\u8d77'}
+              style={{
+                width: 22,
+                height: 22,
+                lineHeight: 1,
+                padding: 0,
+                borderRadius: 6,
+                border: 0,
+                background: 'transparent',
+                color: 'var(--dsw-icon)',
+                fontSize: 11,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              {collapsed ? '\u25b8' : '\u25be'}
+            </button>
+          )}
+          {ro ? (
+            <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--dsw-label)' }}>
+              {langInfo.label}
+            </span>
+          ) : (
+            <select
+              value={lang}
+              onChange={(e) => onLangChange(e.target.value)}
+              aria-label="语言"
+              style={{
+                padding: '2px 4px',
+                borderRadius: 6,
+                border: 0,
+                background: 'transparent',
+                color: 'var(--dsw-label)',
+                fontSize: 12,
+                fontWeight: 650,
+                cursor: 'pointer',
+              }}
+            >
+              {LANGS.map((l) => (
+                <option key={l.id} value={l.id}>{l.label}</option>
+              ))}
+            </select>
+          )}
+          {collapsed && (
+            <span style={{ color: 'var(--dsw-label-3)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {`${lineCount} \u884c · ${preview}`}
+            </span>
+          )}
+        </div>
         {!ro && (
-          <select
-            value={lang}
-            onChange={(e) => onLangChange(e.target.value)}
-            style={{
-              padding: '2px 8px',
-              borderRadius: 6,
-              border: '1px solid var(--dsw-border)',
-              background: 'transparent',
-              color: 'var(--dsw-label)',
-              fontSize: 12,
-              cursor: 'pointer',
-            }}
-          >
-            {LANGS.map((l) => (
-              <option key={l.id} value={l.id}>{l.label}</option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                void run()
+                focusCode()
+              }}
+              disabled={running || !localCode.trim()}
+              aria-label={running ? '运行中' : '运行'}
+              title={running ? '运行中' : '运行'}
+              style={{
+                width: 22,
+                height: 22,
+                padding: 0,
+                borderRadius: 5,
+                border: 0,
+                background: 'transparent',
+                color: 'var(--dsw-icon)',
+                cursor: running ? 'not-allowed' : 'pointer',
+                opacity: running ? 0.5 : 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                <path d="M4.25 2.55a.75.75 0 0 1 .78.06l8.5 5.45a.75.75 0 0 1 0 1.24l-8.5 5.45A.75.75 0 0 1 3.25 14V2.75a.75.75 0 0 1 1-.2Z" />
+              </svg>
+            </button>
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                clear()
+                focusCode()
+              }}
+              disabled={output.length === 0}
+              aria-label="清空"
+              title="清空"
+              style={{
+                width: 22,
+                height: 22,
+                padding: 0,
+                borderRadius: 5,
+                border: 0,
+                background: 'transparent',
+                color: 'var(--dsw-icon)',
+                cursor: output.length === 0 ? 'default' : 'pointer',
+                opacity: output.length === 0 ? 0.35 : 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 14.5h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.71l.275 5.5a.75.75 0 0 1-1.494.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.494-.075l.275-5.5a.75.75 0 0 1 .787-.71Z"
+                />
+              </svg>
+            </button>
+          </div>
         )}
-        {!ro && (
-          <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              void run()
-              focusCode()
-            }}
-            disabled={running || !localCode.trim()}
-            style={{
-              padding: '3px 11px',
-              borderRadius: 6,
-              border: 0,
-              background: 'var(--dsw-label)',
-              color: 'var(--dsw-bg)',
-              fontWeight: 650,
-              fontSize: 12,
-              cursor: running ? 'not-allowed' : 'pointer',
-              opacity: running ? 0.5 : 1,
-            }}
-          >
-            {running ? '运行中' : '运行'}
-          </button>
-        )}
-        {output.length > 0 && (
-          <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              clear()
-              focusCode()
-            }}
-            aria-label="清空"
-            title="清空"
-            style={{
-              width: 22,
-              height: 22,
-              padding: 0,
-              borderRadius: 5,
-              border: 0,
-              background: 'transparent',
-              color: 'var(--dsw-icon)',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 14.5h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.71l.275 5.5a.75.75 0 0 1-1.494.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.494-.075l.275-5.5a.75.75 0 0 1 .787-.71Z"
-              />
-            </svg>
-          </button>
-        )}
-        {collapsed && (
-          <span style={{ color: 'var(--dsw-label-3)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {`${lineCount} \u884c · ${preview}`}
-          </span>
-        )}
-        <span style={{ marginLeft: 'auto', color: 'var(--dsw-label-3)', fontSize: 11, whiteSpace: 'nowrap' }}>
-          {!collapsed && (codeOverflow ? '可拖动高度  ' : '')}
-          Ctrl+Enter
-        </span>
       </div>
 
       {collapsed ? null : (
