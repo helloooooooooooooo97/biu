@@ -334,6 +334,13 @@ export const ChatSidebar = memo(function ChatSidebar({
                       >
                         <span className="sidebar-label min-w-0 flex-1 truncate tracking-normal">{section.label}</span>
                       </button>
+                    <ChatCount
+                      count={
+                        section.sessions
+                          ? section.sessions.length
+                          : section.groups?.reduce((sum, g) => sum + g.sessions.length, 0) ?? 0
+                      }
+                    />
                       {section.kind !== 'pinned' ? (
                         <div
                           className="sidebar-view-switch"
@@ -361,13 +368,6 @@ export const ChatSidebar = memo(function ChatSidebar({
                         </div>
                       ) : null}
                     </div>
-                    <ChatCount
-                      count={
-                        section.sessions
-                          ? section.sessions.length
-                          : section.groups?.reduce((sum, g) => sum + g.sessions.length, 0) ?? 0
-                      }
-                    />
                   </div>
 
                   <SidebarFold open={!sectionCollapsed}>
@@ -429,6 +429,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                                     </span>
                                   </span>
                                   <span className="sidebar-label min-w-0 flex-1 truncate">{group.label}</span>
+                                <ChatCount count={group.sessions.length} />
                                   {canAddHere ? (
                                     <button
                                       type="button"
@@ -446,7 +447,6 @@ export const ChatSidebar = memo(function ChatSidebar({
                                     </button>
                                   ) : null}
                                 </div>
-                                <ChatCount count={group.sessions.length} />
                               </div>
                               <SidebarFold open={!collapsed} className="sidebar-session-list min-w-0">
                                 {group.sessions.map((item) => (
