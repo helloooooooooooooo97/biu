@@ -116,7 +116,7 @@ export function draftFromRecord(schema: CollectionSchema, row: DbRecord, bodyKey
 }
 
 export function FieldGlyph({ kind }: { kind: FieldType }) {
-  const cls = 'size-[14px] shrink-0 opacity-80'
+  const cls = 'size-[14px] shrink-0'
   if (kind === 'boolean') return <span aria-hidden className="fsdb-field-bool-glyph"><BoolBox on={false} /></span>
   if (kind === 'select') return <ListBulletIcon aria-hidden className={cls} />
   if (kind === 'multi-select') return <RectangleStackIcon aria-hidden className={cls} />

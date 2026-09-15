@@ -140,8 +140,23 @@ export function collectFilterFields(node: FilterNode | undefined, into = new Set
   return into
 }
 
-export function collectQueryFields(sorts: Array<Pick<SortRule, 'field'>> | undefined, tree?: FilterNode): Set<string> {
+export function isCustomSorts(
+  sorts: Array<Pick<SortRule, 'field' | 'dir'>> | undefined,
+  defaultField = 'title',
+  defaultDir: 'asc' | 'desc' = 'asc',
+) {
+  if (!sorts?.length) return false
+  if (sorts.length === 1 && sorts[0]?.field === defaultField && sorts[0]?.dir === defaultDir) return false
+  return true
+}
+
+export function collectQueryFields(
+  sorts: Array<Pick<SortRule, 'field' | 'dir'>> | undefined,
+  tree?: FilterNode,
+  defaultSortField = 'title',
+): Set<string> {
   const keys = collectFilterFields(tree)
+  if (!isCustomSorts(sorts, defaultSortField)) return keys
   for (const rule of sorts ?? []) {
     const field = String(rule.field ?? '').trim()
     if (field) keys.add(field)

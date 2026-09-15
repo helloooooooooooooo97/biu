@@ -11,7 +11,7 @@ import {
 } from '@heroicons/react/16/solid'
 import { HeadlessDismiss, HEADLESS_DISMISS_IGNORE } from '@biu/public-ui'
 import type { CollectionSchema, DbRecord, FieldType } from '@biu/type-file-system'
-import { countFilterRules } from '../query-logic.ts'
+import { countFilterRules, isCustomSorts } from '../query-logic.ts'
 import { defaultColumnKeys, resolveFieldType } from './fields.ts'
 import { FieldGlyph, ModeGlyph, VIEW_MODES } from './fsdb-cells.tsx'
 import { CheckRow } from './controls.tsx'
@@ -50,6 +50,7 @@ export function ShareViewQueryBar({
   const fields = queryFieldsOf(schema)
   const sortFields = fields.filter((item) => item.field.sortable !== false)
   const filterActive = countFilterRules(state.filterTree) > 0
+  const sortCustom = isCustomSorts(state.sorts, schema.labelField)
   const defaults = allColumnKeys(schema)
   const visible = (state.columns.length ? state.columns : defaults).filter((key) => schema.fields[key])
   const columnCustom = visible.join('\0') !== defaults.join('\0')
@@ -105,7 +106,7 @@ export function ShareViewQueryBar({
           <div className={`tasks-search-wrap${searchExpanded ? ' is-open' : ''}`} ref={searchRef}>
             <button
               type="button"
-              className="tasks-sort-btn"
+              className={`tasks-sort-btn${searchExpanded ? ' is-active' : ''}`}
               aria-label="搜索"
               aria-expanded={searchExpanded}
               title="搜索"
@@ -156,13 +157,13 @@ export function ShareViewQueryBar({
         <div className="tasks-sort-wrap" ref={sortRef}>
           <button
             type="button"
-            className={`tasks-sort-btn${sortOpen ? ' is-active' : ''}${state.sorts.length ? ' is-custom' : ''}`}
+            className={`tasks-sort-btn${sortOpen ? ' is-active' : ''}${sortCustom ? ' is-custom' : ''}`}
             aria-label="排序"
-            title={state.sorts.length ? `${state.sorts.length} 个排序` : '排序'}
+            title={sortCustom ? `${state.sorts.length} 个排序` : '排序'}
             onClick={() => setSortOpen((open) => !open)}
           >
             <ArrowsUpDownIcon aria-hidden className="size-[14px]" />
-            {state.sorts.length ? <span className="tasks-sort-dot" aria-hidden /> : null}
+            {sortCustom ? <span className="tasks-sort-dot" aria-hidden /> : null}
           </button>
           {sortOpen ? (
             <HeadlessDismiss

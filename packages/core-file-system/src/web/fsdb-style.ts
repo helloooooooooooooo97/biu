@@ -685,6 +685,17 @@ html.share .fsdb-detail-float-nav,html.share .heading-outline-host .chat-outline
 .fsdb-share-list tr{cursor:pointer}
 .fsdb-share-page .tasks-table tr{cursor:pointer}
 .fsdb-share-gate{margin:auto;text-align:center}
+.fsdb-page .tasks-toolbar-right .tasks-sort-btn:not(.is-active):not(.is-custom),
+.fsdb-page .tasks-toolbar-right .tasks-refresh:not(.is-active){color:var(--dsw-icon)}
+.fsdb-page .tasks-toolbar-right .tasks-sort-btn.is-active,
+.fsdb-page .tasks-toolbar-right .tasks-sort-btn.is-custom,
+.fsdb-page .tasks-toolbar-right .tasks-refresh.is-active{color:var(--dsw-icon-active)}
+.fsdb-page .tasks-toolbar-right .tasks-sort-btn svg,
+.fsdb-page .tasks-toolbar-right .tasks-refresh svg{color:inherit;fill:currentColor;opacity:1}
+.fsdb-page .tasks-viewdd-btn svg,.fsdb-page .tasks-viewtab svg{color:var(--dsw-icon)!important;fill:currentColor;opacity:1}
+.fsdb-page .tasks-viewtab.is-active svg,.fsdb-page .tasks-viewdd-btn.is-active svg{color:var(--dsw-icon-active)!important}
+.fsdb-page .tasks-table thead .tasks-th svg,.fsdb-page .tasks-table thead .fsdb-field-bool-glyph{color:var(--dsw-icon)!important;fill:currentColor;opacity:1}
+.fsdb-page .tasks-table thead .tasks-th.is-on svg,.fsdb-page .tasks-table thead .tasks-th.is-on .fsdb-field-bool-glyph{color:var(--dsw-icon-active)!important}
 `
 
 export function ensureFsdbStyle() {

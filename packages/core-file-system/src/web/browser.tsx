@@ -148,6 +148,7 @@ import { loadFacets, pullFacets, subscribeFacets } from './facet-catalog.ts'
 import { FilterQueryMenu, SortQueryMenu } from './query-menus.tsx'
 import {
   collectQueryFields,
+  isCustomSorts,
   countFilterRules,
   emptyFilterGroup,
   encodeListFilter,
@@ -1313,7 +1314,11 @@ export function CollectionBrowser({
     window.dispatchEvent(new Event('fsdb:crumb-labels'))
   }, [activeViewId, collectionPath, items, routeViewId, schema?.labelField, selected])
   const filterActive = countFilterRules(filterTree) > 0
-  const queryFields = useMemo(() => collectQueryFields(sorts, filterTree), [sorts, filterTree])
+  const sortCustom = isCustomSorts(sorts, schema?.labelField ?? 'title')
+  const queryFields = useMemo(
+    () => collectQueryFields(sorts, filterTree, schema?.labelField ?? 'title'),
+    [filterTree, schema?.labelField, sorts],
+  )
   const activeView = views.find((view) => view.id === activeViewId)
   const [viewBanner, setViewBanner] = useState<unknown>(null)
   useEffect(() => {
@@ -2893,7 +2898,7 @@ export function CollectionBrowser({
             <div className={`tasks-search-wrap${searchExpanded ? ' is-open' : ''}`} ref={searchRef}>
               <button
                 type="button"
-                className="tasks-sort-btn"
+                className={`tasks-sort-btn${searchExpanded ? ' is-active' : ''}`}
                 aria-label="搜索"
                 aria-expanded={searchExpanded}
                 title="搜索"
@@ -2997,13 +3002,13 @@ export function CollectionBrowser({
             <div className="tasks-sort-wrap" ref={sortRef}>
               <button
                 type="button"
-                className={`tasks-sort-btn${sortMenuOpen ? ' is-active' : ''}${sorts.length ? ' is-custom' : ''}`}
+                className={`tasks-sort-btn${sortMenuOpen ? ' is-active' : ''}${sortCustom ? ' is-custom' : ''}`}
                 aria-label="排序"
-                title={sorts.length ? `${sorts.length} 个排序` : '排序'}
+                title={sortCustom ? `${sorts.length} 个排序` : '排序'}
                 onClick={() => toggleMenu('sort')}
               >
                 <ArrowsUpDownIcon aria-hidden className="size-[14px]" />
-                {sorts.length ? <span className="tasks-sort-dot" aria-hidden /> : null}
+                {sortCustom ? <span className="tasks-sort-dot" aria-hidden /> : null}
               </button>
               {sortMenuOpen ? (
                 <HeadlessDismiss

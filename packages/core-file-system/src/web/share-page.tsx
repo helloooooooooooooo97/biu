@@ -228,8 +228,8 @@ function SharePage({
     setPage(0)
   }, [token, pageSize, queryState?.q, queryState?.sorts, queryState?.filterTree])
   const queryFields = useMemo(
-    () => collectQueryFields(queryState?.sorts, queryState?.filterTree),
-    [queryState?.sorts, queryState?.filterTree],
+    () => collectQueryFields(queryState?.sorts, queryState?.filterTree, snapshot?.schema?.labelField ?? 'title'),
+    [queryState?.filterTree, queryState?.sorts, snapshot?.schema?.labelField],
   )
 
   const selected = useMemo(() => {
