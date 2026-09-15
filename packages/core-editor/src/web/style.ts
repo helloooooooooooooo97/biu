@@ -66,6 +66,8 @@ export const PAGE_EDITOR_STYLE = `
 .page-slash .pick-kind-icon{flex:none;width:14px;height:14px;color:var(--dsw-icon)}
 .page-editor .tiptap p.is-editor-empty:first-child::before,
 .page-editor .tiptap .is-empty::before{content:attr(data-placeholder);float:left;height:0;pointer-events:none;color:var(--dsw-placeholder)}
+html:not(.dark) .page-editor .tiptap p.is-editor-empty:first-child::before,
+html:not(.dark) .page-editor .tiptap .is-empty::before{color:#bcbab6}
 .page-bubble{z-index:80;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);box-shadow:var(--dsw-shadow),0 0 0 1px color-mix(in srgb,var(--dsw-border) 70%,transparent);border-radius:10px;overflow:hidden}
 .page-slash{position:fixed;z-index:10000;width:240px;max-height:min(52vh,280px);padding:4px;display:flex;flex-direction:column;gap:0;overflow:hidden;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);box-shadow:var(--dsw-shadow);border-radius:8px}
 .page-slash-head,.page-slash-empty{padding:6px 8px 4px;color:var(--dsw-label-3);font-size:11px;font-weight:600}

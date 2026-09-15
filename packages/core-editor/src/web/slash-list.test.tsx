@@ -33,6 +33,7 @@ test('slash list keeps overflow-y auto', () => {
   assert.equal(getComputedStyle(container.querySelector('.page-slash-icon') as HTMLElement).width, '18px')
   assert.match(container.innerHTML, /关闭菜单/)
   assert.match(container.innerHTML, /基础模块/)
+  assert.match(PAGE_EDITOR_STYLE, /html:not\(\.dark\) \.page-editor \.tiptap \.is-empty::before\{[^}]*color:#bcbab6/)
   assert.match(PAGE_EDITOR_STYLE, /\.page-slash\{[^}]*border:1px solid/)
   assert.match(PAGE_EDITOR_STYLE, /\.page-slash-item\{[^}]*border:1px solid transparent/)
   assert.doesNotMatch(PAGE_EDITOR_STYLE, /width:46px/)
