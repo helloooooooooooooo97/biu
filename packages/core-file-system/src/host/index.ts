@@ -533,6 +533,7 @@ export function clampPage(limit?: number, offset?: number) {
 export class DatabaseService extends Service implements Database {
   private collections = new Map<string, CollectionSpec>()
   facets = new FacetStore()
+  shares = new SharesStore()
   assets = new FileSystemAssets()
 
   private bumpQueued = false
@@ -1033,7 +1034,17 @@ export class DatabaseService extends Service implements Database {
       await this.ctx.get('contentTurns')?.recordDelete(`${spec.path}/${row.id}`, title, rec)
     }
     await spec.remove({ ids })
-    for (const id of ids) this.facets.removeRecord(spec.path, id)
+    for (const id of ids) {
+      this.facets.removeRecord(spec.path, id)
+      this.shares.revokeRecord(spec.path, id)
+    }
+    if (spec.path === '/views') {
+      for (const row of matched) {
+        const collection = normalizeCollectionPath(String(row.tablePath ?? ''))
+        const viewId = String(row.viewId ?? '').trim()
+        if (collection && collection !== '/' && viewId) this.shares.revokeView(collection, viewId)
+      }
+    }
     this.bump()
     return { kind: 'deleted' as const, path: spec.path, ids }
   }
@@ -1380,7 +1391,7 @@ export function apply(ctx: Context) {
   const assets = db.assets
   const savedViews = new SavedViewsStore()
   savedViews.open(process.env.VITEST ? ':memory:' : dataPath(process.cwd(), 'file-system.sqlite'))
-  const shares = new SharesStore()
+  const shares = db.shares
   shares.open(process.env.VITEST ? ':memory:' : dataPath(process.cwd(), 'file-system.sqlite'))
   const facets = db.facets
   db.register(viewsCollection(savedViews, () => db.collectionsList().map((item) => ({

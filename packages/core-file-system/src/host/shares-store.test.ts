@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { Context } from 'cordis'
 import { REQUIRED_RECORD_FIELDS, type CollectionSpec } from '@biu/type-file-system'
 import { DatabaseService } from './index.ts'
-import { SavedViewsStore } from './saved-views.ts'
+import { SavedViewsStore, viewsCollection } from './saved-views.ts'
 import { SharesStore } from './shares-store.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { parseSharePath } from '../share-snapshot.ts'
@@ -43,6 +43,49 @@ test('share flags persist plugin source and copy', () => {
   assert.equal(again.sharePlugins, true)
   assert.equal(again.allowCopy, false)
   assert.equal(store.list().length, 1)
+})
+
+test('deleting a record revokes its share but keeps other shares', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map([
+    ['keep', { id: 'keep', title: '留下' }],
+    ['gone', { id: 'gone', title: '删除' }],
+  ])
+  db.register({
+    id: 'notes',
+    path: '/notes',
+    schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } } },
+    records: { delete: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    remove: (query) => {
+      const ids = query.ids ?? []
+      for (const id of ids) rows.delete(id)
+      return ids
+    },
+  })
+  const viewShare = db.shares.upsert({ kind: 'view', collection: '/notes', viewId: 'all' })
+  const keepShare = db.shares.upsert({ kind: 'record', collection: '/notes', recordId: 'keep' })
+  const goneShare = db.shares.upsert({ kind: 'record', collection: '/notes', recordId: 'gone' })
+  await db.remove('/notes', { ids: ['gone'] })
+  assert.equal(db.shares.get(goneShare.token), null)
+  assert.equal(db.shares.find('record', '/notes', '', 'gone'), null)
+  assert.equal(db.shares.get(keepShare.token)?.token, keepShare.token)
+  assert.equal(db.shares.get(viewShare.token)?.token, viewShare.token)
+})
+
+test('deleting a saved view revokes that view share', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const views = new SavedViewsStore().open(':memory:')
+  db.register(viewsCollection(views, () => [{ id: 'pages', path: '/pages', kind: 'collection' as const, label: '页面', view: null }]))
+  const created = views.create({ title: '看板', tablePath: '/pages', mode: 'board' }, [{ id: 'pages', path: '/pages', kind: 'collection', label: '页面', view: null }])
+  const viewId = String(created.viewId)
+  const share = db.shares.upsert({ kind: 'view', collection: '/pages', viewId })
+  await db.remove('/views', { ids: [String(created.id)] })
+  assert.equal(db.shares.get(share.token), null)
+  assert.equal(db.shares.find('view', '/pages', viewId, ''), null)
 })
 
 test('list returns every share', () => {
