@@ -3,7 +3,16 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { render } from '@testing-library/react'
-import { DefaultCell } from './fsdb-cells.tsx'
+import { actionIcon, DefaultCell } from './fsdb-cells.tsx'
+
+test('Skill sync actions use distinct directional icons', () => {
+  const pull = render(actionIcon('sync-from-directory'))
+  const push = render(actionIcon('sync-to-directory'))
+  const fallback = render(actionIcon('unknown-action'))
+  assert.notEqual(pull.container.innerHTML, push.container.innerHTML)
+  assert.notEqual(pull.container.innerHTML, fallback.container.innerHTML)
+  assert.notEqual(push.container.innerHTML, fallback.container.innerHTML)
+})
 
 test('attachment cells render a file link, not a broken image', () => {
   const { container } = render(
