@@ -29,7 +29,7 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
       title: '技能',
       inspector: true,
       blurb:
-        '从 GitHub 安装：db_create /skills，带 files[]（[{path, from}] 整包拷贝，from 限工作区或 /tmp）。' +
+        'Skill 是独立的一张表。从 GitHub 安装：db_create /skills，带 files[]（[{path, from}] 整包拷贝，from 限工作区或 /tmp）。' +
         'SKILL.md 进正文；其它路径写进 .biu/skill/<id>/。纯正文只写 notes。' +
         '漏掉的脚本事后 db_action path=/skills/<id> action=write-files，args.from + args.path，不要传全文。' +
         'source 填上游 URL。列表 db_list /skills。改名字/说明/来源/开关 db_update。正文 db_content。删除 db_delete。' +
