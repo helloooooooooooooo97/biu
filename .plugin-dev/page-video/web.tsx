@@ -73,10 +73,17 @@ const STYLE_CSS = `
   cursor:pointer;
 }
 .pv-clip{
-  position:absolute;top:8px;bottom:8px;border-radius:4px;
-  font:10px/1 ui-sans-serif,system-ui,sans-serif;color:rgba(255,255,255,.88);
-  padding:0 6px;display:flex;align-items:center;pointer-events:none;opacity:.94;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
+  position:absolute;top:8px;height:18px;border:1px solid var(--pv-line);border-radius:4px;
+  font:10px/1 ui-sans-serif,system-ui,sans-serif;color:var(--pv-mute);
+  padding:0 6px;display:flex;align-items:center;box-sizing:border-box;pointer-events:none;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 86%,#fff);
+}
+.pv-effect-dot{
+  position:absolute;top:3px;width:7px;height:7px;border-radius:50%;z-index:2;
+  box-sizing:border-box;transform:translateX(-50%);pointer-events:none;
+  background:#91918e;border:1px solid color-mix(in srgb,var(--dsw-bg,#fff) 90%,transparent);
+  box-shadow:0 0 0 1px rgba(55,53,47,.08);
 }
 .pv-playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--pv-blue);pointer-events:none;z-index:3}
 .pv-playhead:before{content:"";position:absolute;left:-3px;top:0;width:7px;height:7px;border-radius:1px 1px 50% 50%;background:var(--pv-blue)}
@@ -174,8 +181,8 @@ const STYLE_CSS = `
   content:"";position:absolute;inset:0;pointer-events:none;
   background:repeating-linear-gradient(90deg,transparent 0,transparent calc(10% - 1px),rgba(55,53,47,.09) calc(10% - 1px),rgba(55,53,47,.09) 10%);
 }
-.pv-studio-foot .pv-clip{top:30px;bottom:auto;height:30px;border-radius:4px;padding:0 8px}
-.pv-studio-foot .pv-clip[data-overlay="true"]{top:66px;height:20px}
+.pv-studio-foot .pv-clip{top:35px;height:28px;border-radius:5px;padding:0 8px;background:#f1f1ef;color:#5f5e5b}
+.pv-studio-foot .pv-effect-dot{top:18px;width:8px;height:8px}
 @media (max-width:720px){
   .pv-studio{grid-template-rows:48px minmax(0,1fr) 100px}
   .pv-studio-body{grid-template-columns:1fr}
@@ -595,21 +602,27 @@ function Timeline({ project, duration, time, onSeek }: { project: Project; durat
 }
 
 function ClipBar({ clip, duration }: { clip: Clip; duration: number }) {
-  const overlay = clip.kind === 'caption' || clip.kind === 'zoom'
+  const primary = clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media'
+  const left = `${(clip.start / duration) * 100}%`
+  if (!primary) {
+    return (
+      <i
+        className="pv-effect-dot"
+        title={`${clip.kind} · ${fmtClock(clip.start)}`}
+        style={{ left, background: clip.kind === 'zoom' ? 'var(--pv-blue)' : clip.kind === 'cursor' ? '#5f5e5b' : '#91918e' }}
+      />
+    )
+  }
   return (
     <div
       className="pv-clip"
-      data-overlay={overlay}
       title={clip.kind}
       style={{
-        left: `${(clip.start / duration) * 100}%`,
+        left,
         width: `${Math.max((clip.duration / duration) * 100, 2.4)}%`,
-        top: overlay ? 16 : 6,
-        bottom: overlay ? 4 : 14,
-        background: clip.kind === 'zoom' ? '#79b8ff' : overlay ? 'rgba(55,53,47,.28)' : clip.bg,
       }}
     >
-      {overlay ? '' : clip.kind}
+      {clip.kind}
     </div>
   )
 }
@@ -703,7 +716,8 @@ function Studio({
       <div className="pv-studio-foot">
         <div className="pv-timeline-head">
           <strong>Timeline</strong>
-          {project.clips.length} layers
+          {project.clips.filter((clip) => clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media').length} clips
+          <span style={{ marginLeft: 8 }}>· {project.clips.filter((clip) => clip.kind !== 'title' && clip.kind !== 'scene' && clip.kind !== 'media').length} effects</span>
           <span className="pv-duration">{duration.toFixed(1)}s · {project.fps} fps · {project.width}×{project.height}</span>
         </div>
         <Timeline project={project} duration={duration} time={time} onSeek={onSeek} />
