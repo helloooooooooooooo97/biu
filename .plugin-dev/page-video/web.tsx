@@ -29,7 +29,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v5'
+const STYLE_ID = 'pv-style-v6'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -49,7 +49,7 @@ const STYLE_CSS = `
   overflow:hidden;
   border:1px solid var(--pv-line);
   border-radius:10px;
-  background:var(--dsw-bg, #fff);
+  background:var(--pv-bg);
   box-shadow:0 1px 2px rgba(15,15,15,.025);
   transition:border-color .16s ease,box-shadow .16s ease;
 }
@@ -119,7 +119,7 @@ const STYLE_CSS = `
 .pv-playhead:before{content:"";position:absolute;left:-3px;top:0;width:7px;height:7px;border-radius:1px 1px 50% 50%;background:var(--pv-blue)}
 .pv-player-controls{
   height:38px;padding:0 7px;display:flex;align-items:center;gap:3px;
-  border-top:1px solid var(--pv-line);background:var(--dsw-bg,#fff);
+  border-top:1px solid var(--pv-line);background:var(--pv-bg);
 }
 .pv-player-time{margin-left:3px;color:var(--pv-mute);font:10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
 .pv-player-spacer{flex:1}
@@ -206,7 +206,6 @@ const STYLE_CSS = `
   border-bottom:1px solid var(--studio-line);font-size:11px;color:var(--pv-mute);
 }
 .pv-panel-icon{width:14px;height:14px;color:var(--pv-mute);flex:none}
-.pv-code-mark{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--pv-ink)}
 .pv-valid{margin-left:auto;display:flex;align-items:center;gap:5px;color:#36a269}
 .pv-valid svg,.pv-invalid svg{width:13px;height:13px}
 .pv-invalid{margin-left:auto;display:flex;align-items:center;gap:5px;color:#c4554d}
@@ -229,7 +228,7 @@ const STYLE_CSS = `
   flex:0 0 32px;box-sizing:border-box;display:flex;align-items:center;
   padding:0 12px;border-top:1px solid var(--studio-line);font-size:11px;
 }
-.pv-err{color:#9f3f3a;background:#fff8f7}
+.pv-err{color:#c4554d;background:color-mix(in srgb,#c4554d 7%,var(--pv-bg))}
 .pv-hint{color:var(--pv-mute);background:var(--pv-bg)}
 .pv-studio-foot{
   min-height:0;border-top:1px solid var(--studio-line);background:var(--pv-bg);
