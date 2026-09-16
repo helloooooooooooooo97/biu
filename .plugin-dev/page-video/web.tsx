@@ -71,15 +71,16 @@ const STYLE_CSS = `
   --pv-track-h:28px;
   position:relative;margin:0;background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 88%,transparent);
   border-top:1px solid var(--pv-line);
-  display:grid;grid-template-columns:52px minmax(0,1fr);overflow:hidden;
+  display:grid;grid-template-columns:74px minmax(0,1fr);overflow:hidden;
 }
 .pv-track-labels{border-right:1px solid var(--pv-line);background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 92%,#fff)}
 .pv-track-label{
-  height:var(--pv-track-h);box-sizing:border-box;padding:0 7px;display:flex;align-items:center;
+  height:var(--pv-track-h);box-sizing:border-box;padding:0 7px;display:flex;align-items:center;gap:5px;
   border-bottom:1px solid var(--pv-line);
   color:var(--pv-mute);font:10px/1 ui-sans-serif,system-ui,sans-serif;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
 }
+.pv-track-label svg{width:12px;height:12px;flex:none;color:var(--pv-ink);opacity:.68}
 .pv-lanes{position:relative;min-width:0;cursor:pointer;outline:none}
 .pv-lanes:before{
   content:"";position:absolute;inset:0;pointer-events:none;
@@ -584,12 +585,35 @@ function IconChevron() {
 
 type TimelineTrack = {
   id: string
+  kind: Clip['kind']
   label: string
   clips: Clip[]
 }
 
 const TRACK_ORDER: Clip['kind'][] = ['title', 'scene', 'media', 'zoom', 'text', 'caption', 'arrow', 'blur', 'cursor', 'pip', 'image', 'audio']
 const TRACK_HEIGHT = 28
+const TRACK_ICON_PATH: Record<Clip['kind'], string> = {
+  title: 'M3 3.5h10M8 3.5v9M5.5 12.5h5',
+  scene: 'M2.5 3.5h11v9h-11zM5 3.5v9M11 3.5v9',
+  media: 'M2.5 4h7.5v8H2.5zM10 6.5l3.5-2v7L10 9.5',
+  zoom: 'M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm3.2-1.3 3.3 3.3M7 4.5v5M4.5 7h5',
+  text: 'M3 4V2.5h10V4M8 2.5v11M5.5 13.5h5',
+  caption: 'M2.5 3.5h11v7.5h-6l-3 2v-2h-2zM5 6.5h6M5 8.5h4',
+  arrow: 'M2.5 12.5 13 3m-5 .5h5v5',
+  blur: 'M8 2.5c2.2 3 3.5 4.8 3.5 6.7A3.5 3.5 0 0 1 8 12.7a3.5 3.5 0 0 1-3.5-3.5C4.5 7.3 5.8 5.5 8 2.5z',
+  cursor: 'M3 2.5 12.5 9 8 10l-2 3.5z',
+  pip: 'M2.5 3.5h11v9h-11zM8 7.5h4v3H8z',
+  image: 'M2.5 3.5h11v9h-11zM3 11l3.3-3.5 2.2 2 1.5-1.3 3 2.8M10.8 6.3h.1',
+  audio: 'M2.5 7h2.8L9 4v8l-3.7-3H2.5zM11 6c1.2 1.1 1.2 2.9 0 4M12.7 4.5c2.1 2 2.1 5 0 7',
+}
+
+function TrackIcon({ kind }: { kind: Clip['kind'] }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={TRACK_ICON_PATH[kind]} />
+    </svg>
+  )
+}
 
 function timelineTracks(clips: Clip[]): TimelineTrack[] {
   const tracks: TimelineTrack[] = []
@@ -606,7 +630,7 @@ function timelineTracks(clips: Clip[]): TimelineTrack[] {
     }
     lanes.forEach((items, index) => {
       const suffix = lanes.length > 1 ? ` ${index + 1}` : ''
-      tracks.push({ id: `${kind}-${index}`, label: `${kind[0].toUpperCase()}${kind.slice(1)}${suffix}`, clips: items })
+      tracks.push({ id: `${kind}-${index}`, kind, label: `${kind[0].toUpperCase()}${kind.slice(1)}${suffix}`, clips: items })
     })
   }
   return tracks
@@ -619,7 +643,12 @@ function Timeline({ project, duration, time, onSeek }: { project: Project; durat
   return (
     <div className="pv-rail" data-testid="page-video-rail" style={{ height: railHeight }}>
       <div className="pv-track-labels" aria-hidden>
-        {tracks.map((track) => <div className="pv-track-label" key={track.id} title={track.label}>{track.label}</div>)}
+        {tracks.map((track) => (
+          <div className="pv-track-label" key={track.id} title={track.label}>
+            <TrackIcon kind={track.kind} />
+            <span>{track.label}</span>
+          </div>
+        ))}
       </div>
       <div
         className="pv-lanes"
