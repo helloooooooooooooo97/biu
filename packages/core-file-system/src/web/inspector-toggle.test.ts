@@ -6,6 +6,15 @@ import assert from 'node:assert/strict'
 const browser = readFileSync(resolve(import.meta.dirname, './browser.tsx'), 'utf8')
 const detail = readFileSync(resolve(import.meta.dirname, './record-detail.tsx'), 'utf8')
 
+test('embedded record details can share their explicit record target', () => {
+  const share = browser.match(/<ShareButton[\s\S]*?\/>/)?.[0] ?? ''
+  assert.match(share, /detailId/)
+  assert.match(share, /kind: 'record'/)
+  assert.match(share, /recordId: detailId/)
+  assert.match(share, /: !nested && activeViewId/)
+  assert.doesNotMatch(browser, /\{nested \? null : \(\s*<ShareButton/)
+})
+
 test('hydrating page-blocks prefers the route view over local 全部', () => {
   assert.match(browser, /pickViewForRoute\(listed, collectionPath, routeViewId\)/)
   assert.match(browser, /pickViewForRoute\(listed, collectionPath, routeViewId \?\? activeId/)

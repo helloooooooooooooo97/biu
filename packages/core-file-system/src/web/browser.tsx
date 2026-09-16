@@ -2659,28 +2659,26 @@ export function CollectionBrowser({
                 <StarIcon aria-hidden className={`size-4${viewStarred ? ' text-[#f5b700]' : ''}`} />
               </button>
             ) : null}
-            {nested ? null : (
-              <ShareButton
-                target={
-                  detailId
+            <ShareButton
+              target={
+                detailId
+                  ? {
+                      kind: 'record' as const,
+                      collection: collectionPath,
+                      viewId: activeViewId ?? undefined,
+                      recordId: detailId,
+                      title: String(detailRow?.title ?? title),
+                    }
+                  : !nested && activeViewId
                     ? {
-                        kind: 'record' as const,
+                        kind: 'view' as const,
                         collection: collectionPath,
-                        viewId: activeViewId ?? undefined,
-                        recordId: detailId,
-                        title: String(detailRow?.title ?? title),
+                        viewId: activeViewId,
+                        title: activeView?.name ?? title,
                       }
-                    : activeViewId
-                      ? {
-                          kind: 'view' as const,
-                          collection: collectionPath,
-                          viewId: activeViewId,
-                          title: activeView?.name ?? title,
-                        }
-                      : null
-                }
-              />
-            )}
+                    : null
+              }
+            />
             <div className="fsdb-layout-wrap" ref={layoutRef}>
               <button
                 type="button"
