@@ -10,6 +10,8 @@ export type SkillRecord = {
   enabled: boolean
   source: string
   notes: string
+  tags: string[]
+  emoji: string
   createdAt: number
   updatedAt: number
 }
@@ -25,6 +27,8 @@ export type SkillImportInput = {
   name?: string
   description?: string
   source?: string
+  tags?: unknown
+  emoji?: unknown
   enabled?: boolean
   draft?: boolean
   files: SkillImportFile[]
@@ -119,6 +123,22 @@ export function parseFrontmatter(text: string): { meta: Record<string, string>; 
   return { meta, body: normalized.slice(end + 4).replace(/^[^\n]*\n?/, '').trim() }
 }
 
+function asStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return [...new Set(value.map((item) => String(item).trim()).filter(Boolean))]
+  }
+  const text = String(value ?? '').trim()
+  if (!text) return []
+  if (text.startsWith('[')) {
+    try {
+      return asStringList(JSON.parse(text) as unknown)
+    } catch {
+      /* fall through */
+    }
+  }
+  return [...new Set(text.split(',').map((item) => item.trim()).filter(Boolean))]
+}
+
 function skillFile(root: string, id: string) {
   return join(root, `${assertSkillId(id)}.md`)
 }
@@ -130,6 +150,8 @@ function dumpSkill(record: SkillRecord) {
     `name: ${JSON.stringify(record.name)}`,
     `description: ${JSON.stringify(record.description)}`,
     `source: ${JSON.stringify(record.source)}`,
+    `tags: ${JSON.stringify(record.tags)}`,
+    `emoji: ${JSON.stringify(record.emoji)}`,
     `enabled: ${enabled}`,
     `createdAt: ${record.createdAt}`,
     `updatedAt: ${record.updatedAt}`,
@@ -149,6 +171,8 @@ function loadSkill(id: string, text: string): SkillRecord {
     name: parsed.meta.name?.trim() || id,
     description: parsed.meta.description?.trim() || '',
     source: parsed.meta.source?.trim() || '',
+    tags: asStringList(parsed.meta.tags),
+    emoji: parsed.meta.emoji?.trim() || '',
     enabled: enabledRaw ? enabledRaw !== 'false' : Boolean(parsed.meta.description?.trim()),
     notes: parsed.body,
     createdAt,
@@ -294,6 +318,8 @@ export class SkillsStore {
       name: record.name.trim() || record.id,
       description: record.description.trim(),
       source: String(record.source ?? '').trim(),
+      tags: asStringList(record.tags),
+      emoji: String(record.emoji ?? '').trim(),
       notes: String(record.notes ?? ''),
       updatedAt: Date.now(),
       createdAt: record.createdAt || Date.now(),
@@ -309,6 +335,8 @@ export class SkillsStore {
     source?: string
     enabled?: boolean
     notes?: string
+    tags?: unknown
+    emoji?: unknown
     draft?: boolean
     files?: SkillImportFile[]
   }) {
@@ -323,6 +351,8 @@ export class SkillsStore {
       name,
       description,
       source: String(input.source ?? '').trim(),
+      tags: asStringList(input.tags),
+      emoji: String(input.emoji ?? '').trim(),
       enabled: input.draft || !description ? false : input.enabled !== false,
       notes: String(input.notes ?? ''),
       createdAt: now,
@@ -340,6 +370,8 @@ export class SkillsStore {
       name: input.name || packed.parsed.meta.name,
       description,
       source: input.source || packed.parsed.meta.source,
+      tags: input.tags,
+      emoji: input.emoji,
       enabled: input.enabled,
       notes: packed.notes,
       files: packed.files,
@@ -348,7 +380,7 @@ export class SkillsStore {
     })
   }
 
-  patch(id: string, patch: { name?: unknown; description?: unknown; source?: unknown; enabled?: unknown; notes?: unknown }) {
+  patch(id: string, patch: { name?: unknown; description?: unknown; source?: unknown; enabled?: unknown; notes?: unknown; tags?: unknown; emoji?: unknown }) {
     const current = this.get(id)
     if (!current) throw new Error(`unknown skill: ${id}`)
     return this.put({
@@ -358,6 +390,8 @@ export class SkillsStore {
       ...(patch.source !== undefined ? { source: String(patch.source ?? '').trim() } : {}),
       ...(patch.enabled !== undefined ? { enabled: patch.enabled !== false } : {}),
       ...(patch.notes !== undefined ? { notes: String(patch.notes ?? '') } : {}),
+      ...(patch.tags !== undefined ? { tags: asStringList(patch.tags) } : {}),
+      ...(patch.emoji !== undefined ? { emoji: String(patch.emoji ?? '').trim() } : {}),
     })
   }
 

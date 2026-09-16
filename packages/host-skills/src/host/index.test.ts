@@ -345,6 +345,18 @@ test('db_create /skills copies a pack from disk via files[].from', async () => {
   assert.equal(store.readFile('pretty-mermaid', 'scripts/render.mjs').text, 'export const render = () => {}\n')
 })
 
+test('db_update can set skill tags and persist them', async () => {
+  const { ctx } = await boot()
+  const spec = (ctx.database as FakeDatabase).specs.find((item) => item.path === '/skills')!
+  await spec.create!([{ title: 'ABC', description: '说明', notes: '正文' }])
+  const updated = await spec.update!('abc', { tags: ['design', 'ux'] })
+  assert.deepEqual(updated.tags, ['design', 'ux'])
+  assert.deepEqual(new SkillsStore().get('abc')?.tags, ['design', 'ux'])
+  const again = await spec.update!('abc', { tags: [] })
+  assert.deepEqual(again.tags, [])
+  assert.deepEqual(new SkillsStore().get('abc')?.tags, [])
+})
+
 test('db_content can update Skill notes without touching pages', async () => {
   const { ctx } = await boot()
   const spec = (ctx.database as FakeDatabase).specs.find((item) => item.path === '/skills')!

@@ -15,6 +15,8 @@ function asRecord(skill: SkillRecord, withNotes = true, files: string[] = []): D
       createdAt: skill.createdAt,
       updatedAt: skill.updatedAt,
       parentId: '',
+      tags: skill.tags,
+      emoji: skill.emoji,
     }),
   }
 }
@@ -91,6 +93,8 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
               name: String(fields.title ?? fields.name ?? ''),
               description: String(fields.description ?? ''),
               source: String(fields.source ?? ''),
+              tags: fields.tags,
+              emoji: fields.emoji,
               enabled: fields.enabled as boolean | undefined,
               files: pack,
               // 不传 draft：由 store 按“记录字段 + SKILL.md frontmatter”综合判定。
@@ -100,6 +104,8 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
               name: String(fields.title ?? fields.name ?? ''),
               description: String(fields.description ?? ''),
               source: String(fields.source ?? ''),
+              tags: fields.tags,
+              emoji: fields.emoji,
               enabled: fields.enabled as boolean | undefined,
               notes: String(fields.notes ?? fields.body ?? ''),
               draft: !String(fields.description ?? '').trim(),
@@ -115,6 +121,8 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
         ...(patch.source !== undefined ? { source: patch.source } : {}),
         ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
         ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+        ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
+        ...(patch.emoji !== undefined ? { emoji: patch.emoji } : {}),
       })
       return asRecord(next, true, skills.filesOf(next.id))
     },

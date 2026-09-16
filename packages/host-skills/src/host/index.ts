@@ -113,7 +113,7 @@ export class SkillsService extends Service {
     return migrated
   }
 
-  patch(id: string, patch: { name?: unknown; description?: unknown; source?: unknown; enabled?: unknown; notes?: unknown }) {
+  patch(id: string, patch: { name?: unknown; description?: unknown; source?: unknown; enabled?: unknown; notes?: unknown; tags?: unknown; emoji?: unknown }) {
     const next = this.store.patch(id, patch)
     this.changed()
     return next
