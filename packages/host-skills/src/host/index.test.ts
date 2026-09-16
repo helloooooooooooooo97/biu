@@ -196,6 +196,22 @@ test('fileList is a read-only field derived from disk', async () => {
   assert.equal((await spec.get!('abc'))?.fileList, 'cap/cap1.md\nscripts/run.mjs')
 })
 
+test('browser directory import creates an independent Skill record', async () => {
+  const { http } = await boot()
+  const handler = http.routes.get('POST /api/skills/import')
+  assert.ok(handler)
+
+  const replies: Array<{ code: number; body: unknown }> = []
+  await handler!({
+    json: async () => fixture,
+    send: (code: number, body: unknown) => replies.push({ code, body }),
+  })
+
+  assert.deepEqual(replies, [{ code: 201, body: { ok: true, id: 'abc' } }])
+  assert.equal(new SkillsStore().get('abc')?.notes, '先阅读能力一。')
+  assert.equal(readFileSync(join(process.env.BIU_SKILL_ROOT!, 'abc/cap/cap1.md'), 'utf8'), '能力一')
+})
+
 test('skill files are downloadable over the read-only file route', async () => {
   const { ctx, http } = await boot()
   const spec = (ctx.database as FakeDatabase).specs.find((item) => item.path === '/skills')!
@@ -261,10 +277,10 @@ test('startup migrates legacy .biu/skills directories once', async () => {
   assert.equal(first.ctx.skills.migrateLegacyDirectories(), 0)
 })
 
-test('legacy skill directories are migrated, and only the file route is exposed', async () => {
+test('legacy skill directories are migrated, and skill HTTP routes are exposed', async () => {
   const { ctx, http } = await boot()
   await new Promise((resolve) => setTimeout(resolve, 10))
-  assert.deepEqual([...http.routes.keys()], ['GET /api/skills/file'])
+  assert.deepEqual([...http.routes.keys()], ['POST /api/skills/import', 'GET /api/skills/file'])
 
   const legacy = join(process.env.BIU_SKILLS_DIR!, 'late-skill')
   mkdirSync(legacy, { recursive: true })

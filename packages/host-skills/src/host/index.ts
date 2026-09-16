@@ -185,6 +185,29 @@ export function apply(ctx: Context) {
     execute: (args) => skills.read(String(args.id)),
   })
 
+  ctx.http.route('POST', '/api/skills/import', async (route) => {
+    try {
+      const body = (await route.json()) as Partial<SkillImportInput>
+      if (!Array.isArray(body.files) || !body.files.length) {
+        route.send(400, { error: 'files are required' })
+        return
+      }
+      const created = skills.import({
+        id: body.id,
+        name: body.name,
+        description: body.description,
+        source: body.source,
+        tags: body.tags,
+        emoji: body.emoji,
+        enabled: body.enabled,
+        files: body.files,
+      })
+      route.send(201, { ok: true, id: created.id })
+    } catch (error) {
+      route.send(400, { error: String(error instanceof Error ? error.message : error) })
+    }
+  })
+
   // 技能目录里的文件下载。浏览器拿不到磁盘，只能走 HTTP。
   // 路径走 query（路由编译器只支持 :name，不吃斜杠），安全性由 store.readFile 的相对路径校验兜住。
   ctx.http.route('GET', '/api/skills/file', async (route) => {
