@@ -19,23 +19,28 @@ const { useEffect, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v3'
+const STYLE_ID = 'pv-style-v4'
 const STYLE_CSS = `
 .pv{
   --pv-ink: var(--dsw-label, #37352f);
   --pv-mute: var(--dsw-label-3, #787774);
   --pv-line: var(--dsw-border, #e9e9e7);
   --pv-hover: var(--dsw-hover, rgba(55,53,47,.06));
+  --pv-blue:#2383e2;
   position:relative;
   color:var(--pv-ink);
   font:13px/1.45 ui-sans-serif,system-ui,-apple-system,sans-serif;
 }
 .pv-embed{
+  position:relative;
   overflow:hidden;
   border:1px solid var(--pv-line);
-  border-radius:8px;
+  border-radius:10px;
   background:var(--dsw-bg, #fff);
+  box-shadow:0 1px 2px rgba(15,15,15,.025);
+  transition:border-color .16s ease,box-shadow .16s ease;
 }
+.pv-embed:hover{border-color:color-mix(in srgb,var(--pv-ink) 22%,var(--pv-line));box-shadow:0 2px 8px rgba(15,15,15,.045)}
 .pv-stage{
   position:relative;aspect-ratio:16/9;background:#191919;overflow:hidden;
 }
@@ -51,15 +56,18 @@ const STYLE_CSS = `
 }
 .pv-media{position:absolute;inset:0;width:100%;height:100%;background:#111}
 .pv-rail{
-  position:relative;height:28px;margin:0;background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 88%,transparent);
+  position:relative;height:34px;margin:0;background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 88%,transparent);
   border-top:1px solid var(--pv-line);
+  cursor:pointer;
 }
 .pv-clip{
-  position:absolute;top:7px;bottom:7px;border-radius:4px;
+  position:absolute;top:8px;bottom:8px;border-radius:4px;
   font:10px/1 ui-sans-serif,system-ui,sans-serif;color:rgba(255,255,255,.88);
-  padding:0 6px;display:flex;align-items:center;pointer-events:none;opacity:.92;
+  padding:0 6px;display:flex;align-items:center;pointer-events:none;opacity:.94;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
 }
-.pv-playhead{position:absolute;top:0;bottom:0;width:1px;background:#37352f;pointer-events:none}
+.pv-playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--pv-blue);pointer-events:none;z-index:3}
+.pv-playhead:before{content:"";position:absolute;left:-3px;top:0;width:7px;height:7px;border-radius:1px 1px 50% 50%;background:var(--pv-blue)}
 .pv-chrome{
   position:absolute;top:8px;right:8px;z-index:4;
   display:flex;gap:2px;padding:2px;
@@ -74,33 +82,86 @@ const STYLE_CSS = `
 }
 .pv-icon:hover{background:var(--pv-hover);color:var(--pv-ink)}
 .pv-studio{
+  --studio-line:#e7e7e5;
+  --studio-panel:#f7f7f5;
   position:fixed;inset:0;z-index:2147483646;
-  display:grid;grid-template-rows:44px 1fr 36px;
-  background:#fff;color:#37352f;
+  display:grid;grid-template-rows:48px minmax(0,1fr) 138px;
+  background:#f7f7f5;color:#37352f;
 }
 .pv-studio:fullscreen,.pv-studio:-webkit-full-screen{width:100%;height:100%}
-.pv-studio-bar,.pv-studio-foot{
-  display:flex;align-items:center;gap:8px;padding:0 12px;
-  border-bottom:1px solid #e9e9e7;font-size:12px;
+.pv-studio-bar{
+  position:relative;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+  padding:0 14px;border-bottom:1px solid var(--studio-line);background:#fff;font-size:12px;
 }
-.pv-studio-foot{border-bottom:0;border-top:1px solid #e9e9e7}
-.pv-studio-name{font-weight:600}
-.pv-studio-mute{margin-left:auto;color:#787774;font-variant-numeric:tabular-nums}
-.pv-studio-body{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,380px);min-height:0}
-.pv-studio .pv-stage{aspect-ratio:auto;height:100%;border-radius:0}
+.pv-brand{display:flex;align-items:center;gap:9px;min-width:0}
+.pv-brand-mark{width:22px;height:22px;border-radius:5px;background:#37352f;color:#fff;display:grid;place-items:center;font:700 9px/1 ui-monospace,monospace;letter-spacing:-.05em}
+.pv-studio-name{font-weight:600;white-space:nowrap}
+.pv-studio-sub{color:#9b9a97;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-studio-actions{justify-self:end;display:flex;align-items:center;gap:4px}
+.pv-transport{display:flex;align-items:center;gap:4px;padding:3px;border:1px solid var(--studio-line);border-radius:7px;background:#fff;box-shadow:0 1px 2px rgba(15,15,15,.035)}
+.pv-timecode{min-width:96px;text-align:center;color:#5f5e5b;font:11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+.pv-live{display:flex;align-items:center;gap:6px;color:#787774;font-size:11px;margin-right:8px}
+.pv-live-dot{width:6px;height:6px;border-radius:50%;background:#36a269;box-shadow:0 0 0 3px rgba(54,162,105,.1)}
+.pv-studio-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,410px);min-height:0}
+.pv-canvas{
+  min-width:0;min-height:0;padding:32px;
+  display:flex;align-items:center;justify-content:center;
+  background:#efefed;
+  background-image:radial-gradient(circle,rgba(55,53,47,.13) .65px,transparent .75px);
+  background-size:14px 14px;
+}
+.pv-canvas-frame{
+  position:relative;width:min(100%,calc((100vh - 250px) * 16 / 9));aspect-ratio:16/9;
+  background:#191919;border-radius:5px;overflow:hidden;
+  box-shadow:0 16px 48px rgba(15,15,15,.16),0 0 0 1px rgba(15,15,15,.12);
+}
+.pv-canvas-frame .pv-stage{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto}
 .pv-script{
-  display:flex;flex-direction:column;min-height:0;border-left:1px solid #e9e9e7;background:#f7f6f3;
+  display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--studio-line);background:#fff;
+}
+.pv-script-head{
+  flex:none;display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;
+  border-bottom:1px solid var(--studio-line);font-size:11px;color:#787774;
+}
+.pv-code-mark{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#37352f}
+.pv-valid{margin-left:auto;display:flex;align-items:center;gap:5px;color:#36a269}
+.pv-invalid{margin-left:auto;color:#c4554d}
+.pv-line-no{
+  flex:none;width:32px;padding:14px 0 14px 10px;box-sizing:border-box;
+  color:#c2c1be;background:#fbfbfa;text-align:right;white-space:pre;
+  font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;user-select:none;overflow:hidden;
+}
+.pv-code-wrap{display:flex;flex:1;min-height:0}
+.pv-code-wrap .pv-src{
+  white-space:pre;tab-size:2;
 }
 .pv-src{
   flex:1;min-height:0;width:100%;box-sizing:border-box;border:0;outline:none;resize:none;
-  padding:14px 16px;background:transparent;color:#37352f;
-  font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  padding:14px 16px 14px 10px;background:#fbfbfa;color:#37352f;
+  font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 .pv-err{padding:8px 16px;color:#c4554d;font-size:12px}
 .pv-hint{padding:8px 16px 12px;color:#9b9a97;font-size:11px}
+.pv-studio-foot{
+  min-height:0;border-top:1px solid var(--studio-line);background:#fff;
+  display:grid;grid-template-rows:32px 1fr;
+}
+.pv-timeline-head{display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--studio-line);font-size:11px;color:#787774}
+.pv-timeline-head strong{color:#37352f;font-weight:600;margin-right:8px}
+.pv-duration{margin-left:auto;font-variant-numeric:tabular-nums}
+.pv-studio-foot .pv-rail{height:auto;border-top:0;margin:0 12px 12px;border-left:1px solid var(--studio-line);border-right:1px solid var(--studio-line);background:#fbfbfa}
+.pv-studio-foot .pv-rail:before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent 0,transparent calc(10% - 1px),rgba(55,53,47,.09) calc(10% - 1px),rgba(55,53,47,.09) 10%);
+}
+.pv-studio-foot .pv-clip{top:30px;bottom:auto;height:30px;border-radius:4px;padding:0 8px}
+.pv-studio-foot .pv-clip[data-overlay="true"]{top:66px;height:20px}
 @media (max-width:720px){
+  .pv-studio{grid-template-rows:48px minmax(0,1fr) 100px}
   .pv-studio-body{grid-template-columns:1fr}
+  .pv-canvas{padding:14px;min-height:220px}
   .pv-script{border-left:0;border-top:1px solid #e9e9e7;min-height:180px}
+  .pv-studio-sub,.pv-live{display:none}
 }
 `
 
@@ -224,6 +285,7 @@ function ScriptField({
   const draftRef = useRef(draft)
   const valueRef = useRef(value)
   const onCommitRef = useRef(onCommit)
+  const lineCount = Math.max(1, draft.split('\n').length)
   draftRef.current = draft
   valueRef.current = value
   onCommitRef.current = onCommit
@@ -237,27 +299,30 @@ function ScriptField({
     [],
   )
   return (
-    <textarea
-      data-testid="page-video-script"
-      data-page-block-capture=""
-      spellCheck={false}
-      readOnly={readOnly}
-      className="pv-src"
-      value={draft}
-      onFocus={() => {
-        focused.current = true
-      }}
-      onBlur={() => {
-        focused.current = false
-        if (draftRef.current !== valueRef.current) onCommitRef.current(draftRef.current)
-      }}
-      onKeyDown={(event) => event.stopPropagation()}
-      onChange={(event) => {
-        const next = event.currentTarget.value
-        setDraft(next)
-        onLive(next)
-      }}
-    />
+    <div className="pv-code-wrap">
+      <div className="pv-line-no" aria-hidden>{Array.from({ length: lineCount }, (_, i) => i + 1).join('\n')}</div>
+      <textarea
+        data-testid="page-video-script"
+        data-page-block-capture=""
+        spellCheck={false}
+        readOnly={readOnly}
+        className="pv-src"
+        value={draft}
+        onFocus={() => {
+          focused.current = true
+        }}
+        onBlur={() => {
+          focused.current = false
+          if (draftRef.current !== valueRef.current) onCommitRef.current(draftRef.current)
+        }}
+        onKeyDown={(event) => event.stopPropagation()}
+        onChange={(event) => {
+          const next = event.currentTarget.value
+          setDraft(next)
+          onLive(next)
+        }}
+      />
+    </div>
   )
 }
 
@@ -306,6 +371,7 @@ function ClipBar({ clip, duration }: { clip: Clip; duration: number }) {
   return (
     <div
       className="pv-clip"
+      data-overlay={overlay}
       title={clip.kind}
       style={{
         left: `${(clip.start / duration) * 100}%`,
@@ -372,25 +438,46 @@ function Studio({
   return createPortal(
     <div ref={rootRef} className="pv-studio" data-testid="page-video-studio" data-page-block-capture="">
       <div className="pv-studio-bar">
-        <span className="pv-studio-name">Video</span>
-        <button type="button" className="pv-icon" aria-label={playing ? '暂停' : '播放'} onClick={onPlay}>
-          <IconPlay running={playing} />
-        </button>
-        <span className="pv-studio-mute">
-          {fmtClock(time)} / {fmtClock(duration)}
-        </span>
-        <button type="button" className="pv-icon" data-page-block-expand="" aria-label="退出全屏" onClick={onClose}>
-          <IconExpand />
-        </button>
+        <div className="pv-brand">
+          <span className="pv-brand-mark">&lt;/&gt;</span>
+          <span className="pv-studio-name">Video composition</span>
+          <span className="pv-studio-sub">/ Untitled</span>
+        </div>
+        <div className="pv-transport">
+          <button type="button" className="pv-icon" aria-label={playing ? '暂停' : '播放'} onClick={onPlay}>
+            <IconPlay running={playing} />
+          </button>
+          <span className="pv-timecode">{fmtClock(time)} / {fmtClock(duration)}</span>
+        </div>
+        <div className="pv-studio-actions">
+          <span className="pv-live"><i className="pv-live-dot" />Live preview</span>
+          <button type="button" className="pv-icon" data-page-block-expand="" aria-label="退出全屏" onClick={onClose}>
+            <IconExpand />
+          </button>
+        </div>
       </div>
       <div className="pv-studio-body">
-        <Stage project={project} time={time} playing={playing} />
+        <div className="pv-canvas">
+          <div className="pv-canvas-frame">
+            <Stage project={project} time={time} playing={playing} />
+          </div>
+        </div>
         <div className="pv-script">
+          <div className="pv-script-head">
+            <span className="pv-code-mark">&lt;&gt;</span>
+            Composition source
+            {compiledOk ? <span className="pv-valid">● Valid</span> : <span className="pv-invalid">Invalid</span>}
+          </div>
           <ScriptField value={script} onCommit={onCommit} onLive={onLive} readOnly={!writable} />
           {compiledOk ? <div className="pv-hint">&lt;video&gt; &lt;title&gt; &lt;scene&gt; &lt;caption&gt; &lt;media /&gt; &lt;zoom /&gt;</div> : <div className="pv-err">{error}</div>}
         </div>
       </div>
       <div className="pv-studio-foot">
+        <div className="pv-timeline-head">
+          <strong>Timeline</strong>
+          {project.clips.length} layers
+          <span className="pv-duration">{duration.toFixed(1)}s · {project.fps} fps · {project.width}×{project.height}</span>
+        </div>
         <Timeline project={project} duration={duration} time={time} onSeek={onSeek} />
       </div>
     </div>,
