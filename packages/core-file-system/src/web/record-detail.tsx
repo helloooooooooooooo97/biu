@@ -442,7 +442,7 @@ export function RecordDetail({
             )
             if (!onPrev && !onNext && !showMore && !share) return null
             return (
-            <nav className="fsdb-detail-float-nav" aria-label="按视图顺序切换记录">
+            <nav className={`fsdb-detail-float-nav${share ? ' has-share' : ''}`} aria-label="按视图顺序切换记录">
               {onPrev || onNext ? (
                 <button
                   type="button"

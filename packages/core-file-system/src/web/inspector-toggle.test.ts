@@ -5,13 +5,16 @@ import assert from 'node:assert/strict'
 
 const browser = readFileSync(resolve(import.meta.dirname, './browser.tsx'), 'utf8')
 const detail = readFileSync(resolve(import.meta.dirname, './record-detail.tsx'), 'utf8')
+const style = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
 
 test('embedded record details can share their explicit record target', () => {
   assert.match(browser, /share=\{\s*nested && detailId \?/)
   assert.match(browser, /buttonClassName="fsdb-detail-float-btn"/)
   assert.match(browser, /recordId: detailId/)
   assert.match(detail, /share\?: ReactNode/)
+  assert.match(detail, /fsdb-detail-float-nav\$\{share \? ' has-share' : ''\}/)
   assert.match(detail, /\{share\}/)
+  assert.match(style, /\.inspector-database-page \.fsdb-detail-float-nav\.has-share\{opacity:1\}/)
   assert.doesNotMatch(browser, /\{nested \? null : \(\s*<ShareButton/)
 })
 
