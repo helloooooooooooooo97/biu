@@ -79,8 +79,11 @@ const STYLE_CSS = `
 .pv-icon{
   width:26px;height:26px;border:0;border-radius:4px;background:transparent;
   color:#787774;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  transition:background .1s ease,color .1s ease,transform .08s ease;
 }
 .pv-icon:hover{background:var(--pv-hover);color:var(--pv-ink)}
+.pv-icon:active{background:color-mix(in srgb,var(--pv-ink) 10%,transparent);transform:scale(.96)}
+.pv-icon:focus-visible,.pv-rail:focus-visible{outline:2px solid rgba(35,131,226,.55);outline-offset:-2px}
 .pv-studio{
   --studio-line:#e7e7e5;
   --studio-panel:#f7f7f5;
@@ -140,8 +143,13 @@ const STYLE_CSS = `
   padding:14px 16px 14px 10px;background:#fbfbfa;color:#37352f;
   font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
-.pv-err{padding:8px 16px;color:#c4554d;font-size:12px}
-.pv-hint{padding:8px 16px 12px;color:#9b9a97;font-size:11px}
+.pv-src:focus{background:#fff;box-shadow:inset 2px 0 #37352f}
+.pv-err,.pv-hint{
+  flex:0 0 32px;box-sizing:border-box;display:flex;align-items:center;
+  padding:0 12px;border-top:1px solid var(--studio-line);font-size:11px;
+}
+.pv-err{color:#9f3f3a;background:#fff8f7}
+.pv-hint{color:#9b9a97;background:#fff}
 .pv-studio-foot{
   min-height:0;border-top:1px solid var(--studio-line);background:#fff;
   display:grid;grid-template-rows:32px 1fr;
@@ -348,14 +356,34 @@ function IconExpand() {
 }
 
 function Timeline({ project, duration, time, onSeek }: { project: Project; duration: number; time: number; onSeek: (t: number) => void }) {
+  const seekBy = (delta: number) => onSeek(Math.min(duration, Math.max(0, time + delta)))
   return (
     <div
       className="pv-rail"
       data-testid="page-video-rail"
+      role="slider"
+      tabIndex={0}
+      aria-label="视频时间轴"
+      aria-valuemin={0}
+      aria-valuemax={duration}
+      aria-valuenow={Math.min(duration, time)}
+      aria-valuetext={`${fmtClock(time)} / ${fmtClock(duration)}`}
       onClick={(event) => {
         const rect = event.currentTarget.getBoundingClientRect()
         const x = (event.clientX - rect.left) / Math.max(1, rect.width)
         onSeek(Math.min(1, Math.max(0, x)) * duration)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          event.preventDefault()
+          event.stopPropagation()
+          const frame = 1 / Math.max(1, project.fps)
+          seekBy(event.key === 'ArrowLeft' ? -frame : frame)
+        } else if (event.key === 'Home' || event.key === 'End') {
+          event.preventDefault()
+          event.stopPropagation()
+          onSeek(event.key === 'Home' ? 0 : duration)
+        }
       }}
     >
       {project.clips.map((clip) => (
