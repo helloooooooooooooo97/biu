@@ -7,11 +7,11 @@ const browser = readFileSync(resolve(import.meta.dirname, './browser.tsx'), 'utf
 const detail = readFileSync(resolve(import.meta.dirname, './record-detail.tsx'), 'utf8')
 
 test('embedded record details can share their explicit record target', () => {
-  const share = browser.match(/<ShareButton[\s\S]*?\/>/)?.[0] ?? ''
-  assert.match(share, /detailId/)
-  assert.match(share, /kind: 'record'/)
-  assert.match(share, /recordId: detailId/)
-  assert.match(share, /: !nested && activeViewId/)
+  assert.match(browser, /share=\{\s*nested && detailId \?/)
+  assert.match(browser, /buttonClassName="fsdb-detail-float-btn"/)
+  assert.match(browser, /recordId: detailId/)
+  assert.match(detail, /share\?: ReactNode/)
+  assert.match(detail, /\{share\}/)
   assert.doesNotMatch(browser, /\{nested \? null : \(\s*<ShareButton/)
 })
 

@@ -87,7 +87,13 @@ function ShareToggle({
   )
 }
 
-export function ShareButton({ target }: { target: ShareTarget | null }) {
+export function ShareButton({
+  target,
+  buttonClassName = 'chat-view-header-expand',
+}: {
+  target: ShareTarget | null
+  buttonClassName?: string
+}) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   if (!target) return null
@@ -95,7 +101,7 @@ export function ShareButton({ target }: { target: ShareTarget | null }) {
     <div className="fsdb-share-wrap" ref={wrapRef}>
       <button
         type="button"
-        className={`chat-view-header-expand${open ? ' is-active' : ''}`}
+        className={`${buttonClassName}${open ? ' is-active' : ''}`}
         title="分享"
         aria-label="分享"
         aria-haspopup="dialog"

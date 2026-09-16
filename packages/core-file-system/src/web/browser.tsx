@@ -3425,6 +3425,20 @@ export function CollectionBrowser({
           writePatch={writePatch}
           tableIcon={currentTable?.view?.icon}
           toolbar={<RecordActions row={selected} place="detail" />}
+          share={
+            nested && detailId ? (
+              <ShareButton
+                buttonClassName="fsdb-detail-float-btn"
+                target={{
+                  kind: 'record',
+                  collection: collectionPath,
+                  viewId: activeViewId ?? undefined,
+                  recordId: detailId,
+                  title: String(detailRow?.title ?? title),
+                }}
+              />
+            ) : undefined
+          }
           onDelete={canDelete ? () => setDlg({ kind: 'delete-record', row: selected }) : undefined}
           onOpenRecord={(recordId, collection) => onOpenRecord?.(recordId, activeViewId, collection)}
           onPrev={total > 1 ? () => void stepViewRecord(-1) : undefined}
