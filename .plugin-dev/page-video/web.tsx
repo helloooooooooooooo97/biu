@@ -59,7 +59,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v6'
+const STYLE_ID = 'pv-style-v7'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -83,16 +83,17 @@ const STYLE_CSS = `
   position:relative;
   overflow:hidden;
   border:1px solid var(--pv-line);
-  border-radius:10px;
+  border-radius:8px;
   background:var(--pv-bg);
   box-shadow:0 1px 2px color-mix(in srgb,var(--pv-ink) 4%,transparent);
   transition:border-color .16s ease,box-shadow .16s ease;
 }
 .pv-embed:hover{border-color:color-mix(in srgb,var(--pv-ink) 22%,var(--pv-line));box-shadow:0 2px 8px color-mix(in srgb,var(--pv-ink) 7%,transparent)}
 .pv-stage{
-  position:relative;aspect-ratio:16/9;background:#191919;overflow:hidden;
+  display:block;position:relative;width:100%;aspect-ratio:16/9;margin:0;overflow:hidden;background:transparent;
 }
-.pv-screen{position:absolute;overflow:hidden;isolation:isolate;perspective:1400px}
+.pv-embed .pv-stage,.pv-embed .pv-screen,.pv-embed .pv-cam{border-radius:0}
+.pv-screen{position:absolute;inset:0;overflow:hidden;isolation:isolate;perspective:1400px}
 .pv-cam{position:absolute;inset:0;transform-origin:center center;will-change:transform;transform-style:preserve-3d}
 .pv-layer{position:absolute;inset:0}
 .pv-frame{position:absolute;inset:0;display:flex;flex-direction:column;padding:9% 10%;box-sizing:border-box}
@@ -626,7 +627,7 @@ function clamp01(n: number) {
   return Math.min(1, Math.max(0, n))
 }
 
-function Stage({ project, time, playing }: { project: Project; time: number; playing: boolean }) {
+function Stage({ project, time, playing, chrome = 'embed' }: { project: Project; time: number; playing: boolean; chrome?: 'embed' | 'studio' }) {
   const active = clipsAt(project, time)
   const bases = active.filter((clip) => clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media' || clip.kind === 'solid')
   const captions = active.filter((clip) => clip.kind === 'caption')
@@ -664,8 +665,8 @@ function Stage({ project, time, playing }: { project: Project; time: number; pla
         className="pv-screen"
         style={{
           inset: 0,
-          borderRadius: project.radius,
-          boxShadow: project.shadow ? `0 ${project.shadow / 3}px ${project.shadow}px rgba(15,15,15,.32)` : undefined,
+          borderRadius: chrome === 'studio' ? project.radius : 0,
+          boxShadow: chrome === 'studio' && project.shadow ? `0 ${project.shadow / 3}px ${project.shadow}px rgba(15,15,15,.32)` : undefined,
           background: bg,
         }}
       >
@@ -1028,7 +1029,7 @@ function Studio({
       <div className="pv-studio-body">
         <div className="pv-canvas">
           <div className="pv-canvas-frame">
-            <Stage project={project} time={time} playing={playing} />
+            <Stage project={project} time={time} playing={playing} chrome="studio" />
           </div>
         </div>
         <div
@@ -1141,7 +1142,7 @@ function Editor({
       <div className={`pv-embed${audioOnly ? ' pv-audio-only' : ''}`}>
         {audioOnly
           ? project.clips.map((clip) => <AudioEffect key={clip.id} clip={clip} time={time} playing={playing} />)
-          : <Stage project={project} time={time} playing={playing} />}
+          : <Stage project={project} time={time} playing={playing} chrome="embed" />}
         <div className="pv-player-controls">
           <button type="button" className="pv-icon" aria-label={playing ? '暂停' : '播放'} onClick={togglePlay}>
             {playing ? <PauseIcon className="size-4 shrink-0" /> : <PlayIcon className="size-4 shrink-0" />}
