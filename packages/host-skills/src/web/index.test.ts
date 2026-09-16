@@ -5,9 +5,12 @@ import { test } from 'vitest'
 
 const source = readFileSync(resolve(import.meta.dirname, './index.tsx'), 'utf8')
 
-test('skills does not register its own collection view', () => {
-  assert.doesNotMatch(source, /registerView/)
-  assert.doesNotMatch(source, /SkillsLibraryView/)
+test('skills registers a warehouse collection view', () => {
+  assert.match(source, /function SkillLibraryView/)
+  assert.match(source, /ui\.registerView\('\/skills'/)
+  assert.match(source, /id: 'skill-library'/)
+  assert.match(source, /label: '仓库'/)
+  assert.match(source, /data-testid="skills-library"/)
 })
 
 test('skills only keeps the shared content renderer', () => {
