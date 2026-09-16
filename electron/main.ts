@@ -127,10 +127,9 @@ function inspectScript(x: number, y: number) {
       const LINE = '#5b9fd6'
       const DRAG = 6
       const skip = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'NOSCRIPT', 'HEAD', 'HTML'])
-      const SEL = 'a,button,img,p,h1,h2,h3,h4,h5,h6,li,td,th,article,section,blockquote,pre,figure,figcaption,label,summary,dt,dd,code,video'
       const root = document.createElement('div')
       root.id = '__biuPickRoot'
-      root.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;cursor:crosshair'
+      root.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:auto;cursor:crosshair'
       const marquee = document.createElement('div')
       const hover = document.createElement('div')
       const hits = document.createElement('div')
@@ -170,25 +169,20 @@ function inspectScript(x: number, y: number) {
         node.style.height = r.height + 'px'
       }
       const hitsInRect = (box) => {
-        let found = []
-        for (const el of document.body.querySelectorAll(SEL)) {
+        const found = []
+        for (const el of document.body.querySelectorAll('*')) {
           if (!usable(el)) continue
           const r = el.getBoundingClientRect()
           if (!overlap({ left: r.left, top: r.top, right: r.right, bottom: r.bottom }, box)) continue
           found.push(el)
         }
-        if (!found.length) {
-          for (const el of document.body.querySelectorAll('*')) {
-            if (!usable(el) || el === document.body) continue
-            const r = el.getBoundingClientRect()
-            if (!overlap({ left: r.left, top: r.top, right: r.right, bottom: r.bottom }, box)) continue
-            found.push(el)
-          }
-        }
+        const foundSet = new Set(found)
         const nested = new Set()
-        for (const a of found) {
-          for (const b of found) {
-            if (a !== b && a.contains(b)) nested.add(a)
+        for (const el of found) {
+          let parent = el.parentElement
+          while (parent) {
+            if (foundSet.has(parent)) nested.add(parent)
+            parent = parent.parentElement
           }
         }
         return found.filter((el) => !nested.has(el)).slice(0, 40)
@@ -205,10 +199,10 @@ function inspectScript(x: number, y: number) {
       let drag = null
       const finish = (els) => {
         document.documentElement.style.cursor = prevCursor
-        window.removeEventListener('pointerdown', onDown, true)
-        window.removeEventListener('pointermove', onMove, true)
-        window.removeEventListener('pointerup', onUp, true)
-        window.removeEventListener('click', onClick, true)
+        root.removeEventListener('pointerdown', onDown, true)
+        root.removeEventListener('pointermove', onMove, true)
+        root.removeEventListener('pointerup', onUp, true)
+        root.removeEventListener('click', onClick, true)
         window.removeEventListener('keydown', onKey, true)
         root.remove()
         window.__biuPickOff = null
@@ -270,10 +264,10 @@ function inspectScript(x: number, y: number) {
         }
       }
       window.__biuPickOff = () => finish([])
-      window.addEventListener('pointerdown', onDown, true)
-      window.addEventListener('pointermove', onMove, true)
-      window.addEventListener('pointerup', onUp, true)
-      window.addEventListener('click', onClick, true)
+      root.addEventListener('pointerdown', onDown, true)
+      root.addEventListener('pointermove', onMove, true)
+      root.addEventListener('pointerup', onUp, true)
+      root.addEventListener('click', onClick, true)
       window.addEventListener('keydown', onKey, true)
     })
   })()`

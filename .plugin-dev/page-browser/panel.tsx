@@ -181,6 +181,7 @@ function BrowserPanel({ pick }: { pick?: PickApi }) {
       if (next.url) setError('')
     })
     const offError = api.onError((e) => {
+      setPicking(false)
       setError(`${e.desc || '加载失败'}${e.code ? ` (${e.code})` : ''}`)
     })
     const offInspect = api.onInspected((info) => {
