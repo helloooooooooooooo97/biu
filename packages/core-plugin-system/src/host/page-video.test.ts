@@ -1,0 +1,40 @@
+import { test } from 'vitest'
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
+import { compileScript, compileSafe, dumpScript } from '../../../../.plugin-dev/page-video/compose.ts'
+
+const dir = resolve(import.meta.dirname, '../../../../.plugin-dev/page-video')
+
+test('page-video is a headless page block with tag grammar', async () => {
+  const manifest = JSON.parse(await readFile(resolve(dir, 'manifest.json'), 'utf8')) as {
+    id: string
+    headless?: boolean
+  }
+  const web = await readFile(resolve(dir, 'web.tsx'), 'utf8')
+  const host = await readFile(resolve(dir, 'host.ts'), 'utf8')
+  const readme = await readFile(resolve(dir, 'README.md'), 'utf8')
+  assert.equal(manifest.id, 'page-video')
+  assert.equal(manifest.headless, true)
+  assert.match(web, /kind: 'video'/)
+  assert.match(web, /plugin: name/)
+  assert.match(web, /data-testid="page-video-script"/)
+  assert.match(web, /onChange=\{\(event\) => setDraft\(event\.currentTarget\.value\)\}/)
+  assert.match(host, /video_script/)
+  assert.match(host, /\/api\/page-video\/compile/)
+  assert.match(readme, /:::pageBlock \{kind=video plugin=page-video/)
+})
+
+test('tag script compiles without prose parsing', () => {
+  const project = compileScript(`<video fps=30 size=1280x720>
+  <title dur=2s bg=#111>Hello</title>
+  <scene dur=3s>World</scene>
+  <caption at=1s dur=1s>Hi</caption>
+</video>`)
+  assert.equal(project.clips[1].start, 2)
+  assert.equal(project.clips[2].start, 1)
+  const dumped = dumpScript(project)
+  assert.match(dumped, /<title /)
+  assert.doesNotMatch(dumped, /然后/)
+  assert.equal(compileSafe('<video><unknown>x</unknown></video>').ok, false)
+})

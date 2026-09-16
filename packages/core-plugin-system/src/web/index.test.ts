@@ -291,6 +291,17 @@ test('algorithm card drafts locally and saves on blur like html source', async (
   assert.doesNotMatch(src, /data-biu-plugin=\{name\}/)
 })
 
+test('page-video drafts the tag script locally like html source', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const { resolve } = await import('node:path')
+  const src = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-video/web.tsx'), 'utf8')
+  assert.match(src, /function ScriptField/)
+  assert.match(src, /data-testid="page-video-script"/)
+  assert.match(src, /onChange=\{\(event\) => setDraft\(event\.currentTarget\.value\)\}/)
+  assert.match(src, /<video>/)
+  assert.doesNotMatch(src, /自然语言/)
+})
+
 test('code runner and terminals share a trash icon for clear', async () => {
   const { readFile } = await import('node:fs/promises')
   const { resolve } = await import('node:path')

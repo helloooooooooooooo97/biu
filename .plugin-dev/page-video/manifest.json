@@ -1,0 +1,10 @@
+{
+  "id": "page-video",
+  "name": "视频编排",
+  "blurb": "页面里用 /video 插入时间轴。用 <video>/<title>/<scene>/<caption>/<media> 标签编排，不是散文指令。",
+  "tags": ["page", "editor", "video", "timeline"],
+  "author": "Biu",
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",
+  "createdAt": 1789545600000,
+  "headless": true
+}
