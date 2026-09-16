@@ -32,14 +32,17 @@ export const inject = ['pageEditor']
 const STYLE_ID = 'pv-style-v5'
 const STYLE_CSS = `
 .pv{
-  --pv-ink: var(--dsw-label, #37352f);
-  --pv-mute: var(--dsw-label-3, #787774);
-  --pv-line: var(--dsw-border, #e9e9e7);
+  --pv-ink:var(--dsw-label,#37352f);
+  --pv-mute:var(--dsw-label-3,#787774);
+  --pv-line:var(--dsw-border,#e9e9e7);
   --pv-hover: var(--dsw-hover, rgba(55,53,47,.06));
+  --pv-bg:var(--dsw-bg,#fff);
+  --pv-panel:var(--dsw-sidebar,#f7f7f5);
+  --pv-surface:var(--dsw-surface,#fff);
   --pv-blue:#2383e2;
   position:relative;
   color:var(--pv-ink);
-  font:13px/1.45 ui-sans-serif,system-ui,-apple-system,sans-serif;
+  font:13px/1.45 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
 }
 .pv-embed{
   position:relative;
@@ -83,18 +86,18 @@ const STYLE_CSS = `
 .pv-image{transform:translate(-50%,-50%);object-fit:contain;filter:drop-shadow(0 6px 16px rgba(0,0,0,.2))}
 .pv-rail{
   --pv-track-h:28px;
-  position:relative;margin:0;background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 88%,transparent);
+  position:relative;margin:0;background:var(--pv-bg);
   border-top:1px solid var(--pv-line);
-  display:grid;grid-template-columns:74px minmax(0,1fr);overflow:hidden;
+  display:grid;grid-template-columns:36px minmax(0,1fr);overflow:hidden;
 }
-.pv-track-labels{border-right:1px solid var(--pv-line);background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 92%,#fff)}
+.pv-track-labels{border-right:1px solid var(--pv-line);background:var(--pv-panel)}
 .pv-track-label{
-  height:var(--pv-track-h);box-sizing:border-box;padding:0 7px;display:flex;align-items:center;gap:5px;
+  height:var(--pv-track-h);box-sizing:border-box;display:grid;place-items:center;
   border-bottom:1px solid var(--pv-line);
-  color:var(--pv-mute);font:10px/1 ui-sans-serif,system-ui,sans-serif;
-  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  color:var(--pv-mute);
 }
-.pv-track-label svg{width:12px;height:12px;flex:none;color:var(--pv-ink);opacity:.68}
+.pv-track-label svg{width:14px;height:14px;color:currentColor}
+.pv-track-label:hover{color:var(--pv-ink);background:var(--pv-hover)}
 .pv-lanes{position:relative;min-width:0;cursor:pointer;outline:none}
 .pv-lanes:before{
   content:"";position:absolute;inset:0;pointer-events:none;
@@ -103,14 +106,15 @@ const STYLE_CSS = `
     repeating-linear-gradient(90deg,transparent 0,transparent calc(10% - 1px),rgba(55,53,47,.055) calc(10% - 1px),rgba(55,53,47,.055) 10%);
 }
 .pv-clip{
-  position:absolute;height:18px;border:1px solid var(--pv-line);border-radius:4px;
-  font:10px/1 ui-sans-serif,system-ui,sans-serif;color:var(--pv-mute);
-  padding:0 6px;display:flex;align-items:center;box-sizing:border-box;pointer-events:none;
+  position:absolute;height:18px;border:1px solid color-mix(in srgb,var(--pv-ink) 12%,var(--pv-line));border-radius:4px;
+  font:10px/1 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--pv-mute);
+  padding:0 5px;display:flex;align-items:center;gap:4px;box-sizing:border-box;pointer-events:none;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
-  background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 86%,#fff);
+  background:color-mix(in srgb,var(--pv-panel) 74%,var(--pv-bg));
 }
-.pv-clip[data-tone="effect"]{background:#e9eff5;border-color:#d8e2ec;color:#52677a}
-.pv-clip[data-tone="audio"]{background:#e9f1eb;border-color:#d8e6dc;color:#55705d}
+.pv-clip svg{width:11px;height:11px;flex:none}
+.pv-clip[data-tone="effect"]{background:color-mix(in srgb,#2383e2 9%,var(--pv-bg));border-color:color-mix(in srgb,#2383e2 18%,var(--pv-line));color:color-mix(in srgb,#2383e2 58%,var(--pv-ink))}
+.pv-clip[data-tone="audio"]{background:color-mix(in srgb,#0f9d58 9%,var(--pv-bg));border-color:color-mix(in srgb,#0f9d58 18%,var(--pv-line));color:color-mix(in srgb,#0f9d58 55%,var(--pv-ink))}
 .pv-playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--pv-blue);pointer-events:none;z-index:3}
 .pv-playhead:before{content:"";position:absolute;left:-3px;top:0;width:7px;height:7px;border-radius:1px 1px 50% 50%;background:var(--pv-blue)}
 .pv-player-controls{
@@ -122,27 +126,34 @@ const STYLE_CSS = `
 .pv-audio-only{border-radius:8px}
 .pv-audio-only .pv-player-controls{border-top:0}
 .pv-audio-scrub{min-width:72px;flex:1;height:3px;margin:0 8px;accent-color:var(--pv-blue);cursor:pointer}
-.pv-track-toggle{width:auto;padding:0 7px;gap:4px;font-size:11px}
-.pv-track-toggle svg{transition:transform .16s ease}
-.pv-track-toggle[aria-expanded="true"] svg{transform:rotate(180deg)}
+.pv-track-toggle{padding:0}
 .pv-embed-timeline{border-top:1px solid var(--pv-line)}
 .pv-embed-timeline .pv-rail{border-top:0}
 .pv-icon{
-  width:26px;height:26px;border:0;border-radius:4px;background:transparent;
-  color:#787774;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border:0;border-radius:5px;background:transparent;
+  color:var(--pv-mute);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
   transition:background .1s ease,color .1s ease,transform .08s ease;
 }
 .pv-icon:hover{background:var(--pv-hover);color:var(--pv-ink)}
 .pv-icon:active{background:color-mix(in srgb,var(--pv-ink) 10%,transparent);transform:scale(.96)}
 .pv-icon:focus-visible,.pv-lanes:focus-visible{outline:2px solid rgba(35,131,226,.55);outline-offset:-2px}
 .pv-studio{
-  --studio-line:#e7e7e5;
-  --studio-panel:#f7f7f5;
+  --pv-ink:var(--dsw-label,#37352f);
+  --pv-mute:var(--dsw-label-3,#787774);
+  --pv-line:var(--dsw-border,#e9e9e7);
+  --pv-hover:var(--dsw-hover,rgba(55,53,47,.06));
+  --pv-bg:var(--dsw-bg,#fff);
+  --pv-panel:var(--dsw-sidebar,#f7f7f5);
+  --pv-surface:var(--dsw-surface,#fff);
+  --pv-blue:#2383e2;
+  --studio-line:var(--pv-line);
+  --studio-panel:var(--pv-panel);
   --script-w:420px;
   --foot-h:208px;
   position:fixed;inset:0;z-index:2147483646;
   display:grid;grid-template-rows:48px minmax(0,1fr) 6px var(--foot-h);
-  background:#f7f7f5;color:#37352f;
+  background:var(--pv-panel);color:var(--pv-ink);
+  font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
 }
 .pv-studio[data-resize="col"]{cursor:col-resize}
 .pv-studio[data-resize="col"] *{cursor:col-resize !important;user-select:none}
@@ -151,17 +162,18 @@ const STYLE_CSS = `
 .pv-studio:fullscreen,.pv-studio:-webkit-full-screen{width:100%;height:100%}
 .pv-studio-bar{
   position:relative;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
-  padding:0 14px;border-bottom:1px solid var(--studio-line);background:#fff;font-size:12px;
+  padding:0 12px;border-bottom:1px solid var(--studio-line);background:var(--pv-bg);font-size:12px;
 }
-.pv-brand{display:flex;align-items:center;gap:9px;min-width:0}
-.pv-brand-mark{width:22px;height:22px;border-radius:5px;background:#37352f;color:#fff;display:grid;place-items:center;font:700 9px/1 ui-monospace,monospace;letter-spacing:-.05em}
-.pv-studio-name{font-weight:600;white-space:nowrap}
-.pv-studio-sub{color:#9b9a97;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-brand{display:flex;align-items:center;gap:8px;min-width:0}
+.pv-brand-mark{width:26px;height:26px;border-radius:5px;color:var(--pv-ink);display:grid;place-items:center}
+.pv-brand-mark svg{width:16px;height:16px}
+.pv-studio-name{font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+.pv-studio-sub{color:var(--pv-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pv-studio-actions{justify-self:end;display:flex;align-items:center;gap:4px}
-.pv-transport{display:flex;align-items:center;gap:4px;padding:3px;border:1px solid var(--studio-line);border-radius:7px;background:#fff;box-shadow:0 1px 2px rgba(15,15,15,.035)}
-.pv-timecode{min-width:96px;text-align:center;color:#5f5e5b;font:11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
-.pv-live{display:flex;align-items:center;gap:6px;color:#787774;font-size:11px;margin-right:8px}
-.pv-live-dot{width:6px;height:6px;border-radius:50%;background:#36a269;box-shadow:0 0 0 3px rgba(54,162,105,.1)}
+.pv-transport{display:flex;align-items:center;gap:2px;padding:2px 7px 2px 2px;border:1px solid var(--studio-line);border-radius:6px;background:var(--pv-bg)}
+.pv-timecode{min-width:92px;text-align:center;color:var(--pv-mute);font:11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+.pv-live{display:flex;align-items:center;gap:6px;color:var(--pv-mute);font-size:11px;margin-right:6px}
+.pv-live-dot{width:6px;height:6px;border-radius:50%;background:#0f9d58}
 .pv-studio-body{display:grid;grid-template-columns:minmax(240px,1fr) 6px var(--script-w);min-height:0;min-width:0}
 .pv-split{
   width:6px;cursor:col-resize;background:transparent;position:relative;z-index:2;touch-action:none;
@@ -174,31 +186,33 @@ const STYLE_CSS = `
 .pv-foot-split:hover,.pv-foot-split.is-drag{background:color-mix(in srgb,var(--pv-blue) 42%,transparent)}
 .pv-foot-split:before{content:"";position:absolute;inset:-4px 0}
 .pv-canvas{
-  container-type:size;min-width:0;min-height:0;padding:18px 20px;
+  container-type:size;min-width:0;min-height:0;padding:24px;
   display:grid;place-items:center;
-  background:#efefed;
-  background-image:radial-gradient(circle,rgba(55,53,47,.13) .65px,transparent .75px);
-  background-size:14px 14px;
+  background:color-mix(in srgb,var(--pv-panel) 92%,var(--pv-ink));
+  background-image:radial-gradient(circle,color-mix(in srgb,var(--pv-ink) 13%,transparent) .6px,transparent .75px);
+  background-size:16px 16px;
 }
 .pv-canvas-frame{
   position:relative;width:min(100cqw,calc(100cqh * 16 / 9));aspect-ratio:16/9;height:auto;
-  background:#191919;border-radius:6px;overflow:hidden;
-  box-shadow:0 16px 48px rgba(15,15,15,.16),0 0 0 1px rgba(15,15,15,.12);
+  background:#191919;border-radius:5px;overflow:hidden;
+  box-shadow:0 12px 32px rgba(15,15,15,.15),0 0 0 1px color-mix(in srgb,var(--pv-ink) 15%,transparent);
 }
 .pv-canvas-frame .pv-stage{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto}
 .pv-script{
-  display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;border-left:1px solid var(--studio-line);background:#fff;
+  display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;border-left:1px solid var(--studio-line);background:var(--pv-bg);
 }
 .pv-script-head{
   flex:none;display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;
-  border-bottom:1px solid var(--studio-line);font-size:11px;color:#787774;
+  border-bottom:1px solid var(--studio-line);font-size:11px;color:var(--pv-mute);
 }
-.pv-code-mark{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#37352f}
+.pv-panel-icon{width:14px;height:14px;color:var(--pv-mute);flex:none}
+.pv-code-mark{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--pv-ink)}
 .pv-valid{margin-left:auto;display:flex;align-items:center;gap:5px;color:#36a269}
-.pv-invalid{margin-left:auto;color:#c4554d}
+.pv-valid svg,.pv-invalid svg{width:13px;height:13px}
+.pv-invalid{margin-left:auto;display:flex;align-items:center;gap:5px;color:#c4554d}
 .pv-line-no{
   flex:none;width:32px;padding:14px 0 14px 10px;box-sizing:border-box;
-  color:#c2c1be;background:#fbfbfa;text-align:right;white-space:pre;
+  color:color-mix(in srgb,var(--pv-mute) 55%,transparent);background:var(--pv-panel);text-align:right;white-space:pre;
   font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;user-select:none;overflow:hidden;
 }
 .pv-code-wrap{display:flex;flex:1;min-height:0}
@@ -207,24 +221,26 @@ const STYLE_CSS = `
 }
 .pv-src{
   flex:1;min-height:0;width:100%;box-sizing:border-box;border:0;outline:none;resize:none;
-  padding:14px 16px 14px 10px;background:#fbfbfa;color:#37352f;
+  padding:14px 16px 14px 10px;background:var(--pv-panel);color:var(--pv-ink);
   font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
-.pv-src:focus{background:#fff;box-shadow:inset 2px 0 #37352f}
+.pv-src:focus{background:var(--pv-bg);box-shadow:inset 2px 0 var(--pv-ink)}
 .pv-err,.pv-hint{
   flex:0 0 32px;box-sizing:border-box;display:flex;align-items:center;
   padding:0 12px;border-top:1px solid var(--studio-line);font-size:11px;
 }
 .pv-err{color:#9f3f3a;background:#fff8f7}
-.pv-hint{color:#9b9a97;background:#fff}
+.pv-hint{color:var(--pv-mute);background:var(--pv-bg)}
 .pv-studio-foot{
-  min-height:0;border-top:1px solid var(--studio-line);background:#fff;
+  min-height:0;border-top:1px solid var(--studio-line);background:var(--pv-bg);
   display:grid;grid-template-rows:32px minmax(0,1fr);overflow:hidden;
 }
-.pv-timeline-head{display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--studio-line);font-size:11px;color:#787774}
-.pv-timeline-head strong{color:#37352f;font-weight:600;margin-right:8px}
+.pv-timeline-head{display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid var(--studio-line);font-size:11px;color:var(--pv-mute)}
+.pv-timeline-head strong{color:var(--pv-ink);font-weight:600;margin-right:4px}
+.pv-timeline-stat{display:inline-flex;align-items:center;gap:4px}
+.pv-timeline-stat svg{width:12px;height:12px}
 .pv-duration{margin-left:auto;font-variant-numeric:tabular-nums}
-.pv-studio-foot .pv-rail{border-top:0;margin:0 12px 12px;border:1px solid var(--studio-line);background:#fbfbfa;overflow:auto}
+.pv-studio-foot .pv-rail{border-top:0;margin:0 12px 12px;border:1px solid var(--studio-line);border-radius:6px;background:var(--pv-bg);overflow:auto}
 .pv-studio-foot .pv-clip{height:18px;border-radius:4px;padding:0 8px}
 @media (max-width:720px){
   .pv-studio{grid-template-rows:48px minmax(0,1fr) 110px}
@@ -752,10 +768,19 @@ function IconExpand() {
   )
 }
 
-function IconChevron() {
+function UiIcon({ name }: { name: 'film' | 'code' | 'check' | 'warning' | 'timeline' | 'tracks' | 'clips' }) {
+  const paths = {
+    film: 'M2.5 3.25h11v9.5h-11zM5 3.25v9.5M11 3.25v9.5M2.5 6h2.5M11 6h2.5M2.5 10h2.5M11 10h2.5',
+    code: 'm6.25 4-4 4 4 4M9.75 4l4 4-4 4',
+    check: 'm3.2 8.2 3 3 6.6-6.6',
+    warning: 'M8 2.4 14 13H2zM8 6v3.2M8 11.4h.01',
+    timeline: 'M2.5 4.5h11M2.5 8h11M2.5 11.5h11M5 3v3M10.5 6.5v3M7.5 10v3',
+    tracks: 'M3 3.5h10M3 8h10M3 12.5h10M5 2v3M10.5 6.5v3M7 11v3',
+    clips: 'M2.5 4h4v8h-4zM7.5 4h6v8h-6z',
+  } as const
   return (
-    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-      <path d="m4 6 4 4 4-4" />
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={paths[name]} />
     </svg>
   )
 }
@@ -834,11 +859,10 @@ function Timeline({ project, duration, time, onSeek }: { project: Project; durat
   const railHeight = `${Math.max(1, tracks.length) * TRACK_HEIGHT}px`
   return (
     <div className="pv-rail" data-testid="page-video-rail" style={{ height: railHeight }}>
-      <div className="pv-track-labels" aria-hidden>
+      <div className="pv-track-labels">
         {tracks.map((track) => (
-          <div className="pv-track-label" key={track.id} title={track.label}>
+          <div className="pv-track-label" key={track.id} title={track.label} aria-label={track.label}>
             <TrackIcon kind={track.kind} />
-            <span>{track.label}</span>
           </div>
         ))}
       </div>
@@ -891,7 +915,8 @@ function ClipBar({ clip, duration, row }: { clip: Clip; duration: number; row: n
         width: `${Math.max((clip.duration / duration) * 100, 2.4)}%`,
       }}
     >
-      {clip.kind}
+      <TrackIcon kind={clip.kind} />
+      {clip.description || clip.name ? <span>{clip.description || clip.name}</span> : null}
     </div>
   )
 }
@@ -988,9 +1013,9 @@ function Studio({
     >
       <div className="pv-studio-bar">
         <div className="pv-brand">
-          <span className="pv-brand-mark">&lt;/&gt;</span>
-          <span className="pv-studio-name">Video composition</span>
-          <span className="pv-studio-sub">/ Untitled</span>
+          <span className="pv-brand-mark"><UiIcon name="film" /></span>
+          <span className="pv-studio-name">视频工作台</span>
+          <span className="pv-studio-sub">/ 未命名编排</span>
         </div>
         <div className="pv-transport">
           <button type="button" className="pv-icon" aria-label={playing ? '暂停' : '播放'} onClick={onPlay}>
@@ -999,7 +1024,7 @@ function Studio({
           <span className="pv-timecode">{fmtClock(time)} / {fmtClock(duration)}</span>
         </div>
         <div className="pv-studio-actions">
-          <span className="pv-live"><i className="pv-live-dot" />Live preview</span>
+          <span className="pv-live"><i className="pv-live-dot" />实时预览</span>
           <button type="button" className="pv-icon" data-page-block-expand="" aria-label="退出全屏" onClick={onClose}>
             <IconExpand />
           </button>
@@ -1024,9 +1049,11 @@ function Studio({
         />
         <div className="pv-script">
           <div className="pv-script-head">
-            <span className="pv-code-mark">&lt;&gt;</span>
-            Composition source
-            {compiledOk ? <span className="pv-valid">● Valid</span> : <span className="pv-invalid">Invalid</span>}
+            <span className="pv-panel-icon"><UiIcon name="code" /></span>
+            编排源码
+            {compiledOk
+              ? <span className="pv-valid"><UiIcon name="check" />有效</span>
+              : <span className="pv-invalid"><UiIcon name="warning" />有错误</span>}
           </div>
           <ScriptField value={script} onCommit={onCommit} onLive={onLive} readOnly={!writable} />
           {compiledOk ? <div className="pv-hint">{formatReport(project).split('\n')[0]}</div> : <div className="pv-err">{error}</div>}
@@ -1045,9 +1072,10 @@ function Studio({
       />
       <div className="pv-studio-foot">
         <div className="pv-timeline-head">
-          <strong>Timeline</strong>
-          {project.tracks.length} tracks
-          <span style={{ marginLeft: 8 }}>· {project.clips.filter((clip) => clip.kind !== 'gap').length} clips</span>
+          <span className="pv-panel-icon"><UiIcon name="timeline" /></span>
+          <strong>时间轴</strong>
+          <span className="pv-timeline-stat"><UiIcon name="tracks" />{project.tracks.length}</span>
+          <span className="pv-timeline-stat"><UiIcon name="clips" />{project.clips.filter((clip) => clip.kind !== 'gap').length}</span>
           <span className="pv-duration">{duration.toFixed(1)}s · {project.fps} fps · {project.width}×{project.height}</span>
         </div>
         <Timeline project={project} duration={duration} time={time} onSeek={onSeek} />
@@ -1141,12 +1169,13 @@ function Editor({
             <button
               type="button"
               className="pv-icon pv-track-toggle"
+              aria-label={tracksOpen ? '收起轨道' : '展开轨道'}
+              title={tracksOpen ? '收起轨道' : '展开轨道'}
               aria-expanded={tracksOpen}
               aria-controls={timelineId}
               onClick={() => setTracksOpen((value) => !value)}
             >
-              轨道
-              <IconChevron />
+              <UiIcon name="timeline" />
             </button>
           ) : null}
           <button type="button" className="pv-icon" data-page-block-expand="" aria-label="全屏编辑" onClick={() => setOpen(true)}>
