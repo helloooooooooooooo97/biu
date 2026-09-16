@@ -53,6 +53,20 @@ export class SkillsService extends Service {
     return this.store.get(id)
   }
 
+  /** 只读派生：这条技能目录里已落盘的文件（相对路径，已排序）。 */
+  filesOf(id: string): string[] {
+    try {
+      return this.store.listFiles(id)
+    } catch {
+      return []
+    }
+  }
+
+  /** 读技能目录里一个文件的文本。相对路径已做越界校验。 */
+  fileText(id: string, path: string): string {
+    return this.store.readFile(id, path).text
+  }
+
   record(id: string) {
     const skill = this.store.get(id)
     if (!skill) throw new Error(`unknown skill: ${id}`)
@@ -69,27 +83,6 @@ export class SkillsService extends Service {
       enabled: skill.enabled,
       body: skill.notes,
     }
-  }
-
-  readFiles(id: string, args: Record<string, unknown> = {}) {
-    const path = String(args.path ?? '').trim()
-    if (!path) return { files: this.store.listFiles(id) }
-    return this.store.readFile(id, path)
-  }
-
-  writeFiles(id: string, args: Record<string, unknown> = {}) {
-    const path = String(args.path ?? '').trim()
-    if (!path) throw new Error('write-files needs path')
-    const from = String(args.from ?? '').trim()
-    if (from) {
-      const written = this.store.writeFile(id, path, { from })
-      this.changed()
-      return written
-    }
-    if (args.content == null) throw new Error('write-files needs from or content')
-    const written = this.store.writeFile(id, path, String(args.content))
-    this.changed()
-    return written
   }
 
   create(input: Parameters<SkillsStore['create']>[0]) {
@@ -139,7 +132,7 @@ export class SkillsService extends Service {
   promptSection() {
     const howto = [
       '从 GitHub 安装技能：db_create /skills，files[] 用 {path, from} 拷整包（from 限工作区或 /tmp），不要把脚本全文塞进 content。',
-      '纯正文只写 notes。漏了的脚本用 db_action action=write-files，args.from + args.path。',
+      '纯正文只写 notes。额外文件用 bash 直接读写技能目录 .biu/skill/<id>/；已落盘的文件见记录的 fileList 字段。',
       'source 写上游 URL（仓库或具体 md），版权可追溯。',
     ]
     const skills = this.listEnabled()
@@ -192,22 +185,26 @@ export function apply(ctx: Context) {
     execute: (args) => skills.read(String(args.id)),
   })
 
-  ctx.http.route('POST', '/api/skills/import', async (route) => {
+  // 技能目录里的文件下载。浏览器拿不到磁盘，只能走 HTTP。
+  // 路径走 query（路由编译器只支持 :name，不吃斜杠），安全性由 store.readFile 的相对路径校验兜住。
+  ctx.http.route('GET', '/api/skills/file', async (route) => {
     try {
-      const body = await route.json<SkillImportInput>()
-      const imported = skills.import(body)
-      route.send(200, { ok: true, skill: imported })
+      const id = String(route.query?.get('id') ?? '').trim()
+      const path = String(route.query?.get('path') ?? '').trim()
+      if (!id || !path) {
+        route.send(400, { error: 'id and path are required' })
+        return
+      }
+      const file = skills.fileText(id, path)
+      const name = path.split('/').pop() ?? path
+      route.res.writeHead(200, {
+        'content-type': skillFileMime(name),
+        'content-disposition': `attachment; filename="${encodeURIComponent(name)}"`,
+        'cache-control': 'no-store',
+      })
+      route.res.end(file)
     } catch (error) {
-      route.send(400, { ok: false, error: String(error instanceof Error ? error.message : error) })
-    }
-  })
-
-  ctx.http.route('POST', '/api/skills/rescan', async (route) => {
-    try {
-      const migrated = skills.migrateLegacyDirectories()
-      route.send(200, { ok: true, imported: migrated })
-    } catch (error) {
-      route.send(400, { ok: false, error: String(error instanceof Error ? error.message : error) })
+      route.send(404, { error: String(error instanceof Error ? error.message : error) })
     }
   })
 
@@ -224,3 +221,20 @@ export function apply(ctx: Context) {
 
 export type { SkillImportFile, SkillImportInput, SkillRecord } from './store.ts'
 export { skillRoot } from './store.ts'
+
+/** 技能文件下载用的 content-type。技能包以脚本和文本为主，够用即可。 */
+function skillFileMime(name: string) {
+  const ext = name.toLowerCase().slice(name.lastIndexOf('.'))
+  if (ext === '.md' || ext === '.txt') return 'text/plain; charset=utf-8'
+  if (ext === '.json') return 'application/json; charset=utf-8'
+  if (ext === '.html') return 'text/html; charset=utf-8'
+  if (ext === '.css') return 'text/css; charset=utf-8'
+  if (ext === '.js' || ext === '.mjs') return 'text/javascript; charset=utf-8'
+  if (ext === '.py') return 'text/x-python; charset=utf-8'
+  if (ext === '.sh') return 'text/x-shellscript; charset=utf-8'
+  if (ext === '.yml' || ext === '.yaml') return 'text/yaml; charset=utf-8'
+  if (ext === '.svg') return 'image/svg+xml'
+  if (ext === '.png') return 'image/png'
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg'
+  return 'application/octet-stream'
+}

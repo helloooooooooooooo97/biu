@@ -43,3 +43,10 @@ export {
   CHAT_DOCK_STACK,
 } from './chat-pane.tsx'
 export { OutlineNav, scrollOutlineTarget, type OutlineNavItem } from './outline-nav.tsx'
+export {
+  AttachmentList,
+  AttachmentMark,
+  PaperClipMark,
+  DownloadMark,
+  ensureAttachmentListStyle,
+} from './attachment-list.tsx'

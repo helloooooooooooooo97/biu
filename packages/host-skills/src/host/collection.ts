@@ -2,7 +2,7 @@ import { recordBuiltinValues, REQUIRED_RECORD_FIELDS, type CollectionSpec, type 
 import type { SkillsService } from './index.ts'
 import type { SkillImportFile, SkillRecord } from './store.ts'
 
-function asRecord(skill: SkillRecord, withNotes = true): DbRecord {
+function asRecord(skill: SkillRecord, withNotes = true, files: string[] = []): DbRecord {
   return {
     id: skill.id,
     title: skill.name,
@@ -10,6 +10,7 @@ function asRecord(skill: SkillRecord, withNotes = true): DbRecord {
     enabled: skill.enabled,
     source: skill.source,
     notes: withNotes ? skill.notes : '',
+    fileList: files.join('\n'),
     ...recordBuiltinValues({
       createdAt: skill.createdAt,
       updatedAt: skill.updatedAt,
@@ -31,9 +32,9 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
       blurb:
         'Skill 是独立的一张表。从 GitHub 安装：db_create /skills，带 files[]（[{path, from}] 整包拷贝，from 限工作区或 /tmp）。' +
         'SKILL.md 进正文；其它路径写进 .biu/skill/<id>/。纯正文只写 notes。' +
-        '漏掉的脚本事后 db_action path=/skills/<id> action=write-files，args.from + args.path，不要传全文。' +
         'source 填上游 URL。列表 db_list /skills。改名字/说明/来源/开关 db_update。正文 db_content。删除 db_delete。' +
-        '读文件 db_action action=read-files。本表还有 enable / disable。',
+        '额外文件用 bash 直接读写：技能目录是 .biu/skill/<id>/，已落盘的文件见记录的 fileList 字段。' +
+        '本表只有 enable / disable 两个动作。',
       order: 50,
       icon: 'academic-cap',
     },
@@ -66,12 +67,19 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
           description:
             '仅创建时用。整包：[{ path, from }] 或 { path, content }。from 是磁盘源路径（工作区或 /tmp），不要把脚本全文塞进来。没有 files 时写 notes 即纯正文。',
         },
+        fileList: {
+          type: 'attachment',
+          label: '已有文件',
+          writable: false,
+          description:
+            '只读。这条技能目录（.biu/skill/<id>/）里已落盘的文件，相对路径、每行一个、已排序。由磁盘实时算出，不是存储字段。',
+        },
       },
     },
-    list: () => skills.list().map((item) => asRecord(item, false)),
+    list: () => skills.list().map((item) => asRecord(item, false, skills.filesOf(item.id))),
     get: (id) => {
       const skill = skills.recordOrNull(id)
-      return skill ? asRecord(skill) : null
+      return skill ? asRecord(skill, true, skills.filesOf(skill.id)) : null
     },
     create: async (rows) => {
       const out: DbRecord[] = []
@@ -85,7 +93,7 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
               source: String(fields.source ?? ''),
               enabled: fields.enabled as boolean | undefined,
               files: pack,
-              draft: !String(fields.description ?? '').trim(),
+              // 不传 draft：由 store 按“记录字段 + SKILL.md frontmatter”综合判定。
             })
           : skills.create({
               id: String(fields.id ?? ''),
@@ -96,7 +104,7 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
               notes: String(fields.notes ?? fields.body ?? ''),
               draft: !String(fields.description ?? '').trim(),
             })
-        out.push(asRecord(created))
+        out.push(asRecord(created, true, skills.filesOf(created.id)))
       }
       return out
     },
@@ -108,7 +116,7 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
         ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
         ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
       })
-      return asRecord(next)
+      return asRecord(next, true, skills.filesOf(next.id))
     },
     remove: (query) => {
       const ids = query.ids ?? []
@@ -127,35 +135,6 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
         label: '停用',
         when: { enabled: true },
         run: (id) => skills.setEnabled(id, false),
-      },
-      {
-        id: 'read-files',
-        label: '读文件',
-        for: 'agent',
-        placement: [],
-        description: '读这条技能 id 目录里的文件。不传 path 列出相对路径；args.path 读一个文件的文本。',
-        parameters: {
-          type: 'object',
-          properties: { path: { type: 'string' } },
-        },
-        run: (id, _record, args = {}) => skills.readFiles(id, args),
-      },
-      {
-        id: 'write-files',
-        label: '写文件',
-        for: 'agent',
-        placement: [],
-        description: '往这条技能 id 目录写一个文件。优先 args.from 从磁盘拷贝（工作区或 /tmp），args.path 为目录内相对路径。没有 from 才用 args.content。',
-        parameters: {
-          type: 'object',
-          properties: {
-            path: { type: 'string' },
-            from: { type: 'string' },
-            content: { type: 'string' },
-          },
-          required: ['path'],
-        },
-        run: (id, _record, args = {}) => skills.writeFiles(id, args),
       },
     ],
   }

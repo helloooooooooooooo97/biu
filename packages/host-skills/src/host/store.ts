@@ -334,15 +334,17 @@ export class SkillsStore {
 
   import(input: SkillImportInput) {
     const packed = packSkillImport(input.files ?? [])
+    const description = String(input.description || packed.parsed.meta.description || '').trim()
     return this.create({
       id: input.id || slugify(packed.parsed.meta.name || '') || undefined,
       name: input.name || packed.parsed.meta.name,
-      description: input.description || packed.parsed.meta.description,
+      description,
       source: input.source || packed.parsed.meta.source,
       enabled: input.enabled,
       notes: packed.notes,
       files: packed.files,
-      draft: input.draft,
+      // frontmatter 里带了 description 就不算草稿，即使调用方没在记录字段里给。
+      draft: input.draft ?? !description,
     })
   }
 

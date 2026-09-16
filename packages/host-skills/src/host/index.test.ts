@@ -89,7 +89,7 @@ test('frontmatter keeps discovery metadata separate from body', () => {
 test('prompt tells agents how to store scripts and source even before any skill exists', async () => {
   const { ctx } = await boot()
   const prompt = ctx.systemPrompt.assemble()
-  assert.match(prompt, /write-files/)
+  assert.match(prompt, /\.biu\/skill\//)
   assert.match(prompt, /source/)
   assert.match(prompt, /db_create \/skills/)
   assert.match(prompt, /from/)
@@ -137,8 +137,8 @@ test('each conversation sees summaries while skill_read loads the body on demand
   assert.doesNotMatch(prompt, /先阅读/)
   const read = await ctx.tools.invoke('skill_read', { id: 'abc' }) as { body: string }
   assert.match(read.body, /先阅读能力一/)
-  const listed = ctx.skills.readFiles('abc') as { files: string[] }
-  assert.deepEqual(listed.files, ['cap/cap1.md'])
+  const listed = ctx.skills.filesOf('abc')
+  assert.deepEqual(listed, ['cap/cap1.md'])
 })
 
 test('/skills rows are Skill records, not Page pointers', async () => {
@@ -153,7 +153,78 @@ test('/skills rows are Skill records, not Page pointers', async () => {
   assert.equal(rows[0]?.rootPageId, undefined)
   assert.equal(spec.schema.fields.source?.type, 'url')
   assert.equal(spec.schema.fields.files?.type, 'file')
-  assert.equal(spec.actions?.map((item) => item.id).join(','), 'enable,disable,read-files,write-files')
+  assert.equal(spec.schema.fields.fileList?.writable, false)
+  assert.equal(spec.actions?.map((item) => item.id).join(','), 'enable,disable')
+})
+
+test('import enables the skill when only the frontmatter carries a description', async () => {
+  const { ctx } = await boot()
+  const spec = (ctx.database as FakeDatabase).specs.find((item) => item.path === '/skills')!
+  // 没有 records 字段 description，说明只在 SKILL.md frontmatter 里。
+  await spec.create!([{ files: fixture.files }])
+  const row = await spec.get!('abc')
+
+  assert.equal(row?.description, '需要执行 ABC 流程时使用')
+  assert.equal(row?.enabled, true)
+})
+
+test('import stays a disabled draft when nothing carries a description', async () => {
+  const { ctx } = await boot()
+  const spec = (ctx.database as FakeDatabase).specs.find((item) => item.path === '/skills')!
+  await spec.create!([{ files: [{ path: 'SKILL.md', content: '# 没有 frontmatter 说明' }] }])
+  const rows = await spec.list()
+
+  assert.equal(rows[0]?.enabled, false)
+})
+
+test('fileList is a read-only field derived from disk', async () => {
+  const { ctx } = await boot()
+  const spec = (ctx.database as FakeDatabase).specs.find((item) => item.path === '/skills')!
+  await spec.create!([{ title: 'ABC', description: '需要执行 ABC 流程时使用', files: fixture.files }])
+
+  const rows = await spec.list()
+  assert.equal(rows[0]?.fileList, 'cap/cap1.md')
+
+  const detail = await spec.get!('abc')
+  assert.equal(detail?.fileList, 'cap/cap1.md')
+
+  // 落盘一个新脚本后，派生字段立刻反映出来（无需重写记录）。
+  const store = new SkillsStore()
+  const target = join(store.filesDir('abc'), 'scripts', 'run.mjs')
+  mkdirSync(join(store.filesDir('abc'), 'scripts'), { recursive: true })
+  writeFileSync(target, 'export {}\n')
+  assert.equal((await spec.get!('abc'))?.fileList, 'cap/cap1.md\nscripts/run.mjs')
+})
+
+test('skill files are downloadable over the read-only file route', async () => {
+  const { ctx, http } = await boot()
+  const spec = (ctx.database as FakeDatabase).specs.find((item) => item.path === '/skills')!
+  await spec.create!([{ title: 'ABC', description: '需要执行 ABC 流程时使用', files: fixture.files }])
+
+  const handler = http.routes.get('GET /api/skills/file')
+  assert.ok(handler)
+
+  const chunks: string[] = []
+  const route = {
+    query: new URLSearchParams('id=abc&path=cap%2Fcap1.md'),
+    res: {
+      writeHead: () => {},
+      end: (body: string) => chunks.push(body),
+    },
+    send: (code: number, body: unknown) => chunks.push(`${code}:${JSON.stringify(body)}`),
+  }
+  await handler!(route)
+
+  assert.equal(chunks.join(''), '能力一')
+
+  // 越界路径必须被拒。
+  const blocked: string[] = []
+  await handler!({
+    query: new URLSearchParams('id=abc&path=..%2Fabc.md'),
+    res: { writeHead: () => {}, end: (b: string) => blocked.push(b) },
+    send: (_c: number, b: unknown) => blocked.push(JSON.stringify(b)),
+  })
+  assert.match(blocked.join(''), /invalid skill file path/)
 })
 
 test('/skills new button creates a disabled draft before description is filled', async () => {
@@ -190,10 +261,10 @@ test('startup migrates legacy .biu/skills directories once', async () => {
   assert.equal(first.ctx.skills.migrateLegacyDirectories(), 0)
 })
 
-test('runtime rescan discovers a Skill directory added after startup', async () => {
+test('legacy skill directories are migrated, and only the file route is exposed', async () => {
   const { ctx, http } = await boot()
   await new Promise((resolve) => setTimeout(resolve, 10))
-  assert.ok(http.routes.has('POST /api/skills/rescan'))
+  assert.deepEqual([...http.routes.keys()], ['GET /api/skills/file'])
 
   const legacy = join(process.env.BIU_SKILLS_DIR!, 'late-skill')
   mkdirSync(legacy, { recursive: true })
@@ -224,22 +295,21 @@ test('import writes extra files under the skill id directory', () => {
   assert.match(store.readFile(record.id, 'scripts/render.mjs').text, /export const render/)
 })
 
-test('read-files and write-files actions use the skill id directory', async () => {
+test('skills only exposes enable/disable; files are read and written through the workspace path', async () => {
   const { ctx } = await boot()
   const spec = (ctx.database as FakeDatabase).specs.find((item) => item.path === '/skills')!
   await spec.create!([{ title: 'Pretty', description: '画图时用', notes: '正文' }])
-  const write = spec.actions?.find((item) => item.id === 'write-files')
-  const read = spec.actions?.find((item) => item.id === 'read-files')
-  const src = join(dir, 'capture.mjs')
-  writeFileSync(src, 'export const fromDisk = 1\n')
-  await write?.run('pretty', { id: 'pretty' }, { path: 'scripts/copied.mjs', from: src })
-  assert.deepEqual(await read?.run('pretty', { id: 'pretty' }, {}), { files: ['scripts/copied.mjs'] })
-  const file = await read?.run('pretty', { id: 'pretty' }, { path: 'scripts/copied.mjs' }) as { text: string }
-  assert.equal(file.text, 'export const fromDisk = 1\n')
-  await assert.rejects(
-    async () => write!.run('pretty', { id: 'pretty' }, { path: 'scripts/secret.mjs', from: '/etc/passwd' }),
-    /workspace or \/tmp/,
-  )
+  assert.deepEqual(spec.actions?.map((item) => item.id), ['enable', 'disable'])
+
+  // 与 agent 用 bash 写文件等价：直接落到 .biu/skill/<id>/ 下。
+  const store = new SkillsStore()
+  const scripts = join(store.filesDir('pretty'), 'scripts')
+  mkdirSync(scripts, { recursive: true })
+  writeFileSync(join(scripts, 'copied.mjs'), 'export const fromDisk = 1\n')
+
+  assert.deepEqual(ctx.skills.filesOf('pretty'), ['scripts/copied.mjs'])
+  assert.equal(store.readFile('pretty', 'scripts/copied.mjs').text, 'export const fromDisk = 1\n')
+  assert.equal((await spec.get!('pretty'))?.fileList, 'scripts/copied.mjs')
 })
 
 test('remove deletes the skill markdown and its files directory', () => {
