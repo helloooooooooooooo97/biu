@@ -68,7 +68,7 @@ const STYLE_CSS = `
 .pv-pip .pv-media{position:absolute}
 .pv-image{transform:translate(-50%,-50%);object-fit:contain;filter:drop-shadow(0 6px 16px rgba(0,0,0,.2))}
 .pv-rail{
-  --pv-track-h:22px;
+  --pv-track-h:28px;
   position:relative;margin:0;background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 88%,transparent);
   border-top:1px solid var(--pv-line);
   display:grid;grid-template-columns:52px minmax(0,1fr);overflow:hidden;
@@ -76,19 +76,19 @@ const STYLE_CSS = `
 .pv-track-labels{border-right:1px solid var(--pv-line);background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 92%,#fff)}
 .pv-track-label{
   height:var(--pv-track-h);box-sizing:border-box;padding:0 7px;display:flex;align-items:center;
-  border-bottom:1px solid color-mix(in srgb,var(--pv-line) 72%,transparent);
-  color:var(--pv-mute);font:9px/1 ui-sans-serif,system-ui,sans-serif;
+  border-bottom:1px solid var(--pv-line);
+  color:var(--pv-mute);font:10px/1 ui-sans-serif,system-ui,sans-serif;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
 }
 .pv-lanes{position:relative;min-width:0;cursor:pointer;outline:none}
 .pv-lanes:before{
   content:"";position:absolute;inset:0;pointer-events:none;
   background:
-    repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--pv-track-h) - 1px),color-mix(in srgb,var(--pv-line) 72%,transparent) calc(var(--pv-track-h) - 1px),color-mix(in srgb,var(--pv-line) 72%,transparent) var(--pv-track-h)),
+    repeating-linear-gradient(to bottom,rgba(255,255,255,.28) 0,rgba(255,255,255,.28) calc(var(--pv-track-h) - 1px),var(--pv-line) calc(var(--pv-track-h) - 1px),var(--pv-line) var(--pv-track-h)),
     repeating-linear-gradient(90deg,transparent 0,transparent calc(10% - 1px),rgba(55,53,47,.055) calc(10% - 1px),rgba(55,53,47,.055) 10%);
 }
 .pv-clip{
-  position:absolute;height:14px;border:1px solid var(--pv-line);border-radius:4px;
+  position:absolute;height:18px;border:1px solid var(--pv-line);border-radius:4px;
   font:10px/1 ui-sans-serif,system-ui,sans-serif;color:var(--pv-mute);
   padding:0 6px;display:flex;align-items:center;box-sizing:border-box;pointer-events:none;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
@@ -188,7 +188,7 @@ const STYLE_CSS = `
 .pv-timeline-head strong{color:#37352f;font-weight:600;margin-right:8px}
 .pv-duration{margin-left:auto;font-variant-numeric:tabular-nums}
 .pv-studio-foot .pv-rail{border-top:0;margin:0 12px 12px;border:1px solid var(--studio-line);background:#fbfbfa}
-.pv-studio-foot .pv-clip{height:16px;border-radius:4px;padding:0 8px}
+.pv-studio-foot .pv-clip{height:18px;border-radius:4px;padding:0 8px}
 @media (max-width:720px){
   .pv-studio{grid-template-rows:48px minmax(0,1fr) 100px}
   .pv-studio-body{grid-template-columns:1fr}
@@ -575,6 +575,7 @@ type TimelineTrack = {
 }
 
 const TRACK_ORDER: Clip['kind'][] = ['title', 'scene', 'media', 'zoom', 'text', 'caption', 'arrow', 'blur', 'cursor', 'pip', 'image', 'audio']
+const TRACK_HEIGHT = 28
 
 function timelineTracks(clips: Clip[]): TimelineTrack[] {
   const tracks: TimelineTrack[] = []
@@ -600,7 +601,7 @@ function timelineTracks(clips: Clip[]): TimelineTrack[] {
 function Timeline({ project, duration, time, onSeek }: { project: Project; duration: number; time: number; onSeek: (t: number) => void }) {
   const seekBy = (delta: number) => onSeek(Math.min(duration, Math.max(0, time + delta)))
   const tracks = timelineTracks(project.clips)
-  const railHeight = `${Math.max(1, tracks.length) * 22}px`
+  const railHeight = `${Math.max(1, tracks.length) * TRACK_HEIGHT}px`
   return (
     <div className="pv-rail" data-testid="page-video-rail" style={{ height: railHeight }}>
       <div className="pv-track-labels" aria-hidden>
@@ -651,7 +652,7 @@ function ClipBar({ clip, duration, row }: { clip: Clip; duration: number; row: n
       title={`${clip.kind} · ${fmtClock(clip.start)}–${fmtClock(clip.start + clip.duration)}`}
       style={{
         left: `${(clip.start / duration) * 100}%`,
-        top: `${row * 22 + 4}px`,
+        top: `${row * TRACK_HEIGHT + 5}px`,
         width: `${Math.max((clip.duration / duration) * 100, 2.4)}%`,
       }}
     >
