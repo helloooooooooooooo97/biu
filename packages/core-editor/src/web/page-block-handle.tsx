@@ -8,6 +8,7 @@ import {
   duplicateHandleBlock,
   handleBlockAtPointer,
   handleRailLeft,
+  visibleHandleEl,
   insertParagraphAfter,
   insertParagraphBefore,
   type HandleBlock,
@@ -31,12 +32,15 @@ function readTarget(editor: Editor, host: HTMLElement, clientX: number, clientY:
   const found = handleBlockAtPointer(editor, clientX, clientY)
   if (!found) return null
   const raw = editor.view.nodeDOM(found.pos)
-  const el = raw instanceof HTMLElement ? raw : raw?.parentElement
-  if (!(el instanceof HTMLElement)) return null
+  const el = visibleHandleEl(raw instanceof Node ? raw : null)
+  if (!el) return null
   const hostBox = host.getBoundingClientRect()
   const box = el.getBoundingClientRect()
   const contentBox = editor.view.dom.getBoundingClientRect()
-  const line = lineCoords(editor, found) ?? { top: box.top, bottom: box.top + GRIP_H }
+  const line =
+    found.node.isAtom || found.node.isLeaf || found.node.type.name === 'pageBlock'
+      ? { top: box.top, bottom: box.top + GRIP_H }
+      : (lineCoords(editor, found) ?? { top: box.top, bottom: box.top + GRIP_H })
   const gripTop = (line.top + line.bottom) / 2 - box.top - GRIP_H / 2
   return {
     ...found,

@@ -568,6 +568,89 @@ test('editContent view/str_replace/replace_lines/insert/write', async () => {
   assert.equal((await db.content('/docs/n1')).value, 'done')
 })
 
+test('editContent find_replace supports unique, all and regex modes', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, Record<string, unknown>>([
+    ['n1', { id: 'n1', title: 'a', content: 'one two two\nthree two' }],
+  ])
+  db.register({
+    id: 'docs',
+    path: '/docs',
+    schema: {
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+        content: { type: 'file', writable: true },
+      },
+    },
+    list: () => [...rows.values()] as { id: string }[],
+    get: (id) => rows.get(id) as { id: string } | undefined,
+    records: { update: true },
+    update: (id, patch) => {
+      const next = { ...rows.get(id), ...patch, id }
+      rows.set(id, next)
+      return next as { id: string }
+    },
+  })
+  // all=false still enforces uniqueness
+  await assert.rejects(
+    () => db.editContent('/docs/n1', { command: 'find_replace', old_str: 'two', new_str: 'X' }),
+    /not unique/,
+  )
+  const all = await db.editContent('/docs/n1', { command: 'find_replace', old_str: 'two', new_str: 'X', all: true })
+  assert.equal(all.ok, true)
+  assert.equal(all.replaced, 3)
+  assert.equal((await db.content('/docs/n1')).value, 'one X X\nthree X')
+  const regex = await db.editContent('/docs/n1', {
+    command: 'find_replace',
+    old_str: '\\s+',
+    new_str: ' ',
+    regex: true,
+    all: true,
+  })
+  assert.equal(regex.replaced, 4)
+  assert.equal((await db.content('/docs/n1')).value, 'one X X three X')
+})
+
+test('editContent write accepts from a local file and rejects value+from together', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, Record<string, unknown>>([
+    ['n1', { id: 'n1', title: 'a', content: 'old' }],
+  ])
+  db.register({
+    id: 'docs',
+    path: '/docs',
+    schema: {
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+        content: { type: 'file', writable: true },
+      },
+    },
+    list: () => [...rows.values()] as { id: string }[],
+    get: (id) => rows.get(id) as { id: string } | undefined,
+    records: { update: true },
+    update: (id, patch) => {
+      const next = { ...rows.get(id), ...patch, id }
+      rows.set(id, next)
+      return next as { id: string }
+    },
+  })
+  const dir = await mkdtemp(join(tmpdir(), 'db-content-from-'))
+  const file = join(dir, 'body.md')
+  await writeFile(file, '# 来自文件\n\n正文内容\n')
+  const written = await db.editContent('/docs/n1', { command: 'write', from: file })
+  assert.equal(written.ok, true)
+  assert.equal((await db.content('/docs/n1')).value, '# 来自文件\n\n正文内容\n')
+  await assert.rejects(
+    () => db.editContent('/docs/n1', { command: 'write', from: file, value: 'x' }),
+    /either value or from/,
+  )
+  await assert.rejects(() => db.editContent('/docs/n1', { command: 'write', from: join(dir, 'nope.md') }), /cannot read from/)
+})
+
 test('editAsset views and writes referenced attachments with etag', async () => {
   const ctx = new Context()
   const db = new DatabaseService(ctx)

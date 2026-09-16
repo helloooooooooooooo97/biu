@@ -53,6 +53,7 @@ import { NoticesService } from './notices-service.ts'
 import { ContentTurnService } from './content-turn-service.ts'
 import {
   asContentText,
+  findReplaceText,
   insertText,
   replaceLinesText,
   resolveContentCommand,
@@ -1144,16 +1145,23 @@ export class DatabaseService extends Service implements Database {
         text: viewed.text,
       }
     }
+    let replaced: number | undefined
     const next =
       command === 'write'
-        ? writeContentText(args.value ?? args.new_str)
+        ? writeContentText(await resolveWriteValue(args))
         : command === 'str_replace'
           ? strReplaceText(text, args.old_str, args.new_str)
-          : command === 'insert'
-            ? insertText(text, args.insert_line, args.new_str)
-            : replaceLinesText(text, args.start_line, args.end_line, args.new_str)
-    await this.writeContent(path, next)
-    const locus = mutationLocus(command, text, next, args)
+          : command === 'find_replace'
+            ? resolveFindReplace(text, args)
+            : command === 'insert'
+              ? insertText(text, args.insert_line, args.new_str)
+              : replaceLinesText(text, args.start_line, args.end_line, args.new_str)
+    if (typeof next === 'object') {
+      replaced = next.replaced
+    }
+    const nextText = typeof next === 'object' ? next.text : next
+    await this.writeContent(path, nextText)
+    const locus = mutationLocus(command === 'find_replace' ? 'str_replace' : command, text, nextText, args)
     const written = await this.content(current.path)
     const after = asContentText(written.value)
     const title = await this.contentTitle(current.path)
@@ -1164,6 +1172,7 @@ export class DatabaseService extends Service implements Database {
       field: current.field,
       command,
       ok: true as const,
+      ...(replaced != null ? { replaced } : {}),
       ...(locus ? { start_line: locus.start_line, end_line: locus.end_line, ...(locus.text ? { text: locus.text } : {}) } : {}),
     }
   }
@@ -1243,6 +1252,29 @@ async function readLocalWriteFile(raw: string) {
   } catch {
     throw new Error(`cannot read from: ${raw}`)
   }
+}
+
+/**
+ * write 正文：优先用 value，其次用 from 指向的本地文件（工作区或 /tmp）。
+ * value 与 from 互斥，同时给出时报错。
+ */
+async function resolveWriteValue(args: Record<string, unknown>): Promise<string> {
+  const hasValue = args.value !== undefined || args.new_str !== undefined
+  const rawFrom = String(args.from ?? '').trim()
+  if (rawFrom && hasValue) throw new Error('write accepts either value or from, not both')
+  if (rawFrom) {
+    const bytes = await readLocalWriteFile(rawFrom)
+    return bytes.toString('utf8')
+  }
+  return asContentText(args.value ?? args.new_str)
+}
+
+function resolveFindReplace(text: string, args: Record<string, unknown>) {
+  return findReplaceText(text, args.old_str, args.new_str, {
+    regex: args.regex,
+    all: args.all,
+    count: args.count,
+  })
 }
 
 function parseContent(content: unknown): Record<string, unknown> {
@@ -1565,7 +1597,8 @@ export function apply(ctx: Context) {
       'command=str_replace：old_str 必须在正文里唯一，替换为 new_str。',
       'command=replace_lines：按 1-based 闭区间 start_line..end_line 换成 new_str。',
       'command=insert：在 insert_line 之后插入 new_str（0 插到第一行前）。',
-      'command=write：整篇覆盖，传 value。写成功只返回 {ok, path}，不含全文。str_replace / replace_lines / insert 成功额外返回 start_line、end_line（改后正文的 1-based 行）。编辑器会标出该段改动，不抢输入焦点、不自动跳转；跳转只在用户主动点目录或查找时发生。',
+      'command=find_replace：批量替换。默认等价 str_replace（old_str 必须唯一）；all=true 替换所有匹配（可用 count 限制次数），regex=true 时 old_str 按正则解释。返回 replaced 为实际替换次数。',
+      'command=write：整篇覆盖。正文用 value 内联，或用 from=<本地文件路径>（工作区或 /tmp）从文件导入，二者互斥、不可同时给。写成功只返回 {ok, path}，不含全文。str_replace / find_replace / replace_lines / insert 成功额外返回 start_line、end_line（改后正文的 1-based 行）。编辑器会标出该段改动，不抢输入焦点、不自动跳转；跳转只在用户主动点目录或查找时发生。',
       '页面插图：不要把 data URL / base64 写进正文。先把图片文件落到工作区（下载或生成），再用 db_asset command=write name=<文件名> from=<本地路径> 入库（新文件不要带 etag），然后 insert/str_replace 写入一行 Markdown：![说明](/api/db/file/<文件名>)。也可以先写这一行再 write 附件。',
     ].join(' '),
     parameters: {
@@ -1574,12 +1607,17 @@ export function apply(ctx: Context) {
         path: { type: 'string' },
         command: {
           type: 'string',
-          enum: ['view', 'str_replace', 'replace_lines', 'insert', 'write'],
-          description: 'view | str_replace | replace_lines | insert | write。省略时：有 value 则 write，否则 view。',
+          enum: ['view', 'str_replace', 'find_replace', 'replace_lines', 'insert', 'write'],
+          description:
+            'view | str_replace | find_replace | replace_lines | insert | write。省略时：有 value 或 from 则 write，否则 view。',
         },
-        value: { type: 'string', description: 'write 的全文' },
-        old_str: { type: 'string', description: 'str_replace 要替换的原文，必须唯一' },
-        new_str: { type: 'string', description: 'str_replace / insert / replace_lines 的新文本' },
+        value: { type: 'string', description: 'write 的全文（与 from 互斥）' },
+        from: { type: 'string', description: 'write：从该本地文件路径（工作区或 /tmp）导入正文，代替 value' },
+        old_str: { type: 'string', description: 'str_replace / find_replace 要替换的原文；find_replace 且 regex=true 时按正则解释' },
+        new_str: { type: 'string', description: 'str_replace / find_replace / insert / replace_lines 的新文本' },
+        regex: { type: 'boolean', description: 'find_replace：old_str 是否按正则解释（默认 false）' },
+        all: { type: 'boolean', description: 'find_replace：是否替换所有匹配（默认 false，等价 str_replace 的唯一性要求）' },
+        count: { type: 'integer', description: 'find_replace：最多替换几处（默认不限）' },
         insert_line: { type: 'integer', description: 'insert：在该行之后插入' },
         start_line: { type: 'integer', description: 'replace_lines 起始行（含）' },
         end_line: { type: 'integer', description: 'replace_lines 结束行（含）' },

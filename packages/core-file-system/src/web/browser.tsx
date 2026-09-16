@@ -15,7 +15,6 @@ import { CSS as DndCSS } from '@dnd-kit/utilities'
 import {
   ArrowPathIcon,
   ArrowsPointingOutIcon,
-  ArrowsPointingInIcon,
   ArrowsUpDownIcon,
   AdjustmentsHorizontalIcon,
   Bars3BottomLeftIcon,
@@ -129,11 +128,12 @@ import {
   withViewDisplay,
 } from './view-storage.ts'
 import {
+  getPagePrefs,
   getPageWidth,
   getPageWidthVersion,
-  persistPageWidth,
   subscribePageWidth,
 } from './page-width.ts'
+import { LayoutPrefsMenu } from './layout-prefs-menu.tsx'
 import { listCollection, readJson } from './db-client.ts'
 import { savedViewRecordPath } from '../paths.ts'
 import { findViewNeighbor, indexOnPage } from './view-adjacent.ts'
@@ -1344,6 +1344,7 @@ export function CollectionBrowser({
   useSyncExternalStore(subscribePageWidth, getPageWidthVersion, () => 0)
   const viewStarred = Boolean(activeViewId && isViewStarred(getStarredViews(), collectionPath, activeViewId))
   const pageWidth = getPageWidth()
+  const pagePrefs = getPagePrefs()
 
   useEffect(() => {
     hydratedDetail.current = ''
@@ -2695,32 +2696,7 @@ export function CollectionBrowser({
               </button>
               {layoutOpen ? (
                 <HeadlessDismiss onDismiss={() => setLayoutOpen(false)} insideRef={layoutRef}>
-                <div className="fsdb-layout-menu" role="menu" data-testid="fsdb-layout-menu">
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    className={`fsdb-layout-opt${pageWidth === 'max' ? ' is-active' : ''}`}
-                    title="最大宽度"
-                    aria-label="最大宽度"
-                    aria-checked={pageWidth === 'max'}
-                    data-testid="fsdb-layout-max"
-                    onClick={() => persistPageWidth('max')}
-                  >
-                    <ArrowsPointingInIcon aria-hidden className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    className={`fsdb-layout-opt${pageWidth === 'full' ? ' is-active' : ''}`}
-                    title="全宽"
-                    aria-label="全宽"
-                    aria-checked={pageWidth === 'full'}
-                    data-testid="fsdb-layout-full"
-                    onClick={() => persistPageWidth('full')}
-                  >
-                    <ArrowsPointingOutIcon aria-hidden className="size-4" />
-                  </button>
-                </div>
+                  <LayoutPrefsMenu prefs={pagePrefs} />
                 </HeadlessDismiss>
               ) : null}
             </div>
@@ -2772,10 +2748,12 @@ export function CollectionBrowser({
             })
           }}
         />
-        <div className="fsdb-detail-title-row">
+        <div className="fsdb-detail-icon-slot">
           <span className="fsdb-detail-title-icon" aria-hidden>
-            <TableGlyph icon={currentTable?.view?.icon} className="size-8" />
+            <TableGlyph icon={currentTable?.view?.icon} className="size-16" />
           </span>
+        </div>
+        <div className="fsdb-detail-title-row">
           <div className="fsdb-detail-title-block">
           <h1 className="fsdb-detail-title">{activeView?.name ?? title}</h1>
           </div>

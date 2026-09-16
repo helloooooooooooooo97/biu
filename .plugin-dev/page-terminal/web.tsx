@@ -4,7 +4,7 @@ import '@xterm/xterm/css/xterm.css'
 import { makeOverlay, relockAncestors, unlockAncestors, watchZoom } from './zoom.ts'
 
 const React = globalThis.React
-const { useEffect, useRef } = React
+const { useEffect, useLayoutEffect, useRef } = React
 
 export const name = 'page-terminal'
 export const inject = ['pageEditor']
@@ -18,6 +18,28 @@ const HISTORY_OUT_CHARS = 600 // 单条输出字符上限，防止撑爆 markdow
 const OUTPUT_SETTLE_MS = 600 // 输出安静这么久，就认为这条命令跑完了
 
 type HistoryEntry = { cmd: string; at: number; out?: string }
+
+function historyOut(item: Record<string, unknown>): string {
+  const raw = item.out ?? item.output ?? item.stdout
+  if (typeof raw === 'string') return raw
+  if (Array.isArray(raw)) return raw.map((line) => String(line)).join('\n')
+  return ''
+}
+
+function parseHistory(raw: unknown): HistoryEntry[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => {
+      const out = historyOut(item)
+      return {
+        cmd: String(item.cmd ?? item.command ?? ''),
+        at: Number(item.at) || 0,
+        ...(out ? { out } : {}),
+      }
+    })
+    .filter((item) => item.cmd)
+}
 
 // ---------------------------------------------------------------------------
 // xterm 附带的「辅助节点」处理（踩坑总结，改动前务必读 README）：
@@ -79,6 +101,182 @@ function styleHelperTextarea(el: HTMLElement) {
   s.removeProperty('display')
 }
 
+function fitToVisibleBox(term: Terminal, host: HTMLElement) {
+  if (!term.element) return false
+  const core = (term as unknown as {
+    _core?: { _renderService?: { dimensions?: { css?: { cell?: { width: number; height: number } } } } }
+  })._core
+  const cell = core?._renderService?.dimensions?.css?.cell
+  if (!cell?.width || !cell?.height) return false
+  const box = host.getBoundingClientRect()
+  const style = window.getComputedStyle(term.element)
+  const padX = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0)
+  const padY = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0)
+  const cols = Math.max(2, Math.floor((box.width - padX) / cell.width))
+  const rows = Math.max(1, Math.floor((box.height - padY) / cell.height))
+  if (term.cols !== cols || term.rows !== rows) term.resize(cols, rows)
+  return true
+}
+
+function attachScrollRail(term: Terminal, pane: HTMLElement) {
+  const rail = document.createElement('div')
+  rail.className = 'pt-scroll-rail'
+  rail.setAttribute('aria-hidden', 'true')
+  const thumb = document.createElement('div')
+  thumb.className = 'pt-scroll-thumb'
+  rail.appendChild(thumb)
+  pane.appendChild(rail)
+
+  // 右缘感应带。滑轨隐藏时 pointer-events:none，只有靠它才能把滑轨唤出来。
+  const hotspot = document.createElement('div')
+  hotspot.className = 'pt-rail-hotspot'
+  hotspot.setAttribute('aria-hidden', 'true')
+  pane.appendChild(hotspot)
+  const onHotEnter = () => pane.classList.add('is-rail-hot')
+  const onHotLeave = () => pane.classList.remove('is-rail-hot')
+  hotspot.addEventListener('pointerenter', onHotEnter)
+  hotspot.addEventListener('pointerleave', onHotLeave)
+
+  const metrics = () => {
+    const buf = term.buffer.active
+    const rows = Math.max(1, term.rows)
+    const total = Math.max(rows, buf.length)
+    const maxY = Math.max(0, total - rows)
+    const y = Math.min(maxY, Math.max(0, buf.viewportY))
+    return { rows, total, maxY, y }
+  }
+
+  const sync = () => {
+    const { rows, total, maxY, y } = metrics()
+    const trackH = Math.max(1, rail.clientHeight)
+    const thumbH = Math.max(28, Math.round((rows / total) * trackH))
+    const travel = Math.max(0, trackH - thumbH)
+    const top = maxY === 0 ? 0 : Math.round((y / maxY) * travel)
+    thumb.style.height = `${thumbH}px`
+    thumb.style.transform = `translateY(${top}px)`
+    // 不满一屏：不显示滑块，也不让它吃指针事件。
+    rail.classList.toggle('is-idle', maxY === 0)
+    thumb.style.opacity = maxY === 0 ? '0' : '1'
+  }
+
+  // 滑动时淡入，停手 900ms 后淡出。拖拽中不淡出。
+  let fadeTimer = 0
+  const sleepNow = () => {
+    if (fadeTimer) window.clearTimeout(fadeTimer)
+    fadeTimer = 0
+    if (!dragging && !hotspot.matches(':hover') && !rail.matches(':hover')) {
+      rail.classList.remove('is-active')
+    }
+  }
+  const wake = () => {
+    rail.classList.add('is-active')
+    if (fadeTimer) window.clearTimeout(fadeTimer)
+    fadeTimer = window.setTimeout(sleepNow, 900)
+  }
+  // 鼠标移出滑轨时，如果已经过了活跃期就立刻收起来，不用等 900ms。
+  rail.addEventListener('pointerleave', () => {
+    if (!dragging && fadeTimer === 0) rail.classList.remove('is-active')
+  })
+  rail.addEventListener('pointerenter', () => {
+    if (fadeTimer) window.clearTimeout(fadeTimer)
+    fadeTimer = 0
+    rail.classList.add('is-active')
+  })
+
+  let dragging = false
+  let startY = 0
+  let startViewport = 0
+
+  const onPointerDown = (event: PointerEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const { maxY, y } = metrics()
+    if (event.target !== thumb) {
+      if (maxY === 0) return
+      const rect = rail.getBoundingClientRect()
+      const ratio = (event.clientY - rect.top) / Math.max(1, rect.height)
+      term.scrollToLine(Math.round(ratio * maxY))
+      return
+    }
+    dragging = true
+    startY = event.clientY
+    startViewport = y
+    rail.classList.add('is-dragging')
+    wake()
+    thumb.setPointerCapture(event.pointerId)
+  }
+  const onPointerMove = (event: PointerEvent) => {
+    if (!dragging) return
+    wake()
+    const { rows, total, maxY } = metrics()
+    if (maxY === 0) return
+    const trackH = Math.max(1, rail.clientHeight)
+    const thumbH = Math.max(28, Math.round((rows / total) * trackH))
+    const travel = Math.max(1, trackH - thumbH)
+    const next = startViewport + ((event.clientY - startY) / travel) * maxY
+    term.scrollToLine(Math.max(0, Math.min(maxY, Math.round(next))))
+  }
+  const onPointerUp = (event: PointerEvent) => {
+    dragging = false
+    rail.classList.remove('is-dragging')
+    try {
+      thumb.releasePointerCapture(event.pointerId)
+    } catch {
+      // 可能没捕获过。
+    }
+    wake()
+  }
+  // 滚轮绑在整个 pane 上，不只是那条 4px 宽的滑轨。
+  // 背景：canvas 渲染下 .xterm-viewport 的原生滚动不可靠（实测 clientHeight
+  // === scrollHeight，maxScroll 恒为 0），滚动必须走 xterm 的 scrollLines。
+  // xterm 的 onWheel 只认 viewport 能滚的场景，这里自己接管。
+  const onWheel = (event: WheelEvent) => {
+    // 必须双向堵死，否则滚到头会把滚动"传染"给外层编辑器：
+    // preventDefault 挡浏览器默认滚动，stopPropagation 挡冒泡到祖先监听。
+    event.preventDefault()
+    event.stopPropagation()
+    const { maxY } = metrics()
+    if (maxY === 0) return
+    wake()
+    const lines =
+      event.deltaMode === 1
+        ? Math.round(event.deltaY)
+        : event.deltaMode === 2
+          ? Math.round(event.deltaY) * term.rows
+          : Math.round(event.deltaY / 18)
+    const step = Math.max(1, Math.min(12, Math.abs(lines) || 1))
+    term.scrollLines(step * (event.deltaY > 0 ? 1 : -1))
+  }
+
+  rail.addEventListener('pointerdown', onPointerDown)
+  rail.addEventListener('pointermove', onPointerMove)
+  rail.addEventListener('pointerup', onPointerUp)
+  rail.addEventListener('pointercancel', onPointerUp)
+  // capture 阶段抢在 xterm 自己的 wheel 处理之前，passive:false 才能 preventDefault。
+  pane.addEventListener('wheel', onWheel, { passive: false, capture: true })
+
+  // 只在事件到来时同步，不要开常驻 rAF：常驻循环会和 xterm 自己的刷新抢帧，
+  // 还会在布局未落定时读 rail.clientHeight（读到 0，thumb 高度塌成最小值）。
+  // scrollToLine / scrollLines 只改 buffer，不一定触发 viewport 原生 scroll 事件，
+  // 所以要额外盯 onScroll，那是 buffer 层滚动位置变化时必发的。
+  const subs = [
+    term.onScroll(() => sync()),
+    term.onRender(() => sync()),
+    term.onResize(() => sync()),
+  ]
+  requestAnimationFrame(sync)
+
+  return () => {
+    if (fadeTimer) window.clearTimeout(fadeTimer)
+    pane.removeEventListener('wheel', onWheel, { capture: true } as EventListenerOptions)
+    hotspot.removeEventListener('pointerenter', onHotEnter)
+    hotspot.removeEventListener('pointerleave', onHotLeave)
+    for (const sub of subs) sub.dispose()
+    rail.remove()
+    hotspot.remove()
+  }
+}
+
 function buryAuxiliaryNodes(root: HTMLElement) {
   for (const node of root.querySelectorAll(MEASURE_SELECTORS)) {
     const s = (node as HTMLElement).style
@@ -96,29 +294,138 @@ function buryAuxiliaryNodes(root: HTMLElement) {
   }
 }
 
-const STYLE_ID = 'pt-xterm-style-v1'
+const STYLE_ID = 'pt-xterm-style-v5'
 const STYLE_CSS = `
-.pt-pane .xterm { padding: 0 !important; height: 100%; }
-.pt-pane .xterm-viewport { background: transparent !important; }
+.pt-card{
+  display:flex;flex-direction:column;overflow:hidden;
+  border:1px solid color-mix(in srgb, var(--dsw-border, rgba(242,241,237,0.12)) 80%, #000);
+  border-radius:12px;background:#191919;
+  box-shadow:0 1px 2px rgba(15,15,15,.08), 0 8px 24px rgba(0,0,0,.12);
+}
+.pt-head{
+  display:flex;align-items:center;gap:8px;flex:none;height:34px;padding:0 10px 0 12px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  background:#141414;color:rgba(242,241,237,.5);
+  font:12px/1 ui-sans-serif,system-ui,sans-serif;user-select:none;
+}
+.pt-title{color:rgba(242,241,237,.78);font-weight:600;letter-spacing:-.01em}
+.pt-history{border-bottom:1px solid rgba(255,255,255,.06);background:#161616}
+.pt-mount{position:absolute;inset:0;overflow:hidden;box-sizing:border-box;overscroll-behavior:contain}
+.pt-mount .xterm{
+  width:100%;height:100%;
+  padding:9px 8px 5px 10px;
+  overflow:hidden;box-sizing:border-box;
+}
+/* 兜底：下面这两块本来由 xterm.css 提供。esbuild 把 xterm.css 的注入包在
+   if(!document.getElementById("store-css-<路径哈希>")) 里，只要 head 里残留过
+   一个同 id 的空 <style>，整段 CSS 就再也不会注入 —— 实测表现为 .xterm 退化成
+   position:static，.xterm-viewport 跟着变 static 被 .xterm-scroll-area 撑满，
+   clientHeight === scrollHeight，滚动范围恒为 0：内容一多就"溢出但滑不动"。
+   这里显式钉死，不依赖那段注入。pt-xterm-style-vN 每次覆盖，不会被残留标签挡住。 */
+.pt-pane .xterm{
+  position:relative !important;
+}
+.pt-pane .xterm .xterm-viewport{
+  position:absolute !important;
+  top:0 !important;right:0 !important;bottom:0 !important;left:0 !important;
+  cursor:default;
+}
 .pt-pane .xterm-screen { background: transparent !important; }
 .pt-pane canvas { background: transparent !important; }
-
-/* 无需滚动时把滚动条彻底藏掉 */
-.pt-pane .scrollbar.invisible { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
-.pt-pane .scrollbar.invisible > .slider { opacity: 0 !important; height: 0 !important; background: transparent !important; }
-
-/* xterm 自绘滚动条：细条 + 圆角 + 半透明 */
-.pt-pane .scrollbar { width: 12px !important; min-width: 12px !important; max-width: 12px !important; }
-.pt-pane .scrollbar > .slider {
-  width: 8px !important; min-width: 8px !important; max-width: 8px !important;
-  left: 2px !important; right: auto !important;
-  border-radius: 999px !important;
-  background: color-mix(in srgb, var(--dsw-label-3, rgba(242,241,237,0.45)) 55%, transparent) !important;
-  border: 0 !important;
+.pt-pane .xterm-helper-textarea{
+  position:absolute !important;top:0;left:-9999em;z-index:-5;
+  width:0;height:0;margin:0 !important;padding:0 !important;
+  overflow:hidden;resize:none;border:0 !important;outline:0 !important;
+  opacity:0 !important;background:transparent !important;
 }
-.pt-pane .scrollbar > .slider:hover,
-.pt-pane .scrollbar > .slider.active {
-  background: color-mix(in srgb, var(--dsw-label-2, rgba(242,241,237,0.72)) 70%, transparent) !important;
+.pt-pane .xterm-char-measure-element,
+.pt-pane .xterm-width-cache-measure-container{
+  position:absolute !important;top:0 !important;left:-9999em !important;
+  visibility:hidden !important;opacity:0 !important;pointer-events:none !important;
+}
+
+/* xterm 的 canvas（.xterm-screen）盖在 viewport 上面，原生滚动条看不见。
+   滚轮仍走 viewport；可见滑块用右侧自定义轨道，z-index 盖过 canvas。 */
+.pt-pane .xterm-viewport {
+  overflow-y: auto !important;
+  background: transparent !important;
+  scrollbar-width: none;
+  /* 别把滚动链传给外层编辑器。 */
+  overscroll-behavior: contain;
+}
+.pt-pane .xterm-viewport::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+
+/* 覆盖式浮动滑块，仿 macOS：
+   - 平时整条不可见（opacity:0），也不吃指针事件，不挡终端选区/点击
+   - 滑动时淡入，停手 ~900ms 后淡出
+   - 轨道容器始终可见性透明，只用来定位和接事件，不画背景槽
+   注意：不要用 display:none 切换，否则 pointerdown 拖拽期间会丢事件、
+   也会让 rail.clientHeight 变 0 导致 thumb 高度算错。 */
+.pt-scroll-rail {
+  position: absolute;
+  top: 4px;
+  right: 3px;
+  bottom: 4px;
+  width: 6px;
+  z-index: 12;
+  border-radius: 999px;
+  background: transparent;
+  opacity: 0;
+  transition: opacity .18s ease-out;
+  pointer-events: none;
+  /* 自身滚动不要传染给页面 */
+  overscroll-behavior: contain;
+}
+/* 滚动中 / 拖拽：淡入并接管指针事件。
+   注意别写 .pt-scroll-rail:hover —— 隐藏时 pointer-events:none，hover 永不成立，
+   那条规则是死代码。改用 pane 右侧的感应带来触发（见下）。 */
+.pt-scroll-rail.is-active,
+.pt-scroll-rail.is-dragging,
+.pt-pane.is-rail-hot .pt-scroll-rail {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* pane 右缘 16px 宽的透明感应带：鼠标靠近才让滑轨显形。 */
+.pt-rail-hotspot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  z-index: 11;
+  pointer-events: auto;
+}
+/* 内容不满一屏：彻底不出现、不占事件（thumb 由 JS 隐藏）。 */
+.pt-scroll-rail.is-idle {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.pt-scroll-thumb {
+  position: absolute;
+  left: 1px;
+  width: 4px;
+  border-radius: 999px;
+  background: rgba(242,241,237,0.34);
+  cursor: pointer;
+  transition: background .12s ease-out;
+}
+.pt-scroll-rail:hover .pt-scroll-thumb {
+  background: rgba(242,241,237,0.5);
+}
+.pt-scroll-rail.is-dragging .pt-scroll-thumb {
+  background: rgba(242,241,237,0.72);
+}
+
+.pt-history-out {
+  display: block !important;
+  margin: 2px 0 0 !important;
+  padding: 0 0 0 14px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: rgba(242,241,237,0.48) !important;
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  font: inherit !important;
 }
 `
 
@@ -161,7 +468,9 @@ const THEME = {
   brightWhite: '#f0efed',
 }
 
-/** 单个终端面：一个块 = 一个 PTY。 */
+/** 单个终端面：一个块 = 一个 PTY。
+   布局按 5456764d 的最终版：外层 contain:strict + 内层 inset:0；
+   padding 打在 .xterm 上让 FitAddon 扣掉；未可见不 open。不要对缓冲区做 clear。 */
 function TerminalSurface({
   height,
   history,
@@ -178,108 +487,45 @@ function TerminalSurface({
   fill?: boolean
 }) {
   useTerminalStyle()
-  const host = useRef<HTMLDivElement | null>(null)
+  const pane = useRef<HTMLDivElement | null>(null)
+  const mount = useRef<HTMLDivElement | null>(null)
+  const instance = useRef<Terminal | null>(null)
 
-  useEffect(() => {
-    const element = host.current
-    if (!element) return
+  useLayoutEffect(() => {
+    const paneEl = pane.current
+    const element = mount.current
+    if (!paneEl || !element) return
 
-    const term = new Terminal({
-      fontFamily: '"SF Mono", Menlo, Monaco, Consolas, monospace',
-      fontSize: 12,
-      lineHeight: 1.2,
-      cursorBlink: true,
-      cursorStyle: 'block',
-      allowTransparency: true,
-      scrollback: 2000,
-      theme: THEME,
-    })
-    const fit = new FitAddon()
-    term.loadAddon(fit)
-    term.open(element)
-
-    buryAuxiliaryNodes(element)
-    const observer = new MutationObserver(() => buryAuxiliaryNodes(element))
-    observer.observe(element, { childList: true, subtree: true })
-
-    const fitted = () => {
-      try {
-        fit.fit()
-        return true
-      } catch {
-        return false
-      }
-    }
-    fitted()
-
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+    let disposed = false
+    let frame = 0
+    let secondFrame = 0
+    let term: Terminal | null = null
+    let fit: FitAddon | null = null
     let socket: WebSocket | undefined
-    let raf = 0
-    // 连接延后到布局稳定，避免用错误尺寸启动 shell。
-    raf = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        fitted()
-        socket = new WebSocket(
-          `${protocol}//${location.host}/ws/page-terminal` +
-            `?cols=${term.cols}&rows=${term.rows}&session=${encodeURIComponent(sessionKey)}`,
-        )
-        socket.binaryType = 'arraybuffer'
-        socket.addEventListener('open', () => {
-          const sync = () =>
-            socket?.readyState === WebSocket.OPEN &&
-            socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
-          sync()
-          window.setTimeout(sync, 60)
-          window.setTimeout(sync, 220)
-        })
-        // 纯直通：文本或二进制帧都解码后再交给 xterm。Chrome 上 PTY 常走 binary。
-        socket.addEventListener('message', (event) => {
-          decodePtyChunk(event.data, (chunk) => {
-            if (!chunk) return
-            term.write(chunk)
-            recordOutput(chunk)
-          })
-        })
-        socket.addEventListener('close', (event) => {
-          if (event.code === 1000) return
-          const why = event.reason?.trim() || `code ${event.code}`
-          term.write(`\r\n\x1b[31m终端未能启动：${why}\x1b[0m\r\n`)
-        })
-      })
-    })
-
-    // ---- 历史记录采集 ----------------------------------------------------
-    // 思路：累积用户按键，遇到回车就认为一条命令输入完毕；
-    // 该命令之后的 PTY 输出先缓存起来，等"输出安静"后取前几行，写回块数据。
-    //
-    // 之所以用 onData（用户输入）而不是解析回显：onData 给的是纯按键，
-    // 不受 shell 提示符格式影响，简单可靠。
-    const historyRef = [...history]
-    let pendingLine = ''            // 当前正在输入的一行
-    let capturing = false           // 是否正在为「上一条命令」收集输出
-    let outBuffer = ''              // 缓存的输出
+    let detachScroll = () => {}
+    let buryObs: MutationObserver | undefined
+    let dataSub: { dispose(): void } | undefined
+    let resizeSub: { dispose(): void } | undefined
     let outTimer: number | undefined
 
+    const historyRef = [...history]
+    let pendingLine = ''
+    let capturing = false
+    let outBuffer = ''
+
     const stripAnsi = (text: string) =>
-      // 去掉 ANSI 转义、回车覆盖、退格等控制符，只留可读文本
       text
         .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
         .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
         .replace(/\x1b[()][0-9A-Za-z]/g, '')
         .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '')
 
-    // 判断一行是否是 shell 提示符（或提示符擦行残渣）。
-    // 提示符没有统一格式，这里用几个常见特征做启发式判断。
     const isPromptLike = (line: string) => {
       const text = line.trim()
       if (!text) return false
-      // 擦行残渣：整行几乎都是 % 或空格
       if (/^[%\s]+$/.test(text)) return true
-      // 常见的 user@host 提示符
       if (/^\S*@\S*\s*[:~\/.]/.test(text)) return true
-      // 以 (env) user@host 开头
       if (/^\([^)]*\)\s*\S*@\S*/.test(text)) return true
-      // 结尾是 % / $ / # 且含有 @ 或路径
       if (/[@~\/]/.test(text) && /[%$#]\s*$/.test(text)) return true
       return false
     }
@@ -294,8 +540,6 @@ function TerminalSurface({
       const clean = stripAnsi(outBuffer)
         .split('\n')
         .map((line) => line.replace(/\s+$/, ''))
-        // shell 在命令跑完后会立刻画出下一条提示符（含擦行序列残渣），
-        // 那些属于"下一条"，从尾部砍掉，避免污染这条命令的输出。
         .filter((line) => !isPromptLike(line))
         .filter((line, index, all) => !(index === all.length - 1 && line === ''))
       outBuffer = ''
@@ -310,7 +554,6 @@ function TerminalSurface({
     const recordOutput = (chunk: string) => {
       if (!capturing) return
       outBuffer += chunk
-      // 输出一直在动就继续等，安静下来才算这条命令跑完。
       if (outTimer) window.clearTimeout(outTimer)
       outTimer = window.setTimeout(flushHistory, OUTPUT_SETTLE_MS)
     }
@@ -333,69 +576,176 @@ function TerminalSurface({
           continue
         }
         if (ch === '\x03' || ch === '\x04' || ch === '\x1b') {
-          // Ctrl-C / Ctrl-D / ESC：放弃当前行
           pendingLine = ''
           continue
         }
         if (ch >= ' ') pendingLine += ch
       }
     }
-    // ---------------------------------------------------------------------
 
-    const dataSub = term.onData((data) => {
-      recordInput(data)
-      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input', data }))
-    })
-    // xterm 列数一变就同步给 PTY，保证 shell 的擦行宽度和显示宽度一致。
-    const resizeSub = term.onResize(({ cols, rows }) => {
-      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'resize', cols, rows }))
-    })
+    const isVisible = () => {
+      if (disposed || !element.isConnected) return false
+      const bounds = element.getBoundingClientRect()
+      if (bounds.width < 20 || bounds.height < 20) return false
+      const style = window.getComputedStyle(element)
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.contentVisibility !== 'hidden'
+    }
 
-    const resizeObs = new ResizeObserver(() => {
+    const send = (message: Record<string, unknown>) => {
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message))
+    }
+
+    const openVisibleTerminal = () => {
+      if (!isVisible()) return
+      if (!term) {
+        term = new Terminal({
+          allowProposedApi: false,
+          convertEol: false,
+          fontFamily: '"SF Mono", Menlo, Monaco, Consolas, monospace',
+          fontSize: 12,
+          lineHeight: 1.18,
+          cursorBlink: true,
+          cursorStyle: 'block',
+          allowTransparency: true,
+          scrollback: 2000,
+          theme: THEME,
+        })
+        fit = new FitAddon()
+        term.loadAddon(fit)
+        term.open(element)
+        instance.current = term
+        if (!term.element || !term.textarea) {
+          instance.current = null
+          term.dispose()
+          term = null
+          fit = null
+          return
+        }
+        term.textarea.setAttribute('aria-label', '页面终端输入')
+        term.textarea.setAttribute('autocomplete', 'off')
+        Object.assign(term.element.style, {
+          width: '100%',
+          height: '100%',
+          padding: '9px 8px 5px 10px',
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+        })
+        buryAuxiliaryNodes(element)
+        buryObs = new MutationObserver(() => buryAuxiliaryNodes(element))
+        buryObs.observe(element, { childList: true, subtree: true })
+        detachScroll = attachScrollRail(term, paneEl)
+        try {
+          if (!fitToVisibleBox(term, element)) fit.fit()
+          term.scrollToBottom()
+        } catch {
+          // 字体度量还没好，下一帧再 fit。
+        }
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+        socket = new WebSocket(
+          `${protocol}//${location.host}/ws/page-terminal` +
+            `?cols=${term.cols}&rows=${term.rows}&session=${encodeURIComponent(sessionKey)}`,
+        )
+        socket.binaryType = 'arraybuffer'
+        socket.addEventListener('open', () => {
+          if (disposed || !term) return
+          scheduleFit()
+          send({ type: 'resize', cols: term.cols, rows: term.rows })
+        })
+        socket.addEventListener('message', (event) => {
+          decodePtyChunk(event.data, (chunk) => {
+            if (!chunk || disposed || !term) return
+            term.write(chunk)
+            recordOutput(chunk)
+          })
+        })
+        socket.addEventListener('close', (event) => {
+          if (disposed || event.code === 1000 || !term) return
+          const why = event.reason?.trim() || `code ${event.code}`
+          term.write(`\r\n\x1b[31m终端未能启动：${why}\x1b[0m\r\n`)
+        })
+        dataSub = term.onData((data) => {
+          recordInput(data)
+          send({ type: 'input', data })
+        })
+        resizeSub = term.onResize(({ cols, rows }) => send({ type: 'resize', cols, rows }))
+      }
       try {
-        fit.fit()
+        if (!term || !fit) return
+        if (!fitToVisibleBox(term, element)) fit.fit()
+        term.refresh(0, term.rows - 1)
       } catch {
-        return
+        // Ignore transient zero-size layouts while the page is switching.
       }
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
-      }
-    })
+    }
+
+    const scheduleFit = () => {
+      cancelAnimationFrame(frame)
+      cancelAnimationFrame(secondFrame)
+      frame = requestAnimationFrame(() => {
+        openVisibleTerminal()
+        secondFrame = requestAnimationFrame(openVisibleTerminal)
+      })
+    }
+
+    const resizeObs = new ResizeObserver(scheduleFit)
     resizeObs.observe(element)
+    const intersection = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(scheduleFit)
+    intersection?.observe(element)
+    document.addEventListener('visibilitychange', scheduleFit)
+    scheduleFit()
 
     return () => {
+      disposed = true
       if (outTimer) window.clearTimeout(outTimer)
-      cancelAnimationFrame(raf)
-      observer.disconnect()
+      cancelAnimationFrame(frame)
+      cancelAnimationFrame(secondFrame)
+      intersection?.disconnect()
+      document.removeEventListener('visibilitychange', scheduleFit)
       resizeObs.disconnect()
-      resizeSub.dispose()
-      dataSub.dispose()
+      buryObs?.disconnect()
+      detachScroll()
+      dataSub?.dispose()
+      resizeSub?.dispose()
       try {
         socket?.close()
       } catch {
         // 可能还没连上。
       }
-      term.dispose()
+      if (instance.current === term) instance.current = null
+      term?.dispose()
     }
   }, [])
 
   return (
     <div
-      ref={host}
+      ref={pane}
       className="pt-pane"
       onKeyDown={(event) => event.stopPropagation()}
+      onMouseDown={(event) => {
+        event.stopPropagation()
+        instance.current?.focus()
+      }}
+      onWheel={(event) => event.stopPropagation()}
       style={{
         position: 'relative',
+        display: 'block',
         width: '100%',
         height: fill ? undefined : height,
         flex: fill ? 1 : undefined,
+        minWidth: 0,
         minHeight: 0,
-        padding: '8px 10px',
+        padding: 0,
         boxSizing: 'border-box',
         overflow: 'hidden',
         background: '#191919',
+        // 不能用 contain:strict：它会让 .xterm-viewport 的 offsetParent 变 null，
+        // xterm 的 _handleScroll 里 `if (!viewportElement.offsetParent) return`
+        // 会直接吞掉滚动事件，buffer.viewportY 再也不更新 → 内容一多就「溢出但滚不动」。
+        contain: 'layout paint',
       }}
-    />
+    >
+      <div ref={mount} className="pt-mount" />
+    </div>
   )
 }
 
@@ -440,12 +790,7 @@ function HistoryPanel({
     : ''
 
   return (
-    <div
-      style={{
-        borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-        background: 'color-mix(in srgb, var(--dsw-bg, #191919) 70%, transparent)',
-      }}
-    >
+    <div className="pt-history">
       <div
         style={{
           display: 'flex',
@@ -453,7 +798,7 @@ function HistoryPanel({
           gap: 8,
           height: 26,
           padding: '0 10px',
-          color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
+          color: 'rgba(242,241,237,0.45)',
           font: '11px ui-sans-serif, system-ui, sans-serif',
           userSelect: 'none',
         }}
@@ -500,16 +845,30 @@ function HistoryPanel({
           <button
             type="button"
             onClick={onClear}
+            aria-label="清空"
+            title="清空"
             style={{
+              flex: '0 0 auto',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 22,
+              height: 22,
               border: 0,
               padding: 0,
+              borderRadius: 5,
               background: 'transparent',
               color: 'inherit',
-              font: 'inherit',
               cursor: 'pointer',
             }}
           >
-            清空
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 14.5h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.71l.275 5.5a.75.75 0 0 1-1.494.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.494-.075l.275-5.5a.75.75 0 0 1 .787-.71Z"
+              />
+            </svg>
           </button>
         ) : null}
       </div>
@@ -522,7 +881,7 @@ function HistoryPanel({
             fontFamily: mono,
             fontSize: 12,
             lineHeight: 1.45,
-            color: 'var(--dsw-label-2, rgba(242,241,237,0.72))',
+            color: 'rgba(242,241,237,0.82)',
           }}
         >
           {history.map((entry, index) => (
@@ -532,18 +891,19 @@ function HistoryPanel({
                 <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{entry.cmd}</span>
               </div>
               {entry.out ? (
-                <pre
+                <div
+                  className="pt-history-out"
                   style={{
                     margin: '2px 0 0',
                     paddingLeft: 14,
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-all',
-                    color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
+                    color: 'rgba(242,241,237,0.48)',
                     font: 'inherit',
                   }}
                 >
                   {entry.out}
-                </pre>
+                </div>
               ) : null}
             </div>
           ))}
@@ -877,16 +1237,7 @@ function PageTerminal({
   const height = typeof data.height === 'number' && data.height > 0 ? Math.min(900, data.height) : DEFAULTS.height
 
   // 历史存在块数据里，agent 读页面 markdown 即可看到用户跑过什么。
-  const history: HistoryEntry[] = Array.isArray(data.history)
-    ? (data.history as unknown[])
-        .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-        .map((item) => ({
-          cmd: String(item.cmd ?? ''),
-          at: Number(item.at) || 0,
-          ...(typeof item.out === 'string' && item.out ? { out: item.out } : {}),
-        }))
-        .filter((item) => item.cmd)
-    : []
+  const history: HistoryEntry[] = parseHistory(data.history)
 
   const body = (
     <section
@@ -894,9 +1245,8 @@ function PageTerminal({
         zoom.slotRef.current = el
       }}
       data-testid="page-terminal"
+      className="pt-card"
       style={{
-        display: 'flex',
-        flexDirection: 'column',
         ...(zoom.zoomed
           ? {
               position: 'fixed',
@@ -904,29 +1254,14 @@ function PageTerminal({
               width: '100%',
               height: '100%',
               zIndex: 2147483647,
+              borderRadius: 0,
+              border: 'none',
             }
           : {}),
-        border: zoom.zoomed ? 'none' : '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-        borderRadius: zoom.zoomed ? 0 : 8,
-        overflow: 'hidden',
-        background: '#191919',
       }}
     >
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          height: 30,
-          padding: '0 8px 0 10px',
-          borderBottom: '1px solid var(--dsw-border, rgba(242,241,237,0.1))',
-          background: 'color-mix(in srgb, var(--dsw-label, #f0efed) 4%, transparent)',
-          color: 'var(--dsw-label-3, rgba(242,241,237,0.45))',
-          font: '11px ui-sans-serif, system-ui, sans-serif',
-          userSelect: 'none',
-        }}
-      >
-        <span style={{ flex: '0 0 auto', color: 'var(--dsw-label-2, rgba(242,241,237,0.72))' }}>终端</span>
+      <header className="pt-head">
+        <span className="pt-title">终端</span>
         <span style={{ flex: 1 }} />
         <div ref={settingsWrap} style={{ position: 'relative', flex: '0 0 auto' }}>
           <IconButton label="设置" active={settingsOpen} onClick={() => setSettingsOpen((v) => !v)}>

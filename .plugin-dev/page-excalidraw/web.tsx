@@ -39,7 +39,7 @@ type DrawApi = {
 }
 
 function emptyScene(): Scene {
-  return { elements: [], appState: { theme: 'dark' }, files: {} }
+  return { elements: [], appState: { theme: 'dark', showWelcomeScreen: false }, files: {} }
 }
 
 function withoutCollab(appState: unknown): Record<string, unknown> {
@@ -150,7 +150,7 @@ function cancelPending(host: Host) {
 function sceneData(scene: Scene) {
   return {
     elements: (scene.elements ?? []) as never,
-    appState: { ...withoutCollab(scene.appState), isLoading: false, collaborators: new Map() },
+    appState: { ...withoutCollab(scene.appState), isLoading: false, showWelcomeScreen: false, collaborators: new Map() },
     files: (scene.files ?? {}) as never,
   }
 }
@@ -162,9 +162,17 @@ function applyScene(host: Host, scene: Scene, etag: string) {
   host.lastScene = scene
   host.initialData = sceneData(scene)
   host.quietUntil = Date.now() + 1200
-  host.api = null
-  host.root?.unmount()
-  host.root = createRoot(host.el)
+  const data = host.initialData
+  if (host.api?.updateScene) {
+    host.api.updateScene({
+      elements: data.elements,
+      appState: withoutCollab(scene.appState),
+      captureUpdate: 'NEVER',
+    })
+    const files = scene.files && typeof scene.files === 'object' ? Object.values(scene.files) : []
+    if (files.length) host.api.addFiles?.(files)
+    return
+  }
   paintHost(host)
 }
 
@@ -184,6 +192,7 @@ if (typeof window !== 'undefined') {
     if (!name) return
     for (const [file, host] of hosts) {
       if (assetName(file) !== name && file !== name) continue
+      if (Date.now() < host.quietUntil) continue
       if (detail?.etag && (host.appliedEtag === detail.etag || host.etag === detail.etag)) continue
       cancelPending(host)
       void reloadHost(file)
@@ -229,7 +238,7 @@ function placeHost(host: Host, slot: HTMLElement | null) {
 function paintHost(host: Host) {
   if (!host.root || !host.initialData) return
   host.root.render(
-    <PersistentDraw key={host.etag} file={host.file} initialData={host.initialData} expanded={host.expanded} />,
+    <PersistentDraw file={host.file} initialData={host.initialData} expanded={host.expanded} />,
   )
 }
 
@@ -336,7 +345,11 @@ function PersistentDraw(props: {
         if (result.ok) {
           etagRef.current = result.etag
           const live = hosts.get(file)
-          if (live) live.etag = result.etag
+          if (live) {
+            live.etag = result.etag
+            live.appliedEtag = result.etag
+            live.quietUntil = Date.now() + 1200
+          }
           return
         }
         void reloadHost(file)
@@ -364,7 +377,7 @@ function PersistentDraw(props: {
       <Excalidraw
         theme="dark"
         initialData={props.initialData as never}
-        viewModeEnabled={!props.expanded}
+        viewModeEnabled={false}
         zenModeEnabled={!props.expanded}
         UIOptions={UI_OPTIONS as never}
         onChange={onChange as never}

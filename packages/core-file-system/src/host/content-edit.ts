@@ -1,6 +1,6 @@
 export const DEFAULT_VIEW_WINDOW = 80
 
-export type ContentCommand = 'view' | 'str_replace' | 'replace_lines' | 'insert' | 'write'
+export type ContentCommand = 'view' | 'str_replace' | 'replace_lines' | 'insert' | 'write' | 'find_replace'
 
 export function asContentText(value: unknown) {
   if (value == null) return ''
@@ -11,10 +11,19 @@ export function asContentText(value: unknown) {
 export function resolveContentCommand(args: Record<string, unknown>): ContentCommand {
   const raw = String(args.command ?? '').trim()
   if (raw) {
-    if (raw === 'view' || raw === 'str_replace' || raw === 'replace_lines' || raw === 'insert' || raw === 'write') return raw
+    if (
+      raw === 'view' ||
+      raw === 'str_replace' ||
+      raw === 'replace_lines' ||
+      raw === 'insert' ||
+      raw === 'write' ||
+      raw === 'find_replace'
+    ) {
+      return raw
+    }
     throw new Error(`unsupported command: ${raw}`)
   }
-  return args.value !== undefined ? 'write' : 'view'
+  return args.value !== undefined || args.from !== undefined ? 'write' : 'view'
 }
 
 export function numberLines(text: string) {
@@ -106,12 +115,12 @@ export function mutationLocus(
   args: Record<string, unknown>,
 ): ContentLocus | null {
   if (command === 'view') return null
-  if (command === 'str_replace') {
+  if (command === 'str_replace' || command === 'find_replace') {
     const oldStr = String(args.old_str ?? '')
     const added = typeof args.new_str === 'string' ? args.new_str : ''
-    const at = before.indexOf(oldStr)
+    const at = oldStr ? before.indexOf(oldStr) : -1
     if (at < 0) return withJumpText(next, { start_line: 1, end_line: 1 })
-    return locusFromRange(next, at, at + added.length)
+    return locusFromRange(next, at, at + Math.max(added.length, 1))
   }
   if (command === 'insert') {
     const start_line = Number(args.insert_line) + 1
@@ -139,6 +148,73 @@ export function strReplaceText(text: string, oldStr: unknown, newStr: unknown) {
   if (occurrences === 0) throw new Error('old_str not found')
   if (occurrences > 1) throw new Error(`old_str is not unique (${occurrences} matches)`)
   return text.replace(oldStr, nextNew)
+}
+
+/**
+ * Batch replace with optional regex and multi-match support.
+ * - all=false (default): behaves like str_replace, requires the old text to be unique.
+ * - all=true: replaces every occurrence, optionally capped by `count`.
+ * - regex=true: old_str is compiled as a global RegExp.
+ */
+export function findReplaceText(
+  text: string,
+  oldStr: unknown,
+  newStr: unknown,
+  options: { regex?: unknown; all?: unknown; count?: unknown } = {},
+): { text: string; replaced: number } {
+  if (typeof oldStr !== 'string' || !oldStr) throw new Error('old_str is required for find_replace')
+  const nextNew = typeof newStr === 'string' ? newStr : ''
+  const useRegex = options.regex === true
+  const all = options.all === true
+  const rawCount = options.count
+  const count = rawCount == null ? undefined : Number(rawCount)
+  if (count != null && (!Number.isInteger(count) || count < 1)) {
+    throw new Error('count must be a positive integer')
+  }
+
+  if (!useRegex) {
+    const occurrences = countOccurrences(text, oldStr)
+    if (occurrences === 0) throw new Error('old_str not found')
+    const limit = all ? (count == null ? occurrences : Math.min(count, occurrences)) : 1
+    if (!all && occurrences > 1) throw new Error(`old_str is not unique (${occurrences} matches); pass all=true to replace every match`)
+    let replaced = 0
+    let result = ''
+    let from = 0
+    for (let i = 0; i < limit; i += 1) {
+      const idx = text.indexOf(oldStr, from)
+      if (idx === -1) break
+      result += text.slice(from, idx) + nextNew
+      from = idx + oldStr.length
+      replaced += 1
+    }
+    result += text.slice(from)
+    return { text: result, replaced }
+  }
+
+  let pattern: RegExp
+  try {
+    pattern = new RegExp(oldStr, 'g')
+  } catch (error) {
+    throw new Error(`invalid regex: ${(error as Error).message}`)
+  }
+  const matches = [...text.matchAll(pattern)]
+  if (matches.length === 0) throw new Error('old_str not found')
+  if (!all && matches.length > 1) {
+    throw new Error(`old_str is not unique (${matches.length} matches); pass all=true to replace every match`)
+  }
+  const limit = all ? (count == null ? matches.length : Math.min(count, matches.length)) : 1
+  let replaced = 0
+  let result = ''
+  let from = 0
+  for (let i = 0; i < limit; i += 1) {
+    const match = matches[i]!
+    const idx = match.index ?? 0
+    result += text.slice(from, idx) + (match[0].replace(new RegExp(oldStr), nextNew))
+    from = idx + match[0].length
+    replaced += 1
+  }
+  result += text.slice(from)
+  return { text: result, replaced }
 }
 
 export function insertText(text: string, insertLine: unknown, newStr: unknown) {
@@ -179,6 +255,6 @@ function countOccurrences(haystack: string, needle: string) {
 }
 
 export function writeContentText(value: unknown) {
-  if (typeof value !== 'string') throw new Error('write needs string value')
+  if (typeof value !== 'string') throw new Error('write needs string value or from')
   return value
 }

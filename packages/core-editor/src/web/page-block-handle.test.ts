@@ -8,6 +8,7 @@ import {
   duplicateHandleBlock,
   handleBlockFromDom,
   handleRailLeft,
+  visibleHandleEl,
   insertParagraphAfter,
   insertParagraphBefore,
   resolveHandleBlock,
@@ -142,6 +143,18 @@ test('handleRailLeft is the same for indented list boxes and top-level paragraph
   assert.notEqual(paragraphBoxLeft - hostLeft - HANDLE_RAIL, listItemBoxLeft - hostLeft - HANDLE_RAIL)
   assert.equal(handleRailLeft(hostLeft, contentLeft), paragraphBoxLeft - hostLeft - HANDLE_RAIL)
   assert.notEqual(handleRailLeft(hostLeft, contentLeft), listItemBoxLeft - hostLeft - HANDLE_RAIL)
+})
+
+test('visibleHandleEl prefers the inner page-block, not the renderer shell', () => {
+  const outer = document.createElement('div')
+  outer.className = 'page-block react-renderer'
+  const inner = document.createElement('div')
+  inner.className = 'page-block'
+  inner.setAttribute('data-page-block', 'html')
+  outer.append(inner)
+  assert.equal(visibleHandleEl(outer), inner)
+  const para = document.createElement('p')
+  assert.equal(visibleHandleEl(para), para)
 })
 
 test('page block handle x uses the editor rail, not the node box', async () => {

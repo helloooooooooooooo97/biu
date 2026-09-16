@@ -4,11 +4,8 @@ import type { CollectionChrome } from '@biu/type-file-system/ui'
 import {
   AdjustmentsHorizontalIcon,
   ArrowDownTrayIcon,
-  ArrowsPointingInIcon,
-  ArrowsPointingOutIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  CubeTransparentIcon,
   HashtagIcon,
   MoonIcon,
   SunIcon,
@@ -31,7 +28,8 @@ import { applyShareQuery, loadShareQuery, saveShareQuery, shareQueryFromView, ty
 import { collectQueryFields } from '../query-logic.ts'
 import { ShareViewQueryBar } from './share-view-bar.tsx'
 import { ShareCell, ShareListTable } from './share-table.tsx'
-import { getPageWidth, persistPageWidth, subscribePageWidth } from './page-width.ts'
+import { getPagePrefs, subscribePageWidth } from './page-width.ts'
+import { LayoutPrefsMenu } from './layout-prefs-menu.tsx'
 import { PagerSizeControl } from './pager-size.tsx'
 import { normalizePageSize } from './saved-view.ts'
 
@@ -165,16 +163,18 @@ function SharePage({
   const [locked, setLocked] = useState(false)
   const [error, setError] = useState('')
   const [snapshot, setSnapshot] = useState<ShareSnapshot | null>(null)
-  const [resourcesOpen, setResourcesOpen] = useState(false)
+  const [downloadOpen, setDownloadOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [ownerOpen, setOwnerOpen] = useState(false)
   const [pluginsReady, setPluginsReady] = useState(false)
-  const [pageWidth, setPageWidth] = useState(getPageWidth)
+  const [pagePrefs, setPagePrefs] = useState(getPagePrefs)
+  const pageWidth = pagePrefs.wide ? 'full' : 'max'
   const [theme, setTheme] = useState(readShareTheme)
   const [reload, setReload] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
-  useEffect(() => subscribePageWidth(() => setPageWidth(getPageWidth())), [])
+  useEffect(() => subscribePageWidth(() => setPagePrefs(getPagePrefs())), [])
   const layoutRef = useRef<HTMLDivElement>(null)
+  const downloadRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let alive = true
@@ -337,6 +337,16 @@ function SharePage({
     downloadShareFile(zipMarkdownPack(files), 'share.zip')
   }
 
+  function downloadPluginZip(id: string) {
+    const href = `/api/share/${encodeURIComponent(token)}/plugin/${encodeURIComponent(id)}`
+    const link = document.createElement('a')
+    link.href = password ? `${href}?password=${encodeURIComponent(password)}` : href
+    link.download = `${id}.zip`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  }
+
   function openShareTarget(target: CrumbTarget) {
     if (target.kind === 'record') {
       navigate(sharePublicPath(token, target.recordId))
@@ -345,6 +355,9 @@ function SharePage({
     navigate(sharePublicPath(token))
   }
 
+  const canCopy = snapshot.allowCopy !== false
+  const pluginIds = snapshot.sharePlugins ? snapshot.pluginIds ?? [] : []
+  const canDownload = canCopy || pluginIds.length > 0
   const viewIndex = shown && snapshot.kind === 'view' ? listed.findIndex((row) => row.id === shown.id) : -1
   const viewNav = snapshot.kind === 'view' && listed.length > 1
   const tableLabel = snapshot.collectionLabel || snapshot.title
@@ -431,92 +444,64 @@ function SharePage({
             </button>
             {layoutOpen ? (
               <HeadlessDismiss onDismiss={() => setLayoutOpen(false)} insideRef={layoutRef}>
-                <div className="fsdb-layout-menu" role="menu" data-testid="fsdb-share-layout-menu">
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    className={`fsdb-layout-opt${pageWidth === 'max' ? ' is-active' : ''}`}
-                    title="最大宽度"
-                    aria-label="最大宽度"
-                    aria-checked={pageWidth === 'max'}
-                    data-testid="fsdb-share-layout-max"
-                    onClick={() => persistPageWidth('max')}
-                  >
-                    <ArrowsPointingInIcon aria-hidden className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    className={`fsdb-layout-opt${pageWidth === 'full' ? ' is-active' : ''}`}
-                    title="全宽"
-                    aria-label="全宽"
-                    aria-checked={pageWidth === 'full'}
-                    data-testid="fsdb-share-layout-full"
-                    onClick={() => persistPageWidth('full')}
-                  >
-                    <ArrowsPointingOutIcon aria-hidden className="size-4" />
-                  </button>
-                </div>
+                <LayoutPrefsMenu prefs={pagePrefs} testPrefix="fsdb-share-layout" />
               </HeadlessDismiss>
             ) : null}
           </div>
-          {snapshot.resources ? (
-            <div className="fsdb-share-res-wrap">
+          {canDownload ? (
+            <div className="fsdb-share-res-wrap" ref={downloadRef}>
               <button
                 type="button"
-                className="chat-view-header-expand"
-                title="关联资源"
-                aria-label="关联资源"
-                data-testid="fsdb-share-resources"
-                onClick={() => setResourcesOpen((open) => !open)}
+                className={`chat-view-header-expand${downloadOpen ? ' is-active' : ''}`}
+                title="下载"
+                aria-label="下载"
+                aria-haspopup="menu"
+                aria-expanded={downloadOpen}
+                data-testid="fsdb-share-download"
+                onClick={() => setDownloadOpen((open) => !open)}
               >
-                <CubeTransparentIcon aria-hidden className="size-4" />
+                <ArrowDownTrayIcon aria-hidden className="size-4" />
               </button>
-              {resourcesOpen ? (
-                <div className="fsdb-share-res-pop" data-testid="fsdb-share-resources-pop">
-                  <p>页面 {snapshot.resources.pages}</p>
-                  <p>插件 {snapshot.resources.plugins}</p>
-                  <p>合集 {snapshot.resources.collections}</p>
-                  {snapshot.sharePlugins && snapshot.pluginIds?.length ? (
-                    <ul className="fsdb-share-plugin-list">
-                      {snapshot.pluginIds.map((id) => (
-                        <li key={id}>
+              {downloadOpen ? (
+                <HeadlessDismiss onDismiss={() => setDownloadOpen(false)} insideRef={downloadRef}>
+                  <div className="fsdb-share-res-pop" role="menu" data-testid="fsdb-share-download-pop">
+                    {canCopy ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="fsdb-share-dl-item"
+                        data-testid="fsdb-share-download-pages"
+                        onClick={() => {
+                          downloadShare()
+                          setDownloadOpen(false)
+                        }}
+                      >
+                        {live.records.length === 1 ? '页面 Markdown' : '全部页面（zip）'}
+                      </button>
+                    ) : null}
+                    {pluginIds.length ? (
+                      <>
+                        {canCopy ? <p className="fsdb-share-dl-label">插件</p> : null}
+                        {pluginIds.map((id) => (
                           <button
+                            key={id}
                             type="button"
-                            className="fsdb-share-copy"
+                            role="menuitem"
+                            className="fsdb-share-dl-item"
                             onClick={() => {
-                              const href = `/api/share/${encodeURIComponent(token)}/plugin/${encodeURIComponent(id)}`
-                              const link = document.createElement('a')
-                              link.href = password
-                                ? `${href}?password=${encodeURIComponent(password)}`
-                                : href
-                              link.download = `${id}.zip`
-                              document.body.appendChild(link)
-                              link.click()
-                              link.remove()
+                              downloadPluginZip(id)
+                              setDownloadOpen(false)
                             }}
                           >
-                            下载 {id}
+                            {id}
                           </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
+                        ))}
+                      </>
+                    ) : null}
+                  </div>
+                </HeadlessDismiss>
               ) : null}
             </div>
-          ) : null}
-          {snapshot.allowCopy !== false ? (
-          <button
-            type="button"
-            className="chat-view-header-expand"
-            title="下载"
-            aria-label="下载"
-            data-testid="fsdb-share-download"
-            onClick={downloadShare}
-          >
-            <ArrowDownTrayIcon aria-hidden className="size-4" />
-          </button>
           ) : null}
           <button
             type="button"
@@ -588,10 +573,12 @@ function SharePage({
             const banner = rewriteBanner(snapshot.banner, token, password)
             return banner ? <PageBanner value={banner} writable={false} title={snapshot.title} /> : null
           })()}
-          <div className="fsdb-detail-title-row">
+          <div className="fsdb-detail-icon-slot">
             <span className="fsdb-detail-title-icon" aria-hidden>
-              <TableGlyph className="size-8" />
+              <TableGlyph className="size-16" />
             </span>
+          </div>
+          <div className="fsdb-detail-title-row">
             <div className="fsdb-detail-title-block">
               <h1 className="fsdb-detail-title">{snapshot.title}</h1>
             </div>

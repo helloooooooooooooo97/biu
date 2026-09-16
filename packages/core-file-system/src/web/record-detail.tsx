@@ -43,10 +43,10 @@ function DetailTitleIcon({
             <span className="fsdb-record-emoji">{emoji}</span>
           ) : Icon ? (
             <span className="fsdb-record-mark is-lg">
-              <Icon record={record} />
+              <Icon record={record} size={64} />
             </span>
           ) : (
-            <TableGlyph icon={tableIcon} className="size-8" />
+            <TableGlyph icon={tableIcon} className="size-16" />
           )}
         </span>
       </span>
@@ -75,10 +75,10 @@ function DetailTitleIcon({
           <span className="fsdb-record-emoji">{emoji}</span>
         ) : Icon ? (
           <span className="fsdb-record-mark is-lg">
-            <Icon record={record} />
+            <Icon record={record} size={64} />
           </span>
         ) : (
-          <TableGlyph icon={tableIcon} className="size-8" />
+          <TableGlyph icon={tableIcon} className="size-16" />
         )}
       </button>
       {open && anchor ? (
@@ -263,7 +263,7 @@ export function RecordDetail({
                     })
                   }}
                 />
-                <div className="fsdb-detail-title-row">
+                <div className="fsdb-detail-icon-slot">
                 <DetailTitleIcon
                   emoji={recordPreviewEmoji(selected)}
                   tableIcon={tableIcon}
@@ -277,6 +277,8 @@ export function RecordDetail({
                   }}
                   locked={readOnly}
                 />
+                </div>
+                <div className="fsdb-detail-title-row">
                 <div className="fsdb-detail-title-block">
                 {schema.labelField && schema.fields[schema.labelField]?.writable && !readOnly ? (
                   <h1 className="fsdb-detail-title">
@@ -284,7 +286,7 @@ export function RecordDetail({
                       as="textarea"
                       className="fsdb-detail-title-input"
                       value={draft[schema.labelField] ?? ''}
-                      rows={(draft[schema.labelField] ?? '').length > 48 ? 2 : 1}
+                      autoSize
                       onKeyDown={(event) => {
                         const el = event.currentTarget
                         if (!(el instanceof HTMLTextAreaElement)) return
