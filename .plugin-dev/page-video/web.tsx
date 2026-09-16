@@ -68,24 +68,34 @@ const STYLE_CSS = `
 .pv-pip .pv-media{position:absolute}
 .pv-image{transform:translate(-50%,-50%);object-fit:contain;filter:drop-shadow(0 6px 16px rgba(0,0,0,.2))}
 .pv-rail{
-  position:relative;height:34px;margin:0;background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 88%,transparent);
+  --pv-track-h:22px;
+  position:relative;margin:0;background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 88%,transparent);
   border-top:1px solid var(--pv-line);
-  cursor:pointer;
+  display:grid;grid-template-columns:52px minmax(0,1fr);overflow:hidden;
+}
+.pv-track-labels{border-right:1px solid var(--pv-line);background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 92%,#fff)}
+.pv-track-label{
+  height:var(--pv-track-h);box-sizing:border-box;padding:0 7px;display:flex;align-items:center;
+  border-bottom:1px solid color-mix(in srgb,var(--pv-line) 72%,transparent);
+  color:var(--pv-mute);font:9px/1 ui-sans-serif,system-ui,sans-serif;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+}
+.pv-lanes{position:relative;min-width:0;cursor:pointer;outline:none}
+.pv-lanes:before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--pv-track-h) - 1px),color-mix(in srgb,var(--pv-line) 72%,transparent) calc(var(--pv-track-h) - 1px),color-mix(in srgb,var(--pv-line) 72%,transparent) var(--pv-track-h)),
+    repeating-linear-gradient(90deg,transparent 0,transparent calc(10% - 1px),rgba(55,53,47,.055) calc(10% - 1px),rgba(55,53,47,.055) 10%);
 }
 .pv-clip{
-  position:absolute;top:8px;height:18px;border:1px solid var(--pv-line);border-radius:4px;
+  position:absolute;height:14px;border:1px solid var(--pv-line);border-radius:4px;
   font:10px/1 ui-sans-serif,system-ui,sans-serif;color:var(--pv-mute);
   padding:0 6px;display:flex;align-items:center;box-sizing:border-box;pointer-events:none;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
   background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 86%,#fff);
 }
-.pv-effect-dot{
-  position:absolute;top:3px;width:7px;height:7px;border-radius:50%;z-index:2;
-  box-sizing:border-box;transform:translateX(-50%);pointer-events:none;
-  background:#91918e;border:1px solid color-mix(in srgb,var(--dsw-bg,#fff) 90%,transparent);
-  box-shadow:0 0 0 1px rgba(55,53,47,.08);
-}
-.pv-embed .pv-effect-dot{display:none}
+.pv-clip[data-tone="effect"]{background:#e9eff5;border-color:#d8e2ec;color:#52677a}
+.pv-clip[data-tone="audio"]{background:#e9f1eb;border-color:#d8e6dc;color:#55705d}
 .pv-playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--pv-blue);pointer-events:none;z-index:3}
 .pv-playhead:before{content:"";position:absolute;left:-3px;top:0;width:7px;height:7px;border-radius:1px 1px 50% 50%;background:var(--pv-blue)}
 .pv-chrome{
@@ -103,12 +113,12 @@ const STYLE_CSS = `
 }
 .pv-icon:hover{background:var(--pv-hover);color:var(--pv-ink)}
 .pv-icon:active{background:color-mix(in srgb,var(--pv-ink) 10%,transparent);transform:scale(.96)}
-.pv-icon:focus-visible,.pv-rail:focus-visible{outline:2px solid rgba(35,131,226,.55);outline-offset:-2px}
+.pv-icon:focus-visible,.pv-lanes:focus-visible{outline:2px solid rgba(35,131,226,.55);outline-offset:-2px}
 .pv-studio{
   --studio-line:#e7e7e5;
   --studio-panel:#f7f7f5;
   position:fixed;inset:0;z-index:2147483646;
-  display:grid;grid-template-rows:48px minmax(0,1fr) 138px;
+  display:grid;grid-template-rows:48px minmax(0,1fr) minmax(138px,28vh);
   background:#f7f7f5;color:#37352f;
 }
 .pv-studio:fullscreen,.pv-studio:-webkit-full-screen{width:100%;height:100%}
@@ -172,18 +182,13 @@ const STYLE_CSS = `
 .pv-hint{color:#9b9a97;background:#fff}
 .pv-studio-foot{
   min-height:0;border-top:1px solid var(--studio-line);background:#fff;
-  display:grid;grid-template-rows:32px 1fr;
+  display:grid;grid-template-rows:32px 1fr;overflow:auto;
 }
 .pv-timeline-head{display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--studio-line);font-size:11px;color:#787774}
 .pv-timeline-head strong{color:#37352f;font-weight:600;margin-right:8px}
 .pv-duration{margin-left:auto;font-variant-numeric:tabular-nums}
-.pv-studio-foot .pv-rail{height:auto;border-top:0;margin:0 12px 12px;border-left:1px solid var(--studio-line);border-right:1px solid var(--studio-line);background:#fbfbfa}
-.pv-studio-foot .pv-rail:before{
-  content:"";position:absolute;inset:0;pointer-events:none;
-  background:repeating-linear-gradient(90deg,transparent 0,transparent calc(10% - 1px),rgba(55,53,47,.09) calc(10% - 1px),rgba(55,53,47,.09) 10%);
-}
-.pv-studio-foot .pv-clip{top:35px;height:28px;border-radius:5px;padding:0 8px;background:#f1f1ef;color:#5f5e5b}
-.pv-studio-foot .pv-effect-dot{top:18px;width:8px;height:8px}
+.pv-studio-foot .pv-rail{border-top:0;margin:0 12px 12px;border:1px solid var(--studio-line);background:#fbfbfa}
+.pv-studio-foot .pv-clip{height:16px;border-radius:4px;padding:0 8px}
 @media (max-width:720px){
   .pv-studio{grid-template-rows:48px minmax(0,1fr) 100px}
   .pv-studio-body{grid-template-columns:1fr}
@@ -563,63 +568,90 @@ function IconExpand() {
   )
 }
 
+type TimelineTrack = {
+  id: string
+  label: string
+  clips: Clip[]
+}
+
+const TRACK_ORDER: Clip['kind'][] = ['title', 'scene', 'media', 'zoom', 'text', 'caption', 'arrow', 'blur', 'cursor', 'pip', 'image', 'audio']
+
+function timelineTracks(clips: Clip[]): TimelineTrack[] {
+  const tracks: TimelineTrack[] = []
+  for (const kind of TRACK_ORDER) {
+    const sameKind = clips.filter((clip) => clip.kind === kind).sort((a, b) => a.start - b.start || a.duration - b.duration)
+    const lanes: Clip[][] = []
+    for (const clip of sameKind) {
+      const lane = lanes.find((items) => {
+        const previous = items[items.length - 1]
+        return !previous || previous.start + previous.duration <= clip.start
+      })
+      if (lane) lane.push(clip)
+      else lanes.push([clip])
+    }
+    lanes.forEach((items, index) => {
+      const suffix = lanes.length > 1 ? ` ${index + 1}` : ''
+      tracks.push({ id: `${kind}-${index}`, label: `${kind[0].toUpperCase()}${kind.slice(1)}${suffix}`, clips: items })
+    })
+  }
+  return tracks
+}
+
 function Timeline({ project, duration, time, onSeek }: { project: Project; duration: number; time: number; onSeek: (t: number) => void }) {
   const seekBy = (delta: number) => onSeek(Math.min(duration, Math.max(0, time + delta)))
+  const tracks = timelineTracks(project.clips)
+  const railHeight = `${Math.max(1, tracks.length) * 22}px`
   return (
-    <div
-      className="pv-rail"
-      data-testid="page-video-rail"
-      role="slider"
-      tabIndex={0}
-      aria-label="视频时间轴"
-      aria-valuemin={0}
-      aria-valuemax={duration}
-      aria-valuenow={Math.min(duration, time)}
-      aria-valuetext={`${fmtClock(time)} / ${fmtClock(duration)}`}
-      onClick={(event) => {
-        const rect = event.currentTarget.getBoundingClientRect()
-        const x = (event.clientX - rect.left) / Math.max(1, rect.width)
-        onSeek(Math.min(1, Math.max(0, x)) * duration)
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-          event.preventDefault()
-          event.stopPropagation()
-          const frame = 1 / Math.max(1, project.fps)
-          seekBy(event.key === 'ArrowLeft' ? -frame : frame)
-        } else if (event.key === 'Home' || event.key === 'End') {
-          event.preventDefault()
-          event.stopPropagation()
-          onSeek(event.key === 'Home' ? 0 : duration)
-        }
-      }}
-    >
-      {project.clips.map((clip) => (
-        <ClipBar key={clip.id} clip={clip} duration={duration} />
-      ))}
-      <div className="pv-playhead" style={{ left: `${(time / duration) * 100}%` }} />
+    <div className="pv-rail" data-testid="page-video-rail" style={{ height: railHeight }}>
+      <div className="pv-track-labels" aria-hidden>
+        {tracks.map((track) => <div className="pv-track-label" key={track.id} title={track.label}>{track.label}</div>)}
+      </div>
+      <div
+        className="pv-lanes"
+        role="slider"
+        tabIndex={0}
+        aria-label="视频时间轴"
+        aria-valuemin={0}
+        aria-valuemax={duration}
+        aria-valuenow={Math.min(duration, time)}
+        aria-valuetext={`${fmtClock(time)} / ${fmtClock(duration)}`}
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect()
+          const x = (event.clientX - rect.left) / Math.max(1, rect.width)
+          onSeek(Math.min(1, Math.max(0, x)) * duration)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+            event.preventDefault()
+            event.stopPropagation()
+            const frame = 1 / Math.max(1, project.fps)
+            seekBy(event.key === 'ArrowLeft' ? -frame : frame)
+          } else if (event.key === 'Home' || event.key === 'End') {
+            event.preventDefault()
+            event.stopPropagation()
+            onSeek(event.key === 'Home' ? 0 : duration)
+          }
+        }}
+      >
+        {tracks.flatMap((track, row) => track.clips.map((clip) => (
+          <ClipBar key={clip.id} clip={clip} duration={duration} row={row} />
+        )))}
+        <div className="pv-playhead" style={{ left: `${(time / duration) * 100}%` }} />
+      </div>
     </div>
   )
 }
 
-function ClipBar({ clip, duration }: { clip: Clip; duration: number }) {
-  const primary = clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media'
-  const left = `${(clip.start / duration) * 100}%`
-  if (!primary) {
-    return (
-      <i
-        className="pv-effect-dot"
-        title={`${clip.kind} · ${fmtClock(clip.start)}`}
-        style={{ left, background: clip.kind === 'zoom' ? 'var(--pv-blue)' : clip.kind === 'cursor' ? '#5f5e5b' : '#91918e' }}
-      />
-    )
-  }
+function ClipBar({ clip, duration, row }: { clip: Clip; duration: number; row: number }) {
+  const tone = clip.kind === 'audio' ? 'audio' : clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media' ? 'video' : 'effect'
   return (
     <div
       className="pv-clip"
-      title={clip.kind}
+      data-tone={tone}
+      title={`${clip.kind} · ${fmtClock(clip.start)}–${fmtClock(clip.start + clip.duration)}`}
       style={{
-        left,
+        left: `${(clip.start / duration) * 100}%`,
+        top: `${row * 22 + 4}px`,
         width: `${Math.max((clip.duration / duration) * 100, 2.4)}%`,
       }}
     >
