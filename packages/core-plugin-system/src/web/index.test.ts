@@ -333,6 +333,8 @@ test('page-video drafts the tag script locally like html source', async () => {
   assert.match(src, /--pv-danger:var\(--dsw-danger/)
   assert.match(src, /font-family:var\(--font-sans\)/)
   assert.match(src, /font-family:var\(--font-mono\)/)
+  assert.match(src, /className="pv-screen"[\s\S]*?inset: 0/)
+  assert.doesNotMatch(src, /const inset = `\$\{project\.padding\}%`/)
   assert.doesNotMatch(src, /\.pv-studio\{[\s\S]*?background:#f7f7f5/)
   assert.doesNotMatch(src, /className="pv-chrome"/)
   assert.doesNotMatch(src, /自然语言/)

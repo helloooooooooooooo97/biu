@@ -649,7 +649,6 @@ function Stage({ project, time, playing }: { project: Project; time: number; pla
   const zoomProgress = zoom ? Math.max(0, Math.min(1, (time - zoom.start) / zoom.duration)) : 0
   const motionBlur = zoom ? Math.sin(zoomProgress * Math.PI) * Math.min(4, (zoom.depth - 1) * 3) : 0
   const wallpaper = project.wallpaper ? `url("${assetUrl(project.wallpaper)}")` : undefined
-  const inset = `${project.padding}%`
   return (
     <div
       className="pv-stage"
@@ -664,7 +663,7 @@ function Stage({ project, time, playing }: { project: Project; time: number; pla
       <div
         className="pv-screen"
         style={{
-          inset,
+          inset: 0,
           borderRadius: project.radius,
           boxShadow: project.shadow ? `0 ${project.shadow / 3}px ${project.shadow}px rgba(15,15,15,.32)` : undefined,
           background: bg,
