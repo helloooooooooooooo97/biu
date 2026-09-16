@@ -3,6 +3,7 @@ import {
   annotationMotion,
   cameraAt,
   clipAlpha,
+  clipEnd,
   clipShift,
   clipsAt,
   compileSafe,
@@ -11,6 +12,7 @@ import {
   parseProject,
   projectDuration,
   SAMPLE_SCRIPT,
+  speedAt,
   type Clip,
   type Project,
 } from './compose.ts'
@@ -21,7 +23,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v4'
+const STYLE_ID = 'pv-style-v5'
 const STYLE_CSS = `
 .pv{
   --pv-ink: var(--dsw-label, #37352f);
@@ -46,12 +48,12 @@ const STYLE_CSS = `
 .pv-stage{
   position:relative;aspect-ratio:16/9;background:#191919;overflow:hidden;
 }
-.pv-screen{position:absolute;overflow:hidden;isolation:isolate}
-.pv-cam{position:absolute;inset:0;transform-origin:center center;will-change:transform}
+.pv-screen{position:absolute;overflow:hidden;isolation:isolate;perspective:1400px}
+.pv-cam{position:absolute;inset:0;transform-origin:center center;will-change:transform;transform-style:preserve-3d}
 .pv-layer{position:absolute;inset:0}
-.pv-frame{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:9% 10%;box-sizing:border-box}
-.pv-kicker{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;opacity:.55}
-.pv-title{font-size:clamp(22px,4.4vw,40px);font-weight:700;letter-spacing:-.03em;margin-top:6px;line-height:1.15}
+.pv-frame{position:absolute;inset:0;display:flex;flex-direction:column;padding:9% 10%;box-sizing:border-box}
+.pv-kicker{position:absolute;top:9%;left:10%;right:10%;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;opacity:.55}
+.pv-title{font-size:clamp(22px,4.4vw,40px);font-weight:700;letter-spacing:-.03em;line-height:1.15;width:100%}
 .pv-caption{
   position:absolute;left:8%;right:8%;bottom:10%;z-index:3;
   text-align:center;font-size:clamp(14px,2.1vw,20px);font-weight:600;
@@ -59,9 +61,15 @@ const STYLE_CSS = `
 }
 .pv-media{position:absolute;inset:0;width:100%;height:100%;background:#111}
 .pv-effect{position:absolute;z-index:5;pointer-events:none;box-sizing:border-box}
-.pv-text{transform:translate(-50%,-50%);white-space:pre-wrap;max-width:80%;line-height:1.18;text-align:center;font-weight:700;text-shadow:0 2px 12px rgba(0,0,0,.3)}
+.pv-text{white-space:pre-wrap;line-height:1.2;box-sizing:border-box;text-shadow:0 2px 12px rgba(0,0,0,.3)}
 .pv-arrow{overflow:visible}
-.pv-blur{transform:translate(-50%,-50%);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06)}
+.pv-blur{transform:translate(-50%,-50%);border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06)}
+.pv-mosaic{image-rendering:pixelated;background:repeating-conic-gradient(#c8c8c8 0% 25%,#8a8a8a 0% 50%) 0 0/12px 12px}
+.pv-box{transform:translate(-50%,-50%);border:2px solid currentColor;background:color-mix(in srgb,currentColor 12%,transparent)}
+.pv-spotlight{transform:translate(-50%,-50%);box-shadow:0 0 0 200vmax rgba(0,0,0,.55)}
+.pv-stamp{display:flex;transform:translate(-50%,-50%);border-radius:999px;font-weight:700;letter-spacing:.02em}
+.pv-trim{position:absolute;inset:0;z-index:6;pointer-events:none}
+.pv-trim i{display:block;background:#050505}
 .pv-cursor{transform:translate(-8%,-8%);filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));transform-origin:8% 8%}
 .pv-click{position:absolute;left:0;top:0;width:100%;height:100%;border:2px solid currentColor;border-radius:50%;transform:scale(1.7);opacity:.75}
 .pv-pip{transform:translate(-50%,-50%);overflow:hidden;border:2px solid rgba(255,255,255,.9);box-shadow:0 8px 28px rgba(0,0,0,.24);background:#111}
@@ -124,10 +132,16 @@ const STYLE_CSS = `
 .pv-studio{
   --studio-line:#e7e7e5;
   --studio-panel:#f7f7f5;
+  --script-w:420px;
+  --foot-h:208px;
   position:fixed;inset:0;z-index:2147483646;
-  display:grid;grid-template-rows:48px minmax(0,1fr) minmax(138px,28vh);
+  display:grid;grid-template-rows:48px minmax(0,1fr) 6px var(--foot-h);
   background:#f7f7f5;color:#37352f;
 }
+.pv-studio[data-resize="col"]{cursor:col-resize}
+.pv-studio[data-resize="col"] *{cursor:col-resize !important;user-select:none}
+.pv-studio[data-resize="row"]{cursor:row-resize}
+.pv-studio[data-resize="row"] *{cursor:row-resize !important;user-select:none}
 .pv-studio:fullscreen,.pv-studio:-webkit-full-screen{width:100%;height:100%}
 .pv-studio-bar{
   position:relative;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
@@ -142,22 +156,32 @@ const STYLE_CSS = `
 .pv-timecode{min-width:96px;text-align:center;color:#5f5e5b;font:11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
 .pv-live{display:flex;align-items:center;gap:6px;color:#787774;font-size:11px;margin-right:8px}
 .pv-live-dot{width:6px;height:6px;border-radius:50%;background:#36a269;box-shadow:0 0 0 3px rgba(54,162,105,.1)}
-.pv-studio-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,410px);min-height:0}
+.pv-studio-body{display:grid;grid-template-columns:minmax(240px,1fr) 6px var(--script-w);min-height:0;min-width:0}
+.pv-split{
+  width:6px;cursor:col-resize;background:transparent;position:relative;z-index:2;touch-action:none;
+}
+.pv-split:hover,.pv-split.is-drag{background:color-mix(in srgb,var(--pv-blue) 42%,transparent)}
+.pv-split:before{content:"";position:absolute;inset:0 -5px}
+.pv-foot-split{
+  height:6px;cursor:row-resize;background:transparent;position:relative;z-index:2;touch-action:none;
+}
+.pv-foot-split:hover,.pv-foot-split.is-drag{background:color-mix(in srgb,var(--pv-blue) 42%,transparent)}
+.pv-foot-split:before{content:"";position:absolute;inset:-4px 0}
 .pv-canvas{
-  min-width:0;min-height:0;padding:32px;
-  display:flex;align-items:center;justify-content:center;
+  container-type:size;min-width:0;min-height:0;padding:18px 20px;
+  display:grid;place-items:center;
   background:#efefed;
   background-image:radial-gradient(circle,rgba(55,53,47,.13) .65px,transparent .75px);
   background-size:14px 14px;
 }
 .pv-canvas-frame{
-  position:relative;width:min(100%,calc((100vh - 250px) * 16 / 9));aspect-ratio:16/9;
-  background:#191919;border-radius:5px;overflow:hidden;
+  position:relative;width:min(100cqw,calc(100cqh * 16 / 9));aspect-ratio:16/9;height:auto;
+  background:#191919;border-radius:6px;overflow:hidden;
   box-shadow:0 16px 48px rgba(15,15,15,.16),0 0 0 1px rgba(15,15,15,.12);
 }
 .pv-canvas-frame .pv-stage{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto}
 .pv-script{
-  display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--studio-line);background:#fff;
+  display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;border-left:1px solid var(--studio-line);background:#fff;
 }
 .pv-script-head{
   flex:none;display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;
@@ -189,18 +213,19 @@ const STYLE_CSS = `
 .pv-hint{color:#9b9a97;background:#fff}
 .pv-studio-foot{
   min-height:0;border-top:1px solid var(--studio-line);background:#fff;
-  display:grid;grid-template-rows:32px 1fr;overflow:auto;
+  display:grid;grid-template-rows:32px minmax(0,1fr);overflow:hidden;
 }
 .pv-timeline-head{display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--studio-line);font-size:11px;color:#787774}
 .pv-timeline-head strong{color:#37352f;font-weight:600;margin-right:8px}
 .pv-duration{margin-left:auto;font-variant-numeric:tabular-nums}
-.pv-studio-foot .pv-rail{border-top:0;margin:0 12px 12px;border:1px solid var(--studio-line);background:#fbfbfa}
+.pv-studio-foot .pv-rail{border-top:0;margin:0 12px 12px;border:1px solid var(--studio-line);background:#fbfbfa;overflow:auto}
 .pv-studio-foot .pv-clip{height:18px;border-radius:4px;padding:0 8px}
 @media (max-width:720px){
-  .pv-studio{grid-template-rows:48px minmax(0,1fr) 100px}
-  .pv-studio-body{grid-template-columns:1fr}
+  .pv-studio{grid-template-rows:48px minmax(0,1fr) 110px}
+  .pv-studio-body{grid-template-columns:1fr;grid-template-rows:minmax(220px,1fr) minmax(160px,1fr)}
+  .pv-split,.pv-foot-split{display:none}
   .pv-canvas{padding:14px;min-height:220px}
-  .pv-script{border-left:0;border-top:1px solid #e9e9e7;min-height:180px}
+  .pv-script{border-left:0;border-top:1px solid #e9e9e7;min-height:160px}
   .pv-studio-sub,.pv-live{display:none}
 }
 `
@@ -232,7 +257,7 @@ function cameraCss(project: Project, time: number) {
   const cam = cameraAt(project, time)
   const x = (0.5 - cam.cx) * 100 * (cam.scale - 1)
   const y = (0.5 - cam.cy) * 100 * (cam.scale - 1)
-  return `translate(${x}%, ${y}%) scale(${cam.scale})`
+  return `translate(${x}%, ${y}%) scale(${cam.scale}) rotateX(${cam.rx}deg) rotateY(${cam.ry}deg) rotateZ(${cam.rz}deg)`
 }
 
 function alphaAt(clip: Clip, time: number) {
@@ -240,9 +265,10 @@ function alphaAt(clip: Clip, time: number) {
   return clipAlpha(clip, time)
 }
 
-function MediaEl({ clip, time, playing }: { clip: Clip; time: number; playing: boolean }) {
+function MediaEl({ clip, time, playing, rate = 1 }: { clip: Clip; time: number; playing: boolean; rate?: number }) {
+  const playback = Math.max(0.1, clip.speed * rate)
   const active = time >= clip.start && time < clip.start + clip.duration
-  const local = clip.sourceIn + Math.max(0, time - clip.start) * clip.speed
+  const local = clip.sourceIn + Math.max(0, time - clip.start) * playback
   const alpha = alphaAt(clip, time)
   const shift = clipShift(clip, time)
   const video = useRef<HTMLVideoElement | null>(null)
@@ -251,7 +277,7 @@ function MediaEl({ clip, time, playing }: { clip: Clip; time: number; playing: b
   useEffect(() => {
     const el = video.current
     if (!el || !movie) return
-    el.playbackRate = clip.speed
+    el.playbackRate = playback
     const drift = Math.abs((el.currentTime || 0) - local)
     if (!active) {
       el.pause()
@@ -261,7 +287,7 @@ function MediaEl({ clip, time, playing }: { clip: Clip; time: number; playing: b
     if (playing) {
       if (el.paused) void el.play().catch(() => undefined)
     } else if (!el.paused) el.pause()
-  }, [active, clip.speed, local, movie, playing])
+  }, [active, playback, local, movie, playing])
   const [cropX, cropY, cropW, cropH] = clip.crop
   const fit = {
     objectFit: clip.fit,
@@ -282,16 +308,28 @@ function TextEffect({ clip, time }: { clip: Clip; time: number }) {
   const motion = annotationMotion(clip, time)
   const count = Math.ceil(Array.from(clip.text).length * motion.reveal)
   const text = clip.anim === 'typewriter' ? Array.from(clip.text).slice(0, count).join('') : clip.text
+  const valign = clip.valign === 'top' ? 'flex-start' : clip.valign === 'bottom' ? 'flex-end' : 'center'
+  const halign = clip.align === 'left' ? 'flex-start' : clip.align === 'right' ? 'flex-end' : 'center'
   return (
     <div
       className="pv-effect pv-text"
       style={{
-        left: `${clip.x * 100}%`,
-        top: `${clip.y * 100}%`,
+        left: `${(clip.x - clip.w / 2) * 100}%`,
+        top: `${(clip.y - clip.h / 2) * 100}%`,
+        width: `${clip.w * 100}%`,
+        height: `${clip.h * 100}%`,
         color: clip.color,
         fontSize: clip.size,
+        fontWeight: clip.weight,
+        fontStyle: clip.italic ? 'italic' : undefined,
+        textDecoration: clip.underline ? 'underline' : undefined,
+        padding: clip.pad,
+        display: 'flex',
+        alignItems: valign,
+        justifyContent: halign,
+        textAlign: clip.align,
         opacity: motion.opacity,
-        transform: `translate(calc(-50% + ${motion.translateX}px),calc(-50% + ${motion.translateY}px)) scale(${motion.scale})`,
+        transform: `translate(${motion.translateX}px, ${motion.translateY}px) scale(${motion.scale})`,
       }}
     >
       {text}
@@ -350,16 +388,81 @@ function OverlayEffect({ clip, time, playing }: { clip: Clip; time: number; play
   if (clip.kind === 'blur') {
     return (
       <div
-        className="pv-effect pv-blur"
+        className={`pv-effect ${clip.mode === 'mosaic' ? 'pv-mosaic' : 'pv-blur'}`}
         style={{
           left: `${clip.x * 100}%`,
           top: `${clip.y * 100}%`,
           width: `${clip.w * 100}%`,
           height: `${clip.h * 100}%`,
           borderRadius: clip.shape === 'circle' ? '50%' : clip.shape === 'rounded' ? 14 : 2,
-          backdropFilter: `blur(${clip.amount}px)`,
+          backdropFilter: clip.mode === 'mosaic' ? 'none' : `blur(${clip.amount}px)`,
         }}
       />
+    )
+  }
+  if (clip.kind === 'box') {
+    return (
+      <div
+        className="pv-effect pv-box"
+        style={{
+          left: `${clip.x * 100}%`,
+          top: `${clip.y * 100}%`,
+          width: `${clip.w * 100}%`,
+          height: `${clip.h * 100}%`,
+          color: clip.color,
+          borderRadius: clip.shape === 'circle' ? '50%' : clip.shape === 'rounded' ? 14 : 2,
+          borderWidth: Math.max(1, clip.amount / 4),
+        }}
+      />
+    )
+  }
+  if (clip.kind === 'spotlight') {
+    return (
+      <div
+        className="pv-effect pv-spotlight"
+        style={{
+          left: `${clip.x * 100}%`,
+          top: `${clip.y * 100}%`,
+          width: `${clip.w * 100}%`,
+          height: `${clip.h * 100}%`,
+          borderRadius: clip.shape === 'rectangle' ? 6 : '50%',
+        }}
+      />
+    )
+  }
+  if (clip.kind === 'stamp') {
+    return (
+      <div
+        className="pv-effect pv-stamp"
+        style={{
+          left: `${clip.x * 100}%`,
+          top: `${clip.y * 100}%`,
+          minWidth: `${clip.w * 100}%`,
+          height: `${clip.h * 100}%`,
+          color: clip.ink,
+          background: clip.bg,
+          fontSize: clip.size,
+          padding: `0 ${clip.pad}px`,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {clip.text || 'REC'}
+      </div>
+    )
+  }
+  if (clip.kind === 'trim') {
+    const left = clip.x * 100
+    const top = clip.y * 100
+    const right = Math.max(0, (1 - clip.x - clip.w) * 100)
+    const bottom = Math.max(0, (1 - clip.y - clip.h) * 100)
+    return (
+      <div className="pv-trim" aria-hidden>
+        <i style={{ position: 'absolute', inset: `0 auto 0 0`, width: `${left}%` }} />
+        <i style={{ position: 'absolute', inset: `0 0 0 auto`, width: `${right}%` }} />
+        <i style={{ position: 'absolute', inset: `0 ${right}% auto ${left}%`, height: `${top}%` }} />
+        <i style={{ position: 'absolute', inset: `auto ${right}% 0 ${left}%`, height: `${bottom}%` }} />
+      </div>
     )
   }
   if (clip.kind === 'pip') {
@@ -374,7 +477,7 @@ function OverlayEffect({ clip, time, playing }: { clip: Clip; time: number; play
           borderRadius: clip.shape === 'circle' ? '50%' : clip.shape === 'rounded' ? 16 : 4,
         }}
       >
-        <MediaEl clip={clip} time={time} playing={playing} />
+        <MediaEl clip={clip} time={time} playing={playing} rate={1} />
       </div>
     )
   }
@@ -424,7 +527,18 @@ function Stage({ project, time, playing }: { project: Project; time: number; pla
   const active = clipsAt(project, time)
   const bases = active.filter((clip) => clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media')
   const captions = active.filter((clip) => clip.kind === 'caption')
-  const effects = active.filter((clip) => clip.kind === 'text' || clip.kind === 'arrow' || clip.kind === 'blur' || clip.kind === 'cursor' || clip.kind === 'pip' || clip.kind === 'image')
+  const effects = active.filter((clip) =>
+    clip.kind === 'text' ||
+    clip.kind === 'arrow' ||
+    clip.kind === 'blur' ||
+    clip.kind === 'cursor' ||
+    clip.kind === 'pip' ||
+    clip.kind === 'image' ||
+    clip.kind === 'box' ||
+    clip.kind === 'spotlight' ||
+    clip.kind === 'stamp' ||
+    clip.kind === 'trim',
+  )
   const audio = project.clips.filter((clip) => clip.kind === 'audio')
   const media = project.clips.filter((clip) => clip.kind === 'media')
   const bg = [...bases].reverse().find((clip) => clip.kind !== 'media')?.bg ?? '#191919'
@@ -459,7 +573,7 @@ function Stage({ project, time, playing }: { project: Project; time: number; pla
           style={{ transform: cameraCss(project, time), filter: motionBlur > 0.1 ? `blur(${motionBlur}px)` : undefined }}
         >
           {media.map((clip) => (
-            <MediaEl key={clip.id} clip={clip} time={time} playing={playing} />
+            <MediaEl key={clip.id} clip={clip} time={time} playing={playing} rate={speedAt(project, time)} />
           ))}
           {bases
             .filter((clip) => clip.kind !== 'media')
@@ -474,7 +588,14 @@ function Stage({ project, time, playing }: { project: Project; time: number; pla
                   transform: `translateX(${clipShift(clip, time)}px)`,
                 }}
               >
-                <div className="pv-frame">
+                <div
+                  className="pv-frame"
+                  style={{
+                    justifyContent: clip.valign === 'top' ? 'flex-start' : clip.valign === 'bottom' ? 'flex-end' : 'center',
+                    alignItems: clip.align === 'left' ? 'flex-start' : clip.align === 'right' ? 'flex-end' : 'center',
+                    textAlign: clip.align,
+                  }}
+                >
                   <div className="pv-kicker">{clip.kind}</div>
                   <div className="pv-title">{clip.text || '·'}</div>
                 </div>
@@ -590,7 +711,7 @@ type TimelineTrack = {
   clips: Clip[]
 }
 
-const TRACK_ORDER: Clip['kind'][] = ['title', 'scene', 'media', 'zoom', 'text', 'caption', 'arrow', 'blur', 'cursor', 'pip', 'image', 'audio']
+const TRACK_ORDER: Clip['kind'][] = ['title', 'scene', 'media', 'zoom', 'text', 'caption', 'arrow', 'blur', 'box', 'spotlight', 'stamp', 'cursor', 'pip', 'image', 'speed', 'trim', 'audio']
 const TRACK_HEIGHT = 28
 const TRACK_ICON_PATH: Record<Clip['kind'], string> = {
   title: 'M3 3.5h10M8 3.5v9M5.5 12.5h5',
@@ -601,9 +722,14 @@ const TRACK_ICON_PATH: Record<Clip['kind'], string> = {
   caption: 'M2.5 3.5h11v7.5h-6l-3 2v-2h-2zM5 6.5h6M5 8.5h4',
   arrow: 'M2.5 12.5 13 3m-5 .5h5v5',
   blur: 'M8 2.5c2.2 3 3.5 4.8 3.5 6.7A3.5 3.5 0 0 1 8 12.7a3.5 3.5 0 0 1-3.5-3.5C4.5 7.3 5.8 5.5 8 2.5z',
+  box: 'M3 3.5h10v9H3z',
+  spotlight: 'M8 2.5v2.2M8 13.5v-2.2M2.5 8h2.2M13.5 8h-2.2M5 5l1.6 1.5M11 5 9.4 6.5M5 11l1.6-1.5M11 11 9.4 9.5',
+  stamp: 'M3.5 7h9v6h-9zM5.2 7V5.4a2.8 2.8 0 0 1 5.6 0V7',
   cursor: 'M3 2.5 12.5 9 8 10l-2 3.5z',
   pip: 'M2.5 3.5h11v9h-11zM8 7.5h4v3H8z',
   image: 'M2.5 3.5h11v9h-11zM3 11l3.3-3.5 2.2 2 1.5-1.3 3 2.8M10.8 6.3h.1',
+  speed: 'M3 8h3.2l.9-3 1.6 6L10 8h3',
+  trim: 'M4.5 3v10M11.5 3v10M4.5 8h7',
   audio: 'M2.5 7h2.8L9 4v8l-3.7-3H2.5zM11 6c1.2 1.1 1.2 2.9 0 4M12.7 4.5c2.1 2 2.1 5 0 7',
 }
 
@@ -735,7 +861,15 @@ function Studio({
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef(onClose)
+  const [scriptW, setScriptW] = useState(420)
+  const [footH, setFootH] = useState(208)
+  const [resize, setResize] = useState<'col' | 'row' | null>(null)
+  const resizeRef = useRef<'col' | 'row' | null>(null)
   closeRef.current = onClose
+  const setMode = (mode: 'col' | 'row' | null) => {
+    resizeRef.current = mode
+    setResize(mode)
+  }
   useEffect(() => {
     const el = rootRef.current
     void el?.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => undefined)
@@ -753,8 +887,39 @@ function Studio({
       if (document.fullscreenElement) void document.exitFullscreen?.()
     }
   }, [])
+  const dragCol = (event: { currentTarget: HTMLElement; pointerId: number; preventDefault: () => void }) => {
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setMode('col')
+  }
+  const dragRow = (event: { currentTarget: HTMLElement; pointerId: number; preventDefault: () => void }) => {
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setMode('row')
+  }
+  const onSplitMove = (event: { currentTarget: HTMLElement; pointerId: number; clientX: number; clientY: number }) => {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+    const root = rootRef.current
+    if (!root) return
+    const rect = root.getBoundingClientRect()
+    if (resizeRef.current === 'col') {
+      const next = rect.right - event.clientX
+      setScriptW(Math.round(Math.max(240, Math.min(rect.width - 280, next))))
+    } else if (resizeRef.current === 'row') {
+      const next = rect.bottom - event.clientY
+      setFootH(Math.round(Math.max(120, Math.min(rect.height - 180, next))))
+    }
+  }
+  const endDrag = () => setMode(null)
   return createPortal(
-    <div ref={rootRef} className="pv-studio" data-testid="page-video-studio" data-page-block-capture="">
+    <div
+      ref={rootRef}
+      className="pv-studio"
+      data-testid="page-video-studio"
+      data-page-block-capture=""
+      data-resize={resize ?? undefined}
+      style={{ ['--script-w' as string]: `${scriptW}px`, ['--foot-h' as string]: `${footH}px` }}
+    >
       <div className="pv-studio-bar">
         <div className="pv-brand">
           <span className="pv-brand-mark">&lt;/&gt;</span>
@@ -780,6 +945,17 @@ function Studio({
             <Stage project={project} time={time} playing={playing} />
           </div>
         </div>
+        <div
+          className={`pv-split${resize === 'col' ? ' is-drag' : ''}`}
+          data-testid="page-video-split"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整预览与源码宽度"
+          onPointerDown={dragCol}
+          onPointerMove={onSplitMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        />
         <div className="pv-script">
           <div className="pv-script-head">
             <span className="pv-code-mark">&lt;&gt;</span>
@@ -790,6 +966,17 @@ function Studio({
           {compiledOk ? <div className="pv-hint">&lt;video&gt; &lt;title&gt; &lt;scene&gt; &lt;caption&gt; &lt;media /&gt; &lt;zoom /&gt;</div> : <div className="pv-err">{error}</div>}
         </div>
       </div>
+      <div
+        className={`pv-foot-split${resize === 'row' ? ' is-drag' : ''}`}
+        data-testid="page-video-foot-split"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="调整时间轴高度"
+        onPointerDown={dragRow}
+        onPointerMove={onSplitMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      />
       <div className="pv-studio-foot">
         <div className="pv-timeline-head">
           <strong>Timeline</strong>

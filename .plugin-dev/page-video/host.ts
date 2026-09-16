@@ -19,7 +19,7 @@ export function apply(ctx: Context) {
   ctx.tools.register({
     name: 'video_script',
     description:
-      'Compile an agent-authored page-video <> script. Effects: <video background wallpaper padding radius shadow>, <media in dur speed crop>, <zoom>, <text anim>, <caption>, <arrow>, <blur>, <cursor click>, <pip>, <image>, and <audio>. The frontend live-composites the result; the timeline is read-only. Use tags instead of prose editing instructions.',
+      'Compile an agent-authored page-video <> script. Effects: <video background wallpaper padding radius shadow description>, <media in dur speed crop>, <zoom rx ry rz>, <text align valign anim description>, <caption>, <arrow>, <blur mode=blur|mosaic>, <box>, <spotlight>, <stamp>, <cursor click>, <pip>, <image>, <speed>, <trim>, and <audio>. The frontend live-composites the result; the timeline is read-only. Use tags instead of prose editing instructions.',
     parameters: {
       type: 'object',
       properties: {

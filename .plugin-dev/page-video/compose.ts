@@ -11,8 +11,16 @@ export type ClipKind =
   | 'pip'
   | 'image'
   | 'audio'
+  | 'speed'
+  | 'trim'
+  | 'box'
+  | 'spotlight'
+  | 'stamp'
 
 export type Transition = 'cut' | 'fade' | 'slide'
+export type Align = 'left' | 'center' | 'right'
+export type Valign = 'top' | 'middle' | 'bottom'
+export type BlurMode = 'blur' | 'mosaic'
 
 export type Clip = {
   id: string
@@ -20,6 +28,7 @@ export type Clip = {
   start: number
   duration: number
   text: string
+  description: string
   bg: string
   ink: string
   src: string
@@ -44,6 +53,16 @@ export type Clip = {
   crop: [number, number, number, number]
   sourceIn: number
   volume: number
+  align: Align
+  valign: Valign
+  weight: 'normal' | 'bold'
+  italic: boolean
+  underline: boolean
+  pad: number
+  rx: number
+  ry: number
+  rz: number
+  mode: BlurMode
 }
 
 export type Project = {
@@ -57,17 +76,19 @@ export type Project = {
   padding: number
   radius: number
   shadow: number
+  description: string
+  bgBlur: number
 }
 
-export type Camera = { scale: number; cx: number; cy: number }
+export type Camera = { scale: number; cx: number; cy: number; rx: number; ry: number; rz: number }
 
-export const SAMPLE_SCRIPT = `<video fps=30 size=1280x720>
-  <title dur=2.2s bg=#111111 ink=#f6f2ea trans=fade>Biu Studio</title>
-  <scene dur=3.4s bg=#1a1a2e ink=#ece7dc trans=slide>Agent-directed video.</scene>
-  <zoom at=2.4s dur=0.8s cx=0.46 cy=0.38 depth=1.7 />
-  <text at=2.7s dur=2s x=.5 y=.82 size=28 anim=rise>Effects are syntax.</text>
-  <arrow at=3s dur=1.8s x=.25 y=.65 x2=.44 y2=.45 color=#7dd3fc width=5 />
-  <cursor at=2.3s dur=2.4s x=.18 y=.72 x2=.72 y2=.3 click=1.5s size=26 />
+export const SAMPLE_SCRIPT = `<video fps=30 size=1280x720 description="演示片：标题卡后切到场景，再叠镜头与标注">
+  <title dur=2.2s bg=#111111 ink=#f6f2ea trans=fade align=center valign=middle description="开场标题，画面正中">Biu Studio</title>
+  <scene dur=3.4s bg=#1a1a2e ink=#ece7dc trans=slide description="色块场景，交代主题">Agent-directed video.</scene>
+  <zoom at=2.4s dur=0.8s cx=0.46 cy=0.38 depth=1.7 description="推近到标题左侧" />
+  <text at=2.7s dur=2s x=.5 y=.5 w=.7 h=.18 size=28 align=center valign=middle anim=rise description="画面正中的说明文字">Effects are syntax.</text>
+  <arrow at=3s dur=1.8s x=.25 y=.65 x2=.44 y2=.45 color=#7dd3fc width=5 description="指向标题区域" />
+  <cursor at=2.3s dur=2.4s x=.18 y=.72 x2=.72 y2=.3 click=1.5s size=26 description="光标滑向按钮并点击" />
 </video>
 `
 
@@ -84,8 +105,28 @@ const CLIP_KINDS = new Set<ClipKind>([
   'pip',
   'image',
   'audio',
+  'speed',
+  'trim',
+  'box',
+  'spotlight',
+  'stamp',
 ])
-const OVERLAY = new Set<ClipKind>(['caption', 'zoom', 'text', 'arrow', 'blur', 'cursor', 'pip', 'image', 'audio'])
+const OVERLAY = new Set<ClipKind>([
+  'caption',
+  'zoom',
+  'text',
+  'arrow',
+  'blur',
+  'cursor',
+  'pip',
+  'image',
+  'audio',
+  'speed',
+  'trim',
+  'box',
+  'spotlight',
+  'stamp',
+])
 const TRANS: Transition[] = ['cut', 'fade', 'slide']
 
 export function emptyProject(script = SAMPLE_SCRIPT): Project {
@@ -100,6 +141,8 @@ export function emptyProject(script = SAMPLE_SCRIPT): Project {
     padding: 0,
     radius: 0,
     shadow: 0,
+    description: '',
+    bgBlur: 0,
   }
 }
 
@@ -199,6 +242,40 @@ function parseShape(raw: string | undefined): Clip['shape'] {
   return raw === 'circle' || raw === 'rounded' ? raw : 'rectangle'
 }
 
+function parseAlign(raw: string | undefined): Align {
+  return raw === 'left' || raw === 'right' ? raw : 'center'
+}
+
+function parseValign(raw: string | undefined): Valign {
+  return raw === 'top' || raw === 'bottom' ? raw : 'middle'
+}
+
+function parseBlurMode(raw: string | undefined): BlurMode {
+  return raw === 'mosaic' ? 'mosaic' : 'blur'
+}
+
+function parseDir(raw: string | undefined): { x: number; y: number } | null {
+  const table: Record<string, { x: number; y: number }> = {
+    up: { x: 0, y: -0.18 },
+    down: { x: 0, y: 0.18 },
+    left: { x: -0.18, y: 0 },
+    right: { x: 0.18, y: 0 },
+    'up-right': { x: 0.14, y: -0.14 },
+    'up-left': { x: -0.14, y: -0.14 },
+    'down-right': { x: 0.14, y: 0.14 },
+    'down-left': { x: -0.14, y: 0.14 },
+  }
+  return table[String(raw ?? '').trim()] ?? null
+}
+
+function parseFlag(raw: string | undefined) {
+  return raw === 'true' || raw === '1' || raw === 'yes'
+}
+
+function parseDescription(attrs: Attrs) {
+  return String(attrs.description ?? attrs.dsc ?? attrs.d ?? '').trim()
+}
+
 type Attrs = Record<string, string>
 
 function parseAttrs(raw: string): Attrs {
@@ -251,13 +328,17 @@ export class ScriptError extends Error {
 }
 
 function clipFrom(kind: ClipKind, attrs: Attrs, text: string, start: number, id: string): Clip {
-  const fallbackDur = kind === 'zoom' ? 0.8 : kind === 'caption' ? 2 : 3
+  const fallbackDur = kind === 'zoom' ? 0.8 : kind === 'caption' || kind === 'speed' || kind === 'trim' ? 2 : 3
+  const x = parseUnit(attrs.x, 0.5, 0, 1)
+  const y = parseUnit(attrs.y, 0.5, 0, 1)
+  const dir = parseDir(attrs.dir)
   return {
     id,
     kind,
     start,
     duration: Math.max(0.2, parseTime(attrs.dur ?? attrs.duration, fallbackDur)),
     text,
+    description: parseDescription(attrs),
     bg: parseColor(attrs.bg, kind === 'title' ? '#111111' : '#191919'),
     ink: parseColor(attrs.ink, '#f6f2ea'),
     src: String(attrs.src ?? '').trim(),
@@ -265,15 +346,15 @@ function clipFrom(kind: ClipKind, attrs: Attrs, text: string, start: number, id:
     trans: parseTrans(attrs.trans),
     cx: parseUnit(attrs.cx, 0.5, 0, 1),
     cy: parseUnit(attrs.cy, 0.5, 0, 1),
-    depth: parseUnit(attrs.depth, kind === 'zoom' ? 1.6 : 1, 1, 4),
-    x: parseUnit(attrs.x, 0.5, 0, 1),
-    y: parseUnit(attrs.y, 0.5, 0, 1),
-    x2: parseUnit(attrs.x2, parseUnit(attrs.x, 0.5, 0, 1), 0, 1),
-    y2: parseUnit(attrs.y2, parseUnit(attrs.y, 0.5, 0, 1), 0, 1),
-    w: parseUnit(attrs.w, kind === 'pip' ? 0.24 : 0.25, 0.01, 1),
-    h: parseUnit(attrs.h, kind === 'pip' ? 0.3 : 0.2, 0.01, 1),
+    depth: parseUnit(attrs.depth, kind === 'zoom' ? 1.6 : 1, 1, 5),
+    x,
+    y,
+    x2: parseUnit(attrs.x2, dir ? clamp(x + dir.x, 0, 1) : x, 0, 1),
+    y2: parseUnit(attrs.y2, dir ? clamp(y + dir.y, 0, 1) : y, 0, 1),
+    w: parseUnit(attrs.w, kind === 'pip' ? 0.24 : kind === 'text' || kind === 'stamp' ? 0.56 : 0.25, 0.01, 1),
+    h: parseUnit(attrs.h, kind === 'pip' ? 0.3 : kind === 'text' || kind === 'stamp' ? 0.16 : 0.2, 0.01, 1),
     size: parseUnit(attrs.size, kind === 'cursor' ? 28 : 32, 8, 160),
-    amount: parseUnit(attrs.amount ?? attrs.width, 12, 1, 40),
+    amount: parseUnit(attrs.amount ?? attrs.width, kind === 'spotlight' ? 18 : 12, 1, 40),
     speed: parseUnit(attrs.speed, 1, 0.1, 16),
     click: attrs.click == null ? -1 : Math.max(0, parseTime(attrs.click, -1)),
     color: parseColor(attrs.color, '#ffffff'),
@@ -282,6 +363,16 @@ function clipFrom(kind: ClipKind, attrs: Attrs, text: string, start: number, id:
     crop: parseCrop(attrs.crop),
     sourceIn: Math.max(0, parseTime(attrs.in, 0)),
     volume: parseUnit(attrs.volume, 1, 0, 1),
+    align: parseAlign(attrs.align),
+    valign: parseValign(attrs.valign),
+    weight: attrs.weight === 'normal' ? 'normal' : 'bold',
+    italic: parseFlag(attrs.italic),
+    underline: parseFlag(attrs.underline),
+    pad: parseUnit(attrs.pad, kind === 'text' || kind === 'stamp' ? 10 : 0, 0, 48),
+    rx: parseUnit(attrs.rx, 0, -40, 40),
+    ry: parseUnit(attrs.ry, 0, -40, 40),
+    rz: parseUnit(attrs.rz, 0, -40, 40),
+    mode: parseBlurMode(attrs.mode ?? attrs.type),
   }
 }
 
@@ -341,6 +432,8 @@ export function compileScript(source: string): Project {
       project.padding = parseUnit(node.attrs.padding, 0, 0, 30)
       project.radius = parseUnit(node.attrs.radius, 0, 0, 64)
       project.shadow = parseUnit(node.attrs.shadow, 0, 0, 64)
+      project.description = parseDescription(node.attrs)
+      project.bgBlur = parseUnit(node.attrs.blur ?? node.attrs.bgblur, 0, 0, 40)
       if (node.self) break
       continue
     }
@@ -377,6 +470,8 @@ export function dumpScript(project: Project): string {
     attr('padding', project.padding, 0) +
     attr('radius', project.radius, 0) +
     attr('shadow', project.shadow, 0) +
+    attr('blur', project.bgBlur, 0) +
+    attr('description', project.description) +
     '>'
   const lines = [root]
   let cursor = 0
@@ -397,17 +492,29 @@ export function dumpScript(project: Project): string {
       attr('y', OVERLAY.has(clip.kind) && clip.kind !== 'zoom' ? clip.y : undefined, 0.5) +
       attr('x2', clip.kind === 'arrow' || clip.kind === 'cursor' ? clip.x2 : undefined, clip.x) +
       attr('y2', clip.kind === 'arrow' || clip.kind === 'cursor' ? clip.y2 : undefined, clip.y) +
-      attr('w', clip.kind === 'blur' || clip.kind === 'pip' || clip.kind === 'image' ? clip.w : undefined) +
-      attr('h', clip.kind === 'blur' || clip.kind === 'pip' || clip.kind === 'image' ? clip.h : undefined) +
-      attr('size', clip.kind === 'text' || clip.kind === 'cursor' ? clip.size : undefined) +
-      attr('amount', clip.kind === 'blur' ? clip.amount : undefined) +
-      attr('speed', clip.kind === 'media' || clip.kind === 'pip' ? clip.speed : undefined, 1) +
+      attr('w', clip.kind === 'blur' || clip.kind === 'pip' || clip.kind === 'image' || clip.kind === 'text' || clip.kind === 'box' || clip.kind === 'spotlight' || clip.kind === 'stamp' ? clip.w : undefined) +
+      attr('h', clip.kind === 'blur' || clip.kind === 'pip' || clip.kind === 'image' || clip.kind === 'text' || clip.kind === 'box' || clip.kind === 'spotlight' || clip.kind === 'stamp' ? clip.h : undefined) +
+      attr('size', clip.kind === 'text' || clip.kind === 'cursor' || clip.kind === 'stamp' ? clip.size : undefined) +
+      attr('amount', clip.kind === 'blur' || clip.kind === 'spotlight' || clip.kind === 'box' ? clip.amount : undefined) +
+      attr('speed', clip.kind === 'media' || clip.kind === 'pip' || clip.kind === 'speed' ? clip.speed : undefined, 1) +
       attr('click', clip.kind === 'cursor' && clip.click >= 0 ? fmtTime(clip.click) : undefined) +
-      attr('color', clip.kind === 'text' || clip.kind === 'arrow' || clip.kind === 'cursor' ? clip.color : undefined) +
+      attr('color', clip.kind === 'text' || clip.kind === 'arrow' || clip.kind === 'cursor' || clip.kind === 'box' ? clip.color : undefined) +
       attr('anim', clip.kind === 'text' || clip.kind === 'image' ? clip.anim : undefined, 'none') +
       attr('shape', clip.kind === 'blur' || clip.kind === 'pip' || clip.kind === 'image' ? clip.shape : undefined, 'rectangle') +
       attr('in', clip.kind === 'media' || clip.kind === 'pip' || clip.kind === 'audio' ? fmtTime(clip.sourceIn) : undefined, '0s') +
       attr('volume', clip.kind === 'audio' ? clip.volume : undefined, 1) +
+      attr('align', clip.kind === 'text' || clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'stamp' || clip.kind === 'caption' ? clip.align : undefined, 'center') +
+      attr('valign', clip.kind === 'text' || clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'stamp' ? clip.valign : undefined, 'middle') +
+      attr('weight', clip.kind === 'text' || clip.kind === 'stamp' ? clip.weight : undefined, 'bold') +
+      attr('italic', clip.italic ? 'true' : undefined) +
+      attr('underline', clip.underline ? 'true' : undefined) +
+      attr('pad', clip.kind === 'text' || clip.kind === 'stamp' ? clip.pad : undefined, 10) +
+      attr('rx', clip.kind === 'zoom' ? clip.rx : undefined, 0) +
+      attr('ry', clip.kind === 'zoom' ? clip.ry : undefined, 0) +
+      attr('rz', clip.kind === 'zoom' ? clip.rz : undefined, 0) +
+      attr('mode', clip.kind === 'blur' ? clip.mode : undefined, 'blur') +
+      attr('speed', clip.kind === 'speed' ? clip.speed : undefined, 1) +
+      attr('description', clip.description) +
       attr(
         'crop',
         clip.kind === 'media' && clip.crop.some((value, index) => value !== [0, 0, 1, 1][index])
@@ -422,7 +529,11 @@ export function dumpScript(project: Project): string {
       clip.kind === 'cursor' ||
       clip.kind === 'pip' ||
       clip.kind === 'image' ||
-      clip.kind === 'audio'
+      clip.kind === 'audio' ||
+      clip.kind === 'speed' ||
+      clip.kind === 'trim' ||
+      clip.kind === 'box' ||
+      clip.kind === 'spotlight'
     ) {
       lines.push(`  <${clip.kind}${common} />`)
     } else {
@@ -453,6 +564,8 @@ export function parseProject(raw: unknown): Project {
   project.padding = parseUnit(String(o.padding ?? ''), 0, 0, 30)
   project.radius = parseUnit(String(o.radius ?? ''), 0, 0, 64)
   project.shadow = parseUnit(String(o.shadow ?? ''), 0, 0, 64)
+  project.description = String(o.description ?? '')
+  project.bgBlur = parseUnit(String(o.bgBlur ?? o.blur ?? ''), 0, 0, 40)
   if (Array.isArray(o.clips)) {
     project.clips = o.clips
       .map((item, index) => {
@@ -488,6 +601,18 @@ export function parseProject(raw: unknown): Project {
             crop: Array.isArray(c.crop) ? c.crop.join(',') : '',
             in: String(c.sourceIn ?? ''),
             volume: String(c.volume ?? ''),
+            description: String(c.description ?? ''),
+            align: String(c.align ?? ''),
+            valign: String(c.valign ?? ''),
+            weight: String(c.weight ?? ''),
+            italic: String(c.italic ?? ''),
+            underline: String(c.underline ?? ''),
+            pad: String(c.pad ?? ''),
+            rx: String(c.rx ?? ''),
+            ry: String(c.ry ?? ''),
+            rz: String(c.rz ?? ''),
+            mode: String(c.mode ?? ''),
+            dir: String(c.dir ?? ''),
           },
           String(c.text ?? ''),
           Math.max(0, Number(c.start) || 0),
@@ -517,20 +642,30 @@ export function easeInOut(t: number) {
 }
 
 export function cameraAt(project: Project, time: number): Camera {
-  let cam: Camera = { scale: 1, cx: 0.5, cy: 0.5 }
+  let cam: Camera = { scale: 1, cx: 0.5, cy: 0.5, rx: 0, ry: 0, rz: 0 }
   const zooms = project.clips.filter((clip) => clip.kind === 'zoom').sort((a, b) => a.start - b.start)
   for (const zoom of zooms) {
     if (time < zoom.start) break
     const t = easeInOut((time - zoom.start) / Math.max(0.001, zoom.duration))
-    const target = { scale: zoom.depth, cx: zoom.cx, cy: zoom.cy }
+    const target = { scale: zoom.depth, cx: zoom.cx, cy: zoom.cy, rx: zoom.rx, ry: zoom.ry, rz: zoom.rz }
     cam = {
       scale: cam.scale + (target.scale - cam.scale) * t,
       cx: cam.cx + (target.cx - cam.cx) * t,
       cy: cam.cy + (target.cy - cam.cy) * t,
+      rx: cam.rx + (target.rx - cam.rx) * t,
+      ry: cam.ry + (target.ry - cam.ry) * t,
+      rz: cam.rz + (target.rz - cam.rz) * t,
     }
     if (time < clipEnd(zoom)) break
   }
   return cam
+}
+
+export function speedAt(project: Project, time: number, fallback = 1) {
+  const region = [...project.clips]
+    .reverse()
+    .find((clip) => clip.kind === 'speed' && time >= clip.start && time < clipEnd(clip))
+  return region?.speed ?? fallback
 }
 
 export function clipAlpha(clip: Clip, time: number) {

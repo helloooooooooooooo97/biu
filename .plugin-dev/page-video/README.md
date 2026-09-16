@@ -14,14 +14,19 @@
 | `<title>` | 全屏标题卡 | `dur` `bg` `ink` `trans=cut\|fade\|slide` |
 | `<scene>` | 色块场景 | 同上 |
 | `<media />` | 主视频/图片 | `src` `in` `dur` `speed` `fit` `crop=x,y,w,h` `trans` |
-| `<zoom />` | 平滑镜头 + 运动模糊 | `at` `dur` `cx` `cy` `depth` |
-| `<text>` | 文字/字幕标注 | `at` `dur` `x` `y` `size` `color` `anim` |
+| `<zoom />` | 平滑镜头 + 运动模糊 | `at` `dur` `cx` `cy` `depth` `rx` `ry` `rz` |
+| `<text>` | 文字/字幕标注 | `at` `dur` `x` `y` `w` `h` `size` `color` `align` `valign` `anim` `description` |
 | `<caption>` | 底部字幕 | `at` `dur` `ink` |
 | `<arrow />` | 箭头标注 | `x` `y` `x2` `y2` `color` `width` |
-| `<blur />` | 局部隐私模糊 | `x` `y` `w` `h` `amount` `shape` |
+| `<blur />` | 局部隐私模糊/马赛克 | `x` `y` `w` `h` `amount` `shape` `mode=blur\|mosaic` |
+| `<box />` | 矩形高亮框 | `x` `y` `w` `h` `color` |
+| `<spotlight />` | 聚光遮罩 | `x` `y` `w` `h` |
+| `<stamp>` | 角标/徽章 | `x` `y` `size` `bg` `ink` |
 | `<cursor />` | 光标移动和点击反馈 | `x` `y` `x2` `y2` `click` `size` |
 | `<pip />` | 摄像头画中画 | `src` `x` `y` `w` `h` `shape` |
 | `<image />` | 图片/Logo 标注 | `src` `x` `y` `w` `h` `anim` |
+| `<speed />` | 区间变速 | `at` `dur` `speed` |
+| `<trim />` | 画面裁边遮幅 | `at` `dur` `x` `y` `w` `h` |
 | `<audio />` | 配音或音乐 | `src` `in` `at` `dur` `speed` `volume` |
 
 坐标与尺寸使用 `0–1`；`at` 是输出时间，`in` 是素材入点。`anim` 支持 `fade`、`rise`、`pop`、`slide-left`、`typewriter`、`pulse`。

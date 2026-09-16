@@ -84,6 +84,24 @@ test('OpenScreen-style effects compile from agent tags', () => {
   assert.match(dumped, /<audio /)
 })
 
+test('description and box tags round-trip', () => {
+  const project = compileScript(`<video description="demo">
+  <title dur=1s align=left valign=top description="开场">Hi</title>
+  <box at=.2s dur=.5s x=.4 y=.4 w=.2 h=.2 color=#ff0 />
+  <stamp at=.2s dur=.5s x=.8 y=.1>LIVE</stamp>
+</video>`)
+  assert.equal(project.description, 'demo')
+  assert.equal(project.clips[0].description, '开场')
+  assert.equal(project.clips[0].align, 'left')
+  assert.equal(project.clips[0].valign, 'top')
+  assert.equal(project.clips[1].kind, 'box')
+  assert.equal(project.clips[2].kind, 'stamp')
+  const dumped = dumpScript(project)
+  assert.match(dumped, /description=demo/)
+  assert.match(dumped, /<box /)
+  assert.match(dumped, /<stamp /)
+})
+
 test('text and cursor motion are deterministic at any preview time', () => {
   const project = compileScript(`<video>
   <scene dur=4s>A</scene>

@@ -26,6 +26,8 @@ test('page-video is a headless page block with tag grammar', async () => {
   assert.match(web, /onChange=\{\(event\) => \{/)
   assert.match(web, /createPortal/)
   assert.match(web, /page-video-studio/)
+  assert.match(web, /page-video-split/)
+  assert.match(web, /调整预览与源码宽度/)
   assert.match(web, /全屏编辑/)
   assert.match(web, /pv-embed:hover/)
   assert.match(readme, /<video fps=30 size=1280x720/)
