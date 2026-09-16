@@ -56,12 +56,14 @@ test('message outline is a left rail of ticks with a hover menu', () => {
   assert.doesNotMatch(css, /\.chat-outline-tick\.is-h[23]\s*\{[^}]*padding-left/)
   assert.match(css, /\.chat-outline-item\.is-h2\s*\{[^}]*padding-left:\s*22px/s)
   assert.match(css, /\.chat-outline-item\.is-h3\s*\{[^}]*padding-left:\s*36px/s)
-  // 悬浮/选中要有一层底和更亮的前景 token，具体色值随主题走，不锁死。
-  assert.match(css, /\.chat-outline-item:hover,\s*\.chat-outline-item\.is-active\s*\{[^}]*background:\s*[^;}]+;/s)
+  assert.match(css, /\.chat-outline-item\.is-active\s*\{[^}]*background:\s*[^;}]+;/s)
   assert.match(
     css,
-    /\.chat-outline-item:hover,\s*\.chat-outline-item\.is-active\s*\{[^}]*color:\s*var\(--dsw-sidebar-fg-active\)/s,
+    /\.chat-outline-item\.is-active\s*\{[^}]*color:\s*var\(--dsw-sidebar-fg-active\)/s,
   )
+  assert.doesNotMatch(css, /\.chat-outline-item:hover,\s*\.chat-outline-item\.is-active/)
+  assert.match(outline, /data-outline-row/)
+  assert.match(outline, /closest\('\[data-outline-row\]'\)/)
   assert.match(outline, /chat-outline-tick/)
   assert.match(outline, /hoverTick/)
   assert.match(bound, /OutlineNav/)

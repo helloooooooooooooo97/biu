@@ -1,0 +1,10 @@
+{
+  "id": "page-video",
+  "name": "视频编排",
+  "blurb": "Agent 用 <timeline> 声明式脚本剪辑：轨内串行、轨间并行，编译器给出重叠和空镜诊断，前端实时合成。",
+  "tags": ["page", "editor", "video", "timeline"],
+  "author": "Biu",
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",
+  "createdAt": 1789545600000,
+  "headless": true
+}

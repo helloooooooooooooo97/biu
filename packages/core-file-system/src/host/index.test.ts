@@ -847,6 +847,49 @@ test('apply registers db_* tools', async () => {
   assert.match(String(facets?.view?.blurb ?? ''), /db_list \/facets/)
 })
 
+test('db_create tool ignores empty companion records instead of creating blank rows', async () => {
+  const ctx = new Context()
+  await ctx.plugin(tools)
+  class HttpStub extends Service {
+    constructor(c: Context) {
+      super(c, 'http')
+    }
+    route() {}
+  }
+  new HttpStub(ctx)
+  await ctx.plugin({ inject: ['tools', 'http'], apply: applyFileSystem })
+  const received: Array<Record<string, unknown>> = []
+  const db = ctx.get('database') as DatabaseService
+  db.register({
+    id: 'drafts',
+    path: '/drafts',
+    schema: {
+      labelField: 'title',
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+      },
+    },
+    records: { create: true },
+    list: () => [],
+    get: () => null,
+    create: (rows) => {
+      received.push(...rows)
+      return rows.map((row, index) => ({ id: `draft-${index}`, ...row }))
+    },
+  })
+
+  await ctx.tools.invoke('db_create', {
+    path: '/drafts',
+    records: [{ title: '目标技能' }, {}],
+  })
+
+  assert.deepEqual(received, [{ title: '目标技能' }])
+  received.length = 0
+  await db.create('/drafts', [{}, {}])
+  assert.deepEqual(received, [{}])
+})
+
 test('db_list columns returns only those fields plus id', async () => {
   const ctx = new Context()
   await ctx.plugin(tools)

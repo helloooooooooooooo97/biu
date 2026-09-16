@@ -987,7 +987,8 @@ export class DatabaseService extends Service implements Database {
       await assertSameTableLinks(spec, patch)
       records.push(patch)
     }
-    const created = await spec.create(records)
+    const meaningful = records.filter((record) => Object.keys(record).length > 0)
+    const created = await spec.create(meaningful.length ? meaningful : records.slice(0, 1))
     for (const [index, record] of created.entries()) {
       await this.stampActor(spec.path, record.id)
       const banner = banners[index]
@@ -1357,7 +1358,14 @@ function asDeleteQuery(args: Record<string, unknown>): CollectionListQuery {
 }
 
 function asCreateRecords(args: Record<string, unknown>) {
-  return args.records !== undefined ? args.records : args.content
+  const value = args.records !== undefined ? args.records : args.content
+  if (!Array.isArray(value)) return value
+  const records = value.filter((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return true
+    return Object.keys(item).length > 0
+  })
+  if (!records.length) throw new Error('records must include at least one non-empty object')
+  return records
 }
 
 function broadcastInspectorReveal(
@@ -1532,7 +1540,11 @@ export function apply(ctx: Context) {
       type: 'object',
       properties: {
         path: { type: 'string' },
-        records: { type: 'array', description: '要创建的记录（对象数组），按 schema 可写字段给初值' },
+        records: {
+          type: 'array',
+          items: { type: 'object' },
+          description: '要创建的记录（非空对象数组），按 schema 可写字段给初值；不要附加空对象',
+        },
       },
       required: ['path', 'records'],
     },
