@@ -304,6 +304,11 @@ test('page-video drafts the tag script locally like html source', async () => {
   assert.match(src, /createPortal/)
   assert.match(src, /page-video-studio/)
   assert.match(src, /全屏编辑/)
+  assert.match(src, /const \[tracksOpen, setTracksOpen\] = useState\(false\)/)
+  assert.match(src, /className="pv-player-controls"/)
+  assert.match(src, /aria-expanded=\{tracksOpen\}/)
+  assert.match(src, /tracksOpen \? \(/)
+  assert.doesNotMatch(src, /className="pv-chrome"/)
   assert.doesNotMatch(src, /自然语言/)
 })
 

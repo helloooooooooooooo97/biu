@@ -98,14 +98,17 @@ const STYLE_CSS = `
 .pv-clip[data-tone="audio"]{background:#e9f1eb;border-color:#d8e6dc;color:#55705d}
 .pv-playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--pv-blue);pointer-events:none;z-index:3}
 .pv-playhead:before{content:"";position:absolute;left:-3px;top:0;width:7px;height:7px;border-radius:1px 1px 50% 50%;background:var(--pv-blue)}
-.pv-chrome{
-  position:absolute;top:8px;right:8px;z-index:4;
-  display:flex;gap:2px;padding:2px;
-  border-radius:6px;background:rgba(255,255,255,.92);
-  box-shadow:0 1px 3px rgba(15,15,15,.08);
-  opacity:0;pointer-events:none;transition:opacity .12s ease;
+.pv-player-controls{
+  height:38px;padding:0 7px;display:flex;align-items:center;gap:3px;
+  border-top:1px solid var(--pv-line);background:var(--dsw-bg,#fff);
 }
-.pv-embed:hover .pv-chrome,.pv-embed:focus-within .pv-chrome{opacity:1;pointer-events:auto}
+.pv-player-time{margin-left:3px;color:var(--pv-mute);font:10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+.pv-player-spacer{flex:1}
+.pv-track-toggle{width:auto;padding:0 7px;gap:4px;font-size:11px}
+.pv-track-toggle svg{transition:transform .16s ease}
+.pv-track-toggle[aria-expanded="true"] svg{transform:rotate(180deg)}
+.pv-embed-timeline{border-top:1px solid var(--pv-line)}
+.pv-embed-timeline .pv-rail{border-top:0}
 .pv-icon{
   width:26px;height:26px;border:0;border-radius:4px;background:transparent;
   color:#787774;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
@@ -568,6 +571,14 @@ function IconExpand() {
   )
 }
 
+function IconChevron() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <path d="m4 6 4 4 4-4" />
+    </svg>
+  )
+}
+
 type TimelineTrack = {
   id: string
   label: string
@@ -774,6 +785,7 @@ function Editor({
   const parsed = useMemo(() => parseProject(data), [data])
   const [liveScript, setLiveScript] = useState(parsed.script)
   const [open, setOpen] = useState(false)
+  const [tracksOpen, setTracksOpen] = useState(false)
   useEffect(() => setLiveScript(parsed.script), [parsed.script])
   const compiled = useMemo(() => compileSafe(liveScript || parsed.script), [liveScript, parsed.script])
   const project = compiled.ok ? compiled.project : parsed
@@ -817,16 +829,32 @@ function Editor({
   return (
     <div className="pv" data-testid="page-video-editor">
       <div className="pv-embed">
-        <div className="pv-chrome">
+        <Stage project={project} time={time} playing={playing} />
+        <div className="pv-player-controls">
           <button type="button" className="pv-icon" aria-label={playing ? '暂停' : '播放'} onClick={togglePlay}>
             <IconPlay running={playing} />
+          </button>
+          <span className="pv-player-time">{fmtClock(time)} / {fmtClock(duration)}</span>
+          <span className="pv-player-spacer" />
+          <button
+            type="button"
+            className="pv-icon pv-track-toggle"
+            aria-expanded={tracksOpen}
+            aria-controls="page-video-embed-timeline"
+            onClick={() => setTracksOpen((value) => !value)}
+          >
+            轨道
+            <IconChevron />
           </button>
           <button type="button" className="pv-icon" data-page-block-expand="" aria-label="全屏编辑" onClick={() => setOpen(true)}>
             <IconExpand />
           </button>
         </div>
-        <Stage project={project} time={time} playing={playing} />
-        <Timeline project={project} duration={duration} time={time} onSeek={setTime} />
+        {tracksOpen ? (
+          <div id="page-video-embed-timeline" className="pv-embed-timeline">
+            <Timeline project={project} duration={duration} time={time} onSeek={setTime} />
+          </div>
+        ) : null}
       </div>
       {open ? (
         <Studio
