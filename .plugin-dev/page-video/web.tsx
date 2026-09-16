@@ -16,7 +16,7 @@ import {
 } from './compose.ts'
 
 const React = globalThis.React
-const { useEffect, useMemo, useRef, useState } = React
+const { useEffect, useId, useMemo, useRef, useState } = React
 
 export const name = 'page-video'
 export const inject = ['pageEditor']
@@ -104,6 +104,9 @@ const STYLE_CSS = `
 }
 .pv-player-time{margin-left:3px;color:var(--pv-mute);font:10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
 .pv-player-spacer{flex:1}
+.pv-audio-only{border-radius:8px}
+.pv-audio-only .pv-player-controls{border-top:0}
+.pv-audio-scrub{min-width:72px;flex:1;height:3px;margin:0 8px;accent-color:var(--pv-blue);cursor:pointer}
 .pv-track-toggle{width:auto;padding:0 7px;gap:4px;font-size:11px}
 .pv-track-toggle svg{transition:transform .16s ease}
 .pv-track-toggle[aria-expanded="true"] svg{transform:rotate(180deg)}
@@ -786,10 +789,12 @@ function Editor({
   const [liveScript, setLiveScript] = useState(parsed.script)
   const [open, setOpen] = useState(false)
   const [tracksOpen, setTracksOpen] = useState(false)
+  const timelineId = useId()
   useEffect(() => setLiveScript(parsed.script), [parsed.script])
   const compiled = useMemo(() => compileSafe(liveScript || parsed.script), [liveScript, parsed.script])
   const project = compiled.ok ? compiled.project : parsed
   const duration = Math.max(0.2, projectDuration(project))
+  const audioOnly = project.clips.length > 0 && project.clips.every((clip) => clip.kind === 'audio')
   const [time, setTime] = useState(0)
   const [playing, setPlaying] = useState(false)
   const raf = useRef(0)
@@ -828,30 +833,46 @@ function Editor({
 
   return (
     <div className="pv" data-testid="page-video-editor">
-      <div className="pv-embed">
-        <Stage project={project} time={time} playing={playing} />
+      <div className={`pv-embed${audioOnly ? ' pv-audio-only' : ''}`}>
+        {audioOnly
+          ? project.clips.map((clip) => <AudioEffect key={clip.id} clip={clip} time={time} playing={playing} />)
+          : <Stage project={project} time={time} playing={playing} />}
         <div className="pv-player-controls">
           <button type="button" className="pv-icon" aria-label={playing ? '暂停' : '播放'} onClick={togglePlay}>
             <IconPlay running={playing} />
           </button>
+          {audioOnly ? (
+            <input
+              className="pv-audio-scrub"
+              type="range"
+              min={0}
+              max={duration}
+              step={1 / Math.max(1, project.fps)}
+              value={Math.min(duration, time)}
+              aria-label="音频进度"
+              onChange={(event) => setTime(Number(event.currentTarget.value))}
+            />
+          ) : null}
           <span className="pv-player-time">{fmtClock(time)} / {fmtClock(duration)}</span>
-          <span className="pv-player-spacer" />
-          <button
-            type="button"
-            className="pv-icon pv-track-toggle"
-            aria-expanded={tracksOpen}
-            aria-controls="page-video-embed-timeline"
-            onClick={() => setTracksOpen((value) => !value)}
-          >
-            轨道
-            <IconChevron />
-          </button>
+          {!audioOnly ? <span className="pv-player-spacer" /> : null}
+          {!audioOnly ? (
+            <button
+              type="button"
+              className="pv-icon pv-track-toggle"
+              aria-expanded={tracksOpen}
+              aria-controls={timelineId}
+              onClick={() => setTracksOpen((value) => !value)}
+            >
+              轨道
+              <IconChevron />
+            </button>
+          ) : null}
           <button type="button" className="pv-icon" data-page-block-expand="" aria-label="全屏编辑" onClick={() => setOpen(true)}>
             <IconExpand />
           </button>
         </div>
-        {tracksOpen ? (
-          <div id="page-video-embed-timeline" className="pv-embed-timeline">
+        {!audioOnly && tracksOpen ? (
+          <div id={timelineId} className="pv-embed-timeline">
             <Timeline project={project} duration={duration} time={time} onSeek={setTime} />
           </div>
         ) : null}
