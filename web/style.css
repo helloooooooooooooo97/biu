@@ -5183,13 +5183,11 @@ html:not(.dark) .chat-outline-panel {
   cursor: pointer;
 }
 
-.chat-outline-item:hover,
 .chat-outline-item.is-active {
   background: rgba(255, 255, 255, 0.08);
   color: var(--dsw-sidebar-fg-active);
 }
 
-html:not(.dark) .chat-outline-item:hover,
 html:not(.dark) .chat-outline-item.is-active {
   background: rgba(0, 0, 0, 0.05);
 }
