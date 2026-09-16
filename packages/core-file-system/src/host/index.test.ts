@@ -881,10 +881,13 @@ test('db_create tool ignores empty companion records instead of creating blank r
 
   await ctx.tools.invoke('db_create', {
     path: '/drafts',
-    records: [{ title: '目标技能' }, {}, { ignored: '会被 schema 丢弃' }],
+    records: [{ title: '目标技能' }, {}],
   })
 
   assert.deepEqual(received, [{ title: '目标技能' }])
+  received.length = 0
+  await db.create('/drafts', [{}, {}])
+  assert.deepEqual(received, [{}])
 })
 
 test('db_list columns returns only those fields plus id', async () => {
