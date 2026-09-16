@@ -86,6 +86,31 @@ test('frontmatter keeps discovery metadata separate from body', () => {
   assert.equal(parsed.body, '先阅读能力一。')
 })
 
+test('prompt tells agents how to store scripts and source even before any skill exists', async () => {
+  const { ctx } = await boot()
+  const prompt = ctx.systemPrompt.assemble()
+  assert.match(prompt, /write-files/)
+  assert.match(prompt, /source/)
+  assert.match(prompt, /scripts\/capture\.mjs/)
+})
+
+test('import keeps source url for attribution', () => {
+  const store = new SkillsStore()
+  const record = store.import({
+    source: 'https://github.com/tommyjepsen/awesome-ux-skills/blob/main/skills/craft/SKILL.md',
+    files: [
+      {
+        path: 'design-craft/SKILL.md',
+        content: '---\nname: Design Craft\ndescription: 治 AI 味时使用\n---\n\n十二条。',
+      },
+      { path: 'design-craft/scripts/capture.mjs', content: 'export const capture = 1' },
+    ],
+  })
+  assert.equal(record.source, 'https://github.com/tommyjepsen/awesome-ux-skills/blob/main/skills/craft/SKILL.md')
+  assert.match(readFileSync(join(process.env.BIU_SKILL_ROOT!, 'design-craft.md'), 'utf8'), /github.com\/tommyjepsen/)
+  assert.deepEqual(store.listFiles(record.id), ['scripts/capture.mjs'])
+})
+
 test('directory import keeps SKILL.md as notes and other files on disk', () => {
   const packed = packSkillImport(fixture.files)
   assert.equal(packed.notes, '先阅读能力一。')
@@ -124,7 +149,7 @@ test('/skills rows are Skill records, not Page pointers', async () => {
   assert.equal(rows[0]?.title, 'ABC')
   assert.equal(rows[0]?.enabled, true)
   assert.equal(rows[0]?.rootPageId, undefined)
-  assert.equal(spec.schema.contentField, 'notes')
+  assert.equal(spec.schema.fields.source?.type, 'url')
   assert.equal(spec.schema.fields.files, undefined)
   assert.equal(spec.actions?.map((item) => item.id).join(','), 'enable,disable,read-files,write-files')
 })

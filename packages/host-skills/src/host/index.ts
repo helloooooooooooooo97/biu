@@ -6,6 +6,7 @@ export type SkillSummary = {
   id: string
   name: string
   description: string
+  source: string
 }
 
 export class SkillsService extends Service {
@@ -44,6 +45,7 @@ export class SkillsService extends Service {
       id: skill.id,
       name: skill.name,
       description: skill.description,
+      source: skill.source,
     }))
   }
 
@@ -63,6 +65,7 @@ export class SkillsService extends Service {
       id: skill.id,
       name: skill.name,
       description: skill.description,
+      source: skill.source,
       enabled: skill.enabled,
       body: skill.notes,
     }
@@ -110,7 +113,7 @@ export class SkillsService extends Service {
     return migrated
   }
 
-  patch(id: string, patch: { name?: unknown; description?: unknown; enabled?: unknown; notes?: unknown }) {
+  patch(id: string, patch: { name?: unknown; description?: unknown; source?: unknown; enabled?: unknown; notes?: unknown }) {
     const next = this.store.patch(id, patch)
     this.changed()
     return next
@@ -127,15 +130,22 @@ export class SkillsService extends Service {
   }
 
   promptSection() {
+    const howto = [
+      '从 GitHub 安装技能：skill_import 的 files 必须带上 SKILL.md 以及仓库里的 scripts/、package.json 等，不要只进口径 Markdown。',
+      'SKILL.md 进正文；其它文件写进 .biu/skill/<id>/。漏了的脚本用 db_action path=/skills/<id> action=write-files，args.path 如 scripts/capture.mjs，args.content 为全文。',
+      'source 写上游 URL（仓库或具体 md），版权可追溯。',
+    ]
     const skills = this.listEnabled()
-    if (!skills.length) return ''
-    const lines = skills.map((skill) => `- ${skill.id}（${skill.name}）：${skill.description}`)
+    const lines = skills.map((skill) => {
+      const src = skill.source ? ` 来源 ${skill.source}` : ''
+      return `- ${skill.id}（${skill.name}）：${skill.description}${src}`
+    })
     return [
       '<available_skills>',
-      '这些技能存在 /skills，这里只列摘要，不展开正文。',
-      '相关时用 skill_read 或 db_content /skills/<id> 读取正文。',
-      '脚本在技能 id 目录里：db_action action=read-files / write-files。',
-      ...lines,
+      ...howto,
+      ...(skills.length
+        ? ['这些技能存在 /skills，这里只列摘要。相关时 skill_read 或 db_content /skills/<id>。', ...lines]
+        : ['/skills 目前没有已启用技能。']),
       '</available_skills>',
     ].join('\n')
   }
@@ -159,6 +169,7 @@ export function apply(ctx: Context) {
         id: skill.id,
         name: skill.name,
         description: skill.description,
+        source: skill.source,
         enabled: 'enabled' in skill ? skill.enabled : true,
       })),
   })
@@ -176,13 +187,17 @@ export function apply(ctx: Context) {
 
   ctx.tools.register({
     name: 'skill_import',
-    description: '把带 SKILL.md 的目录收成 /skills 里的一条记录。SKILL.md 进正文；其它文件写进该技能 id 目录。',
+    description:
+      '把带 SKILL.md 的目录收成 /skills 一条记录。files 必须包含 SKILL.md 以及脚本（scripts/*.mjs 等），不要只进口径 Markdown。' +
+      'SKILL.md 进正文；其它路径写进 .biu/skill/<id>/。漏了事后 write-files。' +
+      'source 填上游 URL（GitHub 仓库或具体文件链接），版权可追溯。',
     parameters: {
       type: 'object',
       properties: {
         id: { type: 'string' },
         name: { type: 'string' },
         description: { type: 'string' },
+        source: { type: 'string', description: '上游 URL，例如 https://github.com/org/repo/blob/main/skills/foo/SKILL.md' },
         files: {
           type: 'array',
           items: {
@@ -199,6 +214,7 @@ export function apply(ctx: Context) {
         id: String(args.id ?? ''),
         name: String(args.name ?? ''),
         description: String(args.description ?? ''),
+        source: String(args.source ?? ''),
         files: Array.isArray(args.files) ? args.files as Array<{ path: string; content: string }> : [],
       }),
   })

@@ -7,6 +7,7 @@ export type SkillRecord = {
   name: string
   description: string
   enabled: boolean
+  source: string
   notes: string
   createdAt: number
   updatedAt: number
@@ -21,6 +22,7 @@ export type SkillImportInput = {
   id?: string
   name?: string
   description?: string
+  source?: string
   enabled?: boolean
   draft?: boolean
   files: SkillImportFile[]
@@ -99,6 +101,7 @@ function dumpSkill(record: SkillRecord) {
     '---',
     `name: ${JSON.stringify(record.name)}`,
     `description: ${JSON.stringify(record.description)}`,
+    `source: ${JSON.stringify(record.source)}`,
     `enabled: ${enabled}`,
     `createdAt: ${record.createdAt}`,
     `updatedAt: ${record.updatedAt}`,
@@ -117,6 +120,7 @@ function loadSkill(id: string, text: string): SkillRecord {
     id,
     name: parsed.meta.name?.trim() || id,
     description: parsed.meta.description?.trim() || '',
+    source: parsed.meta.source?.trim() || '',
     enabled: enabledRaw ? enabledRaw !== 'false' : Boolean(parsed.meta.description?.trim()),
     notes: parsed.body,
     createdAt,
@@ -250,6 +254,7 @@ export class SkillsStore {
       id: assertSkillId(record.id),
       name: record.name.trim() || record.id,
       description: record.description.trim(),
+      source: String(record.source ?? '').trim(),
       notes: String(record.notes ?? ''),
       updatedAt: Date.now(),
       createdAt: record.createdAt || Date.now(),
@@ -262,6 +267,7 @@ export class SkillsStore {
     id?: string
     name?: string
     description?: string
+    source?: string
     enabled?: boolean
     notes?: string
     draft?: boolean
@@ -277,6 +283,7 @@ export class SkillsStore {
       id,
       name,
       description,
+      source: String(input.source ?? '').trim(),
       enabled: input.draft || !description ? false : input.enabled !== false,
       notes: String(input.notes ?? ''),
       createdAt: now,
@@ -292,6 +299,7 @@ export class SkillsStore {
       id: input.id || slugify(packed.parsed.meta.name || '') || undefined,
       name: input.name || packed.parsed.meta.name,
       description: input.description || packed.parsed.meta.description,
+      source: input.source || packed.parsed.meta.source,
       enabled: input.enabled,
       notes: packed.notes,
       files: packed.files,
@@ -299,13 +307,14 @@ export class SkillsStore {
     })
   }
 
-  patch(id: string, patch: { name?: unknown; description?: unknown; enabled?: unknown; notes?: unknown }) {
+  patch(id: string, patch: { name?: unknown; description?: unknown; source?: unknown; enabled?: unknown; notes?: unknown }) {
     const current = this.get(id)
     if (!current) throw new Error(`unknown skill: ${id}`)
     return this.put({
       ...current,
       ...(patch.name !== undefined ? { name: String(patch.name) } : {}),
       ...(patch.description !== undefined ? { description: String(patch.description) } : {}),
+      ...(patch.source !== undefined ? { source: String(patch.source ?? '').trim() } : {}),
       ...(patch.enabled !== undefined ? { enabled: patch.enabled !== false } : {}),
       ...(patch.notes !== undefined ? { notes: String(patch.notes ?? '') } : {}),
     })
