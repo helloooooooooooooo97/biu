@@ -1,6 +1,6 @@
 # 视频编排
 
-在页面里用 `/` 插入时间轴。编排语言是 **标签语法**。预览在文档里实时合成；**改脚本请点全屏**，避免和页面拖动抢手势。
+在页面里用 `/` 插入只读时间轴。Agent 用 **标签语法**完成剪辑，前端只负责实时合成预览；不要求用户手动拖时间轴。
 
 改页面或代写块之前，先照下面「示例写法」写 `:::pageBlock` 围栏。围栏体就是 `<video>` 脚本，不要包 JSON。
 
@@ -10,12 +10,21 @@
 
 | 标签 | 作用 | 常用属性 |
 |---|---|---|
-| `<video>` | 画布 | `fps` `size=1280x720` |
+| `<video>` | 输出画布和录屏外观 | `fps` `size` `background` `wallpaper` `padding` `radius` `shadow` |
 | `<title>` | 全屏标题卡 | `dur` `bg` `ink` `trans=cut\|fade\|slide` |
 | `<scene>` | 色块场景 | 同上 |
-| `<caption>` | 叠字幕 | `at` `dur` `ink` |
-| `<media />` | 附件视频/图 | `src` `dur` `fit` `trans` |
-| `<zoom />` | 镜头 | `at` `dur` `cx` `cy` `depth` |
+| `<media />` | 主视频/图片 | `src` `in` `dur` `speed` `fit` `crop=x,y,w,h` `trans` |
+| `<zoom />` | 平滑镜头 + 运动模糊 | `at` `dur` `cx` `cy` `depth` |
+| `<text>` | 文字/字幕标注 | `at` `dur` `x` `y` `size` `color` `anim` |
+| `<caption>` | 底部字幕 | `at` `dur` `ink` |
+| `<arrow />` | 箭头标注 | `x` `y` `x2` `y2` `color` `width` |
+| `<blur />` | 局部隐私模糊 | `x` `y` `w` `h` `amount` `shape` |
+| `<cursor />` | 光标移动和点击反馈 | `x` `y` `x2` `y2` `click` `size` |
+| `<pip />` | 摄像头画中画 | `src` `x` `y` `w` `h` `shape` |
+| `<image />` | 图片/Logo 标注 | `src` `x` `y` `w` `h` `anim` |
+| `<audio />` | 配音或音乐 | `src` `in` `at` `dur` `speed` `volume` |
+
+坐标与尺寸使用 `0–1`；`at` 是输出时间，`in` 是素材入点。`anim` 支持 `fade`、`rise`、`pop`、`slide-left`、`typewriter`、`pulse`。
 
 ## 示例写法
 
@@ -23,13 +32,17 @@
 
 ```md
 :::pageBlock {kind=video plugin=page-video}
-<video fps=30 size=1280x720>
-  <title dur=2.2s bg=#111111 ink=#f6f2ea trans=fade>Biu</title>
-  <scene dur=3.4s bg=#1a1a2e trans=slide>Compose with tags.</scene>
-  <zoom at=2.4s dur=0.8s cx=0.46 cy=0.38 depth=1.7 />
-  <media src=demo.mp4 dur=3.2s fit=cover trans=fade />
+<video fps=30 size=1280x720 background=#dedbd3 padding=6 radius=18 shadow=28>
+  <media src=demo.mp4 in=1.2s dur=6s speed=1.1 crop=0.05,0.05,0.9,0.9 />
+  <zoom at=1.4s dur=.8s cx=.46 cy=.38 depth=1.7 />
+  <text at=1.8s dur=2s x=.5 y=.82 size=30 anim=rise>Agent-directed video</text>
+  <arrow at=2.2s dur=1.8s x=.22 y=.65 x2=.44 y2=.42 color=#7dd3fc width=5 />
+  <cursor at=.6s dur=3s x=.12 y=.8 x2=.76 y2=.3 click=1.7s size=28 />
+  <blur at=3s dur=2s x=.72 y=.2 w=.2 h=.14 amount=16 shape=rounded />
+  <pip src=face.mp4 at=1s dur=5s x=.85 y=.76 w=.2 h=.28 shape=circle />
+  <audio src=voice.mp3 dur=6s volume=.9 />
 </video>
 :::
 ```
 
-写入页面用 `db_content`。斜杠输入 `video` 插入。
+Agent 用 `video_script` 先校验，再通过 `db_content` 写入围栏。时间轴不提供拖拽剪辑；脚本是唯一事实来源。

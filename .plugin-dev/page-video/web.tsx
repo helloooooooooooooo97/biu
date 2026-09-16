@@ -1,10 +1,12 @@
 import { createPortal } from 'react-dom'
 import {
+  annotationMotion,
   cameraAt,
   clipAlpha,
   clipShift,
   clipsAt,
   compileSafe,
+  cursorAt,
   isVideoSrc,
   parseProject,
   projectDuration,
@@ -44,6 +46,7 @@ const STYLE_CSS = `
 .pv-stage{
   position:relative;aspect-ratio:16/9;background:#191919;overflow:hidden;
 }
+.pv-screen{position:absolute;overflow:hidden;isolation:isolate}
 .pv-cam{position:absolute;inset:0;transform-origin:center center;will-change:transform}
 .pv-layer{position:absolute;inset:0}
 .pv-frame{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:9% 10%;box-sizing:border-box}
@@ -55,6 +58,15 @@ const STYLE_CSS = `
   text-shadow:0 1px 10px rgba(0,0,0,.4);
 }
 .pv-media{position:absolute;inset:0;width:100%;height:100%;background:#111}
+.pv-effect{position:absolute;z-index:5;pointer-events:none;box-sizing:border-box}
+.pv-text{transform:translate(-50%,-50%);white-space:pre-wrap;max-width:80%;line-height:1.18;text-align:center;font-weight:700;text-shadow:0 2px 12px rgba(0,0,0,.3)}
+.pv-arrow{overflow:visible}
+.pv-blur{transform:translate(-50%,-50%);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06)}
+.pv-cursor{transform:translate(-8%,-8%);filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));transform-origin:8% 8%}
+.pv-click{position:absolute;left:0;top:0;width:100%;height:100%;border:2px solid currentColor;border-radius:50%;transform:scale(1.7);opacity:.75}
+.pv-pip{transform:translate(-50%,-50%);overflow:hidden;border:2px solid rgba(255,255,255,.9);box-shadow:0 8px 28px rgba(0,0,0,.24);background:#111}
+.pv-pip .pv-media{position:absolute}
+.pv-image{transform:translate(-50%,-50%);object-fit:contain;filter:drop-shadow(0 6px 16px rgba(0,0,0,.2))}
 .pv-rail{
   position:relative;height:34px;margin:0;background:color-mix(in srgb,var(--dsw-sidebar,#f7f6f3) 88%,transparent);
   border-top:1px solid var(--pv-line);
@@ -210,7 +222,7 @@ function alphaAt(clip: Clip, time: number) {
 
 function MediaEl({ clip, time, playing }: { clip: Clip; time: number; playing: boolean }) {
   const active = time >= clip.start && time < clip.start + clip.duration
-  const local = Math.max(0, time - clip.start)
+  const local = clip.sourceIn + Math.max(0, time - clip.start) * clip.speed
   const alpha = alphaAt(clip, time)
   const shift = clipShift(clip, time)
   const video = useRef<HTMLVideoElement | null>(null)
@@ -219,6 +231,7 @@ function MediaEl({ clip, time, playing }: { clip: Clip; time: number; playing: b
   useEffect(() => {
     const el = video.current
     if (!el || !movie) return
+    el.playbackRate = clip.speed
     const drift = Math.abs((el.currentTime || 0) - local)
     if (!active) {
       el.pause()
@@ -228,50 +241,237 @@ function MediaEl({ clip, time, playing }: { clip: Clip; time: number; playing: b
     if (playing) {
       if (el.paused) void el.play().catch(() => undefined)
     } else if (!el.paused) el.pause()
-  }, [active, local, movie, playing])
-  const fit = { objectFit: clip.fit, opacity: active ? alpha : 0, transform: `translateX(${shift}px)` } as const
+  }, [active, clip.speed, local, movie, playing])
+  const [cropX, cropY, cropW, cropH] = clip.crop
+  const fit = {
+    objectFit: clip.fit,
+    opacity: active ? alpha : 0,
+    transform: `translateX(${shift}px)`,
+    width: `${100 / cropW}%`,
+    height: `${100 / cropH}%`,
+    left: `${(-cropX / cropW) * 100}%`,
+    top: `${(-cropY / cropH) * 100}%`,
+  } as const
   if (movie) {
     return <video ref={video} className="pv-media" src={url} muted playsInline preload="auto" style={{ ...fit, pointerEvents: 'none' }} />
   }
   return <img className="pv-media" src={url} alt="" style={fit} />
 }
 
+function TextEffect({ clip, time }: { clip: Clip; time: number }) {
+  const motion = annotationMotion(clip, time)
+  const count = Math.ceil(Array.from(clip.text).length * motion.reveal)
+  const text = clip.anim === 'typewriter' ? Array.from(clip.text).slice(0, count).join('') : clip.text
+  return (
+    <div
+      className="pv-effect pv-text"
+      style={{
+        left: `${clip.x * 100}%`,
+        top: `${clip.y * 100}%`,
+        color: clip.color,
+        fontSize: clip.size,
+        opacity: motion.opacity,
+        transform: `translate(calc(-50% + ${motion.translateX}px),calc(-50% + ${motion.translateY}px)) scale(${motion.scale})`,
+      }}
+    >
+      {text}
+    </div>
+  )
+}
+
+function ArrowEffect({ clip }: { clip: Clip }) {
+  const x1 = clip.x * 100
+  const y1 = clip.y * 100
+  const x2 = clip.x2 * 100
+  const y2 = clip.y2 * 100
+  const angle = Math.atan2(y2 - y1, x2 - x1)
+  const head = Math.min(4, 1.2 + clip.amount * 0.35)
+  return (
+    <svg className="pv-effect pv-arrow" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ inset: 0, width: '100%', height: '100%' }}>
+      <path
+        d={`M ${x1} ${y1} L ${x2} ${y2} M ${x2} ${y2} L ${x2 - Math.cos(angle - 0.55) * head} ${y2 - Math.sin(angle - 0.55) * head} M ${x2} ${y2} L ${x2 - Math.cos(angle + 0.55) * head} ${y2 - Math.sin(angle + 0.55) * head}`}
+        fill="none"
+        stroke={clip.color}
+        strokeWidth={clip.amount / 4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  )
+}
+
+function CursorEffect({ clip, time }: { clip: Clip; time: number }) {
+  const cursor = cursorAt(clip, time)
+  return (
+    <div
+      className="pv-effect pv-cursor"
+      style={{
+        left: `${cursor.x * 100}%`,
+        top: `${cursor.y * 100}%`,
+        width: clip.size,
+        height: clip.size,
+        color: clip.color,
+        transform: `translate(-8%,-8%) scale(${1 - cursor.click * 0.15})`,
+      }}
+    >
+      <svg viewBox="0 0 32 32" width="100%" height="100%" aria-hidden>
+        <path d="M5 2.8 26 18l-9.3 1.5-5.1 8.2z" fill={clip.color} stroke="#111" strokeWidth="1.4" strokeLinejoin="round" />
+      </svg>
+      {cursor.click > 0 ? <i className="pv-click" style={{ opacity: cursor.click * 0.75 }} /> : null}
+    </div>
+  )
+}
+
+function OverlayEffect({ clip, time, playing }: { clip: Clip; time: number; playing: boolean }) {
+  if (clip.kind === 'text') return <TextEffect clip={clip} time={time} />
+  if (clip.kind === 'arrow') return <ArrowEffect clip={clip} />
+  if (clip.kind === 'cursor') return <CursorEffect clip={clip} time={time} />
+  if (clip.kind === 'blur') {
+    return (
+      <div
+        className="pv-effect pv-blur"
+        style={{
+          left: `${clip.x * 100}%`,
+          top: `${clip.y * 100}%`,
+          width: `${clip.w * 100}%`,
+          height: `${clip.h * 100}%`,
+          borderRadius: clip.shape === 'circle' ? '50%' : clip.shape === 'rounded' ? 14 : 2,
+          backdropFilter: `blur(${clip.amount}px)`,
+        }}
+      />
+    )
+  }
+  if (clip.kind === 'pip') {
+    return (
+      <div
+        className="pv-effect pv-pip"
+        style={{
+          left: `${clip.x * 100}%`,
+          top: `${clip.y * 100}%`,
+          width: `${clip.w * 100}%`,
+          height: `${clip.h * 100}%`,
+          borderRadius: clip.shape === 'circle' ? '50%' : clip.shape === 'rounded' ? 16 : 4,
+        }}
+      >
+        <MediaEl clip={clip} time={time} playing={playing} />
+      </div>
+    )
+  }
+  if (clip.kind === 'image') {
+    const motion = annotationMotion(clip, time)
+    return (
+      <img
+        className="pv-effect pv-image"
+        src={assetUrl(clip.src)}
+        alt=""
+        style={{
+          left: `${clip.x * 100}%`,
+          top: `${clip.y * 100}%`,
+          width: `${clip.w * 100}%`,
+          height: `${clip.h * 100}%`,
+          borderRadius: clip.shape === 'circle' ? '50%' : clip.shape === 'rounded' ? 14 : 0,
+          opacity: motion.opacity,
+          transform: `translate(calc(-50% + ${motion.translateX}px),calc(-50% + ${motion.translateY}px)) scale(${motion.scale})`,
+        }}
+      />
+    )
+  }
+  return null
+}
+
+function AudioEffect({ clip, time, playing }: { clip: Clip; time: number; playing: boolean }) {
+  const audio = useRef<HTMLAudioElement | null>(null)
+  const active = time >= clip.start && time < clip.start + clip.duration
+  const local = clip.sourceIn + Math.max(0, time - clip.start) * clip.speed
+  useEffect(() => {
+    const el = audio.current
+    if (!el) return
+    el.volume = clip.volume
+    el.playbackRate = clip.speed
+    if (!active) {
+      el.pause()
+      return
+    }
+    if (Math.abs(el.currentTime - local) > 0.12) el.currentTime = local
+    if (playing) void el.play().catch(() => undefined)
+    else el.pause()
+  }, [active, clip.speed, clip.volume, local, playing])
+  return <audio ref={audio} src={assetUrl(clip.src)} preload="auto" />
+}
+
 function Stage({ project, time, playing }: { project: Project; time: number; playing: boolean }) {
   const active = clipsAt(project, time)
   const bases = active.filter((clip) => clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media')
   const captions = active.filter((clip) => clip.kind === 'caption')
+  const effects = active.filter((clip) => clip.kind === 'text' || clip.kind === 'arrow' || clip.kind === 'blur' || clip.kind === 'cursor' || clip.kind === 'pip' || clip.kind === 'image')
+  const audio = project.clips.filter((clip) => clip.kind === 'audio')
   const media = project.clips.filter((clip) => clip.kind === 'media')
   const bg = [...bases].reverse().find((clip) => clip.kind !== 'media')?.bg ?? '#191919'
+  const zoom = active.find((clip) => clip.kind === 'zoom')
+  const zoomProgress = zoom ? Math.max(0, Math.min(1, (time - zoom.start) / zoom.duration)) : 0
+  const motionBlur = zoom ? Math.sin(zoomProgress * Math.PI) * Math.min(4, (zoom.depth - 1) * 3) : 0
+  const wallpaper = project.wallpaper ? `url("${assetUrl(project.wallpaper)}")` : undefined
+  const inset = `${project.padding}%`
   return (
-    <div className="pv-stage" data-testid="page-video-stage" style={{ background: bg }}>
-      <div className="pv-cam" data-testid="page-video-cam" style={{ transform: cameraCss(project, time) }}>
-        {media.map((clip) => (
-          <MediaEl key={clip.id} clip={clip} time={time} playing={playing} />
-        ))}
-        {bases
-          .filter((clip) => clip.kind !== 'media')
-          .map((clip) => (
-            <div
-              key={clip.id}
-              className="pv-layer"
-              style={{
-                background: clip.bg,
-                color: clip.ink,
-                opacity: alphaAt(clip, time),
-                transform: `translateX(${clipShift(clip, time)}px)`,
-              }}
-            >
-              <div className="pv-frame">
-                <div className="pv-kicker">{clip.kind}</div>
-                <div className="pv-title">{clip.text || '·'}</div>
-              </div>
-            </div>
+    <div
+      className="pv-stage"
+      data-testid="page-video-stage"
+      style={{
+        backgroundColor: project.background,
+        backgroundImage: wallpaper,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      <div
+        className="pv-screen"
+        style={{
+          inset,
+          borderRadius: project.radius,
+          boxShadow: project.shadow ? `0 ${project.shadow / 3}px ${project.shadow}px rgba(15,15,15,.32)` : undefined,
+          background: bg,
+        }}
+      >
+        <div
+          className="pv-cam"
+          data-testid="page-video-cam"
+          style={{ transform: cameraCss(project, time), filter: motionBlur > 0.1 ? `blur(${motionBlur}px)` : undefined }}
+        >
+          {media.map((clip) => (
+            <MediaEl key={clip.id} clip={clip} time={time} playing={playing} />
           ))}
-      </div>
-      {captions.map((clip) => (
-        <div key={clip.id} className="pv-caption" style={{ color: clip.ink, opacity: alphaAt(clip, time) }}>
-          {clip.text}
+          {bases
+            .filter((clip) => clip.kind !== 'media')
+            .map((clip) => (
+              <div
+                key={clip.id}
+                className="pv-layer"
+                style={{
+                  background: clip.bg,
+                  color: clip.ink,
+                  opacity: alphaAt(clip, time),
+                  transform: `translateX(${clipShift(clip, time)}px)`,
+                }}
+              >
+                <div className="pv-frame">
+                  <div className="pv-kicker">{clip.kind}</div>
+                  <div className="pv-title">{clip.text || '·'}</div>
+                </div>
+              </div>
+            ))}
         </div>
+        {captions.map((clip) => (
+          <div key={clip.id} className="pv-caption" style={{ color: clip.ink, opacity: alphaAt(clip, time) }}>
+            {clip.text}
+          </div>
+        ))}
+        {effects.map((clip) => (
+          <OverlayEffect key={clip.id} clip={clip} time={time} playing={playing} />
+        ))}
+      </div>
+      {audio.map((clip) => (
+        <AudioEffect key={clip.id} clip={clip} time={time} playing={playing} />
       ))}
     </div>
   )

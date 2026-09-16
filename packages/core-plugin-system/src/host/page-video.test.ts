@@ -28,7 +28,7 @@ test('page-video is a headless page block with tag grammar', async () => {
   assert.match(web, /page-video-studio/)
   assert.match(web, /全屏编辑/)
   assert.match(web, /pv-embed:hover/)
-  assert.match(readme, /<video fps=30 size=1280x720>/)
+  assert.match(readme, /<video fps=30 size=1280x720/)
   assert.doesNotMatch(readme, /"script":/)
   assert.match(host, /video_script/)
   assert.match(host, /\/api\/page-video\/compile/)

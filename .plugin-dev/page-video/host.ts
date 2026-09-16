@@ -19,7 +19,7 @@ export function apply(ctx: Context) {
   ctx.tools.register({
     name: 'video_script',
     description:
-      'Compile a page-video <> script into a timeline. Tags: <video fps size>, <title>, <scene>, <caption at>, <media src>, <zoom at cx cy depth />. The page block live-composites on the frontend (video element + camera), not an exported file. Use the tag grammar only.',
+      'Compile an agent-authored page-video <> script. Effects: <video background wallpaper padding radius shadow>, <media in dur speed crop>, <zoom>, <text anim>, <caption>, <arrow>, <blur>, <cursor click>, <pip>, <image>, and <audio>. The frontend live-composites the result; the timeline is read-only. Use tags instead of prose editing instructions.',
     parameters: {
       type: 'object',
       properties: {
