@@ -1,4 +1,34 @@
 import { createPortal } from 'react-dom'
+import type { ComponentType } from 'react'
+import {
+  ArrowUpRightIcon,
+  ArrowsPointingInIcon,
+  ArrowsPointingOutIcon,
+  Bars3BottomLeftIcon,
+  BoltIcon,
+  ChatBubbleBottomCenterTextIcon,
+  CheckIcon,
+  CodeBracketIcon,
+  CursorArrowRaysIcon,
+  ExclamationTriangleIcon,
+  FilmIcon,
+  MagnifyingGlassPlusIcon,
+  MinusIcon,
+  PauseIcon,
+  PhotoIcon,
+  PlayIcon,
+  QueueListIcon,
+  RectangleGroupIcon,
+  RectangleStackIcon,
+  ScissorsIcon,
+  SpeakerWaveIcon,
+  Squares2X2Icon,
+  StopIcon,
+  SwatchIcon,
+  VideoCameraIcon,
+  ViewfinderCircleIcon,
+  WindowIcon,
+} from '@heroicons/react/16/solid'
 import {
   cameraAt,
   clipAlpha,
@@ -43,11 +73,11 @@ const STYLE_CSS = `
   --pv-ok:var(--dsw-ok,#1f8a65);
   --pv-danger:var(--dsw-danger,#cf2d56);
   --pv-danger-soft:var(--dsw-danger-soft,rgba(207,45,86,.1));
-  --pv-font:var(--font-sans,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);
-  --pv-mono:var(--font-mono,"SF Mono",ui-monospace,Consolas,monospace);
   position:relative;
   color:var(--pv-ink);
-  font:13px/1.45 var(--pv-font);
+  font-family:var(--font-sans);
+  font-size:13px;
+  line-height:1.45;
 }
 .pv-embed{
   position:relative;
@@ -101,7 +131,7 @@ const STYLE_CSS = `
   border-bottom:1px solid var(--pv-line);
   color:var(--pv-mute);
 }
-.pv-track-label svg{width:14px;height:14px;color:currentColor}
+.pv-track-label svg{width:16px;height:16px;color:currentColor}
 .pv-track-label:hover{color:var(--pv-ink);background:var(--pv-hover)}
 .pv-lanes{position:relative;min-width:0;cursor:pointer;outline:none}
 .pv-lanes:before{
@@ -112,12 +142,12 @@ const STYLE_CSS = `
 }
 .pv-clip{
   position:absolute;height:18px;border:1px solid color-mix(in srgb,var(--pv-ink) 12%,var(--pv-line));border-radius:4px;
-  font:10px/1 var(--pv-font);color:var(--pv-mute);
+  font-family:var(--font-sans);font-size:10px;line-height:1;color:var(--pv-mute);
   padding:0 5px;display:flex;align-items:center;gap:4px;box-sizing:border-box;pointer-events:none;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
   background:color-mix(in srgb,var(--pv-panel) 74%,var(--pv-bg));
 }
-.pv-clip svg{width:11px;height:11px;flex:none}
+.pv-clip svg{width:12px;height:12px;flex:none}
 .pv-clip[data-tone="effect"]{background:color-mix(in srgb,var(--pv-blue) 10%,var(--pv-bg));border-color:color-mix(in srgb,var(--pv-blue) 22%,var(--pv-line));color:color-mix(in srgb,var(--pv-blue) 62%,var(--pv-ink))}
 .pv-clip[data-tone="audio"]{background:color-mix(in srgb,var(--pv-ok) 10%,var(--pv-bg));border-color:color-mix(in srgb,var(--pv-ok) 22%,var(--pv-line));color:color-mix(in srgb,var(--pv-ok) 58%,var(--pv-ink))}
 .pv-playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--pv-blue);pointer-events:none;z-index:3}
@@ -126,7 +156,7 @@ const STYLE_CSS = `
   height:38px;padding:0 7px;display:flex;align-items:center;gap:3px;
   border-top:1px solid var(--pv-line);background:var(--pv-bg);
 }
-.pv-player-time{margin-left:3px;color:var(--pv-mute);font:10px/1.2 var(--pv-mono);font-variant-numeric:tabular-nums}
+.pv-player-time{margin-left:3px;color:var(--pv-mute);font-family:var(--font-mono);font-size:10px;line-height:1.2;font-variant-numeric:tabular-nums}
 .pv-player-spacer{flex:1}
 .pv-audio-only{border-radius:8px}
 .pv-audio-only .pv-player-controls{border-top:0}
@@ -154,8 +184,6 @@ const STYLE_CSS = `
   --pv-ok:var(--dsw-ok,#1f8a65);
   --pv-danger:var(--dsw-danger,#cf2d56);
   --pv-danger-soft:var(--dsw-danger-soft,rgba(207,45,86,.1));
-  --pv-font:var(--font-sans,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);
-  --pv-mono:var(--font-mono,"SF Mono",ui-monospace,Consolas,monospace);
   --studio-line:var(--pv-line);
   --studio-panel:var(--pv-panel);
   --script-w:420px;
@@ -163,7 +191,7 @@ const STYLE_CSS = `
   position:fixed;inset:0;z-index:2147483646;
   display:grid;grid-template-rows:48px minmax(0,1fr) 6px var(--foot-h);
   background:var(--pv-panel);color:var(--pv-ink);
-  font-family:var(--pv-font);
+  font-family:var(--font-sans);
 }
 .pv-studio[data-resize="col"]{cursor:col-resize}
 .pv-studio[data-resize="col"] *{cursor:col-resize !important;user-select:none}
@@ -176,12 +204,12 @@ const STYLE_CSS = `
 }
 .pv-brand{display:flex;align-items:center;gap:8px;min-width:0}
 .pv-brand-mark{width:26px;height:26px;border-radius:5px;color:var(--pv-ink);display:grid;place-items:center}
-.pv-brand-mark svg{width:16px;height:16px}
+.pv-brand-mark svg,.pv-panel-icon svg{width:16px;height:16px}
 .pv-studio-name{font-weight:600;letter-spacing:-.01em;white-space:nowrap}
 .pv-studio-sub{color:var(--pv-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pv-studio-actions{justify-self:end;display:flex;align-items:center;gap:4px}
 .pv-transport{display:flex;align-items:center;gap:2px;padding:2px 7px 2px 2px;border:1px solid var(--studio-line);border-radius:6px;background:var(--pv-bg)}
-.pv-timecode{min-width:92px;text-align:center;color:var(--pv-mute);font:11px/1.2 var(--pv-mono);font-variant-numeric:tabular-nums}
+.pv-timecode{min-width:92px;text-align:center;color:var(--pv-mute);font-family:var(--font-mono);font-size:11px;line-height:1.2;font-variant-numeric:tabular-nums}
 .pv-live{display:flex;align-items:center;gap:6px;color:var(--pv-mute);font-size:11px;margin-right:6px}
 .pv-live-dot{width:6px;height:6px;border-radius:50%;background:var(--pv-ok)}
 .pv-studio-body{display:grid;grid-template-columns:minmax(240px,1fr) 6px var(--script-w);min-height:0;min-width:0}
@@ -215,14 +243,14 @@ const STYLE_CSS = `
   flex:none;display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;
   border-bottom:1px solid var(--studio-line);font-size:11px;color:var(--pv-mute);
 }
-.pv-panel-icon{width:14px;height:14px;color:var(--pv-mute);flex:none}
+.pv-panel-icon{width:16px;height:16px;color:var(--pv-mute);flex:none;display:inline-flex}
 .pv-valid{margin-left:auto;display:flex;align-items:center;gap:5px;color:var(--pv-ok)}
 .pv-valid svg,.pv-invalid svg{width:13px;height:13px}
 .pv-invalid{margin-left:auto;display:flex;align-items:center;gap:5px;color:var(--pv-danger)}
 .pv-line-no{
   flex:none;width:32px;padding:14px 0 14px 10px;box-sizing:border-box;
   color:color-mix(in srgb,var(--pv-mute) 55%,transparent);background:var(--pv-panel);text-align:right;white-space:pre;
-  font:12px/1.65 var(--pv-mono);user-select:none;overflow:hidden;
+  font-family:var(--font-mono);font-size:12px;line-height:1.65;user-select:none;overflow:hidden;
 }
 .pv-code-wrap{display:flex;flex:1;min-height:0}
 .pv-code-wrap .pv-src{
@@ -231,7 +259,7 @@ const STYLE_CSS = `
 .pv-src{
   flex:1;min-height:0;width:100%;box-sizing:border-box;border:0;outline:none;resize:none;
   padding:14px 16px 14px 10px;background:var(--pv-panel);color:var(--pv-ink);
-  font:12px/1.65 var(--pv-mono);
+  font-family:var(--font-mono);font-size:12px;line-height:1.65;
 }
 .pv-src:focus{background:var(--pv-bg);box-shadow:inset 2px 0 var(--pv-ink)}
 .pv-err,.pv-hint{
@@ -756,44 +784,6 @@ function ScriptField({
   )
 }
 
-function IconPlay({ running }: { running: boolean }) {
-  return running ? (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-      <rect x="3.5" y="3" width="3.1" height="10" rx="0.7" />
-      <rect x="9.4" y="3" width="3.1" height="10" rx="0.7" />
-    </svg>
-  ) : (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-      <path d="M4.6 2.8v10.5L13 8.05z" />
-    </svg>
-  )
-}
-
-function IconExpand() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-      <path d="M3 3h4v1.4H4.4V7H3V3zm6 0h4v4h-1.4V4.4H9V3zM3 9h1.4v2.6H7V13H3V9zm6 2.6H12.6V9H14v4H9v-1.4z" />
-    </svg>
-  )
-}
-
-function UiIcon({ name }: { name: 'film' | 'code' | 'check' | 'warning' | 'timeline' | 'tracks' | 'clips' }) {
-  const paths = {
-    film: 'M2.5 3.25h11v9.5h-11zM5 3.25v9.5M11 3.25v9.5M2.5 6h2.5M11 6h2.5M2.5 10h2.5M11 10h2.5',
-    code: 'm6.25 4-4 4 4 4M9.75 4l4 4-4 4',
-    check: 'm3.2 8.2 3 3 6.6-6.6',
-    warning: 'M8 2.4 14 13H2zM8 6v3.2M8 11.4h.01',
-    timeline: 'M2.5 4.5h11M2.5 8h11M2.5 11.5h11M5 3v3M10.5 6.5v3M7.5 10v3',
-    tracks: 'M3 3.5h10M3 8h10M3 12.5h10M5 2v3M10.5 6.5v3M7 11v3',
-    clips: 'M2.5 4h4v8h-4zM7.5 4h6v8h-6z',
-  } as const
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d={paths[name]} />
-    </svg>
-  )
-}
-
 type TimelineTrack = {
   id: string
   kind: Clip['kind']
@@ -803,34 +793,31 @@ type TimelineTrack = {
 
 const TRACK_ORDER: Clip['kind'][] = ['title', 'scene', 'solid', 'media', 'zoom', 'text', 'caption', 'arrow', 'blur', 'box', 'spotlight', 'stamp', 'cursor', 'pip', 'image', 'speed', 'trim', 'gap', 'audio']
 const TRACK_HEIGHT = 28
-const TRACK_ICON_PATH: Record<Clip['kind'], string> = {
-  title: 'M3 3.5h10M8 3.5v9M5.5 12.5h5',
-  scene: 'M2.5 3.5h11v9h-11zM5 3.5v9M11 3.5v9',
-  solid: 'M2.5 3.5h11v9h-11z',
-  media: 'M2.5 4h7.5v8H2.5zM10 6.5l3.5-2v7L10 9.5',
-  zoom: 'M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm3.2-1.3 3.3 3.3M7 4.5v5M4.5 7h5',
-  text: 'M3 4V2.5h10V4M8 2.5v11M5.5 13.5h5',
-  caption: 'M2.5 3.5h11v7.5h-6l-3 2v-2h-2zM5 6.5h6M5 8.5h4',
-  arrow: 'M2.5 12.5 13 3m-5 .5h5v5',
-  blur: 'M8 2.5c2.2 3 3.5 4.8 3.5 6.7A3.5 3.5 0 0 1 8 12.7a3.5 3.5 0 0 1-3.5-3.5C4.5 7.3 5.8 5.5 8 2.5z',
-  box: 'M3 3.5h10v9H3z',
-  spotlight: 'M8 2.5v2.2M8 13.5v-2.2M2.5 8h2.2M13.5 8h-2.2M5 5l1.6 1.5M11 5 9.4 6.5M5 11l1.6-1.5M11 11 9.4 9.5',
-  stamp: 'M3.5 7h9v6h-9zM5.2 7V5.4a2.8 2.8 0 0 1 5.6 0V7',
-  cursor: 'M3 2.5 12.5 9 8 10l-2 3.5z',
-  pip: 'M2.5 3.5h11v9h-11zM8 7.5h4v3H8z',
-  image: 'M2.5 3.5h11v9h-11zM3 11l3.3-3.5 2.2 2 1.5-1.3 3 2.8M10.8 6.3h.1',
-  speed: 'M3 8h3.2l.9-3 1.6 6L10 8h3',
-  trim: 'M4.5 3v10M11.5 3v10M4.5 8h7',
-  gap: 'M3 8h10',
-  audio: 'M2.5 7h2.8L9 4v8l-3.7-3H2.5zM11 6c1.2 1.1 1.2 2.9 0 4M12.7 4.5c2.1 2 2.1 5 0 7',
+const TRACK_ICONS: Record<Clip['kind'], ComponentType<{ className?: string }>> = {
+  title: Bars3BottomLeftIcon,
+  scene: RectangleStackIcon,
+  solid: SwatchIcon,
+  media: VideoCameraIcon,
+  zoom: MagnifyingGlassPlusIcon,
+  text: Bars3BottomLeftIcon,
+  caption: ChatBubbleBottomCenterTextIcon,
+  arrow: ArrowUpRightIcon,
+  blur: Squares2X2Icon,
+  box: StopIcon,
+  spotlight: ViewfinderCircleIcon,
+  stamp: RectangleGroupIcon,
+  cursor: CursorArrowRaysIcon,
+  pip: WindowIcon,
+  image: PhotoIcon,
+  speed: BoltIcon,
+  trim: ScissorsIcon,
+  gap: MinusIcon,
+  audio: SpeakerWaveIcon,
 }
 
 function TrackIcon({ kind }: { kind: Clip['kind'] }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d={TRACK_ICON_PATH[kind]} />
-    </svg>
-  )
+  const Icon = TRACK_ICONS[kind] ?? QueueListIcon
+  return <Icon className="size-4 shrink-0" />
 }
 
 function timelineTracks(project: Project): TimelineTrack[] {
@@ -1022,20 +1009,20 @@ function Studio({
     >
       <div className="pv-studio-bar">
         <div className="pv-brand">
-          <span className="pv-brand-mark"><UiIcon name="film" /></span>
+          <span className="pv-brand-mark"><FilmIcon className="size-4 shrink-0" /></span>
           <span className="pv-studio-name">视频工作台</span>
           <span className="pv-studio-sub">/ 未命名编排</span>
         </div>
         <div className="pv-transport">
           <button type="button" className="pv-icon" aria-label={playing ? '暂停' : '播放'} onClick={onPlay}>
-            <IconPlay running={playing} />
+            {playing ? <PauseIcon className="size-4 shrink-0" /> : <PlayIcon className="size-4 shrink-0" />}
           </button>
           <span className="pv-timecode">{fmtClock(time)} / {fmtClock(duration)}</span>
         </div>
         <div className="pv-studio-actions">
           <span className="pv-live"><i className="pv-live-dot" />实时预览</span>
           <button type="button" className="pv-icon" data-page-block-expand="" aria-label="退出全屏" onClick={onClose}>
-            <IconExpand />
+            <ArrowsPointingInIcon className="size-4 shrink-0" />
           </button>
         </div>
       </div>
@@ -1058,11 +1045,11 @@ function Studio({
         />
         <div className="pv-script">
           <div className="pv-script-head">
-            <span className="pv-panel-icon"><UiIcon name="code" /></span>
+            <span className="pv-panel-icon"><CodeBracketIcon className="size-4 shrink-0" /></span>
             编排源码
             {compiledOk
-              ? <span className="pv-valid"><UiIcon name="check" />有效</span>
-              : <span className="pv-invalid"><UiIcon name="warning" />有错误</span>}
+              ? <span className="pv-valid"><CheckIcon className="size-4 shrink-0" />有效</span>
+              : <span className="pv-invalid"><ExclamationTriangleIcon className="size-4 shrink-0" />有错误</span>}
           </div>
           <ScriptField value={script} onCommit={onCommit} onLive={onLive} readOnly={!writable} />
           {compiledOk ? <div className="pv-hint">{formatReport(project).split('\n')[0]}</div> : <div className="pv-err">{error}</div>}
@@ -1081,10 +1068,10 @@ function Studio({
       />
       <div className="pv-studio-foot">
         <div className="pv-timeline-head">
-          <span className="pv-panel-icon"><UiIcon name="timeline" /></span>
+          <span className="pv-panel-icon"><QueueListIcon className="size-4 shrink-0" /></span>
           <strong>时间轴</strong>
-          <span className="pv-timeline-stat"><UiIcon name="tracks" />{project.tracks.length}</span>
-          <span className="pv-timeline-stat"><UiIcon name="clips" />{project.clips.filter((clip) => clip.kind !== 'gap').length}</span>
+          <span className="pv-timeline-stat"><RectangleStackIcon className="size-4 shrink-0" />{project.tracks.length}</span>
+          <span className="pv-timeline-stat"><Squares2X2Icon className="size-4 shrink-0" />{project.clips.filter((clip) => clip.kind !== 'gap').length}</span>
           <span className="pv-duration">{duration.toFixed(1)}s · {project.fps} fps · {project.width}×{project.height}</span>
         </div>
         <Timeline project={project} duration={duration} time={time} onSeek={onSeek} />
@@ -1158,7 +1145,7 @@ function Editor({
           : <Stage project={project} time={time} playing={playing} />}
         <div className="pv-player-controls">
           <button type="button" className="pv-icon" aria-label={playing ? '暂停' : '播放'} onClick={togglePlay}>
-            <IconPlay running={playing} />
+            {playing ? <PauseIcon className="size-4 shrink-0" /> : <PlayIcon className="size-4 shrink-0" />}
           </button>
           {audioOnly ? (
             <input
@@ -1184,11 +1171,11 @@ function Editor({
               aria-controls={timelineId}
               onClick={() => setTracksOpen((value) => !value)}
             >
-              <UiIcon name="timeline" />
+              <QueueListIcon className="size-4 shrink-0" />
             </button>
           ) : null}
           <button type="button" className="pv-icon" data-page-block-expand="" aria-label="全屏编辑" onClick={() => setOpen(true)}>
-            <IconExpand />
+            <ArrowsPointingOutIcon className="size-4 shrink-0" />
           </button>
         </div>
         {!audioOnly && tracksOpen ? (
