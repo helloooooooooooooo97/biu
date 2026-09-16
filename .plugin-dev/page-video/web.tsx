@@ -59,7 +59,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v7'
+const STYLE_ID = 'pv-style-v8'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -82,13 +82,10 @@ const STYLE_CSS = `
 .pv-embed{
   position:relative;
   overflow:hidden;
-  border:1px solid var(--pv-line);
-  border-radius:8px;
+  border:0;
+  border-radius:0;
   background:var(--pv-bg);
-  box-shadow:0 1px 2px color-mix(in srgb,var(--pv-ink) 4%,transparent);
-  transition:border-color .16s ease,box-shadow .16s ease;
 }
-.pv-embed:hover{border-color:color-mix(in srgb,var(--pv-ink) 22%,var(--pv-line));box-shadow:0 2px 8px color-mix(in srgb,var(--pv-ink) 7%,transparent)}
 .pv-stage{
   display:block;position:relative;width:100%;aspect-ratio:16/9;margin:0;overflow:hidden;background:transparent;
 }
@@ -155,12 +152,11 @@ const STYLE_CSS = `
 .pv-playhead:before{content:"";position:absolute;left:-3px;top:0;width:7px;height:7px;border-radius:1px 1px 50% 50%;background:var(--pv-blue)}
 .pv-player-controls{
   height:38px;padding:0 7px;display:flex;align-items:center;gap:3px;
-  border-top:1px solid var(--pv-line);background:var(--pv-bg);
+  border:0;background:var(--dsw-sidebar,#202020);
 }
 .pv-player-time{margin-left:3px;color:var(--pv-mute);font-family:var(--font-mono);font-size:10px;line-height:1.2;font-variant-numeric:tabular-nums}
 .pv-player-spacer{flex:1}
-.pv-audio-only{border-radius:8px}
-.pv-audio-only .pv-player-controls{border-top:0}
+.pv-audio-only{border-radius:0}
 .pv-audio-scrub{min-width:72px;flex:1;height:3px;margin:0 8px;accent-color:var(--pv-blue);cursor:pointer}
 .pv-track-toggle{padding:0}
 .pv-embed-timeline{border-top:1px solid var(--pv-line)}
@@ -209,8 +205,8 @@ const STYLE_CSS = `
 .pv-studio-name{font-weight:600;letter-spacing:-.01em;white-space:nowrap}
 .pv-studio-sub{color:var(--pv-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pv-studio-actions{justify-self:end;display:flex;align-items:center;gap:4px}
-.pv-transport{display:flex;align-items:center;gap:2px;padding:2px 7px 2px 2px;border:1px solid var(--studio-line);border-radius:6px;background:var(--pv-bg)}
-.pv-timecode{min-width:92px;text-align:center;color:var(--pv-mute);font-family:var(--font-mono);font-size:11px;line-height:1.2;font-variant-numeric:tabular-nums}
+.pv-studio-bar .pv-brand{grid-column:1}
+.pv-studio-bar .pv-studio-actions{grid-column:3}
 .pv-live{display:flex;align-items:center;gap:6px;color:var(--pv-mute);font-size:11px;margin-right:6px}
 .pv-live-dot{width:6px;height:6px;border-radius:50%;background:var(--pv-ok)}
 .pv-studio-body{display:grid;grid-template-columns:minmax(240px,1fr) 6px var(--script-w);min-height:0;min-width:0}
@@ -231,12 +227,17 @@ const STYLE_CSS = `
   background-image:radial-gradient(circle,color-mix(in srgb,var(--pv-ink) 13%,transparent) .6px,transparent .75px);
   background-size:16px 16px;
 }
+.pv-preview{
+  display:flex;flex-direction:column;min-width:0;min-height:0;
+  width:min(100cqw,calc((100cqh - 38px) * 16 / 9));
+}
 .pv-canvas-frame{
-  position:relative;width:min(100cqw,calc(100cqh * 16 / 9));aspect-ratio:16/9;height:auto;
-  background:#191919;border-radius:5px;overflow:hidden;
-  box-shadow:var(--dsw-shadow-lv2,0 8px 24px color-mix(in srgb,var(--pv-ink) 12%,transparent)),0 0 0 1px color-mix(in srgb,var(--pv-ink) 15%,transparent);
+  position:relative;width:100%;aspect-ratio:16/9;height:auto;
+  background:#191919;border-radius:5px 5px 0 0;overflow:hidden;
+  box-shadow:var(--dsw-shadow-lv2,0 8px 24px color-mix(in srgb,var(--pv-ink) 12%,transparent));
 }
 .pv-canvas-frame .pv-stage{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto}
+.pv-preview .pv-player-controls{border-radius:0 0 5px 5px}
 .pv-script{
   display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;border-left:1px solid var(--studio-line);background:var(--pv-bg);
 }
@@ -917,6 +918,44 @@ function ClipBar({ clip, duration, row }: { clip: Clip; duration: number; row: n
   )
 }
 
+function PlayerBar({
+  playing,
+  time,
+  duration,
+  fps,
+  onPlay,
+  onSeek,
+  extra,
+}: {
+  playing: boolean
+  time: number
+  duration: number
+  fps: number
+  onPlay: () => void
+  onSeek: (t: number) => void
+  extra?: unknown
+}) {
+  return (
+    <div className="pv-player-controls">
+      <button type="button" className="pv-icon" aria-label={playing ? '暂停' : '播放'} onClick={onPlay}>
+        {playing ? <PauseIcon className="size-4 shrink-0" /> : <PlayIcon className="size-4 shrink-0" />}
+      </button>
+      <input
+        className="pv-audio-scrub"
+        type="range"
+        min={0}
+        max={duration}
+        step={1 / Math.max(1, fps)}
+        value={Math.min(duration, time)}
+        aria-label="进度"
+        onChange={(event) => onSeek(Number(event.currentTarget.value))}
+      />
+      <span className="pv-player-time">{fmtClock(time)} / {fmtClock(duration)}</span>
+      {extra}
+    </div>
+  )
+}
+
 function Studio({
   project,
   script,
@@ -1013,12 +1052,6 @@ function Studio({
           <span className="pv-studio-name">视频工作台</span>
           <span className="pv-studio-sub">/ 未命名编排</span>
         </div>
-        <div className="pv-transport">
-          <button type="button" className="pv-icon" aria-label={playing ? '暂停' : '播放'} onClick={onPlay}>
-            {playing ? <PauseIcon className="size-4 shrink-0" /> : <PlayIcon className="size-4 shrink-0" />}
-          </button>
-          <span className="pv-timecode">{fmtClock(time)} / {fmtClock(duration)}</span>
-        </div>
         <div className="pv-studio-actions">
           <span className="pv-live"><i className="pv-live-dot" />实时预览</span>
           <button type="button" className="pv-icon" data-page-block-expand="" aria-label="退出全屏" onClick={onClose}>
@@ -1028,8 +1061,11 @@ function Studio({
       </div>
       <div className="pv-studio-body">
         <div className="pv-canvas">
-          <div className="pv-canvas-frame">
-            <Stage project={project} time={time} playing={playing} chrome="studio" />
+          <div className="pv-preview">
+            <div className="pv-canvas-frame">
+              <Stage project={project} time={time} playing={playing} chrome="studio" />
+            </div>
+            <PlayerBar playing={playing} time={time} duration={duration} fps={project.fps} onPlay={onPlay} onSeek={onSeek} />
           </div>
         </div>
         <div
@@ -1143,41 +1179,34 @@ function Editor({
         {audioOnly
           ? project.clips.map((clip) => <AudioEffect key={clip.id} clip={clip} time={time} playing={playing} />)
           : <Stage project={project} time={time} playing={playing} chrome="embed" />}
-        <div className="pv-player-controls">
-          <button type="button" className="pv-icon" aria-label={playing ? '暂停' : '播放'} onClick={togglePlay}>
-            {playing ? <PauseIcon className="size-4 shrink-0" /> : <PlayIcon className="size-4 shrink-0" />}
-          </button>
-          {audioOnly ? (
-            <input
-              className="pv-audio-scrub"
-              type="range"
-              min={0}
-              max={duration}
-              step={1 / Math.max(1, project.fps)}
-              value={Math.min(duration, time)}
-              aria-label="音频进度"
-              onChange={(event) => setTime(Number(event.currentTarget.value))}
-            />
-          ) : null}
-          <span className="pv-player-time">{fmtClock(time)} / {fmtClock(duration)}</span>
-          {!audioOnly ? <span className="pv-player-spacer" /> : null}
-          {!audioOnly ? (
-            <button
-              type="button"
-              className="pv-icon pv-track-toggle"
-              aria-label={tracksOpen ? '收起轨道' : '展开轨道'}
-              title={tracksOpen ? '收起轨道' : '展开轨道'}
-              aria-expanded={tracksOpen}
-              aria-controls={timelineId}
-              onClick={() => setTracksOpen((value) => !value)}
-            >
-              <QueueListIcon className="size-4 shrink-0" />
-            </button>
-          ) : null}
-          <button type="button" className="pv-icon" data-page-block-expand="" aria-label="全屏编辑" onClick={() => setOpen(true)}>
-            <ArrowsPointingOutIcon className="size-4 shrink-0" />
-          </button>
-        </div>
+        <PlayerBar
+          playing={playing}
+          time={time}
+          duration={duration}
+          fps={project.fps}
+          onPlay={togglePlay}
+          onSeek={setTime}
+          extra={(
+            <>
+              {!audioOnly ? (
+                <button
+                  type="button"
+                  className="pv-icon pv-track-toggle"
+                  aria-label={tracksOpen ? '收起轨道' : '展开轨道'}
+                  title={tracksOpen ? '收起轨道' : '展开轨道'}
+                  aria-expanded={tracksOpen}
+                  aria-controls={timelineId}
+                  onClick={() => setTracksOpen((value) => !value)}
+                >
+                  <QueueListIcon className="size-4 shrink-0" />
+                </button>
+              ) : null}
+              <button type="button" className="pv-icon" data-page-block-expand="" aria-label="全屏编辑" onClick={() => setOpen(true)}>
+                <ArrowsPointingOutIcon className="size-4 shrink-0" />
+              </button>
+            </>
+          )}
+        />
         {!audioOnly && tracksOpen ? (
           <div id={timelineId} className="pv-embed-timeline">
             <Timeline project={project} duration={duration} time={time} onSeek={setTime} />
