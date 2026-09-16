@@ -257,6 +257,11 @@ test('closing an inspector pane removes the stored path so it is no longer consi
   assert.equal(getInspectorDbPath('database:/pages::old'), '')
 })
 
+test('closing a non-database pane does not prevent reopening it', () => {
+  window.dispatchEvent(new CustomEvent('biu:inspector-pane-closed', { detail: 'browser' }))
+  assert.equal(isInspectorPaneAbandoned('browser'), false)
+})
+
 test('showInInspector opens a collection href in the inspector', async () => {
   const tabs: string[] = []
   const onTab = (event: Event) => {
