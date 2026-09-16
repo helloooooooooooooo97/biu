@@ -78,16 +78,16 @@ test('html pageBlock fence stores raw html and deck on the header', () => {
 
 test('video pageBlock fence stores the tag script, not JSON', () => {
   const src = formatPageBlockFence('video', 'page-video', {
-    script: '<video fps=30>\n  <title dur=1s>Hi</title>\n</video>',
+    script: '<timeline fps=30>\n  <track><title dur=1s>Hi</title></track>\n</timeline>',
     clips: [{ kind: 'title' }],
   }, 'viddemo1')
   assert.match(src, /:::pageBlock \{kind=video plugin=page-video id=viddemo1\}/)
   assert.match(src, /<title dur=1s>Hi<\/title>/)
   assert.doesNotMatch(src, /"script":/)
-  assert.deepEqual(parsePageBlockData('video', '<video fps=24>\n  <scene dur=1s>A</scene>\n</video>'), {
-    script: '<video fps=24>\n  <scene dur=1s>A</scene>\n</video>',
+  assert.deepEqual(parsePageBlockData('video', '<timeline fps=24>\n  <track><scene dur=1s>A</scene></track>\n</timeline>'), {
+    script: '<timeline fps=24>\n  <track><scene dur=1s>A</scene></track>\n</timeline>',
   })
-  assert.match(String(parsePageBlockData('video', '{"script":"<video></video>"}').script), /<video><\/video>/)
+  assert.match(String(parsePageBlockData('video', '{"script":"<timeline></timeline>"}').script), /<timeline><\/timeline>/)
 })
 
 test('html pageBlock fence keeps title on the header', () => {

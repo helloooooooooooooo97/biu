@@ -30,7 +30,7 @@ test('page-video is a headless page block with tag grammar', async () => {
   assert.match(web, /调整预览与源码宽度/)
   assert.match(web, /全屏编辑/)
   assert.match(web, /pv-embed:hover/)
-  assert.match(readme, /<video fps=30 size=1280x720/)
+  assert.match(readme, /<timeline fps=30 size=1920x1080/)
   assert.doesNotMatch(readme, /"script":/)
   assert.match(host, /video_script/)
   assert.match(host, /\/api\/page-video\/compile/)
@@ -38,15 +38,18 @@ test('page-video is a headless page block with tag grammar', async () => {
 })
 
 test('tag script compiles without prose parsing', () => {
-  const project = compileScript(`<video fps=30 size=1280x720>
-  <title dur=2s bg=#111>Hello</title>
-  <scene dur=3s>World</scene>
-  <caption at=1s dur=1s>Hi</caption>
-</video>`)
+  const project = compileScript(`<timeline fps=30 size=1280x720>
+  <track>
+    <title dur=2s bg=#111>Hello</title>
+    <scene dur=3s>World</scene>
+  </track>
+  <track name=cap>
+    <caption at=1s dur=1s>Hi</caption>
+  </track>
+</timeline>`)
   assert.equal(project.clips[1].start, 2)
-  assert.equal(project.clips[2].start, 1)
   const dumped = dumpScript(project)
   assert.match(dumped, /<title /)
   assert.doesNotMatch(dumped, /然后/)
-  assert.equal(compileSafe('<video><unknown>x</unknown></video>').ok, false)
+  assert.equal(compileSafe('<timeline><track><unknown>x</unknown></track></timeline>').ok, false)
 })

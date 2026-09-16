@@ -8,6 +8,7 @@ import {
   clipsAt,
   compileSafe,
   cursorAt,
+  formatReport,
   isVideoSrc,
   parseProject,
   projectDuration,
@@ -297,6 +298,7 @@ function MediaEl({ clip, time, playing, rate = 1 }: { clip: Clip; time: number; 
     height: `${100 / cropH}%`,
     left: `${(-cropX / cropW) * 100}%`,
     top: `${(-cropY / cropH) * 100}%`,
+    zIndex: clip.layer,
   } as const
   if (movie) {
     return <video ref={video} className="pv-media" src={url} muted playsInline preload="auto" style={{ ...fit, pointerEvents: 'none' }} />
@@ -525,7 +527,7 @@ function AudioEffect({ clip, time, playing }: { clip: Clip; time: number; playin
 
 function Stage({ project, time, playing }: { project: Project; time: number; playing: boolean }) {
   const active = clipsAt(project, time)
-  const bases = active.filter((clip) => clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media')
+  const bases = active.filter((clip) => clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media' || clip.kind === 'solid')
   const captions = active.filter((clip) => clip.kind === 'caption')
   const effects = active.filter((clip) =>
     clip.kind === 'text' ||
@@ -576,7 +578,7 @@ function Stage({ project, time, playing }: { project: Project; time: number; pla
             <MediaEl key={clip.id} clip={clip} time={time} playing={playing} rate={speedAt(project, time)} />
           ))}
           {bases
-            .filter((clip) => clip.kind !== 'media')
+            .filter((clip) => clip.kind !== 'media' && clip.kind !== 'gap')
             .map((clip) => (
               <div
                 key={clip.id}
@@ -711,11 +713,12 @@ type TimelineTrack = {
   clips: Clip[]
 }
 
-const TRACK_ORDER: Clip['kind'][] = ['title', 'scene', 'media', 'zoom', 'text', 'caption', 'arrow', 'blur', 'box', 'spotlight', 'stamp', 'cursor', 'pip', 'image', 'speed', 'trim', 'audio']
+const TRACK_ORDER: Clip['kind'][] = ['title', 'scene', 'solid', 'media', 'zoom', 'text', 'caption', 'arrow', 'blur', 'box', 'spotlight', 'stamp', 'cursor', 'pip', 'image', 'speed', 'trim', 'gap', 'audio']
 const TRACK_HEIGHT = 28
 const TRACK_ICON_PATH: Record<Clip['kind'], string> = {
   title: 'M3 3.5h10M8 3.5v9M5.5 12.5h5',
   scene: 'M2.5 3.5h11v9h-11zM5 3.5v9M11 3.5v9',
+  solid: 'M2.5 3.5h11v9h-11z',
   media: 'M2.5 4h7.5v8H2.5zM10 6.5l3.5-2v7L10 9.5',
   zoom: 'M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm3.2-1.3 3.3 3.3M7 4.5v5M4.5 7h5',
   text: 'M3 4V2.5h10V4M8 2.5v11M5.5 13.5h5',
@@ -730,6 +733,7 @@ const TRACK_ICON_PATH: Record<Clip['kind'], string> = {
   image: 'M2.5 3.5h11v9h-11zM3 11l3.3-3.5 2.2 2 1.5-1.3 3 2.8M10.8 6.3h.1',
   speed: 'M3 8h3.2l.9-3 1.6 6L10 8h3',
   trim: 'M4.5 3v10M11.5 3v10M4.5 8h7',
+  gap: 'M3 8h10',
   audio: 'M2.5 7h2.8L9 4v8l-3.7-3H2.5zM11 6c1.2 1.1 1.2 2.9 0 4M12.7 4.5c2.1 2 2.1 5 0 7',
 }
 
@@ -741,10 +745,18 @@ function TrackIcon({ kind }: { kind: Clip['kind'] }) {
   )
 }
 
-function timelineTracks(clips: Clip[]): TimelineTrack[] {
+function timelineTracks(project: Project): TimelineTrack[] {
+  if (project.tracks.length) {
+    return project.tracks.map((lane) => ({
+      id: lane.id,
+      kind: lane.clips[0]?.kind ?? 'scene',
+      label: lane.name,
+      clips: lane.clips,
+    }))
+  }
   const tracks: TimelineTrack[] = []
   for (const kind of TRACK_ORDER) {
-    const sameKind = clips.filter((clip) => clip.kind === kind).sort((a, b) => a.start - b.start || a.duration - b.duration)
+    const sameKind = project.clips.filter((clip) => clip.kind === kind).sort((a, b) => a.start - b.start || a.duration - b.duration)
     const lanes: Clip[][] = []
     for (const clip of sameKind) {
       const lane = lanes.find((items) => {
@@ -764,7 +776,7 @@ function timelineTracks(clips: Clip[]): TimelineTrack[] {
 
 function Timeline({ project, duration, time, onSeek }: { project: Project; duration: number; time: number; onSeek: (t: number) => void }) {
   const seekBy = (delta: number) => onSeek(Math.min(duration, Math.max(0, time + delta)))
-  const tracks = timelineTracks(project.clips)
+  const tracks = timelineTracks(project)
   const railHeight = `${Math.max(1, tracks.length) * TRACK_HEIGHT}px`
   return (
     <div className="pv-rail" data-testid="page-video-rail" style={{ height: railHeight }}>
@@ -963,7 +975,7 @@ function Studio({
             {compiledOk ? <span className="pv-valid">● Valid</span> : <span className="pv-invalid">Invalid</span>}
           </div>
           <ScriptField value={script} onCommit={onCommit} onLive={onLive} readOnly={!writable} />
-          {compiledOk ? <div className="pv-hint">&lt;video&gt; &lt;title&gt; &lt;scene&gt; &lt;caption&gt; &lt;media /&gt; &lt;zoom /&gt;</div> : <div className="pv-err">{error}</div>}
+          {compiledOk ? <div className="pv-hint">{formatReport(project).split('\n')[0]}</div> : <div className="pv-err">{error}</div>}
         </div>
       </div>
       <div
@@ -980,8 +992,8 @@ function Studio({
       <div className="pv-studio-foot">
         <div className="pv-timeline-head">
           <strong>Timeline</strong>
-          {project.clips.filter((clip) => clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media').length} clips
-          <span style={{ marginLeft: 8 }}>· {project.clips.filter((clip) => clip.kind !== 'title' && clip.kind !== 'scene' && clip.kind !== 'media').length} effects</span>
+          {project.tracks.length} tracks
+          <span style={{ marginLeft: 8 }}>· {project.clips.filter((clip) => clip.kind !== 'gap').length} clips</span>
           <span className="pv-duration">{duration.toFixed(1)}s · {project.fps} fps · {project.width}×{project.height}</span>
         </div>
         <Timeline project={project} duration={duration} time={time} onSeek={onSeek} />
@@ -1010,7 +1022,7 @@ function Editor({
   const compiled = useMemo(() => compileSafe(liveScript || parsed.script), [liveScript, parsed.script])
   const project = compiled.ok ? compiled.project : parsed
   const duration = Math.max(0.2, projectDuration(project))
-  const audioOnly = project.clips.length > 0 && project.clips.every((clip) => clip.kind === 'audio')
+  const audioOnly = project.clips.filter((clip) => clip.kind !== 'gap').length > 0 && project.clips.filter((clip) => clip.kind !== 'gap').every((clip) => clip.kind === 'audio')
   const [time, setTime] = useState(0)
   const [playing, setPlaying] = useState(false)
   const raf = useRef(0)

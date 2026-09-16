@@ -1,5 +1,5 @@
 import type { Context } from 'cordis'
-import { compileSafe } from './compose.ts'
+import { compileSafe, formatReport } from './compose.ts'
 
 export const name = 'page-video'
 export const inject = ['http', 'tools']
@@ -13,19 +13,19 @@ export function apply(ctx: Context) {
       route.send(400, { error: result.error })
       return
     }
-    route.send(200, result.project)
+    route.send(200, { project: result.project, diagnostics: result.project.diagnostics, report: formatReport(result.project) })
   })
 
   ctx.tools.register({
     name: 'video_script',
     description:
-      'Compile an agent-authored page-video <> script. Effects: <video background wallpaper padding radius shadow description>, <media in dur speed crop>, <zoom rx ry rz>, <text align valign anim description>, <caption>, <arrow>, <blur mode=blur|mosaic>, <box>, <spotlight>, <stamp>, <cursor click>, <pip>, <image>, <speed>, <trim>, and <audio>. The frontend live-composites the result; the timeline is read-only. Use tags instead of prose editing instructions.',
+      'Compile an agent-authored page-video <> script. Root is <timeline> with explicit <track> lanes (serial inside a track, parallel across tracks). Supports <clip>, <gap>, <transition>, <follow>, relative at="id.end + 0.7s", <solid>, and composition reuse. Returns diagnostics. The frontend live-composites; the timeline is read-only.',
     parameters: {
       type: 'object',
       properties: {
         script: {
           type: 'string',
-          description: 'Full <video>…</video> script using the page-video tag grammar.',
+          description: 'Full <timeline>…</timeline> script. Do not use the old <video> root.',
         },
       },
       required: ['script'],
@@ -34,7 +34,7 @@ export function apply(ctx: Context) {
       const script = String(args.script ?? '')
       const result = compileSafe(script)
       if (!result.ok) return { ok: false, error: result.error }
-      return { ok: true, project: result.project }
+      return { ok: true, project: result.project, diagnostics: result.project.diagnostics, report: formatReport(result.project) }
     },
   })
 }
