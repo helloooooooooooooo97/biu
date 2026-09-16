@@ -1,0 +1,10 @@
+{
+  "id": "page-video",
+  "name": "视频编排",
+  "blurb": "Agent 用 <> 脚本剪辑视频：镜头、背景、裁剪变速、光标点击、字幕标注、局部模糊、画中画和音频，前端实时合成预览。",
+  "tags": ["page", "editor", "video", "timeline"],
+  "author": "Biu",
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",
+  "createdAt": 1789545600000,
+  "headless": true
+}
