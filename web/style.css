@@ -5057,6 +5057,7 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
 
 .chat-outline:hover,
 .chat-outline:focus-within,
+.chat-outline.is-open,
 html[data-outline-pin="1"] .chat-outline {
   opacity: 1;
 }
@@ -5116,13 +5117,12 @@ html[data-outline-pin="1"] .chat-outline {
   opacity: 0.2;
 }
 
-.chat-outline-tick:hover::after,
 .chat-outline-tick.is-active::after {
   opacity: 0.62;
 }
 
 .chat-outline-panel {
-  pointer-events: auto;
+  pointer-events: none;
   position: absolute;
   left: 36px;
   top: 50%;
@@ -5155,6 +5155,7 @@ html:not(.dark) .chat-outline-panel {
   top: 0;
   width: 28px;
   height: 100%;
+  pointer-events: auto;
 }
 
 .chat-outline-item {
@@ -5173,15 +5174,14 @@ html:not(.dark) .chat-outline-panel {
   line-height: 1.35;
   text-align: left;
   cursor: pointer;
+  pointer-events: auto;
 }
 
-.chat-outline-item:hover,
 .chat-outline-item.is-active {
   background: rgba(255, 255, 255, 0.08);
   color: var(--dsw-sidebar-fg-active);
 }
 
-html:not(.dark) .chat-outline-item:hover,
 html:not(.dark) .chat-outline-item.is-active {
   background: rgba(0, 0, 0, 0.05);
 }

@@ -36,7 +36,7 @@ test('message outline is a left rail of ticks with a hover menu', () => {
   const shell = readFileSync(resolve(import.meta.dirname, '../../../web-app-shell/src/web/index.tsx'), 'utf8')
   assert.match(css, /\.chat-outline\s*\{[^}]*left:\s*8px/s)
   assert.match(css, /\.chat-outline\s*\{[^}]*opacity:\s*0/s)
-  assert.match(css, /\.chat-outline:hover,\s*\n\.chat-outline:focus-within,\s*\nhtml\[data-outline-pin="1"\] \.chat-outline\s*\{[^}]*opacity:\s*1/s)
+  assert.match(css, /\.chat-outline:hover,\s*\n\.chat-outline:focus-within,\s*\n\.chat-outline\.is-open,\s*\nhtml\[data-outline-pin="1"\] \.chat-outline\s*\{[^}]*opacity:\s*1/s)
   assert.match(css, /\.chat-outline::before\s*\{[^}]*width:\s*64px/s)
   assert.match(css, /\.chat-outline\s*\{[^}]*max-height:\s*min\(40vh,\s*360px\)/s)
   assert.match(css, /\.chat-outline-rail\s*\{[^}]*max-height:\s*min\(40vh,\s*360px\)/s)
@@ -57,11 +57,12 @@ test('message outline is a left rail of ticks with a hover menu', () => {
   assert.match(css, /\.chat-outline-item\.is-h2\s*\{[^}]*padding-left:\s*22px/s)
   assert.match(css, /\.chat-outline-item\.is-h3\s*\{[^}]*padding-left:\s*36px/s)
   // 悬浮/选中要有一层底和更亮的前景 token，具体色值随主题走，不锁死。
-  assert.match(css, /\.chat-outline-item:hover,\s*\.chat-outline-item\.is-active\s*\{[^}]*background:\s*[^;}]+;/s)
+  assert.match(css, /\.chat-outline-item\.is-active\s*\{[^}]*background:\s*[^;}]+;/s)
   assert.match(
     css,
-    /\.chat-outline-item:hover,\s*\.chat-outline-item\.is-active\s*\{[^}]*color:\s*var\(--dsw-sidebar-fg-active\)/s,
+    /\.chat-outline-item\.is-active\s*\{[^}]*color:\s*var\(--dsw-sidebar-fg-active\)/s,
   )
+  assert.doesNotMatch(css, /\.chat-outline-item:hover,\s*\.chat-outline-item\.is-active/)
   assert.match(outline, /chat-outline-tick/)
   assert.match(outline, /hoverTick/)
   assert.match(bound, /OutlineNav/)

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 
 export type OutlineNavItem = {
   id: string
@@ -8,15 +8,19 @@ export type OutlineNavItem = {
   level?: 1 | 2 | 3
 }
 
-function escapeId(id: string) {
-  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(id) : id
-}
-
 /** 详情正文滚动：和悬浮目录点 heading 一样。 */
 export function scrollOutlineTarget(el: HTMLElement | null) {
   if (el && typeof el.scrollIntoView === 'function') {
     el.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }
+}
+
+function outlineExpandOn() {
+  return typeof document === 'undefined' || document.documentElement.getAttribute('data-outline-expand') !== '0'
+}
+
+function hitKeepsOutline(el: Element | null) {
+  return Boolean(el?.closest('.chat-outline-rail, .chat-outline-tick, .chat-outline-item, .chat-outline-panel, .chat-outline'))
 }
 
 /** 左侧刻度条 + 悬停展开列表。聊天区和会话详情共用。 */
@@ -31,8 +35,8 @@ export function OutlineNav({
   testId?: string
   onSelect: (id: string) => void
 }) {
+  const rootRef = useRef<HTMLElement>(null)
   const railRef = useRef<HTMLDivElement>(null)
-  const panelRef = useRef<HTMLElement>(null)
   const leaveTimer = useRef(0)
   const [hoverId, setHoverId] = useState<string | null>(null)
 
@@ -42,24 +46,17 @@ export function OutlineNav({
     window.clearTimeout(leaveTimer.current)
   }
 
+  function closeNow() {
+    window.clearTimeout(leaveTimer.current)
+    setHoverId(null)
+  }
+
   function scheduleClose() {
     window.clearTimeout(leaveTimer.current)
     leaveTimer.current = window.setTimeout(() => {
       setHoverId(null)
-    }, 140)
+    }, 80)
   }
-
-  function outlineExpandOn() {
-    return typeof document === 'undefined' || document.documentElement.getAttribute('data-outline-expand') !== '0'
-  }
-
-  useEffect(() => {
-    const onPrefs = () => {
-      if (!outlineExpandOn()) setHoverId(null)
-    }
-    window.addEventListener('biu:page-prefs', onPrefs)
-    return () => window.removeEventListener('biu:page-prefs', onPrefs)
-  }, [])
 
   function hoverTick(id: string) {
     keepOpen()
@@ -67,14 +64,9 @@ export function OutlineNav({
     setHoverId(id)
   }
 
-  function hoverRail(event: ReactMouseEvent) {
-    keepOpen()
-    if (!outlineExpandOn() || !items.length) return
+  function nearestTick(event: ReactMouseEvent) {
     const rail = railRef.current
-    if (!rail) {
-      hoverTick(items[0]!.id)
-      return
-    }
+    if (!rail || !items.length) return items[0]?.id ?? null
     const ticks = rail.querySelectorAll<HTMLElement>('[data-outline-tick]')
     let bestId = items[0]!.id
     let best = Infinity
@@ -87,31 +79,51 @@ export function OutlineNav({
         bestId = id
       }
     })
-    hoverTick(bestId)
+    return bestId
   }
 
-  useLayoutEffect(() => {
+  function hoverRail(event: ReactMouseEvent) {
+    if (!outlineExpandOn() || !items.length) return
+    const id = nearestTick(event)
+    if (id) hoverTick(id)
+  }
+
+  useEffect(() => {
+    const onPrefs = () => {
+      if (!outlineExpandOn()) closeNow()
+    }
+    window.addEventListener('biu:page-prefs', onPrefs)
+    return () => window.removeEventListener('biu:page-prefs', onPrefs)
+  }, [])
+
+  useEffect(() => {
     if (!hoverId) return
-    const rail = railRef.current
-    const panel = panelRef.current
-    const tick = rail?.querySelector<HTMLElement>(`[data-outline-tick="${escapeId(hoverId)}"]`)
-    const row = panel?.querySelector<HTMLElement>(`[data-outline-row="${escapeId(hoverId)}"]`)
-    tick?.scrollIntoView({ block: 'nearest' })
-    row?.scrollIntoView({ block: 'nearest' })
-  }, [hoverId, items.length])
+    const onMove = (event: PointerEvent) => {
+      const hit = document.elementFromPoint(event.clientX, event.clientY)
+      if (hitKeepsOutline(hit)) keepOpen()
+      else scheduleClose()
+    }
+    window.addEventListener('pointermove', onMove)
+    return () => window.removeEventListener('pointermove', onMove)
+  }, [hoverId])
 
   if (!items.length) return null
 
   return (
     <aside
-      className="chat-outline"
+      ref={rootRef}
+      className={`chat-outline${hoverId ? ' is-open' : ''}`}
       aria-label={label}
       data-testid={testId}
       onMouseEnter={hoverRail}
-      onMouseMove={hoverRail}
       onMouseLeave={scheduleClose}
     >
-      <div className="chat-outline-rail" ref={railRef} data-testid={`${testId}-rail`}>
+      <div
+        className="chat-outline-rail"
+        ref={railRef}
+        data-testid={`${testId}-rail`}
+        onMouseMove={hoverRail}
+      >
         {items.map((item) => (
           <button
             key={item.id}
@@ -128,7 +140,7 @@ export function OutlineNav({
         ))}
       </div>
       {hoverId ? (
-        <nav className="chat-outline-panel" ref={panelRef} data-testid={`${testId}-panel`}>
+        <nav className="chat-outline-panel" data-testid={`${testId}-panel`}>
           {items.map((item) => (
             <button
               key={item.id}
