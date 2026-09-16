@@ -548,6 +548,11 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
   }
 
   const onEditorHotkey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === ' ' && event.target === event.currentTarget) {
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
     if (isFindHotkey(event)) {
       event.preventDefault()
       event.stopPropagation()
@@ -587,6 +592,16 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
     }
   }
 
+  const onEditorBlankMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return
+    event.preventDefault()
+    if (!source && writable !== false && editor && !editor.isDestroyed) {
+      editor.commands.focus('end')
+      return
+    }
+    event.currentTarget.focus({ preventScroll: true })
+  }
+
   const findBar = findOpen ? (
     <FindBar
       query={findQuery}
@@ -606,7 +621,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
 
   if (source) {
     return (
-      <div className="page-editor is-source" onKeyDownCapture={onEditorHotkey}>
+      <div className="page-editor is-source" tabIndex={-1} onMouseDown={onEditorBlankMouseDown} onKeyDownCapture={onEditorHotkey}>
         {findBar}
         <SourceEditor
           ref={sourceFind}
@@ -623,7 +638,7 @@ export function PageEditor({ record, value, writable, onChange, path }: FsConten
   }
 
   return (
-    <div className="page-editor" onKeyDownCapture={onEditorHotkey}>
+    <div className="page-editor" tabIndex={-1} onMouseDown={onEditorBlankMouseDown} onKeyDownCapture={onEditorHotkey}>
       {findBar}
       <EditorContent editor={editor} />
       {writable !== false ? <PageBlockHandle editor={editor} /> : null}
