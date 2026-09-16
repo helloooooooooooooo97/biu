@@ -1,4 +1,4 @@
-export type ClipKind = 'title' | 'scene' | 'caption' | 'media'
+export type ClipKind = 'title' | 'scene' | 'caption' | 'media' | 'zoom'
 
 export type Transition = 'cut' | 'fade' | 'slide'
 
@@ -13,6 +13,9 @@ export type Clip = {
   src: string
   fit: 'cover' | 'contain'
   trans: Transition
+  cx: number
+  cy: number
+  depth: number
 }
 
 export type Project = {
@@ -23,15 +26,19 @@ export type Project = {
   clips: Clip[]
 }
 
+export type Camera = { scale: number; cx: number; cy: number }
+
 export const SAMPLE_SCRIPT = `<video fps=30 size=1280x720>
-  <title dur=2.4s bg=#111111 ink=#f6f2ea trans=fade>Biu</title>
-  <scene dur=3.2s bg=#1a1a2e ink=#ece7dc>Compose with tags, not prose.</scene>
-  <caption at=3.0s dur=2.0s>structured · timeline</caption>
-  <media src=demo.mp4 dur=2.8s fit=cover />
+  <title dur=2.2s bg=#111111 ink=#f6f2ea trans=fade>Biu</title>
+  <scene dur=3.4s bg=#1a1a2e ink=#ece7dc trans=slide>Compose with tags.</scene>
+  <zoom at=2.4s dur=0.8s cx=0.46 cy=0.38 depth=1.7 />
+  <caption at=3.0s dur=2.0s>live · compositor</caption>
+  <media src=demo.mp4 dur=3.2s fit=cover trans=fade />
 </video>
 `
 
-const CLIP_KINDS = new Set<ClipKind>(['title', 'scene', 'caption', 'media'])
+const CLIP_KINDS = new Set<ClipKind>(['title', 'scene', 'caption', 'media', 'zoom'])
+const OVERLAY = new Set<ClipKind>(['caption', 'zoom'])
 const TRANS: Transition[] = ['cut', 'fade', 'slide']
 
 export function emptyProject(script = SAMPLE_SCRIPT): Project {
@@ -101,6 +108,12 @@ function parseTrans(raw: string | undefined): Transition {
   return TRANS.includes(raw as Transition) ? (raw as Transition) : 'cut'
 }
 
+function parseUnit(raw: string | undefined, fallback: number, min: number, max: number) {
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return fallback
+  return clamp(n, min, max)
+}
+
 type Attrs = Record<string, string>
 
 function parseAttrs(raw: string): Attrs {
@@ -152,6 +165,25 @@ export class ScriptError extends Error {
   }
 }
 
+function clipFrom(kind: ClipKind, attrs: Attrs, text: string, start: number, id: string): Clip {
+  const fallbackDur = kind === 'zoom' ? 0.8 : kind === 'caption' ? 2 : 3
+  return {
+    id,
+    kind,
+    start,
+    duration: Math.max(0.2, parseTime(attrs.dur ?? attrs.duration, fallbackDur)),
+    text,
+    bg: parseColor(attrs.bg, kind === 'title' ? '#111111' : '#191919'),
+    ink: parseColor(attrs.ink, '#f6f2ea'),
+    src: String(attrs.src ?? '').trim(),
+    fit: parseFit(attrs.fit),
+    trans: parseTrans(attrs.trans),
+    cx: parseUnit(attrs.cx, 0.5, 0, 1),
+    cy: parseUnit(attrs.cy, 0.5, 0, 1),
+    depth: parseUnit(attrs.depth, kind === 'zoom' ? 1.6 : 1, 1, 4),
+  }
+}
+
 export function compileScript(source: string): Project {
   const script = source.trim() || SAMPLE_SCRIPT
   const nodes = tokenize(script)
@@ -177,25 +209,13 @@ export function compileScript(source: string): Project {
   }
 
   const pushClip = (kind: ClipKind, attrs: Attrs, text: string) => {
-    const duration = Math.max(0.2, parseTime(attrs.dur ?? attrs.duration, kind === 'caption' ? 2 : 3))
     const explicit = attrs.at ?? attrs.start
     const start = explicit != null && explicit !== '' ? Math.max(0, parseTime(explicit, cursor)) : cursor
     clipIndex += 1
-    const clip: Clip = {
-      id: uid('c', clipIndex),
-      kind,
-      start,
-      duration,
-      text,
-      bg: parseColor(attrs.bg, kind === 'title' ? '#111111' : '#191919'),
-      ink: parseColor(attrs.ink, '#f6f2ea'),
-      src: String(attrs.src ?? '').trim(),
-      fit: parseFit(attrs.fit),
-      trans: parseTrans(attrs.trans),
-    }
+    const clip = clipFrom(kind, attrs, text, start, uid('c', clipIndex))
     if (kind === 'media' && !clip.src) throw new ScriptError('media', '<media> needs src')
     project.clips.push(clip)
-    if (kind !== 'caption') cursor = Math.max(cursor, clipEnd(clip))
+    if (!OVERLAY.has(kind)) cursor = Math.max(cursor, clipEnd(clip))
   }
 
   while (i < nodes.length) {
@@ -245,21 +265,24 @@ export function dumpScript(project: Project): string {
   const lines = [`<video fps=${project.fps} size=${project.width}x${project.height}>`]
   let cursor = 0
   for (const clip of project.clips) {
-    const needAt = clip.kind === 'caption' || Math.abs(clip.start - cursor) > 0.001
+    const needAt = OVERLAY.has(clip.kind) || Math.abs(clip.start - cursor) > 0.001
     const common =
       attr('dur', fmtTime(clip.duration)) +
       (needAt ? attr('at', fmtTime(clip.start)) : '') +
-      attr('bg', clip.bg) +
-      attr('ink', clip.ink) +
+      attr('bg', clip.kind === 'zoom' ? undefined : clip.bg) +
+      attr('ink', clip.kind === 'zoom' || clip.kind === 'media' ? undefined : clip.ink) +
       attr('trans', clip.trans, 'cut') +
       attr('src', clip.src) +
-      attr('fit', clip.fit, 'cover')
-    if (clip.kind === 'media') {
-      lines.push(`  <media${common} />`)
+      attr('fit', clip.fit, 'cover') +
+      attr('cx', clip.kind === 'zoom' ? clip.cx : undefined, 0.5) +
+      attr('cy', clip.kind === 'zoom' ? clip.cy : undefined, 0.5) +
+      attr('depth', clip.kind === 'zoom' ? clip.depth : undefined, 1)
+    if (clip.kind === 'media' || clip.kind === 'zoom') {
+      lines.push(`  <${clip.kind}${common} />`)
     } else {
       lines.push(`  <${clip.kind}${common}>${escapeText(clip.text)}</${clip.kind}>`)
     }
-    if (clip.kind !== 'caption') cursor = Math.max(cursor, clipEnd(clip))
+    if (!OVERLAY.has(clip.kind)) cursor = Math.max(cursor, clipEnd(clip))
   }
   lines.push('</video>')
   return lines.join('\n')
@@ -285,18 +308,24 @@ export function parseProject(raw: unknown): Project {
         if (!item || typeof item !== 'object') return null
         const c = item as Record<string, unknown>
         const kind = CLIP_KINDS.has(c.kind as ClipKind) ? (c.kind as ClipKind) : 'scene'
-        return {
-          id: String(c.id ?? uid('c', index + 1)),
+        return clipFrom(
           kind,
-          start: Math.max(0, Number(c.start) || 0),
-          duration: Math.max(0.2, Number(c.duration) || 3),
-          text: String(c.text ?? ''),
-          bg: parseColor(String(c.bg ?? ''), '#191919'),
-          ink: parseColor(String(c.ink ?? ''), '#f6f2ea'),
-          src: String(c.src ?? ''),
-          fit: parseFit(String(c.fit ?? '')),
-          trans: parseTrans(String(c.trans ?? '')),
-        } satisfies Clip
+          {
+            dur: String(c.duration ?? ''),
+            at: String(c.start ?? ''),
+            bg: String(c.bg ?? ''),
+            ink: String(c.ink ?? ''),
+            src: String(c.src ?? ''),
+            fit: String(c.fit ?? ''),
+            trans: String(c.trans ?? ''),
+            cx: String(c.cx ?? ''),
+            cy: String(c.cy ?? ''),
+            depth: String(c.depth ?? ''),
+          },
+          String(c.text ?? ''),
+          Math.max(0, Number(c.start) || 0),
+          String(c.id ?? uid('c', index + 1)),
+        )
       })
       .filter((item): item is Clip => item != null)
   }
@@ -313,4 +342,47 @@ export function compileSafe(script: string): { ok: true; project: Project } | { 
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
+}
+
+export function easeInOut(t: number) {
+  const x = clamp(t, 0, 1)
+  return x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2
+}
+
+export function cameraAt(project: Project, time: number): Camera {
+  let cam: Camera = { scale: 1, cx: 0.5, cy: 0.5 }
+  const zooms = project.clips.filter((clip) => clip.kind === 'zoom').sort((a, b) => a.start - b.start)
+  for (const zoom of zooms) {
+    if (time < zoom.start) break
+    const t = easeInOut((time - zoom.start) / Math.max(0.001, zoom.duration))
+    const target = { scale: zoom.depth, cx: zoom.cx, cy: zoom.cy }
+    cam = {
+      scale: cam.scale + (target.scale - cam.scale) * t,
+      cx: cam.cx + (target.cx - cam.cx) * t,
+      cy: cam.cy + (target.cy - cam.cy) * t,
+    }
+    if (time < clipEnd(zoom)) break
+  }
+  return cam
+}
+
+export function clipAlpha(clip: Clip, time: number) {
+  if (clip.trans === 'cut') return 1
+  const local = time - clip.start
+  const edge = Math.min(0.32, clip.duration / 3)
+  const inn = clamp(local / edge, 0, 1)
+  const out = clamp((clip.duration - local) / edge, 0, 1)
+  return Math.min(inn, out)
+}
+
+export function clipShift(clip: Clip, time: number) {
+  if (clip.trans !== 'slide') return 0
+  const local = time - clip.start
+  const edge = Math.min(0.32, clip.duration / 3)
+  const inn = easeInOut(clamp(local / edge, 0, 1))
+  return (1 - inn) * 48
+}
+
+export function isVideoSrc(src: string) {
+  return /\.(mp4|webm|mov|m4v|ogg)(\?|#|$)/i.test(src)
 }

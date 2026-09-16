@@ -1,4 +1,16 @@
-import { compileSafe, clipsAt, parseProject, projectDuration, SAMPLE_SCRIPT, type Clip, type Project } from './compose.ts'
+import {
+  cameraAt,
+  clipAlpha,
+  clipShift,
+  clipsAt,
+  compileSafe,
+  isVideoSrc,
+  parseProject,
+  projectDuration,
+  SAMPLE_SCRIPT,
+  type Clip,
+  type Project,
+} from './compose.ts'
 
 const React = globalThis.React
 const { useEffect, useMemo, useRef, useState } = React
@@ -6,7 +18,7 @@ const { useEffect, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v1'
+const STYLE_ID = 'pv-style-v2'
 const STYLE_CSS = `
 .pv{
   --pv-line: var(--dsw-border);
@@ -19,20 +31,25 @@ const STYLE_CSS = `
   color:var(--pv-ink);
   font:13px/1.45 ui-sans-serif,system-ui,-apple-system,sans-serif;
 }
+.pv:fullscreen,.pv:-webkit-full-screen{border:0;border-radius:0;background:#0b0b0b;height:100%;}
+.pv:fullscreen .pv-script,.pv:fullscreen .pv-hint,.pv:fullscreen .pv-err,
+.pv:-webkit-full-screen .pv-script{display:none}
+.pv:fullscreen .pv-top,.pv:-webkit-full-screen .pv-top{grid-template-columns:1fr;min-height:100%}
+.pv:fullscreen .pv-stage{aspect-ratio:auto;height:calc(100% - 76px)}
 .pv-top{display:grid;grid-template-columns:minmax(240px,1fr) minmax(280px,1.15fr);min-height:280px}
 @media (max-width:720px){.pv-top{grid-template-columns:1fr}}
-.pv-stage{
-  position:relative;aspect-ratio:16/9;background:#0b0b0b;overflow:hidden;
-}
+.pv-stage{position:relative;aspect-ratio:16/9;background:#0b0b0b;overflow:hidden}
+.pv-cam{position:absolute;inset:0;transform-origin:center center;will-change:transform}
+.pv-layer{position:absolute;inset:0}
 .pv-frame{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:8%;box-sizing:border-box}
 .pv-kicker{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;opacity:.7}
 .pv-title{font-size:clamp(22px,4.6vw,42px);font-weight:800;letter-spacing:-.03em;margin-top:8px;line-height:1.15}
 .pv-caption{
-  position:absolute;left:8%;right:8%;bottom:10%;
+  position:absolute;left:8%;right:8%;bottom:10%;z-index:3;
   text-align:center;font-size:clamp(14px,2.2vw,22px);font-weight:650;
   text-shadow:0 1px 8px rgba(0,0,0,.45);
 }
-.pv-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#111}
+.pv-media{position:absolute;inset:0;width:100%;height:100%;background:#111}
 .pv-script{
   display:flex;flex-direction:column;border-left:1px solid var(--pv-line);min-height:0;background:color-mix(in srgb,var(--dsw-hover) 55%,var(--dsw-bg));
 }
@@ -47,17 +64,14 @@ const STYLE_CSS = `
   font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 .pv-err{padding:6px 12px 10px;color:#c2410c;font-size:12px}
-.pv-icon{
-  border:0;border-radius:7px;padding:4px;background:transparent;color:var(--dsw-label-2);cursor:pointer;
-}
-.pv-icon:disabled{opacity:.4;cursor:default}
+.pv-icon{border:0;border-radius:7px;padding:4px;background:transparent;color:var(--dsw-label-2);cursor:pointer}
 .pv-icon:hover:not(:disabled){background:var(--dsw-hover);color:var(--pv-ink)}
 .pv-time{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--pv-mute)}
 .pv-rail{position:relative;height:56px;margin:8px 10px 12px;border-radius:8px;background:color-mix(in srgb,var(--dsw-sidebar) 80%,#000)}
 .pv-clip{
-  position:absolute;top:8px;bottom:8px;border-radius:6px;overflow:hidden;
-  border:1px solid color-mix(in srgb,#fff 18%,transparent);cursor:pointer;font:10px/1.2 ui-sans-serif,system-ui,sans-serif;
-  color:#fff;padding:6px 7px;box-sizing:border-box;
+  position:absolute;border-radius:6px;overflow:hidden;
+  border:1px solid color-mix(in srgb,#fff 18%,transparent);font:10px/1.2 ui-sans-serif,system-ui,sans-serif;
+  color:#fff;padding:6px 7px;box-sizing:border-box;pointer-events:none;
 }
 .pv-playhead{position:absolute;top:0;bottom:0;width:2px;background:#fff;pointer-events:none}
 .pv-hint{padding:0 12px 10px;color:var(--pv-mute);font-size:11px}
@@ -65,8 +79,7 @@ const STYLE_CSS = `
 
 function useStyle() {
   useEffect(() => {
-    const existing = document.getElementById(STYLE_ID)
-    const el = existing instanceof HTMLStyleElement ? existing : document.createElement('style')
+    const el = (document.getElementById(STYLE_ID) as HTMLStyleElement | null) ?? document.createElement('style')
     el.id = STYLE_ID
     el.textContent = STYLE_CSS
     if (el.parentNode !== document.head) document.head.appendChild(el)
@@ -80,19 +93,6 @@ function fmtClock(t: number) {
   return `${String(m).padStart(2, '0')}:${r.toFixed(1).padStart(4, '0')}`
 }
 
-function IconPlay({ running }: { running: boolean }) {
-  return running ? (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-      <rect x="3.5" y="3" width="3.2" height="10" rx="0.8" />
-      <rect x="9.3" y="3" width="3.2" height="10" rx="0.8" />
-    </svg>
-  ) : (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-      <path d="M4.4 2.7v10.6L13.2 8z" />
-    </svg>
-  )
-}
-
 function assetUrl(src: string) {
   const file = src.replace(/^assets\//, '')
   if (!file) return ''
@@ -100,26 +100,106 @@ function assetUrl(src: string) {
   return `/api/page/file/${encodeURIComponent(file)}`
 }
 
-function Frame({ project, time }: { project: Project; time: number }) {
+function cameraCss(project: Project, time: number) {
+  const cam = cameraAt(project, time)
+  const x = (0.5 - cam.cx) * 100 * (cam.scale - 1)
+  const y = (0.5 - cam.cy) * 100 * (cam.scale - 1)
+  return `translate(${x}%, ${y}%) scale(${cam.scale})`
+}
+
+function MediaEl({
+  clip,
+  time,
+  playing,
+}: {
+  clip: Clip
+  time: number
+  playing: boolean
+}) {
+  const active = time >= clip.start && time < clip.start + clip.duration
+  const local = Math.max(0, time - clip.start)
+  const alpha = clipAlpha(clip, time)
+  const shift = clipShift(clip, time)
+  const video = useRef<HTMLVideoElement | null>(null)
+  const url = assetUrl(clip.src)
+  const movie = isVideoSrc(clip.src)
+
+  useEffect(() => {
+    const el = video.current
+    if (!el || !movie) return
+    const drift = Math.abs((el.currentTime || 0) - local)
+    if (!active) {
+      el.pause()
+      return
+    }
+    if (drift > 0.12) el.currentTime = local
+    if (playing) {
+      if (el.paused) void el.play().catch(() => undefined)
+    } else if (!el.paused) {
+      el.pause()
+    }
+  }, [active, local, movie, playing])
+
+  const fit = { objectFit: clip.fit, opacity: active ? alpha : 0, transform: `translateX(${shift}px)` } as const
+  if (movie) {
+    return (
+      <video
+        ref={video}
+        className="pv-media"
+        src={url}
+        muted
+        playsInline
+        preload="auto"
+        style={{ ...fit, pointerEvents: 'none' }}
+      />
+    )
+  }
+  return <img className="pv-media" src={url} alt="" style={fit} />
+}
+
+function Frame({
+  project,
+  time,
+  playing,
+}: {
+  project: Project
+  time: number
+  playing: boolean
+}) {
   const active = clipsAt(project, time)
-  const base = [...active].reverse().find((clip) => clip.kind !== 'caption')
+  const bases = active.filter((clip) => clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media')
   const captions = active.filter((clip) => clip.kind === 'caption')
-  const bg = base?.bg ?? '#111'
-  const ink = base?.ink ?? '#f6f2ea'
-  const kicker = base?.kind === 'media' ? 'media' : base?.kind ?? 'empty'
+  const media = project.clips.filter((clip) => clip.kind === 'media')
+  const bg = [...bases].reverse().find((clip) => clip.kind !== 'media')?.bg ?? '#0b0b0b'
+
   return (
-    <div className="pv-stage" data-testid="page-video-stage" style={{ background: bg, color: ink }}>
-      {base?.kind === 'media' && base.src ? (
-        <img className="pv-media" src={assetUrl(base.src)} alt="" style={{ objectFit: base.fit }} />
-      ) : null}
-      {base && base.kind !== 'media' ? (
-        <div className="pv-frame">
-          <div className="pv-kicker">{kicker}</div>
-          <div className="pv-title">{base.text || '·'}</div>
-        </div>
-      ) : null}
+    <div className="pv-stage" data-testid="page-video-stage" style={{ background: bg }}>
+      <div className="pv-cam" data-testid="page-video-cam" style={{ transform: cameraCss(project, time) }}>
+        {media.map((clip) => (
+          <MediaEl key={clip.id} clip={clip} time={time} playing={playing} />
+        ))}
+        {bases
+          .filter((clip) => clip.kind !== 'media')
+          .map((clip) => (
+            <div
+              key={clip.id}
+              className="pv-layer"
+              style={{
+                background: clip.bg,
+                color: clip.ink,
+                opacity: clipAlpha(clip, time),
+                transform: `translateX(${clipShift(clip, time)}px)`,
+              }}
+            >
+              <div className="pv-frame">
+                <div className="pv-kicker">{clip.kind}</div>
+                <div className="pv-title">{clip.text || '·'}</div>
+              </div>
+            </div>
+          ))}
+      </div>
       {captions.map((clip) => (
-        <div key={clip.id} className="pv-caption" style={{ color: clip.ink }}>
+        <div key={clip.id} className="pv-caption" style={{ color: clip.ink, opacity: clipAlpha(clip, time) }}>
           {clip.text}
         </div>
       ))}
@@ -130,10 +210,12 @@ function Frame({ project, time }: { project: Project; time: number }) {
 function ScriptField({
   value,
   onCommit,
+  onLive,
   readOnly,
 }: {
   value: string
   onCommit: (next: string) => void
+  onLive: (next: string) => void
   readOnly: boolean
 }) {
   const [draft, setDraft] = useState(value)
@@ -169,7 +251,11 @@ function ScriptField({
         if (draftRef.current !== valueRef.current) onCommitRef.current(draftRef.current)
       }}
       onKeyDown={(event) => event.stopPropagation()}
-      onChange={(event) => setDraft(event.currentTarget.value)}
+      onChange={(event) => {
+        const next = event.currentTarget.value
+        setDraft(next)
+        onLive(next)
+      }}
     />
   )
 }
@@ -185,11 +271,14 @@ function Editor({
 }) {
   useStyle()
   const parsed = useMemo(() => parseProject(data), [data])
-  const compiled = useMemo(() => compileSafe(parsed.script), [parsed.script])
+  const [liveScript, setLiveScript] = useState(parsed.script)
+  useEffect(() => setLiveScript(parsed.script), [parsed.script])
+  const compiled = useMemo(() => compileSafe(liveScript || parsed.script), [liveScript, parsed.script])
   const project = compiled.ok ? compiled.project : parsed
   const duration = Math.max(0.2, projectDuration(project))
   const [time, setTime] = useState(0)
   const [playing, setPlaying] = useState(false)
+  const rootRef = useRef<HTMLDivElement | null>(null)
   const raf = useRef(0)
   const last = useRef(0)
 
@@ -215,6 +304,7 @@ function Editor({
 
   const commitScript = (script: string) => {
     const result = compileSafe(script)
+    setLiveScript(script)
     if (!result.ok) {
       update({ script })
       return
@@ -225,22 +315,39 @@ function Editor({
   const seek = (event: { currentTarget: HTMLElement; clientX: number }) => {
     const rect = event.currentTarget.getBoundingClientRect()
     const x = (event.clientX - rect.left) / Math.max(1, rect.width)
-    setTime(clamp01(x) * duration)
+    setTime(Math.min(1, Math.max(0, x)) * duration)
+  }
+
+  const expand = () => {
+    const el = rootRef.current
+    if (!el) return
+    void el.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => undefined)
+    if (time >= duration - 0.05) setTime(0)
+    setPlaying(true)
   }
 
   return (
-    <div className="pv" data-testid="page-video-editor">
+    <div className="pv" data-testid="page-video-editor" ref={rootRef}>
       <div className="pv-top">
-        <Frame project={project} time={time} />
+        <Frame project={project} time={time} playing={playing} />
         <div className="pv-script">
           <div className="pv-script-head">
             <span style={{ fontWeight: 700 }}>script</span>
             <span className="pv-time">
-              {project.width}×{project.height} · {project.fps}fps
+              {project.width}×{project.height} · live
             </span>
           </div>
-          <ScriptField value={parsed.script || SAMPLE_SCRIPT} onCommit={commitScript} readOnly={!writable} />
-          {!compiled.ok ? <div className="pv-err">{compiled.error}</div> : <div className="pv-hint">&lt;video&gt; &lt;title&gt; &lt;scene&gt; &lt;caption at&gt; &lt;media /&gt;</div>}
+          <ScriptField
+            value={parsed.script || SAMPLE_SCRIPT}
+            onCommit={commitScript}
+            onLive={setLiveScript}
+            readOnly={!writable}
+          />
+          {!compiled.ok ? (
+            <div className="pv-err">{compiled.error}</div>
+          ) : (
+            <div className="pv-hint">&lt;video&gt; &lt;media&gt; &lt;zoom at cx cy depth /&gt; · compositor</div>
+          )}
         </div>
       </div>
       <div className="pv-bar">
@@ -253,7 +360,21 @@ function Editor({
             setPlaying((v) => !v)
           }}
         >
-          <IconPlay running={playing} />
+          {playing ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+              <rect x="3.5" y="3" width="3.2" height="10" rx="0.8" />
+              <rect x="9.3" y="3" width="3.2" height="10" rx="0.8" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+              <path d="M4.4 2.7v10.6L13.2 8z" />
+            </svg>
+          )}
+        </button>
+        <button type="button" className="pv-icon" data-page-block-expand="" aria-label="放大放映" onClick={expand}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+            <path d="M3 3h4v1.5H4.5V7H3V3zm6 0h4v4h-1.5V4.5H9V3zM3 9h1.5v2.5H7V13H3V9zm6 2.5H12.5V9H14v4H9v-1.5z" />
+          </svg>
         </button>
         <span className="pv-time">
           {fmtClock(time)} / {fmtClock(duration)}
@@ -269,15 +390,10 @@ function Editor({
   )
 }
 
-function clamp01(n: number) {
-  return Math.min(1, Math.max(0, n))
-}
-
 function ClipBar({ clip, duration }: { clip: Clip; duration: number }) {
   const left = (clip.start / duration) * 100
   const width = (clip.duration / duration) * 100
-  const top = clip.kind === 'caption' ? 28 : 8
-  const bottom = clip.kind === 'caption' ? 8 : 22
+  const overlay = clip.kind === 'caption' || clip.kind === 'zoom'
   return (
     <div
       className="pv-clip"
@@ -285,9 +401,9 @@ function ClipBar({ clip, duration }: { clip: Clip; duration: number }) {
       style={{
         left: `${left}%`,
         width: `${Math.max(width, 3)}%`,
-        top,
-        bottom,
-        background: clip.kind === 'caption' ? 'color-mix(in srgb, #fff 22%, transparent)' : clip.bg,
+        top: overlay ? 28 : 8,
+        bottom: overlay ? 8 : 22,
+        background: clip.kind === 'zoom' ? 'color-mix(in srgb,#60a5fa 55%,transparent)' : overlay ? 'color-mix(in srgb,#fff 22%,transparent)' : clip.bg,
       }}
     >
       {clip.kind}
@@ -316,8 +432,8 @@ export function apply(ctx: {
     label: '视频编排',
     blockType: 'video',
     blockTypeLabel: '视频',
-    hint: '用 <video> 标签写时间轴',
-    aliases: ['video', 'timeline', 'remotion', '影片'],
+    hint: '标签时间轴，前端实时合成播放',
+    aliases: ['video', 'timeline', 'remotion', 'openscreen', '影片'],
     defaults: (() => {
       const result = compileSafe(SAMPLE_SCRIPT)
       return result.ok ? result.project : { script: SAMPLE_SCRIPT }

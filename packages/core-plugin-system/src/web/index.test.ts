@@ -297,8 +297,11 @@ test('page-video drafts the tag script locally like html source', async () => {
   const src = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-video/web.tsx'), 'utf8')
   assert.match(src, /function ScriptField/)
   assert.match(src, /data-testid="page-video-script"/)
-  assert.match(src, /onChange=\{\(event\) => setDraft\(event\.currentTarget\.value\)\}/)
-  assert.match(src, /<video>/)
+  assert.match(src, /onChange=\{\(event\) => \{/)
+  assert.match(src, /onLive\(next\)/)
+  assert.match(src, /<video/)
+  assert.match(src, /onLive/)
+  assert.match(src, /requestFullscreen/)
   assert.doesNotMatch(src, /自然语言/)
 })
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { compileSafe, compileScript, dumpScript, clipsAt, projectDuration } from './compose.ts'
+import { compileSafe, compileScript, dumpScript, clipsAt, projectDuration, cameraAt } from './compose.ts'
 
 test('sample script compiles to a playable timeline', () => {
   const project = compileScript(`<video fps=30 size=1280x720>
@@ -25,6 +25,17 @@ test('unknown tags and missing media src fail closed', () => {
   assert.equal(badTag.ok, false)
   const badMedia = compileSafe('<video><media dur=1s /></video>')
   assert.equal(badMedia.ok, false)
+})
+
+test('zoom does not advance the playhead and eases the camera', () => {
+  const project = compileScript(`<video>
+  <scene dur=4s>A</scene>
+  <zoom at=1s dur=1s cx=0.2 cy=0.3 depth=2 />
+</video>`)
+  assert.equal(projectDuration(project), 4)
+  const mid = cameraAt(project, 1.5)
+  assert.ok(mid.scale > 1.2 && mid.scale < 2)
+  assert.ok(mid.cx < 0.45)
 })
 
 test('dump round-trips compiled clips', () => {
