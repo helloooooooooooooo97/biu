@@ -19,7 +19,7 @@ export function apply(ctx: Context) {
   ctx.tools.register({
     name: 'video_script',
     description:
-      'Compile an agent-authored page-video <> script. Root is <timeline> with <track> lanes. Supports <clip>, <gap>, <transition>, follow, <animate>/<keyframes>, text unit+stagger, <mask>, <solid>. No color grading. Returns diagnostics.',
+      'Compile an agent-authored page-video <> script. Root is <timeline> with <track> lanes. Motion is atoms (fade/move/scale/rotate/blur/wipe/clip/flash/glitch) composed with + and ;, plus enter/exit aliases. Supports <clip>, <gap>, <transition enter/exit>, follow, <animate>/<keyframes>, text unit+stagger, <mask>, <solid>. No color grading. Returns diagnostics.',
     parameters: {
       type: 'object',
       properties: {

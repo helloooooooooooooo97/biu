@@ -1,3 +1,5 @@
+import { mixPose, MOTION_REST, motionCss, parseMotion, sampleMotion, type MotionPose } from './motion.ts'
+
 export type ClipKind =
   | 'title'
   | 'scene'
@@ -79,6 +81,10 @@ export type Clip = {
   unit: 'none' | 'char' | 'word' | 'line'
   stagger: number
   staggerFrom: 'start' | 'end' | 'center' | 'random'
+  enter: string
+  exit: string
+  ease: string
+  motionDur: number
   animates: AnimCurve[]
   mask: Mask | null
 }
@@ -116,12 +122,13 @@ export type Camera = { scale: number; cx: number; cy: number; rx: number; ry: nu
 
 export const SAMPLE_SCRIPT = `<timeline fps=30 size=1280x720 description="演示片：主轨串行，标注轨并行">
   <track name=main>
-    <title dur=2.2s bg=#111111 ink=#f6f2ea trans=fade align=center valign=middle desc="开场标题">Biu Studio</title>
-    <scene dur=3.4s bg=#1a1a2e ink=#ece7dc trans=slide desc="色块场景">Agent-directed video.</scene>
+    <title dur=2.2s bg=#111111 ink=#f6f2ea enter="fadeUp" align=center valign=middle desc="开场标题">Biu Studio</title>
+    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.5s desc="左推" />
+    <scene dur=3.4s bg=#1a1a2e ink=#ece7dc enter="fade" desc="色块场景">Agent-directed video.</scene>
   </track>
   <track name=fx layer=2>
     <zoom at=2.4s dur=0.8s cx=0.46 cy=0.38 depth=1.7 desc="推近到标题左侧" />
-    <text at=2.7s dur=2s x=.5 y=.5 w=.7 h=.18 size=28 align=center valign=middle anim=rise unit=word stagger=0.12s desc="画面正中的说明文字">Effects are syntax.</text>
+    <text at=2.7s dur=2s x=.5 y=.5 w=.7 h=.18 size=28 align=center valign=middle enter="fade+move(y:+24)" unit=word stagger=0.12s desc="画面正中的说明文字">Effects are syntax.</text>
     <arrow at=3s dur=1.8s x=.25 y=.65 x2=.44 y2=.45 color=#7dd3fc width=5 desc="指向标题区域" />
     <cursor at=2.3s dur=2.4s x=.18 y=.72 x2=.72 y2=.3 click=1.5s size=26 desc="光标滑向按钮并点击" />
   </track>
@@ -290,8 +297,25 @@ function parseAnimation(raw: string | undefined): Clip['anim'] {
   const v = String(raw ?? '').trim()
   if (v === 'fadeUp' || v === 'rise') return 'rise'
   if (v === 'slideIn' || v === 'slide-left') return 'slide-left'
-  if (v === 'fade' || v === 'pop' || v === 'typewriter' || v === 'pulse' || v === 'wave' || v === 'blur-in') return v
+  if (v === 'fade' || v === 'pop' || v === 'typewriter' || v === 'pulse' || v === 'wave' || v === 'blur-in' || v === 'blurIn') {
+    return v === 'blurIn' ? 'blur-in' : v
+  }
   return 'none'
+}
+
+function resolveEnter(attrs: Attrs): string {
+  const enter = String(attrs.enter ?? '').trim()
+  if (enter) return enter
+  const anim = parseAnimation(attrs.anim)
+  if (anim === 'fade') return 'fade'
+  if (anim === 'rise') return 'fadeUp'
+  if (anim === 'pop') return 'pop'
+  if (anim === 'slide-left') return 'slideIn'
+  if (anim === 'typewriter') return 'typewriter'
+  if (anim === 'blur-in') return 'blurIn'
+  if (anim === 'wave') return 'move(y:+8)'
+  if (anim === 'pulse') return 'fade'
+  return ''
 }
 
 function parseShape(raw: string | undefined): Clip['shape'] {
@@ -557,6 +581,10 @@ function clipFrom(kind: ClipKind, attrs: Attrs, text: string, start: number, id:
     unit: parseUnitKind(attrs.unit, attrs.stagger),
     stagger: Math.max(0, parseClock(attrs.stagger, fps, 0)),
     staggerFrom: parseStaggerFrom(attrs['stagger-from'] ?? attrs.staggerFrom),
+    enter: resolveEnter(attrs),
+    exit: String(attrs.exit ?? '').trim(),
+    ease: String(attrs.ease ?? '').trim(),
+    motionDur: Math.max(0, parseClock(attrs['motion-dur'], fps, 0.45)),
     animates: [],
     mask: null,
   }
@@ -756,6 +784,7 @@ export function compileScript(source: string): Project {
 
   const fadeOf = (kind: Transition): Transition => (kind === 'dissolve' ? 'fade' : kind)
   const laneDrafts = new Map<Lane, Draft[]>()
+  type PendingTrans = { dur: number; kind: Transition; enter: string; exit: string; ease: string }
 
   trackEls.forEach((trackEl, trackIndex) => {
     const name = String(trackEl.attrs.name ?? trackEl.attrs.id ?? `track-${trackIndex + 1}`).trim()
@@ -811,12 +840,16 @@ export function compileScript(source: string): Project {
   for (const lane of lanes) {
     const local = laneDrafts.get(lane) ?? []
     let cursor = 0
-    let pending = 0
-    let pendingKind: Transition = 'cut'
+    let pending: PendingTrans | null = null
     for (const draft of local) {
       if (draft.el.name === 'transition') {
-        pending = parseClock(draft.el.attrs.dur, project.fps, 0.5)
-        pendingKind = parseTrans(draft.el.attrs.kind ?? draft.el.attrs.trans)
+        pending = {
+          dur: parseClock(draft.el.attrs.dur, project.fps, 0.5),
+          kind: parseTrans(draft.el.attrs.kind ?? draft.el.attrs.trans),
+          enter: String(draft.el.attrs.enter ?? '').trim(),
+          exit: String(draft.el.attrs.exit ?? '').trim(),
+          ease: String(draft.el.attrs.ease ?? '').trim(),
+        }
         continue
       }
       if (draft.follow) continue
@@ -826,15 +859,23 @@ export function compileScript(source: string): Project {
         draft.clip.start = start
         draft.placed = true
         cursor = snapTime(Math.max(cursor, clipEnd(draft.clip)), project.fps)
-        pending = 0
+        pending = null
         continue
       }
       if (pending) {
         const prev = [...local].reverse().find((item) => item.placed && item.el.name !== 'transition')
-        draft.clip.start = snapTime(Math.max(0, cursor - pending), project.fps)
-        draft.clip.trans = fadeOf(pendingKind)
-        if (prev) prev.clip.trans = fadeOf(pendingKind)
-        pending = 0
+        draft.clip.start = snapTime(Math.max(0, cursor - pending.dur), project.fps)
+        draft.clip.trans = fadeOf(pending.kind)
+        if (pending.enter) draft.clip.enter = pending.enter
+        if (pending.ease) draft.clip.ease = pending.ease
+        draft.clip.motionDur = pending.dur
+        if (prev) {
+          prev.clip.trans = fadeOf(pending.kind)
+          if (pending.exit) prev.clip.exit = pending.exit
+          if (pending.ease) prev.clip.ease = pending.ease
+          prev.clip.motionDur = pending.dur
+        }
+        pending = null
       } else {
         draft.clip.start = cursor
       }
@@ -908,6 +949,9 @@ function dumpClip(clip: Clip, serialStart: number) {
     attr('bg', clip.kind === 'zoom' || clip.kind === 'media' ? undefined : clip.bg) +
     attr('ink', clip.kind === 'zoom' || clip.kind === 'media' ? undefined : clip.ink) +
     attr('trans', clip.trans, 'cut') +
+    attr('enter', clip.enter) +
+    attr('exit', clip.exit) +
+    attr('ease', clip.ease) +
     attr('src', clip.src) +
     attr('fit', clip.fit, 'cover') +
     attr('cx', clip.kind === 'zoom' ? clip.cx : undefined, 0.5) +
@@ -1122,7 +1166,31 @@ export function speedAt(project: Project, time: number, fallback = 1) {
   return region?.speed ?? fallback
 }
 
+export function motionEdge(clip: Clip) {
+  const named = clip.motionDur > 0 ? clip.motionDur : 0.45
+  return Math.max(0.04, Math.min(named, clip.duration / 2.5))
+}
+
+export function poseAt(clip: Clip, time: number, delay = 0): MotionPose {
+  const local = time - clip.start - delay
+  const edge = motionEdge(clip)
+  const enter = parseMotion(clip.enter)
+  const exit = parseMotion(clip.exit)
+  let pose = { ...MOTION_REST }
+  if (enter.steps.length) pose = mixPose(pose, sampleMotion(enter, clamp((local + 1e-6) / edge, 0, 1), 'enter', clip.ease || undefined))
+  if (exit.steps.length) {
+    const t = clamp((local - (clip.duration - delay - edge)) / edge, 0, 1)
+    if (t > 0) pose = mixPose(pose, sampleMotion(exit, t, 'exit', clip.ease || undefined))
+  }
+  return pose
+}
+
+export function poseStyle(clip: Clip, time: number, delay = 0) {
+  return motionCss(poseAt(clip, time, delay))
+}
+
 export function clipAlpha(clip: Clip, time: number) {
+  if (clip.enter || clip.exit) return 1
   if (clip.trans === 'cut') return 1
   const local = time - clip.start
   const edge = Math.min(0.32, clip.duration / 3)
@@ -1132,6 +1200,7 @@ export function clipAlpha(clip: Clip, time: number) {
 }
 
 export function clipShift(clip: Clip, time: number) {
+  if (clip.enter || clip.exit) return 0
   if (clip.trans !== 'slide') return 0
   const local = time - clip.start
   const edge = Math.min(0.32, clip.duration / 3)
@@ -1152,6 +1221,16 @@ export type AnnotationMotion = {
 }
 
 export function annotationMotion(clip: Clip, time: number): AnnotationMotion {
+  if (clip.enter || clip.exit) {
+    const pose = poseAt(clip, time)
+    return {
+      opacity: pose.opacity,
+      scale: pose.scale,
+      translateX: pose.x + pose.xPct,
+      translateY: pose.y + pose.yPct,
+      reveal: pose.clipPath ? 1 : pose.opacity,
+    }
+  }
   const progress = clamp((time - clip.start) / Math.min(0.7, clip.duration), 0, 1)
   const eased = 1 - (1 - progress) ** 3
   if (clip.anim === 'fade') return { opacity: eased, scale: 1, translateX: 0, translateY: 0, reveal: 1 }

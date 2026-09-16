@@ -1,6 +1,5 @@
 import { createPortal } from 'react-dom'
 import {
-  annotationMotion,
   cameraAt,
   clipAlpha,
   clipEnd,
@@ -13,6 +12,7 @@ import {
   isVideoSrc,
   maskCss,
   parseProject,
+  poseStyle,
   projectDuration,
   propAt,
   SAMPLE_SCRIPT,
@@ -295,17 +295,19 @@ function MediaEl({ clip, time, playing, rate = 1 }: { clip: Clip; time: number; 
       if (el.paused) void el.play().catch(() => undefined)
     } else if (!el.paused) el.pause()
   }, [active, playback, local, movie, playing])
+  const pose = poseStyle(clip, time)
   const [cropX, cropY, cropW, cropH] = clip.crop
   const fit = {
     objectFit: clip.fit,
-    opacity: active ? alpha : 0,
-    transform: `translateX(${shift}px) translate(${(xf.x - 0.5) * 100}%, ${(xf.y - 0.5) * 100}%) scale(${xf.scale}) rotate(${xf.rotate}deg)`,
+    opacity: active ? alpha * Number(pose.opacity ?? 1) : 0,
+    transform: `translateX(${shift}px) translate(${(xf.x - 0.5) * 100}%, ${(xf.y - 0.5) * 100}%) ${pose.transform ?? ''} scale(${xf.scale}) rotate(${xf.rotate}deg)`,
     width: `${100 / cropW}%`,
     height: `${100 / cropH}%`,
     left: `${(-cropX / cropW) * 100}%`,
     top: `${(-cropY / cropH) * 100}%`,
     zIndex: clip.layer,
-    clipPath: maskCss(clip.mask),
+    clipPath: pose.clipPath ?? maskCss(clip.mask),
+    filter: pose.filter,
   } as const
   if (movie) {
     return <video ref={video} className="pv-media" src={url} muted playsInline preload="auto" style={{ ...fit, pointerEvents: 'none' }} />
@@ -341,15 +343,16 @@ function TextEffect({ clip, time }: { clip: Clip; time: number }) {
       <div className="pv-effect pv-text" style={box}>
         {parts.map((part, index) => {
           const delay = staggerDelay(index, parts.length, clip.stagger, clip.staggerFrom)
-          const motion = annotationMotion({ ...clip, start: clip.start + delay }, time)
+          const pose = poseStyle(clip, time, delay)
           return (
             <span
               key={`${index}-${part}`}
               style={{
                 display: clip.unit === 'line' ? 'block' : 'inline-block',
-                opacity: motion.opacity * xf.opacity,
-                transform: `translate(${motion.translateX}px, ${motion.translateY}px) scale(${motion.scale * xf.scale}) rotate(${xf.rotate}deg)`,
-                filter: clip.anim === 'blur-in' ? `blur(${(1 - motion.opacity) * 8}px)` : undefined,
+                opacity: Number(pose.opacity ?? 1) * xf.opacity,
+                transform: `${pose.transform ?? ''} scale(${xf.scale}) rotate(${xf.rotate}deg)`,
+                filter: pose.filter,
+                clipPath: pose.clipPath,
               }}
             >
               {part}
@@ -359,20 +362,19 @@ function TextEffect({ clip, time }: { clip: Clip; time: number }) {
       </div>
     )
   }
-  const motion = annotationMotion(clip, time)
-  const count = Math.ceil(Array.from(clip.text).length * motion.reveal)
-  const text = clip.anim === 'typewriter' ? Array.from(clip.text).slice(0, count).join('') : clip.text
+  const pose = poseStyle(clip, time)
   return (
     <div
       className="pv-effect pv-text"
       style={{
         ...box,
-        opacity: motion.opacity * xf.opacity,
-        transform: `translate(${motion.translateX}px, ${motion.translateY}px) scale(${motion.scale * xf.scale}) rotate(${xf.rotate}deg)`,
-        filter: clip.anim === 'blur-in' ? `blur(${(1 - motion.opacity) * 8}px)` : undefined,
+        opacity: Number(pose.opacity ?? 1) * xf.opacity,
+        transform: `${pose.transform ?? ''} scale(${xf.scale}) rotate(${xf.rotate}deg)`,
+        filter: pose.filter,
+        clipPath: pose.clipPath ?? box.clipPath,
       }}
     >
-      {text}
+      {clip.text}
     </div>
   )
 }
@@ -522,7 +524,7 @@ function OverlayEffect({ clip, time, playing }: { clip: Clip; time: number; play
     )
   }
   if (clip.kind === 'image') {
-    const motion = annotationMotion(clip, time)
+    const pose = poseStyle(clip, time)
     return (
       <img
         className="pv-effect pv-image"
@@ -534,8 +536,10 @@ function OverlayEffect({ clip, time, playing }: { clip: Clip; time: number; play
           width: `${clip.w * 100}%`,
           height: `${clip.h * 100}%`,
           borderRadius: clip.shape === 'circle' ? '50%' : clip.shape === 'rounded' ? 14 : 0,
-          opacity: motion.opacity,
-          transform: `translate(calc(-50% + ${motion.translateX}px),calc(-50% + ${motion.translateY}px)) scale(${motion.scale})`,
+          opacity: pose.opacity,
+          transform: `translate(-50%,-50%) ${pose.transform ?? ''}`,
+          filter: pose.filter,
+          clipPath: pose.clipPath,
         }}
       />
     )
@@ -625,6 +629,7 @@ function Stage({ project, time, playing }: { project: Project; time: number; pla
             .filter((clip) => clip.kind !== 'media' && clip.kind !== 'gap')
             .map((clip) => {
               const xf = clipTransform(clip, time)
+              const pose = poseStyle(clip, time)
               return (
               <div
                 key={clip.id}
@@ -632,9 +637,10 @@ function Stage({ project, time, playing }: { project: Project; time: number; pla
                 style={{
                   background: clip.bg,
                   color: clip.ink,
-                  opacity: alphaAt(clip, time) * xf.opacity,
-                  transform: `translateX(${clipShift(clip, time)}px) scale(${xf.scale}) rotate(${xf.rotate}deg)`,
-                  clipPath: maskCss(clip.mask),
+                  opacity: alphaAt(clip, time) * xf.opacity * Number(pose.opacity ?? 1),
+                  transform: `translateX(${clipShift(clip, time)}px) ${pose.transform ?? ''} scale(${xf.scale}) rotate(${xf.rotate}deg)`,
+                  clipPath: pose.clipPath ?? maskCss(clip.mask),
+                  filter: pose.filter,
                 }}
               >
                 <div

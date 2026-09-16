@@ -185,6 +185,30 @@ test('keyframes and text stagger compile', () => {
   assert.equal(text.stagger, 0.1)
 })
 
+test('enter exit atoms and transitions compile', () => {
+  const project = compileScript(`<timeline fps=30>
+  <track name=main>
+    <title dur=2s enter="fadeUp">A</title>
+    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.5s />
+    <scene dur=2s>B</scene>
+  </track>
+  <track name=fx>
+    <text at=0s dur=2s enter="scale(0.8→1); fade" ease="backOut" unit=char stagger=0.05s>Hi</text>
+  </track>
+</timeline>`)
+  const title = project.clips[0]!
+  const scene = project.clips.find((clip) => clip.kind === 'scene')!
+  const text = project.clips.find((clip) => clip.kind === 'text')!
+  assert.equal(title.enter, 'fadeUp')
+  assert.equal(title.exit, 'move(x:-100%)')
+  assert.equal(scene.enter, 'move(x:+100%)')
+  assert.ok(scene.start < 2)
+  assert.equal(text.enter, 'scale(0.8→1); fade')
+  assert.equal(text.ease, 'backOut')
+  const motion = annotationMotion(title, title.start)
+  assert.ok(motion.opacity < 0.3)
+})
+
 test('frame durations snap to the project rate', () => {
   const project = compileScript(`<timeline fps=24>
   <track><clip src=a.mp4 dur=48f /></track>
