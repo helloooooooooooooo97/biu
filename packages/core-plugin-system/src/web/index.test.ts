@@ -301,7 +301,9 @@ test('page-video drafts the tag script locally like html source', async () => {
   assert.match(src, /onLive\(next\)/)
   assert.match(src, /<video/)
   assert.match(src, /onLive/)
-  assert.match(src, /requestFullscreen/)
+  assert.match(src, /createPortal/)
+  assert.match(src, /page-video-studio/)
+  assert.match(src, /全屏编辑/)
   assert.doesNotMatch(src, /自然语言/)
 })
 

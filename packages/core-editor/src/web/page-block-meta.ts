@@ -2,6 +2,7 @@
 export const ENABLE_PAGE_BLOCK_PLUGIN = 'biu:enable-page-block-plugin'
 
 const HTML_KINDS = new Set(['html', 'htmlframe'])
+const VIDEO_KINDS = new Set(['video'])
 
 export function parsePageBlockMeta(raw: string) {
   const kind = raw.match(/\bkind=["']?([a-z0-9-]+)/i)?.[1] ?? 'card'
@@ -51,9 +52,17 @@ function parseJsonObject(raw: string): Record<string, unknown> | null {
   }
 }
 
+function videoScriptFromJson(json: Record<string, unknown>, fallback: string) {
+  return typeof json.script === 'string' ? json.script : fallback
+}
+
 /** HTML / iframe 块：围栏里直接写 HTML；deck / height 写在 :::pageBlock {…} 上。旧 JSON 体仍能读。 */
 export function parsePageBlockData(kind: string, raw: string, extras: Record<string, unknown> = {}) {
   const json = parseJsonObject(raw)
+  if (VIDEO_KINDS.has(kind)) {
+    const script = json ? videoScriptFromJson(json, raw.trim()) : raw.trim()
+    return { ...extras, script }
+  }
   if (json) return { ...json, ...extras }
   if (HTML_KINDS.has(kind)) return { ...extras, html: raw.trim() }
   return { ...extras }
@@ -86,6 +95,10 @@ export function formatPageBlockFence(kind: string, plugin: string, data: Record<
     const html = typeof body.html === 'string' ? body.html : ''
     const extras = htmlFenceExtras(body)
     return `:::pageBlock ${formatMeta(kind, plugin, extras, id)}\n${html}\n:::`
+  }
+  if (VIDEO_KINDS.has(kind)) {
+    const script = typeof body.script === 'string' ? body.script.trim() : ''
+    return `:::pageBlock ${formatMeta(kind, plugin, [], id)}\n${script}\n:::`
   }
   const meta = formatMeta(kind, plugin, [], id)
   return `:::pageBlock ${meta}\n${JSON.stringify(body, null, 2)}\n:::`

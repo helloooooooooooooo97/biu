@@ -91,6 +91,45 @@ test('html pageBlock markdown keeps raw html and deck on the fence', () => {
   editor.destroy()
 })
 
+test('video pageBlock markdown keeps the tag script, not JSON', () => {
+  const src = `:::pageBlock {kind=video plugin=page-video id=viddemo1}
+<video fps=30 size=1280x720>
+  <title dur=2s>Biu</title>
+</video>
+:::
+`
+  const editor = new Editor({
+    extensions: pageEditorExtensions(),
+    content: src,
+    contentType: 'markdown',
+  })
+  const data = editor.getJSON().content?.find((node) => node.type === 'pageBlock')?.attrs?.data as { script?: string }
+  assert.match(String(data?.script), /<title dur=2s>Biu<\/title>/)
+  const out = editor.getMarkdown()
+  assert.match(out, /:::pageBlock \{kind=video plugin=page-video id=viddemo1\}/)
+  assert.match(out, /<video fps=30 size=1280x720>/)
+  assert.doesNotMatch(out, /"script":/)
+  editor.destroy()
+})
+
+test('video pageBlock still reads the old JSON body', () => {
+  const src = `:::pageBlock {kind=video plugin=page-video}
+{"script":"<video fps=24>\\n  <scene dur=1s>Hi</scene>\\n</video>"}
+:::
+`
+  const editor = new Editor({
+    extensions: pageEditorExtensions(),
+    content: src,
+    contentType: 'markdown',
+  })
+  const data = editor.getJSON().content?.find((node) => node.type === 'pageBlock')?.attrs?.data as { script?: string }
+  assert.match(String(data?.script), /<scene dur=1s>Hi<\/scene>/)
+  const out = editor.getMarkdown()
+  assert.match(out, /<video fps=24>/)
+  assert.doesNotMatch(out, /"script":/)
+  editor.destroy()
+})
+
 test('html pageBlock still reads the old JSON body', () => {
   const src = `:::pageBlock {kind=html plugin=page-html-blocks}
 {"html":"<div>旧写法</div>","deck":true}
