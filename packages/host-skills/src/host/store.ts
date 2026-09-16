@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { join, posix } from 'node:path'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { isAbsolute, join, posix, resolve, sep } from 'node:path'
+import { tmpdir } from 'node:os'
 import { dataPath } from '@biu/host-plugin-loader/data-dir'
 
 export type SkillRecord = {
@@ -15,7 +16,8 @@ export type SkillRecord = {
 
 export type SkillImportFile = {
   path: string
-  content: string
+  content?: string
+  from?: string
 }
 
 export type SkillImportInput = {
@@ -65,6 +67,32 @@ export function assertSkillRelPath(path: string) {
     throw new Error(`invalid skill file path: ${path}`)
   }
   return rel
+}
+
+function isInside(root: string, file: string) {
+  const base = root.endsWith(sep) ? root : root + sep
+  return file === root || file.startsWith(base)
+}
+
+/** 只许从工作区或 /tmp（含 os.tmpdir）拷文件，避免 agent 把任意系统文件读进技能目录。 */
+export function assertSkillSourcePath(raw: string, cwd = process.cwd()) {
+  const wanted = String(raw ?? '').trim()
+  if (!wanted) throw new Error('from path is empty')
+  const file = isAbsolute(wanted) ? resolve(wanted) : resolve(cwd, wanted)
+  if (!existsSync(file) || !statSync(file).isFile()) throw new Error(`cannot read from: ${raw}`)
+  const real = realpathSync(file)
+  const roots = [resolve(cwd), resolve('/tmp'), tmpdir()]
+  const allowed = roots.flatMap((root) => {
+    try {
+      return [realpathSync(root)]
+    } catch {
+      return [resolve(root)]
+    }
+  })
+  if (!allowed.some((root) => isInside(root, real))) {
+    throw new Error('from path must be inside the workspace or /tmp')
+  }
+  return real
 }
 
 function unquote(value: string) {
@@ -161,15 +189,20 @@ export function packSkillImport(files: SkillImportFile[]) {
   if (!Array.isArray(files) || !files.length) throw new Error('skill import requires files')
   if (files.length > MAX_FILES) throw new Error(`skill import has too many files (max ${MAX_FILES})`)
   let total = 0
-  const raw = files.map((file) => ({
-    path: normalizeImportPath(file.path),
-    content: String(file.content ?? ''),
-  }))
+  const raw = files.map((file) => {
+    const from = String(file.from ?? '').trim()
+    const content = file.content == null ? undefined : String(file.content)
+    if (!from && content == null) throw new Error(`skill import file needs content or from: ${file.path}`)
+    return { path: normalizeImportPath(file.path), content, from: from || undefined }
+  })
   const stripped = stripSharedRoot(raw.map((file) => file.path))
   const normalized = raw.map((file, index) => {
     const path = assertSkillRelPath(stripped[index] || posix.basename(file.path))
-    total += path.length + file.content.length
-    return { path, content: file.content }
+    const from = file.from ? assertSkillSourcePath(file.from) : undefined
+    const size = from ? statSync(from).size : String(file.content ?? '').length
+    total += path.length + size
+    const content = from && file.content == null ? readFileSync(from, 'utf8') : String(file.content ?? '')
+    return { path, content, from }
   })
   if (total > MAX_TOTAL_CHARS) throw new Error('skill import is too large')
   const entry =
@@ -209,11 +242,17 @@ export class SkillsStore {
     return { path: safe, text: readFileSync(full, 'utf8') }
   }
 
-  writeFile(id: string, rel: string, content: string) {
+  writeFile(id: string, rel: string, input: string | { content?: string; from?: string }) {
     this.require(id)
     const safe = assertSkillRelPath(rel)
     const dest = join(this.filesDir(id), ...safe.split('/'))
     mkdirSync(join(dest, '..'), { recursive: true })
+    const from = typeof input === 'object' ? String(input.from ?? '').trim() : ''
+    if (from) {
+      copyFileSync(assertSkillSourcePath(from), dest)
+      return { path: safe, from }
+    }
+    const content = typeof input === 'string' ? input : String(input.content ?? '')
     writeFileSync(dest, content)
     return { path: safe }
   }
@@ -221,7 +260,7 @@ export class SkillsStore {
   replaceFiles(id: string, files: SkillImportFile[]) {
     const dir = this.filesDir(id)
     if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
-    for (const file of files) this.writeFile(id, file.path, file.content)
+    for (const file of files) this.writeFile(id, file.path, file)
     return this.listFiles(id)
   }
 

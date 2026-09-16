@@ -1,6 +1,6 @@
 import { recordBuiltinValues, REQUIRED_RECORD_FIELDS, type CollectionSpec, type DbRecord } from '@biu/type-file-system'
 import type { SkillsService } from './index.ts'
-import type { SkillRecord } from './store.ts'
+import type { SkillImportFile, SkillRecord } from './store.ts'
 
 function asRecord(skill: SkillRecord, withNotes = true): DbRecord {
   return {
@@ -29,14 +29,11 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
       title: '技能',
       inspector: true,
       blurb:
-        'Skill 是独立的一张表，不挂到 /pages。每条记录自己的名字、何时使用、来源链接、开关和正文。' +
-        '从 GitHub 安装：skill_import 的 files 必须带上 SKILL.md 以及仓库里的 scripts/*.mjs、package.json 等，不要只进口径 Markdown。' +
-        'SKILL.md 进正文；其它路径写进 .biu/skill/<id>/。漏掉的脚本事后 db_action path=/skills/<id> action=write-files，args.path 如 scripts/capture.mjs，args.content 为文件全文。' +
-        'source 必填上游 URL（仓库或具体 md），版权可追溯。db_update /skills/<id> 可补 source。' +
-        '列表 db_list /skills。新建 db_create /skills。改名字/说明/来源/开关 db_update /skills/<id>。正文 db_content /skills/<id>。删除 db_delete。' +
-        '读文件 db_action path=/skills/<id> action=read-files（不传 path 列出；带 path 读一个）。' +
-        '每次对话只注入已启用且写了说明的摘要；需要时用 skill_read 或 db_content 读正文。' +
-        '本表动作还有 enable / disable。',
+        '从 GitHub 安装：db_create /skills，带 files[]（[{path, from}] 整包拷贝，from 限工作区或 /tmp）。' +
+        'SKILL.md 进正文；其它路径写进 .biu/skill/<id>/。纯正文只写 notes。' +
+        '漏掉的脚本事后 db_action path=/skills/<id> action=write-files，args.from + args.path，不要传全文。' +
+        'source 填上游 URL。列表 db_list /skills。改名字/说明/来源/开关 db_update。正文 db_content。删除 db_delete。' +
+        '读文件 db_action action=read-files。本表还有 enable / disable。',
       order: 50,
       icon: 'academic-cap',
     },
@@ -62,6 +59,13 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
           description: '上游链接，例如 GitHub 仓库或具体 SKILL.md 的 URL，用来追溯版权。',
         },
         notes: { type: 'file', label: '正文', writable: true },
+        files: {
+          type: 'file',
+          label: '文件包',
+          writable: true,
+          description:
+            '仅创建时用。整包：[{ path, from }] 或 { path, content }。from 是磁盘源路径（工作区或 /tmp），不要把脚本全文塞进来。没有 files 时写 notes 即纯正文。',
+        },
       },
     },
     list: () => skills.list().map((item) => asRecord(item, false)),
@@ -72,15 +76,26 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
     create: async (rows) => {
       const out: DbRecord[] = []
       for (const fields of rows) {
-        const created = skills.create({
-          id: String(fields.id ?? ''),
-          name: String(fields.title ?? fields.name ?? ''),
-          description: String(fields.description ?? ''),
-          source: String(fields.source ?? ''),
-          enabled: fields.enabled as boolean | undefined,
-          notes: String(fields.notes ?? fields.body ?? ''),
-          draft: !String(fields.description ?? '').trim(),
-        })
+        const pack = asCreateFiles(fields.files)
+        const created = pack?.length
+          ? skills.import({
+              id: String(fields.id ?? ''),
+              name: String(fields.title ?? fields.name ?? ''),
+              description: String(fields.description ?? ''),
+              source: String(fields.source ?? ''),
+              enabled: fields.enabled as boolean | undefined,
+              files: pack,
+              draft: !String(fields.description ?? '').trim(),
+            })
+          : skills.create({
+              id: String(fields.id ?? ''),
+              name: String(fields.title ?? fields.name ?? ''),
+              description: String(fields.description ?? ''),
+              source: String(fields.source ?? ''),
+              enabled: fields.enabled as boolean | undefined,
+              notes: String(fields.notes ?? fields.body ?? ''),
+              draft: !String(fields.description ?? '').trim(),
+            })
         out.push(asRecord(created))
       }
       return out
@@ -130,17 +145,31 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
         label: '写文件',
         for: 'agent',
         placement: [],
-        description: '往这条技能 id 目录写一个文件。GitHub 技能包里的 scripts/*.mjs 必须写到这里，不要只进口径 Markdown。必填 args.path（相对路径，如 scripts/capture.mjs）、args.content（文件全文）。',
+        description: '往这条技能 id 目录写一个文件。优先 args.from 从磁盘拷贝（工作区或 /tmp），args.path 为目录内相对路径。没有 from 才用 args.content。',
         parameters: {
           type: 'object',
           properties: {
             path: { type: 'string' },
+            from: { type: 'string' },
             content: { type: 'string' },
           },
-          required: ['path', 'content'],
+          required: ['path'],
         },
         run: (id, _record, args = {}) => skills.writeFiles(id, args),
       },
     ],
   }
+}
+
+function asCreateFiles(value: unknown): SkillImportFile[] | undefined {
+  if (value == null || value === '') return undefined
+  if (!Array.isArray(value)) throw new Error('files must be an array')
+  return value.map((item) => {
+    const rec = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
+    return {
+      path: String(rec.path ?? ''),
+      content: rec.content == null ? undefined : String(rec.content),
+      from: rec.from == null ? undefined : String(rec.from),
+    }
+  })
 }

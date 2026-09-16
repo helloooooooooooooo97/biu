@@ -91,7 +91,8 @@ test('prompt tells agents how to store scripts and source even before any skill 
   const prompt = ctx.systemPrompt.assemble()
   assert.match(prompt, /write-files/)
   assert.match(prompt, /source/)
-  assert.match(prompt, /scripts\/capture\.mjs/)
+  assert.match(prompt, /db_create \/skills/)
+  assert.match(prompt, /from/)
 })
 
 test('import keeps source url for attribution', () => {
@@ -128,7 +129,8 @@ test('store writes markdown under its own directory, not /pages', () => {
 
 test('each conversation sees summaries while skill_read loads the body on demand', async () => {
   const { ctx } = await boot()
-  await ctx.tools.invoke('skill_import', fixture)
+  const spec = (ctx.database as FakeDatabase).specs.find((item) => item.path === '/skills')!
+  await spec.create!([{ title: 'ABC', description: '需要执行 ABC 流程时使用', files: fixture.files }])
   const prompt = ctx.systemPrompt.assemble()
 
   assert.match(prompt, /abc（ABC）：需要执行 ABC 流程时使用/)
@@ -141,8 +143,8 @@ test('each conversation sees summaries while skill_read loads the body on demand
 
 test('/skills rows are Skill records, not Page pointers', async () => {
   const { ctx } = await boot()
-  await ctx.tools.invoke('skill_import', fixture)
   const spec = (ctx.database as FakeDatabase).specs.find((item) => item.path === '/skills')!
+  await spec.create!([{ title: 'ABC', description: '需要执行 ABC 流程时使用', files: fixture.files }])
   const rows = await spec.list()
 
   assert.equal(rows.length, 1)
@@ -150,7 +152,7 @@ test('/skills rows are Skill records, not Page pointers', async () => {
   assert.equal(rows[0]?.enabled, true)
   assert.equal(rows[0]?.rootPageId, undefined)
   assert.equal(spec.schema.fields.source?.type, 'url')
-  assert.equal(spec.schema.fields.files, undefined)
+  assert.equal(spec.schema.fields.files?.type, 'file')
   assert.equal(spec.actions?.map((item) => item.id).join(','), 'enable,disable,read-files,write-files')
 })
 
@@ -228,10 +230,16 @@ test('read-files and write-files actions use the skill id directory', async () =
   await spec.create!([{ title: 'Pretty', description: '画图时用', notes: '正文' }])
   const write = spec.actions?.find((item) => item.id === 'write-files')
   const read = spec.actions?.find((item) => item.id === 'read-files')
-  await write?.run('pretty', { id: 'pretty' }, { path: 'scripts/render.mjs', content: 'export const ok = 1' })
-  assert.deepEqual(await read?.run('pretty', { id: 'pretty' }, {}), { files: ['scripts/render.mjs'] })
-  const file = await read?.run('pretty', { id: 'pretty' }, { path: 'scripts/render.mjs' }) as { text: string }
-  assert.match(file.text, /export const ok/)
+  const src = join(dir, 'capture.mjs')
+  writeFileSync(src, 'export const fromDisk = 1\n')
+  await write?.run('pretty', { id: 'pretty' }, { path: 'scripts/copied.mjs', from: src })
+  assert.deepEqual(await read?.run('pretty', { id: 'pretty' }, {}), { files: ['scripts/copied.mjs'] })
+  const file = await read?.run('pretty', { id: 'pretty' }, { path: 'scripts/copied.mjs' }) as { text: string }
+  assert.equal(file.text, 'export const fromDisk = 1\n')
+  await assert.rejects(
+    async () => write!.run('pretty', { id: 'pretty' }, { path: 'scripts/secret.mjs', from: '/etc/passwd' }),
+    /workspace or \/tmp/,
+  )
 })
 
 test('remove deletes the skill markdown and its files directory', () => {
@@ -246,6 +254,25 @@ test('remove deletes the skill markdown and its files directory', () => {
   assert.equal(store.remove(record.id), true)
   assert.equal(store.get(record.id), null)
   assert.equal(existsSync(dir), false)
+})
+
+test('db_create /skills copies a pack from disk via files[].from', async () => {
+  const { ctx } = await boot()
+  const spec = (ctx.database as FakeDatabase).specs.find((item) => item.path === '/skills')!
+  const src = join(dir, 'render.mjs')
+  writeFileSync(src, 'export const render = () => {}\n')
+  await spec.create!([{
+    title: 'Pretty Mermaid',
+    description: '画图时用',
+    source: 'https://github.com/example/pretty-mermaid',
+    files: [
+      { path: 'SKILL.md', content: '---\nname: Pretty Mermaid\ndescription: 画图时用\n---\n\n先读脚本。' },
+      { path: 'scripts/render.mjs', from: src },
+    ],
+  }])
+  const store = new SkillsStore()
+  assert.equal(store.get('pretty-mermaid')?.source, 'https://github.com/example/pretty-mermaid')
+  assert.equal(store.readFile('pretty-mermaid', 'scripts/render.mjs').text, 'export const render = () => {}\n')
 })
 
 test('db_content can update Skill notes without touching pages', async () => {
