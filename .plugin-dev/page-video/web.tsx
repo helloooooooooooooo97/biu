@@ -85,6 +85,7 @@ const STYLE_CSS = `
   background:#91918e;border:1px solid color-mix(in srgb,var(--dsw-bg,#fff) 90%,transparent);
   box-shadow:0 0 0 1px rgba(55,53,47,.08);
 }
+.pv-embed .pv-effect-dot{display:none}
 .pv-playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--pv-blue);pointer-events:none;z-index:3}
 .pv-playhead:before{content:"";position:absolute;left:-3px;top:0;width:7px;height:7px;border-radius:1px 1px 50% 50%;background:var(--pv-blue)}
 .pv-chrome{
