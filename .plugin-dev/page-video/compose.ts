@@ -56,7 +56,7 @@ export type Clip = {
   speed: number
   click: number
   color: string
-  anim: 'none' | 'fade' | 'rise' | 'pop' | 'slide-left' | 'typewriter' | 'pulse'
+  anim: 'none' | 'fade' | 'rise' | 'pop' | 'slide-left' | 'typewriter' | 'pulse' | 'wave' | 'blur-in'
   shape: 'rectangle' | 'rounded' | 'circle'
   crop: [number, number, number, number]
   sourceIn: number
@@ -73,7 +73,19 @@ export type Clip = {
   rz: number
   mode: BlurMode
   follow: string
+  scale: number
+  rotate: number
+  opacity: number
+  unit: 'none' | 'char' | 'word' | 'line'
+  stagger: number
+  staggerFrom: 'start' | 'end' | 'center' | 'random'
+  animates: AnimCurve[]
+  mask: Mask | null
 }
+
+export type AnimKey = { at: number; v: number; ease: string }
+export type AnimCurve = { prop: string; keys: AnimKey[] }
+export type Mask = { shape: 'rectangle' | 'ellipse' | 'rounded'; x: number; y: number; w: number; h: number }
 
 export type Lane = {
   id: string
@@ -109,7 +121,7 @@ export const SAMPLE_SCRIPT = `<timeline fps=30 size=1280x720 description="演示
   </track>
   <track name=fx layer=2>
     <zoom at=2.4s dur=0.8s cx=0.46 cy=0.38 depth=1.7 desc="推近到标题左侧" />
-    <text at=2.7s dur=2s x=.5 y=.5 w=.7 h=.18 size=28 align=center valign=middle anim=rise desc="画面正中的说明文字">Effects are syntax.</text>
+    <text at=2.7s dur=2s x=.5 y=.5 w=.7 h=.18 size=28 align=center valign=middle anim=rise unit=word stagger=0.12s desc="画面正中的说明文字">Effects are syntax.</text>
     <arrow at=3s dur=1.8s x=.25 y=.65 x2=.44 y2=.45 color=#7dd3fc width=5 desc="指向标题区域" />
     <cursor at=2.3s dur=2.4s x=.18 y=.72 x2=.72 y2=.3 click=1.5s size=26 desc="光标滑向按钮并点击" />
   </track>
@@ -275,14 +287,11 @@ function parseCrop(raw: string | undefined): [number, number, number, number] {
 }
 
 function parseAnimation(raw: string | undefined): Clip['anim'] {
-  return raw === 'fade' ||
-    raw === 'rise' ||
-    raw === 'pop' ||
-    raw === 'slide-left' ||
-    raw === 'typewriter' ||
-    raw === 'pulse'
-    ? raw
-    : 'none'
+  const v = String(raw ?? '').trim()
+  if (v === 'fadeUp' || v === 'rise') return 'rise'
+  if (v === 'slideIn' || v === 'slide-left') return 'slide-left'
+  if (v === 'fade' || v === 'pop' || v === 'typewriter' || v === 'pulse' || v === 'wave' || v === 'blur-in') return v
+  return 'none'
 }
 
 function parseShape(raw: string | undefined): Clip['shape'] {
@@ -313,6 +322,86 @@ function parseDir(raw: string | undefined): { x: number; y: number } | null {
     'down-left': { x: -0.14, y: 0.14 },
   }
   return table[String(raw ?? '').trim()] ?? null
+}
+
+function parseStaggerFrom(raw: string | undefined): Clip['staggerFrom'] {
+  return raw === 'end' || raw === 'center' || raw === 'random' ? raw : 'start'
+}
+
+function parseUnitKind(unit: string | undefined, stagger: string | undefined): Clip['unit'] {
+  if (unit === 'char' || unit === 'word' || unit === 'line') return unit
+  if (stagger && String(stagger).trim()) return 'char'
+  return 'none'
+}
+
+function parseRamp(raw: string | undefined): number[] | null {
+  const s = String(raw ?? '').trim()
+  if (!s.includes('→') && !s.includes('->')) return null
+  const parts = s.split(/→|->/).map((part) => Number(part.trim()))
+  if (parts.length < 2 || parts.some((n) => !Number.isFinite(n))) return null
+  return parts
+}
+
+function rampCurve(prop: string, values: number[], duration: number, ease = 'ease-inOut'): AnimCurve {
+  const n = Math.max(1, values.length - 1)
+  return {
+    prop,
+    keys: values.map((v, i) => ({ at: (duration * i) / n, v, ease })),
+  }
+}
+
+function parseEase(raw: string | undefined) {
+  const v = String(raw ?? 'ease-inOut').trim()
+  if (v === 'inOut' || v === 'easeInOut') return 'ease-inOut'
+  if (v === 'in') return 'ease-in'
+  if (v === 'out') return 'ease-out'
+  return v || 'ease-inOut'
+}
+
+function attachMotion(clip: Clip, el: El, fps: number) {
+  const zoom = parseRamp(el.attrs.zoom)
+  if (zoom) clip.animates.push(rampCurve('scale', zoom, clip.duration))
+  const speed = parseRamp(el.attrs.speed)
+  if (speed) clip.animates.push(rampCurve('speed', speed, clip.duration))
+  for (const child of el.children) {
+    if (child.name === 'mask') {
+      clip.mask = {
+        shape: child.attrs.shape === 'ellipse' || child.attrs.shape === 'circle' ? 'ellipse' : child.attrs.shape === 'rounded' ? 'rounded' : 'rectangle',
+        x: parseUnit(child.attrs.x, 0.5, 0, 1),
+        y: parseUnit(child.attrs.y, 0.5, 0, 1),
+        w: parseUnit(child.attrs.w, 1, 0.01, 1),
+        h: parseUnit(child.attrs.h, 1, 0.01, 1),
+      }
+      continue
+    }
+    if (child.name === 'animate') {
+      const delay = parseClock(child.attrs.delay, fps, 0)
+      const dur = parseClock(child.attrs.dur, fps, clip.duration)
+      const from = Number(child.attrs.from)
+      const to = Number(child.attrs.to)
+      if (!Number.isFinite(from) || !Number.isFinite(to)) continue
+      clip.animates.push({
+        prop: String(child.attrs.prop ?? 'opacity'),
+        keys: [
+          { at: delay, v: from, ease: parseEase(child.attrs.ease) },
+          { at: delay + dur, v: to, ease: parseEase(child.attrs.ease) },
+        ],
+      })
+      continue
+    }
+    if (child.name === 'keyframes') {
+      const prop = String(child.attrs.prop ?? 'opacity')
+      const keys = child.children
+        .filter((node) => node.name === 'k')
+        .map((node) => ({
+          at: parseClock(node.attrs.at, fps, 0),
+          v: Number(node.attrs.v),
+          ease: parseEase(node.attrs.ease),
+        }))
+        .filter((key) => Number.isFinite(key.v))
+      if (keys.length) clip.animates.push({ prop, keys })
+    }
+  }
 }
 
 function parseFlag(raw: string | undefined) {
@@ -462,6 +551,14 @@ function clipFrom(kind: ClipKind, attrs: Attrs, text: string, start: number, id:
     rz: parseUnit(attrs.rz, 0, -40, 40),
     mode: parseBlurMode(attrs.mode ?? attrs.type),
     follow: String(attrs.follow ?? '').trim(),
+    scale: parseUnit(attrs.scale, 1, 0.05, 8),
+    rotate: parseUnit(attrs.rotate, 0, -720, 720),
+    opacity: parseUnit(attrs.opacity, 1, 0, 1),
+    unit: parseUnitKind(attrs.unit, attrs.stagger),
+    stagger: Math.max(0, parseClock(attrs.stagger, fps, 0)),
+    staggerFrom: parseStaggerFrom(attrs['stagger-from'] ?? attrs.staggerFrom),
+    animates: [],
+    mask: null,
   }
 }
 
@@ -685,6 +782,7 @@ export function compileScript(source: string): Project {
       }
       const text = el.text || (el.name === 'bars' ? 'COLOR BARS' : '')
       const clip = makeClip(alias, el.attrs, text, name, layer)
+      attachMotion(clip, el, project.fps)
       const draft: Draft = {
         el,
         kind: alias,
@@ -919,6 +1017,84 @@ export function easeInOut(t: number) {
   return x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2
 }
 
+export function easeApply(name: string, t: number) {
+  const x = clamp(t, 0, 1)
+  if (name === 'linear') return x
+  if (name === 'ease-in' || name === 'easeIn') return x * x
+  if (name === 'ease-out' || name === 'easeOut') return 1 - (1 - x) * (1 - x)
+  if (name === 'spring') return 1 - Math.exp(-6 * x) * Math.cos(x * Math.PI * 3)
+  const cubic = name.match(/^cubic\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)$/)
+  if (cubic) {
+    const y1 = Number(cubic[2])
+    const y2 = Number(cubic[4])
+    return (1 - x) * (1 - x) * (1 - x) * 0 + 3 * (1 - x) * (1 - x) * x * y1 + 3 * (1 - x) * x * x * y2 + x * x * x
+  }
+  return easeInOut(x)
+}
+
+function fallbackProp(clip: Clip, prop: string) {
+  if (prop === 'scale') return clip.scale
+  if (prop === 'rotate') return clip.rotate
+  if (prop === 'opacity') return clip.opacity
+  if (prop === 'x') return clip.x
+  if (prop === 'y') return clip.y
+  if (prop === 'speed') return clip.speed
+  if (prop === 'volume') return clip.volume
+  if (prop === 'amount') return clip.amount
+  return 0
+}
+
+export function propAt(clip: Clip, prop: string, time: number, fallback?: number) {
+  const local = time - clip.start
+  const curve = clip.animates.find((item) => item.prop === prop)
+  const base = fallback ?? fallbackProp(clip, prop)
+  if (!curve || !curve.keys.length) return base
+  const keys = [...curve.keys].sort((a, b) => a.at - b.at)
+  if (local <= keys[0]!.at) return keys[0]!.v
+  for (let i = 1; i < keys.length; i++) {
+    const next = keys[i]!
+    const prev = keys[i - 1]!
+    if (local <= next.at) {
+      const t = easeApply(prev.ease, (local - prev.at) / Math.max(1e-6, next.at - prev.at))
+      return prev.v + (next.v - prev.v) * t
+    }
+  }
+  return keys[keys.length - 1]!.v
+}
+
+export function clipTransform(clip: Clip, time: number) {
+  return {
+    x: propAt(clip, 'x', time),
+    y: propAt(clip, 'y', time),
+    scale: propAt(clip, 'scale', time),
+    rotate: propAt(clip, 'rotate', time),
+    opacity: propAt(clip, 'opacity', time),
+  }
+}
+
+export function splitTextUnits(text: string, unit: Clip['unit']) {
+  if (unit === 'word') return text.split(/(\s+)/).filter((part) => part.length)
+  if (unit === 'line') return text.split(/\n+/)
+  return Array.from(text)
+}
+
+export function staggerDelay(index: number, count: number, stagger: number, from: Clip['staggerFrom']) {
+  if (count <= 1) return 0
+  if (from === 'end') return (count - 1 - index) * stagger
+  if (from === 'center') return Math.abs(index - (count - 1) / 2) * stagger
+  if (from === 'random') return ((index * 17) % count) * stagger * 0.35
+  return index * stagger
+}
+
+export function maskCss(mask: Mask | null) {
+  if (!mask) return undefined
+  const x = (mask.x - mask.w / 2) * 100
+  const y = (mask.y - mask.h / 2) * 100
+  if (mask.shape === 'ellipse') return `ellipse(${mask.w * 50}% ${mask.h * 50}% at ${mask.x * 100}% ${mask.y * 100}%)`
+  if (mask.shape === 'rounded') return `inset(${y}% ${100 - x - mask.w * 100}% ${100 - y - mask.h * 100}% ${x}% round 18px)`
+  return `inset(${y}% ${100 - x - mask.w * 100}% ${100 - y - mask.h * 100}% ${x}%)`
+}
+
 export function cameraAt(project: Project, time: number): Camera {
   let cam: Camera = { scale: 1, cx: 0.5, cy: 0.5, rx: 0, ry: 0, rz: 0 }
   const zooms = project.clips.filter((clip) => clip.kind === 'zoom').sort((a, b) => a.start - b.start)
@@ -992,8 +1168,11 @@ export function annotationMotion(clip: Clip, time: number): AnnotationMotion {
   if (clip.anim === 'typewriter') {
     return { opacity: 1, scale: 1, translateX: 0, translateY: 0, reveal: progress }
   }
-  if (clip.anim === 'pulse') {
-    return { opacity: 1, scale: 1 + Math.sin(progress * Math.PI) * 0.06, translateX: 0, translateY: 0, reveal: 1 }
+  if (clip.anim === 'wave') {
+    return { opacity: 1, scale: 1, translateX: 0, translateY: Math.sin(progress * Math.PI) * 10, reveal: 1 }
+  }
+  if (clip.anim === 'blur-in') {
+    return { opacity: eased, scale: 1.04 - eased * 0.04, translateX: 0, translateY: 0, reveal: 1 }
   }
   return { opacity: 1, scale: 1, translateX: 0, translateY: 0, reveal: 1 }
 }

@@ -10,6 +10,7 @@ import {
   clipsAt,
   formatReport,
   projectDuration,
+  propAt,
 } from './compose.ts'
 
 test('sample script compiles to a playable timeline', () => {
@@ -159,6 +160,29 @@ test('text and cursor motion are deterministic at any preview time', () => {
   const pointer = cursorAt(cursor, 1)
   assert.ok(pointer.x > 0.4 && pointer.x < 0.6)
   assert.equal(pointer.click, 1)
+})
+
+test('keyframes and text stagger compile', () => {
+  const project = compileScript(`<timeline fps=30>
+  <track name=main>
+    <clip src=a.mp4 dur=5s zoom="1→1.6→1.2">
+      <animate prop="x" from="0.3" to="0.7" delay="1s" dur="3s" ease="inOut" />
+      <mask shape=ellipse x=.5 y=.5 w=.7 h=.8 />
+    </clip>
+  </track>
+  <track name=fx>
+    <text dur=2s anim=rise unit=word stagger=0.1s>Hello world</text>
+  </track>
+</timeline>`)
+  const clip = project.clips[0]!
+  assert.ok(clip.animates.some((item) => item.prop === 'scale' && item.keys.length === 3))
+  assert.ok(clip.animates.some((item) => item.prop === 'x'))
+  assert.equal(clip.mask?.shape, 'ellipse')
+  const mid = propAt(clip, 'scale', 2.5)
+  assert.ok(mid > 1.1 && mid < 1.7)
+  const text = project.clips.find((item) => item.kind === 'text')!
+  assert.equal(text.unit, 'word')
+  assert.equal(text.stagger, 0.1)
 })
 
 test('frame durations snap to the project rate', () => {

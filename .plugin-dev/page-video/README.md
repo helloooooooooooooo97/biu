@@ -46,3 +46,20 @@
 ```
 
 先跑 `video_script`：它会返回覆盖时长、重叠、空镜、follow 失效等诊断，再 `db_content` 写入围栏。
+
+## 能力（声明式，不是调色台）
+
+不做校色、LUT、跟踪、抠像、粒子、3D。剪辑软件里那些 **操作**（ripple / slip / 拖修剪）用改 `in`/`dur` 表达，轨内自动相接就是 ripple。
+
+可动画参数靠统一关键帧，不堆标签：
+
+```xml
+<clip src=a.mp4 dur=5s zoom="1→1.6→1.2">
+  <animate prop="x" from="0.3" to="0.7" delay="1s" dur="3s" ease="inOut" />
+  <mask shape=ellipse x=.5 y=.5 w=.8 h=.8 />
+</clip>
+
+<text dur=4s anim="rise" stagger="0.06s" unit="char">一个字一个字地浮出来</text>
+```
+
+`<keyframes>` / `<k>` 写多段曲线。`prop`：`x` `y` `scale` `rotate` `opacity` `speed` `volume`。缓动：`linear` `ease-in` `ease-out` `ease-inOut` `spring` `cubic(0.4,0,0.2,1)`。

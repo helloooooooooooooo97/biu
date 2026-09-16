@@ -6,14 +6,19 @@ import {
   clipEnd,
   clipShift,
   clipsAt,
+  clipTransform,
   compileSafe,
   cursorAt,
   formatReport,
   isVideoSrc,
+  maskCss,
   parseProject,
   projectDuration,
+  propAt,
   SAMPLE_SCRIPT,
   speedAt,
+  splitTextUnits,
+  staggerDelay,
   type Clip,
   type Project,
 } from './compose.ts'
@@ -267,11 +272,12 @@ function alphaAt(clip: Clip, time: number) {
 }
 
 function MediaEl({ clip, time, playing, rate = 1 }: { clip: Clip; time: number; playing: boolean; rate?: number }) {
-  const playback = Math.max(0.1, clip.speed * rate)
+  const playback = Math.max(0.1, propAt(clip, 'speed', time, clip.speed) * rate)
   const active = time >= clip.start && time < clip.start + clip.duration
   const local = clip.sourceIn + Math.max(0, time - clip.start) * playback
-  const alpha = alphaAt(clip, time)
+  const alpha = alphaAt(clip, time) * propAt(clip, 'opacity', time, clip.opacity)
   const shift = clipShift(clip, time)
+  const xf = clipTransform(clip, time)
   const video = useRef<HTMLVideoElement | null>(null)
   const url = assetUrl(clip.src)
   const movie = isVideoSrc(clip.src)
@@ -293,12 +299,13 @@ function MediaEl({ clip, time, playing, rate = 1 }: { clip: Clip; time: number; 
   const fit = {
     objectFit: clip.fit,
     opacity: active ? alpha : 0,
-    transform: `translateX(${shift}px)`,
+    transform: `translateX(${shift}px) translate(${(xf.x - 0.5) * 100}%, ${(xf.y - 0.5) * 100}%) scale(${xf.scale}) rotate(${xf.rotate}deg)`,
     width: `${100 / cropW}%`,
     height: `${100 / cropH}%`,
     left: `${(-cropX / cropW) * 100}%`,
     top: `${(-cropY / cropH) * 100}%`,
     zIndex: clip.layer,
+    clipPath: maskCss(clip.mask),
   } as const
   if (movie) {
     return <video ref={video} className="pv-media" src={url} muted playsInline preload="auto" style={{ ...fit, pointerEvents: 'none' }} />
@@ -307,31 +314,62 @@ function MediaEl({ clip, time, playing, rate = 1 }: { clip: Clip; time: number; 
 }
 
 function TextEffect({ clip, time }: { clip: Clip; time: number }) {
+  const xf = clipTransform(clip, time)
+  const valign = clip.valign === 'top' ? 'flex-start' : clip.valign === 'bottom' ? 'flex-end' : 'center'
+  const halign = clip.align === 'left' ? 'flex-start' : clip.align === 'right' ? 'flex-end' : 'center'
+  const box = {
+    left: `${(xf.x - clip.w / 2) * 100}%`,
+    top: `${(xf.y - clip.h / 2) * 100}%`,
+    width: `${clip.w * 100}%`,
+    height: `${clip.h * 100}%`,
+    color: clip.color,
+    fontSize: clip.size,
+    fontWeight: clip.weight,
+    fontStyle: clip.italic ? 'italic' : undefined,
+    textDecoration: clip.underline ? 'underline' : undefined,
+    padding: clip.pad,
+    display: 'flex',
+    alignItems: valign,
+    justifyContent: halign,
+    textAlign: clip.align,
+    flexWrap: 'wrap' as const,
+    clipPath: maskCss(clip.mask),
+  }
+  if (clip.unit !== 'none' && clip.stagger > 0) {
+    const parts = splitTextUnits(clip.text, clip.unit)
+    return (
+      <div className="pv-effect pv-text" style={box}>
+        {parts.map((part, index) => {
+          const delay = staggerDelay(index, parts.length, clip.stagger, clip.staggerFrom)
+          const motion = annotationMotion({ ...clip, start: clip.start + delay }, time)
+          return (
+            <span
+              key={`${index}-${part}`}
+              style={{
+                display: clip.unit === 'line' ? 'block' : 'inline-block',
+                opacity: motion.opacity * xf.opacity,
+                transform: `translate(${motion.translateX}px, ${motion.translateY}px) scale(${motion.scale * xf.scale}) rotate(${xf.rotate}deg)`,
+                filter: clip.anim === 'blur-in' ? `blur(${(1 - motion.opacity) * 8}px)` : undefined,
+              }}
+            >
+              {part}
+            </span>
+          )
+        })}
+      </div>
+    )
+  }
   const motion = annotationMotion(clip, time)
   const count = Math.ceil(Array.from(clip.text).length * motion.reveal)
   const text = clip.anim === 'typewriter' ? Array.from(clip.text).slice(0, count).join('') : clip.text
-  const valign = clip.valign === 'top' ? 'flex-start' : clip.valign === 'bottom' ? 'flex-end' : 'center'
-  const halign = clip.align === 'left' ? 'flex-start' : clip.align === 'right' ? 'flex-end' : 'center'
   return (
     <div
       className="pv-effect pv-text"
       style={{
-        left: `${(clip.x - clip.w / 2) * 100}%`,
-        top: `${(clip.y - clip.h / 2) * 100}%`,
-        width: `${clip.w * 100}%`,
-        height: `${clip.h * 100}%`,
-        color: clip.color,
-        fontSize: clip.size,
-        fontWeight: clip.weight,
-        fontStyle: clip.italic ? 'italic' : undefined,
-        textDecoration: clip.underline ? 'underline' : undefined,
-        padding: clip.pad,
-        display: 'flex',
-        alignItems: valign,
-        justifyContent: halign,
-        textAlign: clip.align,
-        opacity: motion.opacity,
-        transform: `translate(${motion.translateX}px, ${motion.translateY}px) scale(${motion.scale})`,
+        ...box,
+        opacity: motion.opacity * xf.opacity,
+        transform: `translate(${motion.translateX}px, ${motion.translateY}px) scale(${motion.scale * xf.scale}) rotate(${xf.rotate}deg)`,
+        filter: clip.anim === 'blur-in' ? `blur(${(1 - motion.opacity) * 8}px)` : undefined,
       }}
     >
       {text}
@@ -507,13 +545,15 @@ function OverlayEffect({ clip, time, playing }: { clip: Clip; time: number; play
 
 function AudioEffect({ clip, time, playing }: { clip: Clip; time: number; playing: boolean }) {
   const audio = useRef<HTMLAudioElement | null>(null)
+  const speed = Math.max(0.1, propAt(clip, 'speed', time, clip.speed))
   const active = time >= clip.start && time < clip.start + clip.duration
-  const local = clip.sourceIn + Math.max(0, time - clip.start) * clip.speed
+  const local = clip.sourceIn + Math.max(0, time - clip.start) * speed
+  const volume = clamp01(propAt(clip, 'volume', time, clip.volume))
   useEffect(() => {
     const el = audio.current
     if (!el) return
-    el.volume = clip.volume
-    el.playbackRate = clip.speed
+    el.volume = volume
+    el.playbackRate = speed
     if (!active) {
       el.pause()
       return
@@ -521,8 +561,12 @@ function AudioEffect({ clip, time, playing }: { clip: Clip; time: number; playin
     if (Math.abs(el.currentTime - local) > 0.12) el.currentTime = local
     if (playing) void el.play().catch(() => undefined)
     else el.pause()
-  }, [active, clip.speed, clip.volume, local, playing])
+  }, [active, speed, volume, local, playing])
   return <audio ref={audio} src={assetUrl(clip.src)} preload="auto" />
+}
+
+function clamp01(n: number) {
+  return Math.min(1, Math.max(0, n))
 }
 
 function Stage({ project, time, playing }: { project: Project; time: number; playing: boolean }) {
@@ -579,15 +623,18 @@ function Stage({ project, time, playing }: { project: Project; time: number; pla
           ))}
           {bases
             .filter((clip) => clip.kind !== 'media' && clip.kind !== 'gap')
-            .map((clip) => (
+            .map((clip) => {
+              const xf = clipTransform(clip, time)
+              return (
               <div
                 key={clip.id}
                 className="pv-layer"
                 style={{
                   background: clip.bg,
                   color: clip.ink,
-                  opacity: alphaAt(clip, time),
-                  transform: `translateX(${clipShift(clip, time)}px)`,
+                  opacity: alphaAt(clip, time) * xf.opacity,
+                  transform: `translateX(${clipShift(clip, time)}px) scale(${xf.scale}) rotate(${xf.rotate}deg)`,
+                  clipPath: maskCss(clip.mask),
                 }}
               >
                 <div
@@ -602,10 +649,11 @@ function Stage({ project, time, playing }: { project: Project; time: number; pla
                   <div className="pv-title">{clip.text || '·'}</div>
                 </div>
               </div>
-            ))}
+              )
+            })}
         </div>
         {captions.map((clip) => (
-          <div key={clip.id} className="pv-caption" style={{ color: clip.ink, opacity: alphaAt(clip, time) }}>
+          <div key={clip.id} className="pv-caption" style={{ color: clip.ink, opacity: alphaAt(clip, time) * propAt(clip, 'opacity', time, clip.opacity) }}>
             {clip.text}
           </div>
         ))}

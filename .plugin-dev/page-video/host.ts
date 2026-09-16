@@ -19,7 +19,7 @@ export function apply(ctx: Context) {
   ctx.tools.register({
     name: 'video_script',
     description:
-      'Compile an agent-authored page-video <> script. Root is <timeline> with explicit <track> lanes (serial inside a track, parallel across tracks). Supports <clip>, <gap>, <transition>, <follow>, relative at="id.end + 0.7s", <solid>, and composition reuse. Returns diagnostics. The frontend live-composites; the timeline is read-only.',
+      'Compile an agent-authored page-video <> script. Root is <timeline> with <track> lanes. Supports <clip>, <gap>, <transition>, follow, <animate>/<keyframes>, text unit+stagger, <mask>, <solid>. No color grading. Returns diagnostics.',
     parameters: {
       type: 'object',
       properties: {
