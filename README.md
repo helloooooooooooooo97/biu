@@ -8,9 +8,9 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-A pluggable, self-hosted workbench built around one kernel abstraction: **everything is a file system**, exposed through a single interface for reading and writing data in any domain.
+A pluggable, self-hosted agent workbench. Humans organize work in the interface; agents read, modify, and keep building on the same content.
 
-**A faster way for agents to build, store, organize, compose, and distribute everything they create.**
+**Turn agent output from chat history into reusable, composable, and shareable pages, components, and capabilities.**
 
 </div>
 
@@ -21,26 +21,86 @@ A pluggable, self-hosted workbench built around one kernel abstraction: **everyt
   <img alt="node" src="https://img.shields.io/node/v/cordis" />
 </p>
 
-Humans and agents use the same operation interface to access the same address space. Tasks, pages, skills, plugins, and agents themselves are all instances within that interface.
+With Biu, you can:
 
-That abstraction is called the **File System**. It is not a file browser bolted onto an app — it is the floor of the whole workbench: every table, page, block, and record lives at a path, addressable by both humans and agents.
+- manage pages, tables, sessions, and agents in one workspace;
+- compose runnable components such as videos, whiteboards, and code directly into pages;
+- select precise context for agents so they can continue from existing work.
 
-What it borrows is not features, but models:
+---
 
-| Borrowed from | What |
-|---|---|
-| **Linux** | The kernel model — everything is a path, one set of system calls (`db_action` is to `ioctl` what `blurb` is to `/proc`) |
-| **K8s** | Declarative — a block declares a desired state, a plugin is mountable |
-| **Cursor** | Agent-native — and one step further: the agent itself is data |
-| **Notion** | The block model — except blocks are plugins, not closed components |
+## Demo
 
-> The kernel itself is built on [Cordis](https://github.com/cordiverse/cordis), and the plugin mechanism rides on one manifest, [`cordis.plugins.json`](cordis.plugins.json) — but the subject of this product is not "plugins", it is the file system. Plugins are just one way to register a table into that address space.
+Three screenshots show shared data, runnable components, and precise context.
+
+<p align="center">
+  <img src="docs/demo/file-system.png" alt="File System: session and page tables opened side by side" width="880" />
+</p>
+<p align="center"><sub><code>file-system.png</code> — sessions and pages are ordinary tables in one workspace, with the same controls and address space; split views keep different collections visible side by side</sub></p>
+
+<p align="center">
+  <img src="docs/demo/component.png" alt="Component: video blocks embedded in a page and opened in their live editor" width="880" />
+</p>
+<p align="center"><sub><code>component.png</code> — a page composes reusable video blocks; the same component opens in a dedicated editor with its preview, timeline, source declaration, and terminal</sub></p>
+
+<p align="center">
+  <img src="docs/demo/context.png" alt="Context: workspace items explicitly attached to an agent conversation" width="880" />
+</p>
+<p align="center"><sub><code>context.png</code> — pages, sessions, plugins, and other workspace items become removable context chips in the composer, so the agent receives exactly the material selected for the conversation</sub></p>
+
+---
+
+## Why a File System?
+
+Most agent products separate conversations, content, and tools across different systems. Agent output remains in chat history, so using it again means finding, explaining, or generating it again.
+
+Biu puts pages, tables, tasks, skills, plugins, and agents themselves in one workspace. Humans use the interface, while agents read and modify the same data through a shared API. There is no second copy to keep in sync.
+
+This shared data and operation model is the **File System**. It is not a file browser bolted onto an app; it is the foundation of the workbench. Every table, page, block, and record has an addressable path.
+
+---
+
+## Table of contents
+
+- [Demo](#demo)
+- [Why a File System?](#why-a-file-system)
+- [Design principles](#design-principles)
+  - [1. Few atoms, many combinations](#1-few-atoms-many-combinations)
+  - [2. One abstraction, one entry point](#2-one-abstraction-one-entry-point)
+  - [Design lineage](#design-lineage)
+- [1. What it abstracts](#1-what-it-abstracts)
+  - [One shape](#one-shape)
+  - [One operation interface](#one-operation-interface)
+  - [Self-describing semantics](#self-describing-semantics)
+- [2. So everything is an instance of it](#2-so-everything-is-an-instance-of-it)
+  - [Agents: one operator model for humans and agents](#agents-one-operator-model-for-humans-and-agents)
+  - [Tasks: the bus between agents](#tasks-the-bus-between-agents)
+  - [Plugins: the system extends itself the same way](#plugins-the-system-extends-itself-the-same-way)
+  - [Pages: the container for components](#pages-the-container-for-components)
+  - [Components: declarative content units](#components-declarative-content-units)
+  - [Facets: dimensions become data](#facets-dimensions-become-data)
+  - [Second-class objects: the same interface, a smaller surface](#second-class-objects-the-same-interface-a-smaller-surface)
+- [3. Transparent: files are the floor, not a cage](#3-transparent-files-are-the-floor-not-a-cage)
+- [4. What that gets you](#4-what-that-gets-you)
+  - [Creation is not reserved for developers](#1-creation-is-not-reserved-for-developers)
+  - [Context is injected precisely](#2-context-is-injected-precisely-not-guessed)
+  - [Declarative: writing a desired state](#3-declarative-an-agent-can-write-a-desired-state-not-just-call-commands)
+  - [Content carries its dependencies](#4-content-carries-its-dependencies-what-you-share-is-a-runnable-unit)
+  - [It is a kernel, not an application](#5-it-is-a-kernel-not-an-application)
+- [5. What it solves](#5-what-it-solves)
+  - [Context injection: no more guessing](#1-context-injection-no-more-guessing)
+  - [Saving tokens: reuse instead of regenerate](#2-saving-tokens-reuse-instead-of-regenerate)
+  - [Self-improvement: what is valuable settles](#3-self-improvement-what-is-valuable-settles)
+- [Quick start](#quick-start)
+- [Architecture](#architecture)
+- [Repository layout](#repository-layout)
+- [License](#license)
 
 ---
 
 ## Design principles
 
-Two principles guide the design: one governs **how many abstractions the system exposes**, while the other governs **how humans and agents access them**.
+Now that the product is concrete, two principles explain its design: one limits **the number of abstractions**, while the other unifies **how they are used**.
 
 ### 1. Few atoms, many combinations
 
@@ -93,41 +153,18 @@ This principle shows up again and again below, always as the same move:
 > **Note: this is not "the system is simple."** The concepts still have to be learned — path, table, record, facet, component, blurb, projection.
 > It says something else: **neither the number of concepts nor the number of interaction patterns grows with the number of features.**
 
----
+### Design lineage
 
-## Table of contents
+> “Good artists copy; great artists steal.” Steve Jobs famously quoted this line, commonly attributed to Picasso. Biu follows its underlying idea of absorbing and recombining inspiration: it does not reproduce product features, but borrows foundational models and combines them into its own system.
 
-- [Design principles](#design-principles)
-  - [1. Few atoms, many combinations](#1-few-atoms-many-combinations)
-  - [2. One abstraction, one entry point](#2-one-abstraction-one-entry-point)
-- [1. What it abstracts](#1-what-it-abstracts)
-  - [One shape](#one-shape)
-  - [One operation interface](#one-operation-interface)
-  - [Self-describing semantics](#self-describing-semantics)
-- [2. So everything is an instance of it](#2-so-everything-is-an-instance-of-it)
-  - [Agents: one operator model for humans and agents](#agents-one-operator-model-for-humans-and-agents)
-  - [Tasks: the bus between agents](#tasks-the-bus-between-agents)
-  - [Plugins: the system extends itself the same way](#plugins-the-system-extends-itself-the-same-way)
-  - [Pages: the container for components](#pages-the-container-for-components)
-  - [Components: declarative content units](#components-declarative-content-units)
-  - [Facets: dimensions become data](#facets-dimensions-become-data)
-  - [Second-class objects: the same interface, a smaller surface](#second-class-objects-the-same-interface-a-smaller-surface)
-- [3. Transparent: files are the floor, not a cage](#3-transparent-files-are-the-floor-not-a-cage)
-- [4. What that gets you](#4-what-that-gets-you)
-  - [Creation is not reserved for developers](#1-creation-is-not-reserved-for-developers)
-  - [Context is injected precisely](#2-context-is-injected-precisely-not-guessed)
-  - [Declarative: writing a desired state](#3-declarative-an-agent-can-write-a-desired-state-not-just-call-commands)
-  - [Content carries its dependencies](#4-content-carries-its-dependencies-what-you-share-is-a-runnable-unit)
-  - [It is a kernel, not an application](#5-it-is-a-kernel-not-an-application)
-- [5. What it solves](#5-what-it-solves)
-  - [Context injection: no more guessing](#1-context-injection-no-more-guessing)
-  - [Saving tokens: reuse instead of regenerate](#2-saving-tokens-reuse-instead-of-regenerate)
-  - [Self-improvement: what is valuable settles](#3-self-improvement-what-is-valuable-settles)
-- [Demo](#demo)
-- [Quick start](#quick-start)
-- [Architecture](#architecture)
-- [Repository layout](#repository-layout)
-- [License](#license)
+| Borrowed from | What |
+|---|---|
+| **Linux** | The kernel model — everything is a path, one set of system calls (`db_action` is to `ioctl` what `blurb` is to `/proc`) |
+| **K8s** | Declarative — a block declares a desired state, a plugin is mountable |
+| **Cursor** | Agent-native — and one step further: the agent itself is data |
+| **Notion** | The block model — except block types come from installable plugins rather than a closed set of built-in components |
+
+> In implementation, the kernel is built on [Cordis](https://github.com/cordiverse/cordis), and plugin registration is managed through a single manifest, [`cordis.plugins.json`](cordis.plugins.json). Plugins register new tables and capabilities; the File System provides the shared data model and operation interface across the workbench.
 
 ---
 
@@ -563,27 +600,6 @@ In Biu it can **settle**: it becomes a page, a block, a skill, a table. Because 
 The system therefore grows round after round instead of resetting to zero each time.
 
 > → **For humans**: what you write stays in the same place. **Humans and agents share the same accumulated knowledge** — what you teach an agent today remains available tomorrow, and you can see where it lives.
-
----
-
-## Demo
-
-Three screenshots show the same primitives at work: shared tables, live components, and precise context.
-
-<p align="center">
-  <img src="docs/demo/file-system.png" alt="File System: session and page tables opened side by side" width="880" />
-</p>
-<p align="center"><sub><code>file-system.png</code> — sessions and pages are ordinary tables in one workspace, with the same controls and address space; split views keep different collections visible side by side</sub></p>
-
-<p align="center">
-  <img src="docs/demo/component.png" alt="Component: video blocks embedded in a page and opened in their live editor" width="880" />
-</p>
-<p align="center"><sub><code>component.png</code> — a page composes reusable video blocks; the same component opens in a dedicated editor with its preview, timeline, source declaration, and terminal</sub></p>
-
-<p align="center">
-  <img src="docs/demo/context.png" alt="Context: workspace items explicitly attached to an agent conversation" width="880" />
-</p>
-<p align="center"><sub><code>context.png</code> — pages, sessions, plugins, and other workspace items become removable context chips in the composer, so the agent receives exactly the material selected for the conversation</sub></p>
 
 ---
 
