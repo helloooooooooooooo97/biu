@@ -11,6 +11,11 @@ export type FrameProps = {
   interpolate: typeof interpolate
   spring: typeof spring
   AbsoluteFill: (props?: Record<string, unknown>) => unknown
+  id?: string
+  content?: string
+  description?: string
+  color?: string
+  background?: string
 }
 
 export const ABSOLUTE_FILL_STYLE: Record<string, string | number> = {
