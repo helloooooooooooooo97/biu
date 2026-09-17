@@ -79,6 +79,8 @@ test('page-video owns its headless block, studio, and timeline UI contracts', as
   assert.match(host, /video_script/)
   assert.match(host, /\/api\/page-video\/compile/)
   assert.match(host, /\/api\/page-video\/assets\/:name/)
+  assert.match(host, /join\(root, 'assets', name\)/)
+  assert.match(host, /export function setInstallDir/)
   assert.match(src, /pageAttachedBgm/)
   assert.match(readme, /<timeline fps=30 size=1920x1080/)
   assert.match(readme, /<component src=hero\.js/)
