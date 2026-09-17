@@ -14,13 +14,13 @@ const CSS = `
 .db-search-empty{padding:8px;color:var(--dsw-label-3);font-size:14px}
 .db-search-foot{border-top:1px solid var(--dsw-border);margin-top:4px;padding-top:4px}
 .db-cell-select{display:inline-flex;position:relative;min-width:0;max-width:100%;box-sizing:border-box;vertical-align:middle}
-.db-cell-select-trigger{display:inline-flex;align-items:center;gap:5px;max-width:none;height:22px;border:0;border-radius:4px;padding:0 6px;background:transparent;color:var(--dsw-label);font:inherit;font-size:14px;font-weight:600;line-height:22px;cursor:pointer;text-align:left}
+.db-cell-select-trigger{display:inline-flex;align-items:center;gap:5px;max-width:none;height:22px;border:0;border-radius:4px;padding:0 6px;background:transparent;color:var(--dsw-label);font:inherit;font-size:14px;font-weight:500;line-height:22px;cursor:pointer;text-align:left}
 .db-cell-select-trigger:hover,.db-cell-select-trigger[data-open]{background:transparent}
 .db-cell-select-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .db-cell-select-caret{flex:none;opacity:.55;color:var(--dsw-label-2)}
 .db-cell-select-trigger.is-chip{background:transparent;padding:0;height:auto;max-width:none}
 .db-cell-select-trigger.is-chip:hover,.db-cell-select-trigger.is-chip[data-open]{background:transparent}
-.db-cell-select-trigger.is-empty{max-width:none;color:var(--dsw-label-3);background:transparent;font-weight:600}
+.db-cell-select-trigger.is-empty{max-width:none;color:var(--dsw-label-3);background:transparent;font-weight:500}
 .db-cell-select.is-field{display:block;width:100%}
 .db-cell-select.is-field .db-cell-select-trigger{display:flex;justify-content:space-between;gap:6px;width:100%;max-width:none;min-height:28px;border:1px solid var(--dsw-border);border-radius:7px;padding:5px 8px;background:var(--dsw-input);color:var(--dsw-label)}
 .db-cell-select.is-field .db-cell-select-trigger:hover,.db-cell-select.is-field .db-cell-select-trigger[data-open]{background:var(--dsw-hover);filter:none}
@@ -33,8 +33,8 @@ const CSS = `
 .db-datetime{display:inline-flex;align-items:center;gap:4px;position:relative;min-width:0;width:100%;max-width:100%;vertical-align:middle;color:inherit}
 .db-datetime .ant-picker,.db-datetime .ant-picker-focused,.db-datetime .ant-picker:hover,.db-datetime .ant-picker-borderless{width:auto;max-width:100%;padding:0;background:transparent;border:0;box-shadow:none;outline:none}
 .db-datetime .ant-picker-borderless:focus-visible,.db-datetime .ant-picker-borderless:has(input:focus-visible){outline:none}
-.db-datetime .ant-picker-input > input{font-size:14px;font-weight:600;color:var(--dsw-label);outline:none}
-.db-datetime .ant-picker-input > input::placeholder{font-size:14px;font-weight:600;color:var(--dsw-label-3)}
+.db-datetime .ant-picker-input > input{font-size:14px;font-weight:500;color:var(--dsw-label);outline:none}
+.db-datetime .ant-picker-input > input::placeholder{font-size:14px;font-weight:500;color:var(--dsw-label-3)}
 .db-datetime.is-overdue .ant-picker-input > input,.db-datetime.is-overdue{color:var(--dsw-danger)}
 .db-datetime .ant-picker-suffix{display:none}
 .db-datetime .ant-picker-clear{color:var(--dsw-label-3)}

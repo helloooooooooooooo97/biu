@@ -41,9 +41,7 @@
 :::
 ```
 
-`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景。版式 `variant` 可选 `hero`、`split`、`marquee`、`stagger`、`focus`、`code`、`stack`、`finale`；文字 `motion` 可选 `fade`、`fade-up`、`slide`、`type`、`reveal`、`scale`、`tracking`、`blur`。`builtin:ad-transition` 的 `variant` 可选 `wipe`、`iris`、`split`、`bars`、`flash`、`slide`、`shutter`。音频用 `src=assets/<文件名>` 引用**页面附件**（浏览器按 `/api/page/file/<文件名>` 取），例如 `src=assets/bgm.mp3`；直接用 `https://…` 或 `/api/…` 开头的绝对地址也可以。`at`/`dur`/`volume`/`sourceIn`/`speed` 均可动画。
-
-> 注意：插件只打包代码，音频文件**不会**随插件走 —— 请把音频作为页面附件上传（拖进页面，或 `db_asset write name=bgm.mp3 from=<本地路径>`），再在脚本里用 `assets/bgm.mp3` 引用。老脚本里的 `builtin:ad-beat` 已移除，新建块默认带一条 `assets/bgm.mp3` 音轨。
+`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景。版式 `variant` 可选 `hero`、`split`、`marquee`、`stagger`、`focus`、`code`、`stack`、`finale`；文字 `motion` 可选 `fade`、`fade-up`、`slide`、`type`、`reveal`、`scale`、`tracking`、`blur`。`builtin:ad-transition` 的 `variant` 可选 `wipe`、`iris`、`split`、`bars`、`flash`、`slide`、`shutter`。默认配乐跟 pack 产物一样写 `src=assets/bgm.mp3`。播放器认出插件包里的 `bgm.mp3` 就会去 `.plugin/page-video/assets/` 取。其它文件名仍走页面附件。`at`/`dur`/`volume`/`sourceIn`/`speed` 均可动画。
 
 顺序、时长、版式、文字动效、转场和配乐都由脚本编排。
 
@@ -51,7 +49,7 @@
 
 ## React 组件与 AbsoluteFill
 
-常规剪辑继续用标签。复杂动效用 `<component src=hero.js dur=3s />`：文件经附件/`db_asset` 读取，改完立刻热重载，不 bundle。组件拿到 `frame` `time` `progress` `fps` `width` `height`，以及 `interpolate()` `spring()`。
+常规剪辑继续用标签。复杂动效用 `<component src=hero.js dur=3s />`：文件经附件/`db_asset` 读取，改完立刻热重载，不 bundle。组件拿到 `frame` `time` `progress` `fps` `width` `height`，以及 `interpolate()` `spring()`。源码走 **Sucrase** 做完整 JSX/TS 转换（`Array.map` 返回元素、`x < 3` 比较都可以），再在沙箱里执行。
 
 `<AbsoluteFill>` 铺满画布（`position:absolute; inset:0; display:flex; flex-direction:column`）。时间轴上可与标签混排；组件 JSX 里也可直接写 `<AbsoluteFill>`。无背景时下层会透出。组件抛错只坏自己这一层。
 

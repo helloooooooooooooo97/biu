@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from 'cordis'
@@ -258,6 +258,15 @@ test('initSandbox writes source; pack bundles into .plugin/<id>/', async () => {
     assert.doesNotMatch(hostJs, /ctx: \{/)
     const packedReadme = await readFile(join(pluginDir, 'store-echo', 'README.md'), 'utf8')
     assert.equal(packedReadme, sandboxReadme)
+    const mp3 = join(sandboxDir, 'store-echo', 'bgm.MP3')
+    await writeFile(mp3, Buffer.from('ID3', 'ascii'))
+    await mkdir(join(sandboxDir, 'store-echo', 'assets'), { recursive: true })
+    await writeFile(join(sandboxDir, 'store-echo', 'assets', 'loop.wav'), Buffer.from('RIFF'))
+    await store.pack('store-echo')
+    const packedMp3 = await readFile(join(pluginDir, 'store-echo', 'assets', 'bgm.mp3'))
+    const packedWav = await readFile(join(pluginDir, 'store-echo', 'assets', 'loop.wav'))
+    assert.equal(packedMp3.equals(Buffer.from('ID3', 'ascii')), true)
+    assert.equal(packedWav.equals(Buffer.from('RIFF')), true)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

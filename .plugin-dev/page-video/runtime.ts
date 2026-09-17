@@ -1,3 +1,4 @@
+import { transform } from 'sucrase'
 import { easeMotion } from './motion.ts'
 
 export type FrameProps = {
@@ -121,216 +122,21 @@ function hoistDefaultExport(src: string) {
   return out
 }
 
-function transformJsx(src: string) {
-  if (!src.includes('<')) return src
-  let i = 0
-  const isIdent = (ch: string) => /[A-Za-z0-9_]/.test(ch)
-
-  const skipWs = () => {
-    while (i < src.length && /\s/.test(src[i]!)) i += 1
+function toComponentScript(src: string) {
+  const prepared = hoistDefaultExport(stripReactImports(src.trim()))
+  if (/\bimport\s*\(/m.test(prepared) || /\brequire\s*\(/m.test(prepared) || /^\s*import\b/m.test(prepared)) {
+    throw new Error('component cannot import or require modules')
   }
-
-  const parseJsx = (): string => {
-    if (src[i] !== '<') throw new Error(`expected JSX at ${i}`)
-    i += 1
-    skipWs()
-    if (src.startsWith('>', i) || src.startsWith('/>', i)) {
-      const tag = 'React.Fragment'
-      if (src.startsWith('/>', i)) {
-        i += 2
-        return `React.createElement(${tag})`
-      }
-      i += 1
-      const kids = parseChildren('fragment')
-      return kids.length ? `React.createElement(${tag}, null, ${kids.join(', ')})` : `React.createElement(${tag})`
-    }
-    let name = ''
-    while (i < src.length && isIdent(src[i]!)) {
-      name += src[i]
-      i += 1
-    }
-    if (src[i] === '.') {
-      name += src[i]
-      i += 1
-      while (i < src.length && isIdent(src[i]!)) {
-        name += src[i]
-        i += 1
-      }
-    }
-    const tag = /^[A-Z]/.test(name) || name.includes('.') ? name : JSON.stringify(name)
-    const props: string[] = []
-    while (true) {
-      skipWs()
-      if (src.startsWith('/>', i)) {
-        i += 2
-        return props.length ? `React.createElement(${tag}, { ${props.join(', ')} })` : `React.createElement(${tag})`
-      }
-      if (src[i] === '>') {
-        i += 1
-        const kids = parseChildren(name)
-        const propsArg = props.length ? `{ ${props.join(', ')} }` : 'null'
-        return kids.length ? `React.createElement(${tag}, ${propsArg}, ${kids.join(', ')})` : `React.createElement(${tag}, ${propsArg})`
-      }
-      if (src.startsWith('{...', i)) {
-        i += 4
-        const expr = parseExpr()
-        if (src[i] === '}') i += 1
-        props.push(`...(${expr})`)
-        continue
-      }
-      let key = ''
-      while (i < src.length && isIdent(src[i]!)) {
-        key += src[i]
-        i += 1
-      }
-      if (!key) throw new Error(`bad JSX prop at ${i}`)
-      skipWs()
-      if (src[i] === '=') {
-        i += 1
-        skipWs()
-        if (src[i] === '"') {
-          const q = readString('"')
-          props.push(`${JSON.stringify(key)}: ${JSON.stringify(q)}`)
-        } else if (src[i] === "'") {
-          const q = readString("'")
-          props.push(`${JSON.stringify(key)}: ${JSON.stringify(q)}`)
-        } else if (src[i] === '{') {
-          i += 1
-          const expr = parseExpr()
-          if (src[i] === '}') i += 1
-          props.push(`${JSON.stringify(key)}: (${expr})`)
-        } else {
-          throw new Error(`bad JSX value at ${i}`)
-        }
-      } else {
-        props.push(`${JSON.stringify(key)}: true`)
-      }
-    }
+  try {
+    return transform(prepared, {
+      transforms: ['jsx', 'typescript'],
+      jsxRuntime: 'classic',
+      production: true,
+      filePath: 'component.tsx',
+    }).code
+  } catch (err) {
+    throw new Error(err instanceof Error ? `JSX compile failed: ${err.message}` : 'JSX compile failed')
   }
-
-  const parseChildren = (close: string) => {
-    const kids: string[] = []
-    while (i < src.length) {
-      if (src.startsWith('</', i)) {
-        i += 2
-        skipWs()
-        if (close === 'fragment') {
-          if (src[i] === '>') i += 1
-          else {
-            while (i < src.length && src[i] !== '>') i += 1
-            i += 1
-          }
-          return kids
-        }
-        let name = ''
-        while (i < src.length && (isIdent(src[i]!) || src[i] === '.')) {
-          name += src[i]
-          i += 1
-        }
-        skipWs()
-        if (src[i] === '>') i += 1
-        if (name && name !== close) throw new Error(`mismatched </${name}>`)
-        return kids
-      }
-      if (src[i] === '{') {
-        i += 1
-        const expr = parseExpr()
-        if (src[i] === '}') i += 1
-        kids.push(`(${expr})`)
-        continue
-      }
-      if (src[i] === '<') {
-        kids.push(parseJsx())
-        continue
-      }
-      let text = ''
-      while (i < src.length && src[i] !== '<' && src[i] !== '{') {
-        text += src[i]
-        i += 1
-      }
-      if (text.trim()) kids.push(JSON.stringify(text.replace(/\s+/g, ' ').trim()))
-    }
-    return kids
-  }
-
-  const readString = (quote: string) => {
-    i += 1
-    let out = ''
-    while (i < src.length && src[i] !== quote) {
-      if (src[i] === '\\') {
-        out += src[i]! + (src[i + 1] ?? '')
-        i += 2
-        continue
-      }
-      out += src[i]
-      i += 1
-    }
-    i += 1
-    return out
-  }
-
-  const parseExpr = () => {
-    let depth = 1
-    let start = i
-    while (i < src.length && depth > 0) {
-      const ch = src[i]!
-      if (ch === '"' || ch === "'") {
-        readString(ch)
-        continue
-      }
-      if (ch === '`') {
-        i += 1
-        while (i < src.length && src[i] !== '`') {
-          if (src[i] === '\\') i += 2
-          else i += 1
-        }
-        i += 1
-        continue
-      }
-      if (ch === '{') depth += 1
-      if (ch === '}') {
-        depth -= 1
-        if (depth === 0) break
-      }
-      i += 1
-    }
-    return src.slice(start, i)
-  }
-
-  let out = ''
-  let cursor = 0
-  const looksLikeJsx = (at: number) => {
-    const rest = src.slice(at)
-    return /^<(?:[A-Za-z/!?]|[>]|\/)/.test(rest) && !/^<=/.test(rest)
-  }
-  while (cursor < src.length) {
-    const lt = src.indexOf('<', cursor)
-    if (lt < 0) {
-      out += src.slice(cursor)
-      break
-    }
-    out += src.slice(cursor, lt)
-    const prev = src[lt - 1]
-    if (prev && /[A-Za-z0-9_)\]"'`]/.test(prev) && !looksLikeJsx(lt)) {
-      out += '<'
-      cursor = lt + 1
-      continue
-    }
-    if (!looksLikeJsx(lt)) {
-      out += '<'
-      cursor = lt + 1
-      continue
-    }
-    i = lt
-    try {
-      out += parseJsx()
-      cursor = i
-    } catch {
-      out += '<'
-      cursor = lt + 1
-    }
-  }
-  return out
 }
 
 export function compileComponentSource(
@@ -342,8 +148,7 @@ export function compileComponentSource(
   if (/\bimport\s*\(/m.test(trimmed) || /\brequire\s*\(/m.test(trimmed)) {
     throw new Error('component cannot import or require modules')
   }
-  const prepared = hoistDefaultExport(stripReactImports(trimmed))
-  const body = transformJsx(prepared)
+  const body = toComponentScript(trimmed)
   const AbsoluteFill = makeAbsoluteFill(React.createElement as (type: string, props: unknown, ...children: unknown[]) => unknown)
   const factory = new Function(
     'React',
