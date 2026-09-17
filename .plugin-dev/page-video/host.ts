@@ -8,8 +8,12 @@ import { compileSafe, formatReport } from './compose.ts'
 export const name = 'page-video'
 export const inject = ['http', 'tools']
 
-const PLUGIN_DIR = dirname(fileURLToPath(import.meta.url))
 const AUDIO_FILE = /^[A-Za-z0-9._-]+\.(mp3|wav|ogg|m4a)$/i
+let installDir = ''
+
+export function setInstallDir(dir: string) {
+  installDir = dir
+}
 
 function audioMime(name: string) {
   if (/\.wav$/i.test(name)) return 'audio/wav'
@@ -18,10 +22,26 @@ function audioMime(name: string) {
   return 'audio/mpeg'
 }
 
-function packedAudioPath(name: string) {
-  for (const dir of [PLUGIN_DIR, join(PLUGIN_DIR, 'assets')]) {
-    const path = join(dir, name)
-    if (existsSync(path)) return path
+function pluginRoots() {
+  const roots: string[] = []
+  if (installDir) roots.push(installDir)
+  try {
+    const url = import.meta.url
+    if (typeof url === 'string' && url.startsWith('file:')) roots.push(dirname(fileURLToPath(url)))
+  } catch {
+    /* host may be loaded from a data: URL */
+  }
+  roots.push(join(process.cwd(), '.plugin', 'page-video'))
+  roots.push(join(process.cwd(), '.plugin-dev', 'page-video'))
+  return roots
+}
+
+export function packedAudioPath(name: string) {
+  if (!AUDIO_FILE.test(name)) return ''
+  for (const root of pluginRoots()) {
+    for (const path of [join(root, 'assets', name), join(root, name)]) {
+      if (existsSync(path)) return path
+    }
   }
   return ''
 }
