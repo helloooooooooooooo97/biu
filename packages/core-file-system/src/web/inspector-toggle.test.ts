@@ -455,7 +455,7 @@ test('create record sits at the right of the toolbar with a blue label', () => {
   assert.match(titleFn, /<RecordRowTools/)
   assert.doesNotMatch(titleFn, /<RowCheck/)
   assert.match(css, /\.tasks-minicard-title\{[^}]*font-size:14px/)
-  assert.match(css, /\.tasks-minicard-title\{[^}]*font-weight:600/)
+  assert.match(css, /\.tasks-minicard-title\{[^}]*font-weight:500/)
   assert.doesNotMatch(css, /fsdb-row-check-cell/)
   assert.match(browser, /persistViewDisplay/)
   assert.match(browser, /withViewDisplay/)
