@@ -28,8 +28,8 @@
 :::pageBlock {kind=video plugin=page-video}
 <timeline fps=30 size=1920x1080 background=#191919 description="BIU 动态广告片">
   <track name=scenes layer=3>
-    <component id=open src=builtin:ad-scene dur=7s color=#8B5CF6>BIU VIDEO|01 / 02|一块内容|也能是一支片|在页面里直接创作</component>
-    <component id=end src=builtin:ad-scene dur=7s color=#A78BFA>BIU|02 / 02|从想法|到成片。|Agent 负责编排|hold</component>
+    <component id=open src=builtin:ad-scene variant=hero dur=7s color=#8B5CF6>BIU VIDEO|01 / 02|一块内容|也能是一支片|在页面里直接创作</component>
+    <component id=end src=builtin:ad-scene variant=finale dur=7s color=#A78BFA>BIU|02 / 02|从想法|到成片。|Agent 负责编排|hold</component>
   </track>
   <track name=transitions layer=6>
     <component src=builtin:ad-wipe at="open.end - 26f" dur=26f color=#8B5CF6 />
@@ -38,7 +38,7 @@
 :::
 ```
 
-`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景，`builtin:ad-wipe` 只渲染一次遮罩转场。默认广告片用时间轴串联八个 scene，并在独立高层轨道放七个 wipe；顺序、时长和转场位置都由脚本编排，不藏在一个大组件里。
+`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景，`variant` 可选 `hero`、`split`、`marquee`、`stagger`、`focus`、`code`、`stack`、`finale`。`builtin:ad-wipe` 只渲染一次遮罩转场。默认广告片用时间轴串联八种 scene，并在独立高层轨道放七个 wipe；顺序、时长、版式和转场位置都由脚本编排。
 
 先跑 `video_script`：它会返回覆盖时长、重叠、空镜、follow 失效等诊断，再 `db_content` 写入围栏。
 

@@ -74,9 +74,14 @@ test('built-in advertisement scene and wipe render as independent components', (
   assert.match(DEFAULT_AD_SCENE_SOURCE, /const titleLines = lines\.map/)
   assert.match(DEFAULT_AD_SCENE_SOURCE, /flexDirection:"column"/)
   assert.doesNotMatch(DEFAULT_AD_SCENE_SOURCE, /React\.createElement\("br"/)
-  for (const atom of ['Grid', 'Glow', 'Meta', 'KineticTitle', 'Note', 'Progress']) {
+  for (const atom of ['Grid', 'Glow', 'Meta', 'KineticTitle', 'Note', 'Progress', 'SceneLayout']) {
     assert.match(DEFAULT_AD_SCENE_SOURCE, new RegExp(`function ${atom}\\(`))
   }
+  for (const variant of ['hero', 'split', 'marquee', 'stagger', 'focus', 'code', 'stack', 'finale']) {
+    assert.match(DEFAULT_AD_SCENE_SOURCE, new RegExp(`"${variant}"`))
+  }
+  assert.match(DEFAULT_AD_SCENE_SOURCE, /const y = \(1-p\)\*36\*k/)
+  assert.doesNotMatch(DEFAULT_AD_SCENE_SOURCE, /\(1-p\)\*110\*k/)
   const renderScene = (time: number) =>
     sceneView({
       frame: Math.round(time * 30),
@@ -91,6 +96,7 @@ test('built-in advertisement scene and wipe render as independent components', (
       AbsoluteFill: makeAbsoluteFill(React.createElement),
       content: '03 / TRANSITION|04 / 08|切换画面|不必打断情绪|连续运动',
       color: '#FACC15',
+      variant: 'stagger',
     }) as { props: { style?: { background?: string } }; children: unknown[] }
   const opening = renderScene(0)
   const settled = renderScene(5)
