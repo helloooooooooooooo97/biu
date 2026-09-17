@@ -568,22 +568,22 @@ Biu 里它可以**落下来**：变成一页、一个块、一个技能、一张
 
 ## 产品演示
 
-三图覆盖同一套工作面：任务看板、执行席的回合轨迹与 token 用量。
+三张图对应三条主线：文件系统本身、组件、以及上下文。
 
 <p align="center">
-  <img src="docs/demo/task.png" alt="任务看板：多 Agent 通过 task_report 协作" width="880" />
+  <img src="docs/demo/file-system.png" alt="File System：一张表、一条记录、schema 自述与 db_* 工具" width="880" />
 </p>
-<p align="center"><sub><code>task.png</code> — 多 Agent 在看板上汇报：chat 中进度回传，队列内待办 / 已完成保持对应</sub></p>
+<p align="center"><sub><code>file-system.png</code> — 一切皆文件系统：表、记录、schema、动作都在同一个地址空间里，人和 Agent 用同一套 <code>db_*</code> 访问</sub></p>
 
 <p align="center">
-  <img src="docs/demo/trajectory.jpg" alt="检查器轨迹：模型 / 工具逐步做了什么" width="880" />
+  <img src="docs/demo/component.png" alt="Component：页面里的声明式块" width="880" />
 </p>
-<p align="center"><sub><code>trajectory.jpg</code> — 检查器「轨迹」以事件投影还原单回合完整过程：模型输出、tool 调用、审批、派工</sub></p>
+<p align="center"><sub><code>component.png</code> — 页面是 Component 的容器：块声明 <code>kind</code> + <code>plugin</code> + data，系统收敛成活的组件</sub></p>
 
 <p align="center">
-  <img src="docs/demo/usage.jpg" alt="用量：本回合 token 怎么花的" width="880" />
+  <img src="docs/demo/context.png" alt="上下文：Agent 读到人正在做什么" width="880" />
 </p>
-<p align="center"><sub><code>usage.jpg</code> — 检查器「用量」展示 token 消耗；<code>task_report</code> 会固化当回合用量</sub></p>
+<p align="center"><sub><code>context.png</code> — 感知面等于操作面：Agent 读同一个地址空间，于是知道人在哪、在做什么</sub></p>
 
 ---
 

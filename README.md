@@ -568,22 +568,22 @@ The system therefore grows round after round instead of resetting to zero each t
 
 ## Demo
 
-Three screenshots of the same work surface: the task board, a worker's turn trajectory, and token usage.
+Three screenshots, one per thread: the file system itself, components, and context.
 
 <p align="center">
-  <img src="docs/demo/task.png" alt="Task board: multiple agents coordinating through task_report" width="880" />
+  <img src="docs/demo/file-system.png" alt="File System: a table, a record, a self-described schema, and the db_* tools" width="880" />
 </p>
-<p align="center"><sub><code>task.png</code> — agents reporting on the board: progress relayed in chat, queued and completed items kept in step</sub></p>
+<p align="center"><sub><code>file-system.png</code> — everything is a file system: tables, records, schemas, and actions share one address space, reached by humans and agents through the same <code>db_*</code> verbs</sub></p>
 
 <p align="center">
-  <img src="docs/demo/trajectory.jpg" alt="Inspector trajectory: what the model and tools did, step by step" width="880" />
+  <img src="docs/demo/component.png" alt="Component: a declarative block inside a page" width="880" />
 </p>
-<p align="center"><sub><code>trajectory.jpg</code> — the inspector's Trajectory tab reconstructs a full turn from event projections: model output, tool calls, approvals, dispatches</sub></p>
+<p align="center"><sub><code>component.png</code> — a page is the container for components: a block declares <code>kind</code> + <code>plugin</code> + data, and the system converges it into a live component</sub></p>
 
 <p align="center">
-  <img src="docs/demo/usage.jpg" alt="Usage: how this turn's tokens were spent" width="880" />
+  <img src="docs/demo/context.png" alt="Context: an agent reading what the human is doing" width="880" />
 </p>
-<p align="center"><sub><code>usage.jpg</code> — the inspector's Usage tab shows token spend; <code>task_report</code> pins the turn's usage</sub></p>
+<p align="center"><sub><code>context.png</code> — the surface you perceive is the surface you act on: an agent reads the same address space, so it knows where the human is and what they are doing</sub></p>
 
 ---
 
