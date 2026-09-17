@@ -1145,6 +1145,16 @@ function Studio({
   )
 }
 
+function isLegacySampleScript(value: unknown) {
+  if (typeof value !== 'string') return false
+  return (
+    value.includes('description="视频块功能介绍：逐项演示转场、逐字、镜头、光标、箭头、框选、字幕"') &&
+    value.includes('<title id=cut') &&
+    value.includes('>转场</title>') &&
+    value.includes('>I am Biu.</title>')
+  )
+}
+
 function Editor({
   data,
   update,
@@ -1155,11 +1165,18 @@ function Editor({
   writable: boolean
 }) {
   useStyle()
-  const parsed = useMemo(() => parseProject(data), [data])
+  const migrateSample = isLegacySampleScript(data.script)
+  const parsed = useMemo(
+    () => parseProject(migrateSample ? { ...data, script: SAMPLE_SCRIPT } : data),
+    [data, migrateSample],
+  )
   const [liveScript, setLiveScript] = useState(parsed.script)
   const [open, setOpen] = useState(false)
   const [tracksOpen, setTracksOpen] = useState(false)
   const timelineId = useId()
+  useEffect(() => {
+    if (migrateSample && writable) update({ script: SAMPLE_SCRIPT })
+  }, [migrateSample, writable, update])
   useEffect(() => setLiveScript(parsed.script), [parsed.script])
   const compiled = useMemo(() => compileSafe(liveScript || parsed.script), [liveScript, parsed.script])
   const project = compiled.ok ? compiled.project : parsed

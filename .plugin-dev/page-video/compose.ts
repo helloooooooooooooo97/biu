@@ -120,44 +120,67 @@ export type Project = {
 
 export type Camera = { scale: number; cx: number; cy: number; rx: number; ry: number; rz: number }
 
-export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919 description="视频块功能介绍：逐项演示转场、逐字、镜头、光标、箭头、框选、字幕">
+export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919 description="约一分钟的新手介绍：逐项讲解并演示 BIU 视频块">
   <track name=main>
-    <title id=open dur=2.4s bg=#191919 ink=#f6f2ea enter="fadeUp" align=center valign=middle desc="开场">视频块</title>
+    <title id=open dur=4.4s bg=#191919 ink=#f6f2ea enter="fadeUp" align=center valign=middle desc="开场">BIU 视频块介绍</title>
     <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.4s desc="左推" />
-    <title id=cut dur=2.4s bg=#191919 ink=#f6f2ea align=center valign=middle desc="转场">转场</title>
-    <transition kind=dissolve dur=0.45s desc="叠化" />
-    <title id=type dur=3.2s bg=#191919 ink=#f6f2ea align=center valign=middle desc="文字">逐字</title>
+    <title id=page dur=4.2s bg=#202c3d ink=#f6f2ea align=center valign=middle desc="页面块">在页面里制作视频</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=cam dur=2.8s bg=#191919 ink=#f6f2ea align=center valign=middle desc="镜头">镜头</title>
+    <title id=script dur=4.4s bg=#191919 ink=#f6f2ea align=center valign=middle desc="声明式脚本">用标签描述画面</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=point dur=2.8s bg=#111111 ink=#ece7dc align=center valign=middle desc="光标">光标</title>
+    <title id=tracks dur=4.4s bg=#202020 ink=#f6f2ea align=center valign=middle desc="时间轴">多条轨道一起工作</title>
+    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.45s desc="左推转场" />
+    <title id=cut dur=4.2s bg=#273449 ink=#f6f2ea align=center valign=middle desc="转场">画面自然衔接</title>
+    <transition kind=dissolve dur=0.45s desc="叠化转场" />
+    <title id=motion dur=4.4s bg=#191919 ink=#f6f2ea enter="fade+scale(0.92→1)" align=center valign=middle desc="组合动效">组合基础动效</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=call dur=2.6s bg=#111111 ink=#ece7dc align=center valign=middle desc="箭头">箭头</title>
+    <title id=type dur=4.6s bg=#191919 ink=#f6f2ea align=center valign=middle desc="逐字文字">动态文字</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=frame dur=2.6s bg=#111111 ink=#ece7dc align=center valign=middle desc="框选">框选</title>
+    <title id=cam dur=4.2s bg=#202020 ink=#f6f2ea align=center valign=middle desc="镜头缩放">聚焦重要内容</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=sub dur=2.8s bg=#191919 ink=#f6f2ea align=center valign=middle desc="字幕">字幕</title>
-    <transition enter="fade" exit="fade" dur=0.35s />
-    <title id=end dur=2.6s bg=#191919 ink=#f6f2ea enter="pop" align=center valign=middle desc="收束">I am Biu.</title>
+    <title id=point dur=4.2s bg=#111111 ink=#ece7dc align=center valign=middle desc="光标动画">还原操作过程</title>
+    <transition kind=dissolve dur=0.4s />
+    <title id=call dur=4s bg=#111111 ink=#ece7dc align=center valign=middle desc="箭头标注">指出画面重点</title>
+    <transition kind=dissolve dur=0.4s />
+    <title id=frame dur=4s bg=#111111 ink=#ece7dc align=center valign=middle desc="框选标注">圈出关键区域</title>
+    <transition kind=dissolve dur=0.4s />
+    <title id=privacy dur=4s bg=#111111 ink=#ece7dc align=center valign=middle desc="模糊遮挡">隐藏敏感信息</title>
+    <transition kind=dissolve dur=0.4s />
+    <title id=focus dur=4s bg=#111111 ink=#ece7dc align=center valign=middle desc="聚光灯">把视线留在焦点</title>
+    <transition kind=dissolve dur=0.4s />
+    <title id=sub dur=4.2s bg=#191919 ink=#f6f2ea align=center valign=middle desc="跟随字幕">字幕自动对齐片段</title>
+    <transition kind=dissolve dur=0.4s />
+    <title id=compile dur=4.4s bg=#202c3d ink=#f6f2ea align=center valign=middle desc="源码与诊断">源码随时可改</title>
+    <transition enter="fade" exit="fade" dur=0.4s />
+    <title id=end dur=4.2s bg=#191919 ink=#f6f2ea enter="pop" align=center valign=middle desc="收束">从脚本，到成片。</title>
   </track>
   <track name=copy layer=4>
-    <caption follow=open offset="0.2s,-0.55s">Agent 用标签写时间轴</caption>
-    <caption follow=cut offset="0.2s,-0.55s">左推、叠化，总时长不变</caption>
-    <text follow=type offset="0.25s,-0.55s" x=.5 y=.72 w=.84 h=.14 size=22 align=center enter="fade+move(y:+20)" unit=char stagger=0.06s ease="backOut">一条路径，一块插件</text>
-    <caption follow=cam offset="0.2s,-0.55s">zoom 推近画面</caption>
-    <caption follow=point offset="0.2s,-0.55s">光标划过并点击</caption>
-    <caption follow=call offset="0.2s,-0.55s">箭头指向焦点</caption>
-    <caption follow=frame offset="0.2s,-0.55s">框住要讲的区域</caption>
-    <caption follow=sub offset="0.2s,-0.55s">caption 跟在片段后面</caption>
-    <caption follow=end offset="0.25s,-0.2s">人和 Agent，同一套动词</caption>
+    <caption follow=open offset="0.3s,-0.8s">不用离开 BIU，一块内容就是一条可播放的视频</caption>
+    <caption follow=page offset="0.3s,-0.8s">像插入文字和表格一样，把视频直接插进页面</caption>
+    <text follow=script offset="0.35s,-0.8s" x=.5 y=.72 w=.88 h=.14 size=20 align=center enter="fade+move(y:+18)" unit=word stagger=0.08s>&lt;timeline&gt; &lt;track&gt; &lt;title&gt;</text>
+    <caption follow=tracks offset="0.3s,-0.8s">主画面、文字、镜头和标注各在自己的轨道上</caption>
+    <caption follow=cut offset="0.3s,-0.8s">左推与叠化连接相邻片段，不会额外拉长时间</caption>
+    <caption follow=motion offset="0.3s,-0.8s">淡入、移动、缩放可以组合，还能选择不同缓动</caption>
+    <text follow=type offset="0.4s,-0.85s" x=.5 y=.72 w=.88 h=.14 size=22 align=center enter="fade+move(y:+20)" unit=char stagger=0.055s ease="backOut">每一个字，都能按节奏登场</text>
+    <caption follow=cam offset="0.3s,-0.8s">zoom 自动推近指定位置，让观众看清重点</caption>
+    <caption follow=point offset="0.3s,-0.8s">光标沿路径移动，并在目标位置模拟点击</caption>
+    <caption follow=call offset="0.3s,-0.8s">箭头适合讲解按钮、入口和操作方向</caption>
+    <caption follow=frame offset="0.3s,-0.8s">框选适合突出文字、控件或一整块区域</caption>
+    <caption follow=privacy offset="0.3s,-0.8s">模糊层可以遮住账号、地址等敏感内容</caption>
+    <caption follow=focus offset="0.3s,-0.8s">聚光灯压暗周围，只保留需要关注的区域</caption>
+    <caption follow=sub offset="0.3s,-0.8s">字幕可 follow 任意片段；片段移动，字幕一起移动</caption>
+    <caption follow=compile offset="0.3s,-0.8s">展开轨道即可编辑源码，并查看重叠、空镜等诊断</caption>
+    <caption follow=end offset="0.35s,-0.3s">Agent 负责编排，你随时审阅、修改和播放</caption>
   </track>
   <track name=cam layer=2>
-    <zoom follow=cam offset="0.15s,-0.55s" cx=0.5 cy=0.48 depth=1.35 desc="推近" />
+    <zoom follow=cam offset="0.25s,-0.8s" cx=0.5 cy=0.48 depth=1.42 desc="推近标题中心" />
   </track>
   <track name=fx layer=5>
-    <cursor follow=point offset="0.2s,-0.55s" x=.18 y=.76 x2=.58 y2=.5 click=0.9s size=28 desc="点击" />
-    <arrow follow=call offset="0.25s,-0.5s" x=.2 y=.7 x2=.5 y2=.48 color=#2b7de6 width=4 desc="指向" />
-    <box follow=frame offset="0.25s,-0.5s" x=.5 y=.5 w=.42 h=.22 color=#2b7de6 desc="框" />
+    <cursor follow=point offset="0.35s,-0.8s" x=.16 y=.76 x2=.7 y2=.38 click=1.5s size=30 desc="移动并点击" />
+    <arrow follow=call offset="0.35s,-0.75s" x=.18 y=.72 x2=.48 y2=.5 color=#2b7de6 width=5 desc="指向标题" />
+    <box follow=frame offset="0.35s,-0.75s" x=.5 y=.5 w=.52 h=.24 color=#2b7de6 desc="框住标题" />
+    <blur follow=privacy offset="0.35s,-0.75s" x=.5 y=.5 w=.5 h=.22 amount=18 shape=rounded desc="模糊标题" />
+    <spotlight follow=focus offset="0.35s,-0.75s" x=.5 y=.5 w=.46 h=.28 desc="聚焦标题" />
   </track>
 </timeline>
 `

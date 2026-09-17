@@ -24,25 +24,25 @@
 
 ```md
 :::pageBlock {kind=video plugin=page-video}
-<timeline fps=30 size=1920x1080 background=#191919 description="视频块功能介绍：逐项演示">
+<timeline fps=30 size=1920x1080 background=#191919 description="约一分钟的新手介绍">
   <track name=main>
-    <title id=open dur=2.4s bg=#191919 ink=#f6f2ea enter="fadeUp">视频块</title>
+    <title id=open dur=4.4s bg=#191919 ink=#f6f2ea enter="fadeUp">BIU 视频块介绍</title>
     <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.4s desc="左推" />
-    <title id=cut dur=2.4s>转场</title>
-    <transition kind=dissolve dur=0.45s desc="叠化" />
-    <title id=type dur=3.2s>逐字</title>
-    <title id=cam dur=2.8s>镜头</title>
-    <title id=point dur=2.8s>光标</title>
-    <title id=end dur=2.6s enter="pop">I am Biu.</title>
+    <title id=page dur=4.2s>在页面里制作视频</title>
+    <title id=script dur=4.4s>用标签描述画面</title>
+    <title id=type dur=4.6s>动态文字</title>
+    <title id=cam dur=4.2s>聚焦重要内容</title>
+    <title id=point dur=4.2s>还原操作过程</title>
+    <title id=end dur=4.2s enter="pop">从脚本，到成片。</title>
   </track>
   <track name=copy layer=4>
-    <caption follow=open offset="0.2s,-0.55s">Agent 用标签写时间轴</caption>
-    <text follow=type offset="0.25s,-0.55s" unit=char stagger=0.06s>一条路径，一块插件</text>
-    <caption follow=end offset="0.25s,-0.2s">人和 Agent，同一套动词</caption>
+    <caption follow=open offset="0.3s,-0.8s">不用离开 BIU，一块内容就是一条可播放的视频</caption>
+    <text follow=type offset="0.4s,-0.85s" unit=char stagger=0.055s>每一个字，都能按节奏登场</text>
+    <caption follow=end offset="0.35s,-0.3s">Agent 负责编排，你随时审阅、修改和播放</caption>
   </track>
   <track name=fx layer=5>
-    <zoom follow=cam offset="0.15s,-0.55s" cx=0.5 cy=0.48 depth=1.35 />
-    <cursor follow=point offset="0.2s,-0.55s" x=.18 y=.76 x2=.58 y2=.5 click=0.9s />
+    <zoom follow=cam offset="0.25s,-0.8s" cx=0.5 cy=0.48 depth=1.42 />
+    <cursor follow=point offset="0.35s,-0.8s" x=.16 y=.76 x2=.7 y2=.38 click=1.5s />
   </track>
 </timeline>
 :::
