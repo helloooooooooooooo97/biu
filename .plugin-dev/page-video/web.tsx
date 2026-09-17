@@ -64,7 +64,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v14'
+const STYLE_ID = 'pv-style-v15'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -185,7 +185,20 @@ const STYLE_CSS = `
 .pv-player-time{margin-left:3px;color:var(--pv-mute);font-family:var(--font-mono);font-size:10px;line-height:1.2;font-variant-numeric:tabular-nums}
 .pv-player-spacer{flex:1}
 .pv-audio-only{border-radius:0}
-.pv-audio-scrub{min-width:72px;flex:1;height:3px;margin:0 8px;accent-color:var(--pv-blue);cursor:pointer}
+.pv-audio-scrub{
+  appearance:none;-webkit-appearance:none;min-width:72px;flex:1;height:5px;margin:0 8px;
+  border:0;border-radius:999px;outline:0;cursor:pointer;
+  background:linear-gradient(90deg,var(--pv-blue) 0 var(--pv-progress,0%),color-mix(in srgb,var(--pv-mute) 32%,var(--pv-surface)) var(--pv-progress,0%) 100%);
+}
+.pv-audio-scrub::-webkit-slider-runnable-track{height:5px;border:0;border-radius:999px;background:transparent}
+.pv-audio-scrub::-webkit-slider-thumb{
+  -webkit-appearance:none;width:13px;height:13px;margin-top:-4px;border:2px solid var(--pv-surface);
+  border-radius:50%;background:var(--pv-blue);box-shadow:var(--dsw-shadow-lv1,0 1px 3px rgba(0,0,0,.22));
+}
+.pv-audio-scrub::-moz-range-track{height:5px;border:0;border-radius:999px;background:color-mix(in srgb,var(--pv-mute) 32%,var(--pv-surface))}
+.pv-audio-scrub::-moz-range-progress{height:5px;border:0;border-radius:999px;background:var(--pv-blue)}
+.pv-audio-scrub::-moz-range-thumb{width:13px;height:13px;border:2px solid var(--pv-surface);border-radius:50%;background:var(--pv-blue);box-shadow:var(--dsw-shadow-lv1,0 1px 3px rgba(0,0,0,.22))}
+.pv-audio-scrub:focus-visible{box-shadow:0 0 0 2px color-mix(in srgb,var(--pv-blue) 32%,transparent)}
 .pv-track-toggle{padding:0}
 .pv-embed-timeline{border-top:1px solid var(--pv-line)}
 .pv-embed-timeline .pv-rail{border-top:0}
@@ -1253,6 +1266,7 @@ function PlayerBar({
         max={duration}
         step={1 / Math.max(1, fps)}
         value={Math.min(duration, time)}
+        style={{ ['--pv-progress' as string]: `${duration > 0 ? Math.min(100, Math.max(0, (time / duration) * 100)) : 0}%` }}
         aria-label="进度"
         onChange={(event) => onSeek(Number(event.currentTarget.value))}
       />
