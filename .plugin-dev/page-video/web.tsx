@@ -1157,14 +1157,14 @@ function Timeline({
     if (!rect) return 0
     return Math.min(duration, Math.max(0, ((clientX - rect.left) / Math.max(1, rect.width)) * duration))
   }
-  const applyResize = (clientX: number) => {
+  const applyResize = (clientX: number, commit: boolean) => {
     const job = resizeRef.current
-    if (!job || !onResize) return
+    if (!job) return
     const at = timeAt(clientX)
     const next = resizeClip(project, job.id, job.edge, at)
     const clip = next.clips.find((item) => item.id === job.id)
     if (clip) setPreview({ id: clip.id, start: clip.start, duration: clip.duration })
-    onResize(job.id, job.edge, at)
+    if (commit) onResize?.(job.id, job.edge, at)
   }
   return (
     <div className="pv-rail" data-testid="page-video-rail" style={{ height: railHeight }}>
@@ -1264,11 +1264,11 @@ function Timeline({
               if (!resizeRef.current || resizeRef.current.id !== clip.id) return
               if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
               event.preventDefault()
-              applyResize(event.clientX)
+              applyResize(event.clientX, false)
             }}
             onResizePointerUp={(event) => {
               if (!resizeRef.current || resizeRef.current.id !== clip.id) return
-              applyResize(event.clientX)
+              applyResize(event.clientX, true)
               resizeRef.current = null
               setResizing('')
               setPreview(null)
