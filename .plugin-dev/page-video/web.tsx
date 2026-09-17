@@ -70,7 +70,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v19'
+const STYLE_ID = 'pv-style-v20'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -172,8 +172,9 @@ const STYLE_CSS = `
 .pv-clip[data-editable="true"]:hover{filter:brightness(.96)}
 .pv-clip[data-editable="true"]:active{cursor:grabbing}
 .pv-clip.is-dragging{opacity:.45;transform:scale(.985);z-index:4}
+.pv-clip.is-resizing{z-index:4;transition:none;opacity:1;transform:none}
 .pv-clip-handle{
-  position:absolute;top:0;bottom:0;width:7px;z-index:2;cursor:ew-resize;
+  position:absolute;top:0;bottom:0;width:8px;z-index:2;cursor:ew-resize;touch-action:none;
   background:transparent;
 }
 .pv-clip-handle[data-edge="start"]{left:0}
@@ -1142,11 +1143,29 @@ function Timeline({
   onMove?: (clipId: string, trackId: string, start: number) => void
   onResize?: (clipId: string, edge: 'start' | 'end', time: number) => void
 }) {
+  const lanesRef = useRef<HTMLDivElement | null>(null)
+  const resizeRef = useRef<{ id: string; edge: 'start' | 'end' } | null>(null)
   const [dragging, setDragging] = useState('')
+  const [resizing, setResizing] = useState('')
+  const [preview, setPreview] = useState<{ id: string; start: number; duration: number } | null>(null)
   const [dropTarget, setDropTarget] = useState(false)
   const seekBy = (delta: number) => onSeek(Math.min(duration, Math.max(0, time + delta)))
   const tracks = timelineTracks(project)
   const railHeight = `${Math.max(1, tracks.length) * TRACK_HEIGHT}px`
+  const timeAt = (clientX: number) => {
+    const rect = lanesRef.current?.getBoundingClientRect()
+    if (!rect) return 0
+    return Math.min(duration, Math.max(0, ((clientX - rect.left) / Math.max(1, rect.width)) * duration))
+  }
+  const applyResize = (clientX: number) => {
+    const job = resizeRef.current
+    if (!job || !onResize) return
+    const at = timeAt(clientX)
+    const next = resizeClip(project, job.id, job.edge, at)
+    const clip = next.clips.find((item) => item.id === job.id)
+    if (clip) setPreview({ id: clip.id, start: clip.start, duration: clip.duration })
+    onResize(job.id, job.edge, at)
+  }
   return (
     <div className="pv-rail" data-testid="page-video-rail" style={{ height: railHeight }}>
       <div className="pv-track-labels">
@@ -1157,6 +1176,7 @@ function Timeline({
         ))}
       </div>
       <div
+        ref={lanesRef}
         className={`pv-lanes${dropTarget ? ' is-drop-target' : ''}`}
         role="slider"
         tabIndex={0}
@@ -1175,7 +1195,7 @@ function Timeline({
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(false)
         }}
         onDrop={(event) => {
-          if (!onMove && !onResize) return
+          if (!onMove) return
           event.preventDefault()
           const clipId = event.dataTransfer.getData('application/x-page-video-clip')
           const mode = event.dataTransfer.getData('application/x-page-video-mode')
@@ -1184,10 +1204,8 @@ function Timeline({
           const row = Math.max(0, Math.min(tracks.length - 1, Math.floor((event.clientY - rect.top) / TRACK_HEIGHT)))
           const track = tracks[row]
           const cursorTime = ((event.clientX - rect.left) / Math.max(1, rect.width)) * duration
-          if (clipId && (mode === 'resize-start' || mode === 'resize-end')) {
-            onResize?.(clipId, mode === 'resize-start' ? 'start' : 'end', cursorTime)
-          } else if (clipId && track) {
-            onMove?.(clipId, track.id, Math.max(0, cursorTime - offset))
+          if (clipId && mode !== 'resize-start' && mode !== 'resize-end' && track) {
+            onMove(clipId, track.id, Math.max(0, cursorTime - offset))
           }
           setDragging('')
           setDropTarget(false)
@@ -1219,7 +1237,13 @@ function Timeline({
             row={row}
             editable={Boolean(onMove || onResize)}
             dragging={dragging === clip.id}
+            resizing={resizing === clip.id}
+            preview={preview?.id === clip.id ? preview : null}
             onDragStart={(event) => {
+              if (resizeRef.current) {
+                event.preventDefault()
+                return
+              }
               const rect = event.currentTarget.getBoundingClientRect()
               const offset = ((event.clientX - rect.left) / Math.max(1, rect.width)) * clip.duration
               event.dataTransfer.effectAllowed = 'move'
@@ -1228,12 +1252,26 @@ function Timeline({
               event.dataTransfer.setData('application/x-page-video-offset', String(offset))
               setDragging(clip.id)
             }}
-            onResizeStart={(edge, event) => {
+            onResizePointerDown={(edge, event) => {
+              if (!onResize) return
+              event.preventDefault()
               event.stopPropagation()
-              event.dataTransfer.effectAllowed = 'move'
-              event.dataTransfer.setData('application/x-page-video-clip', clip.id)
-              event.dataTransfer.setData('application/x-page-video-mode', `resize-${edge}`)
-              setDragging(clip.id)
+              event.currentTarget.setPointerCapture(event.pointerId)
+              resizeRef.current = { id: clip.id, edge }
+              setResizing(clip.id)
+            }}
+            onResizePointerMove={(event) => {
+              if (!resizeRef.current || resizeRef.current.id !== clip.id) return
+              if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+              event.preventDefault()
+              applyResize(event.clientX)
+            }}
+            onResizePointerUp={(event) => {
+              if (!resizeRef.current || resizeRef.current.id !== clip.id) return
+              applyResize(event.clientX)
+              resizeRef.current = null
+              setResizing('')
+              setPreview(null)
             }}
             onDragEnd={() => {
               setDragging('')
@@ -1253,8 +1291,12 @@ function ClipBar({
   row,
   editable,
   dragging,
+  resizing,
+  preview,
   onDragStart,
-  onResizeStart,
+  onResizePointerDown,
+  onResizePointerMove,
+  onResizePointerUp,
   onDragEnd,
 }: {
   clip: Clip
@@ -1262,36 +1304,43 @@ function ClipBar({
   row: number
   editable: boolean
   dragging: boolean
+  resizing: boolean
+  preview: { start: number; duration: number } | null
   onDragStart: (event: DragEvent<HTMLDivElement>) => void
-  onResizeStart: (edge: 'start' | 'end', event: DragEvent<HTMLSpanElement>) => void
+  onResizePointerDown: (edge: 'start' | 'end', event: React.PointerEvent<HTMLSpanElement>) => void
+  onResizePointerMove: (event: React.PointerEvent<HTMLSpanElement>) => void
+  onResizePointerUp: (event: React.PointerEvent<HTMLSpanElement>) => void
   onDragEnd: () => void
 }) {
   const tone = clip.kind === 'audio' ? 'audio' : clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media' ? 'video' : 'effect'
+  const start = preview?.start ?? clip.start
+  const span = preview?.duration ?? clip.duration
   return (
     <div
-      className={`pv-clip${dragging ? ' is-dragging' : ''}`}
+      className={`pv-clip${dragging ? ' is-dragging' : ''}${resizing ? ' is-resizing' : ''}`}
       data-tone={tone}
       data-editable={editable ? 'true' : undefined}
       data-testid={`page-video-clip-${clip.id}`}
-      draggable={editable}
+      draggable={editable && !resizing}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={(event) => event.stopPropagation()}
-      title={`${clip.kind} · ${fmtClock(clip.start)}–${fmtClock(clip.start + clip.duration)}`}
+      title={`${clip.kind} · ${fmtClock(start)}–${fmtClock(start + span)}`}
       style={{
-        left: `${(clip.start / duration) * 100}%`,
+        left: `${(start / duration) * 100}%`,
         top: `${row * TRACK_HEIGHT + (TRACK_HEIGHT - 22) / 2}px`,
-        width: `${Math.max((clip.duration / duration) * 100, 2.4)}%`,
+        width: `${Math.max((span / duration) * 100, 2.4)}%`,
       }}
     >
       {editable ? (
         <span
           className="pv-clip-handle"
           data-edge="start"
-          draggable
           aria-label="调整片段开始时间"
-          onDragStart={(event) => onResizeStart('start', event)}
-          onDragEnd={onDragEnd}
+          onPointerDown={(event) => onResizePointerDown('start', event)}
+          onPointerMove={onResizePointerMove}
+          onPointerUp={onResizePointerUp}
+          onPointerCancel={onResizePointerUp}
         />
       ) : null}
       <TrackIcon kind={clip.kind} />
@@ -1300,10 +1349,11 @@ function ClipBar({
         <span
           className="pv-clip-handle"
           data-edge="end"
-          draggable
           aria-label="调整片段结束时间"
-          onDragStart={(event) => onResizeStart('end', event)}
-          onDragEnd={onDragEnd}
+          onPointerDown={(event) => onResizePointerDown('end', event)}
+          onPointerMove={onResizePointerMove}
+          onPointerUp={onResizePointerUp}
+          onPointerCancel={onResizePointerUp}
         />
       ) : null}
     </div>
@@ -1539,8 +1589,6 @@ function Studio({
                 const next = dumpScript(resized)
                 onLive(next)
                 onCommit(next)
-                const clip = resized.clips.find((item) => item.id === clipId)
-                if (clip) onSeek(edge === 'start' ? clip.start : clip.start + clip.duration)
               }
             : undefined}
         />
