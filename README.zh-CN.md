@@ -10,7 +10,7 @@
 
 <p>
   <strong>人类与 AI 协同的最终范式。</strong><br />
-  <strong>加速创造、存储、排列、组合与分发。</strong>
+  <strong>加速创造、存储、组合、分发与繁衍。</strong>
 </p>
 
 <p>

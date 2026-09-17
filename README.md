@@ -10,7 +10,7 @@
 
 <p>
   <strong>The definitive paradigm for human-AI collaboration.</strong><br />
-  <strong>Accelerating how you create, store, arrange, compose, and distribute.</strong>
+  <strong>Accelerating how you create, store, compose, distribute, and propagate.</strong>
 </p>
 
 <p>
