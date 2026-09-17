@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import type { ComponentType } from 'react'
+import type { ComponentType, DragEvent } from 'react'
 import {
   ArrowUpRightIcon,
   ArrowsPointingInIcon,
@@ -39,8 +39,10 @@ import {
   clipTransform,
   compileSafe,
   cursorAt,
+  dumpScript,
   isVideoSrc,
   maskCss,
+  moveClip,
   parseProject,
   poseStyle,
   projectDuration,
@@ -61,7 +63,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v13'
+const STYLE_ID = 'pv-style-v14'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -130,12 +132,12 @@ const STYLE_CSS = `
 .pv-pip .pv-media{position:absolute}
 .pv-image{transform:translate(-50%,-50%);object-fit:contain;filter:drop-shadow(0 6px 16px rgba(0,0,0,.2))}
 .pv-rail{
-  --pv-track-h:28px;
-  position:relative;margin:0;background:var(--pv-bg);
+  --pv-track-h:32px;
+  position:relative;margin:0;background:var(--pv-surface);
   border-top:1px solid var(--pv-line);
   display:grid;grid-template-columns:36px minmax(0,1fr);overflow:hidden;
 }
-.pv-track-labels{border-right:1px solid var(--pv-line);background:var(--pv-panel)}
+.pv-track-labels{border-right:1px solid var(--pv-line);background:var(--pv-surface)}
 .pv-track-label{
   height:var(--pv-track-h);box-sizing:border-box;display:grid;place-items:center;
   border-bottom:1px solid var(--pv-line);
@@ -143,7 +145,8 @@ const STYLE_CSS = `
 }
 .pv-track-label svg{width:16px;height:16px;color:currentColor}
 .pv-track-label:hover{color:var(--pv-ink);background:var(--pv-hover)}
-.pv-lanes{position:relative;min-width:0;cursor:pointer;outline:none}
+.pv-lanes{position:relative;min-width:0;cursor:pointer;outline:none;background:var(--pv-bg)}
+.pv-lanes.is-drop-target{background:var(--pv-hover)}
 .pv-lanes:before{
   content:"";position:absolute;inset:0;pointer-events:none;
   background:
@@ -151,15 +154,20 @@ const STYLE_CSS = `
     repeating-linear-gradient(90deg,transparent 0,transparent calc(10% - 1px),color-mix(in srgb,var(--pv-ink) 7%,transparent) calc(10% - 1px),color-mix(in srgb,var(--pv-ink) 7%,transparent) 10%);
 }
 .pv-clip{
-  position:absolute;height:18px;border:1px solid color-mix(in srgb,var(--pv-ink) 12%,var(--pv-line));border-radius:4px;
-  font-family:var(--font-sans);font-size:10px;line-height:1;color:var(--pv-mute);
-  padding:0 5px;display:flex;align-items:center;gap:4px;box-sizing:border-box;pointer-events:none;
+  position:absolute;height:22px;border:0;border-radius:4px;
+  font-family:var(--font-sans);font-size:11px;line-height:1;color:var(--dsw-tag-ink,var(--pv-ink));
+  padding:0 7px;display:flex;align-items:center;gap:5px;box-sizing:border-box;pointer-events:none;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
-  background:color-mix(in srgb,var(--pv-panel) 74%,var(--pv-bg));
+  background:color-mix(in srgb,var(--pv-ink) 13%,var(--pv-surface));
+  transition:filter .1s ease,opacity .1s ease,transform .1s ease;
 }
+.pv-clip[data-editable="true"]{pointer-events:auto;cursor:grab}
+.pv-clip[data-editable="true"]:hover{filter:brightness(.96)}
+.pv-clip[data-editable="true"]:active{cursor:grabbing}
+.pv-clip.is-dragging{opacity:.45;transform:scale(.985);z-index:4}
 .pv-clip svg{width:12px;height:12px;flex:none}
-.pv-clip[data-tone="effect"]{background:color-mix(in srgb,var(--pv-blue) 10%,var(--pv-bg));border-color:color-mix(in srgb,var(--pv-blue) 22%,var(--pv-line));color:color-mix(in srgb,var(--pv-blue) 62%,var(--pv-ink))}
-.pv-clip[data-tone="audio"]{background:color-mix(in srgb,var(--pv-ok) 10%,var(--pv-bg));border-color:color-mix(in srgb,var(--pv-ok) 22%,var(--pv-line));color:color-mix(in srgb,var(--pv-ok) 58%,var(--pv-ink))}
+.pv-clip[data-tone="effect"]{background:color-mix(in srgb,var(--pv-blue) 24%,var(--pv-surface));color:color-mix(in srgb,var(--pv-blue) 72%,var(--pv-ink))}
+.pv-clip[data-tone="audio"]{background:color-mix(in srgb,var(--pv-ok) 24%,var(--pv-surface));color:color-mix(in srgb,var(--pv-ok) 70%,var(--pv-ink))}
 .pv-playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--pv-blue);pointer-events:none;z-index:3}
 .pv-playhead:before{content:"";position:absolute;left:-3px;top:0;width:7px;height:7px;border-radius:1px 1px 50% 50%;background:var(--pv-blue)}
 .pv-player-controls{
@@ -229,13 +237,15 @@ const STYLE_CSS = `
 .pv-split{
   width:6px;cursor:col-resize;background:transparent;position:relative;z-index:2;touch-action:none;
 }
-.pv-split:hover,.pv-split.is-drag{background:color-mix(in srgb,var(--pv-blue) 42%,transparent)}
 .pv-split:before{content:"";position:absolute;inset:0 -5px}
+.pv-split:after{content:"";position:absolute;top:0;bottom:0;left:2px;width:1px;background:var(--studio-line)}
+.pv-split:hover:after,.pv-split.is-drag:after{background:color-mix(in srgb,var(--pv-mute) 55%,var(--studio-line))}
 .pv-foot-split{
   height:6px;cursor:row-resize;background:transparent;position:relative;z-index:2;touch-action:none;
 }
-.pv-foot-split:hover,.pv-foot-split.is-drag{background:color-mix(in srgb,var(--pv-blue) 42%,transparent)}
 .pv-foot-split:before{content:"";position:absolute;inset:-4px 0}
+.pv-foot-split:after{content:"";position:absolute;left:0;right:0;top:2px;height:1px;background:var(--studio-line)}
+.pv-foot-split:hover:after,.pv-foot-split.is-drag:after{background:color-mix(in srgb,var(--pv-mute) 55%,var(--studio-line))}
 .pv-canvas{
   container-type:size;min-width:0;min-height:0;padding:24px;
   display:grid;place-items:center;
@@ -297,8 +307,8 @@ const STYLE_CSS = `
 .pv-timeline-stat{display:inline-flex;align-items:center;gap:4px}
 .pv-timeline-stat svg{width:12px;height:12px}
 .pv-duration{margin-left:auto;font-variant-numeric:tabular-nums}
-.pv-studio-foot .pv-rail{border-top:0;margin:0 12px 12px;border:1px solid var(--studio-line);border-radius:6px;background:var(--pv-bg);overflow:auto}
-.pv-studio-foot .pv-clip{height:18px;border-radius:4px;padding:0 8px}
+.pv-studio-foot .pv-rail{border-top:0;margin:8px 12px 12px;border:1px solid var(--studio-line);border-radius:8px;background:var(--pv-surface);overflow:auto;box-shadow:var(--dsw-shadow-lv1,0 1px 2px rgba(0,0,0,.04))}
+.pv-studio-foot .pv-clip{height:22px;border-radius:4px;padding:0 8px}
 @media (max-width:720px){
   .pv-studio{grid-template-rows:48px minmax(0,1fr) 110px}
   .pv-studio-body{grid-template-columns:1fr;grid-template-rows:minmax(220px,1fr) minmax(160px,1fr)}
@@ -1023,7 +1033,21 @@ function timelineTracks(project: Project): TimelineTrack[] {
   return tracks
 }
 
-function Timeline({ project, duration, time, onSeek }: { project: Project; duration: number; time: number; onSeek: (t: number) => void }) {
+function Timeline({
+  project,
+  duration,
+  time,
+  onSeek,
+  onMove,
+}: {
+  project: Project
+  duration: number
+  time: number
+  onSeek: (t: number) => void
+  onMove?: (clipId: string, trackId: string, start: number) => void
+}) {
+  const [dragging, setDragging] = useState('')
+  const [dropTarget, setDropTarget] = useState(false)
   const seekBy = (delta: number) => onSeek(Math.min(duration, Math.max(0, time + delta)))
   const tracks = timelineTracks(project)
   const railHeight = `${Math.max(1, tracks.length) * TRACK_HEIGHT}px`
@@ -1037,7 +1061,7 @@ function Timeline({ project, duration, time, onSeek }: { project: Project; durat
         ))}
       </div>
       <div
-        className="pv-lanes"
+        className={`pv-lanes${dropTarget ? ' is-drop-target' : ''}`}
         role="slider"
         tabIndex={0}
         aria-label="视频时间轴"
@@ -1045,7 +1069,30 @@ function Timeline({ project, duration, time, onSeek }: { project: Project; durat
         aria-valuemax={duration}
         aria-valuenow={Math.min(duration, time)}
         aria-valuetext={`${fmtClock(time)} / ${fmtClock(duration)}`}
+        onDragOver={(event) => {
+          if (!onMove) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'move'
+          setDropTarget(true)
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(false)
+        }}
+        onDrop={(event) => {
+          if (!onMove) return
+          event.preventDefault()
+          const clipId = event.dataTransfer.getData('application/x-page-video-clip')
+          const offset = Number(event.dataTransfer.getData('application/x-page-video-offset')) || 0
+          const rect = event.currentTarget.getBoundingClientRect()
+          const row = Math.max(0, Math.min(tracks.length - 1, Math.floor((event.clientY - rect.top) / TRACK_HEIGHT)))
+          const track = tracks[row]
+          const raw = ((event.clientX - rect.left) / Math.max(1, rect.width)) * duration - offset
+          if (clipId && track) onMove(clipId, track.id, Math.max(0, raw))
+          setDragging('')
+          setDropTarget(false)
+        }}
         onClick={(event) => {
+          if (dragging) return
           const rect = event.currentTarget.getBoundingClientRect()
           const x = (event.clientX - rect.left) / Math.max(1, rect.width)
           onSeek(Math.min(1, Math.max(0, x)) * duration)
@@ -1064,7 +1111,26 @@ function Timeline({ project, duration, time, onSeek }: { project: Project; durat
         }}
       >
         {tracks.flatMap((track, row) => track.clips.map((clip) => (
-          <ClipBar key={clip.id} clip={clip} duration={duration} row={row} />
+          <ClipBar
+            key={clip.id}
+            clip={clip}
+            duration={duration}
+            row={row}
+            editable={Boolean(onMove)}
+            dragging={dragging === clip.id}
+            onDragStart={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect()
+              const offset = ((event.clientX - rect.left) / Math.max(1, rect.width)) * clip.duration
+              event.dataTransfer.effectAllowed = 'move'
+              event.dataTransfer.setData('application/x-page-video-clip', clip.id)
+              event.dataTransfer.setData('application/x-page-video-offset', String(offset))
+              setDragging(clip.id)
+            }}
+            onDragEnd={() => {
+              setDragging('')
+              setDropTarget(false)
+            }}
+          />
         )))}
         <div className="pv-playhead" style={{ left: `${(time / duration) * 100}%` }} />
       </div>
@@ -1072,12 +1138,34 @@ function Timeline({ project, duration, time, onSeek }: { project: Project; durat
   )
 }
 
-function ClipBar({ clip, duration, row }: { clip: Clip; duration: number; row: number }) {
+function ClipBar({
+  clip,
+  duration,
+  row,
+  editable,
+  dragging,
+  onDragStart,
+  onDragEnd,
+}: {
+  clip: Clip
+  duration: number
+  row: number
+  editable: boolean
+  dragging: boolean
+  onDragStart: (event: DragEvent<HTMLDivElement>) => void
+  onDragEnd: () => void
+}) {
   const tone = clip.kind === 'audio' ? 'audio' : clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media' ? 'video' : 'effect'
   return (
     <div
-      className="pv-clip"
+      className={`pv-clip${dragging ? ' is-dragging' : ''}`}
       data-tone={tone}
+      data-editable={editable ? 'true' : undefined}
+      data-testid={`page-video-clip-${clip.id}`}
+      draggable={editable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={(event) => event.stopPropagation()}
       title={`${clip.kind} · ${fmtClock(clip.start)}–${fmtClock(clip.start + clip.duration)}`}
       style={{
         left: `${(clip.start / duration) * 100}%`,
@@ -1300,7 +1388,20 @@ function Studio({
           <span className="pv-timeline-stat"><Squares2X2Icon className="size-4 shrink-0" />{project.clips.filter((clip) => clip.kind !== 'gap').length}</span>
           <span className="pv-duration">{duration.toFixed(1)}s · {project.fps} fps · {project.width}×{project.height}</span>
         </div>
-        <Timeline project={project} duration={duration} time={time} onSeek={onSeek} />
+        <Timeline
+          project={project}
+          duration={duration}
+          time={time}
+          onSeek={onSeek}
+          onMove={writable
+            ? (clipId, trackId, start) => {
+                const next = dumpScript(moveClip(project, clipId, trackId, start))
+                onLive(next)
+                onCommit(next)
+                onSeek(start)
+              }
+            : undefined}
+        />
       </div>
     </div>,
     document.body,
@@ -1326,7 +1427,11 @@ function isLegacySampleScript(value: unknown) {
     value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
     value.includes('src=builtin:biu-ad') &&
     !value.includes('src=builtin:ad-scene')
-  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd
+  const longTimelineAd =
+    value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
+    value.includes('src=builtin:ad-scene') &&
+    value.includes('dur=7s')
+  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd
 }
 
 function Editor({

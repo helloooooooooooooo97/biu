@@ -125,14 +125,14 @@ export type Camera = { scale: number; cx: number; cy: number; rx: number; ry: nu
 
 export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919 description="BIU 动态广告片：React 逐帧文字与遮罩转场">
   <track name=scenes layer=3>
-    <component id=open src=builtin:ad-scene variant=hero dur=7s color=#8B5CF6 desc="居中开场">BIU VIDEO|01 / 08|一块内容|也能是一支片|在页面里直接播放、修改、继续创作</component>
-    <component id=describe src=builtin:ad-scene variant=split dur=7s color=#38BDF8 desc="左右分栏">01 / DESCRIBE|02 / 08|写下结构|Agent 编排节奏|timeline · track · component</component>
-    <component id=type src=builtin:ad-scene variant=marquee dur=7s color=#F472B6 desc="跑马字背景">02 / TYPE|03 / 08|文字不是出现|是登场|逐字、逐词、逐行，都跟着帧走</component>
-    <component id=transition src=builtin:ad-scene variant=stagger dur=7s color=#FACC15 desc="错位标题">03 / TRANSITION|04 / 08|切换画面|不必打断情绪|遮罩推进 · 双画面交叠 · 连续运动</component>
-    <component id=focus src=builtin:ad-scene variant=focus dur=7s color=#34D399 desc="聚焦圆">04 / FOCUS|05 / 08|镜头跟着|重点走|缩放、光标与标注，让视线有方向</component>
-    <component id=react src=builtin:ad-scene variant=code dur=7s color=#FB7185 desc="代码卡片">05 / REACT|06 / 08|不够表达？|直接写组件|frame + spring + interpolate + AbsoluteFill</component>
-    <component id=sync src=builtin:ad-scene variant=stack dur=7s color=#60A5FA desc="堆叠卡片">06 / SYNC|07 / 08|脚本、时间轴、播放|始终同步|改完一行，下一帧就能看到</component>
-    <component id=end src=builtin:ad-scene variant=finale dur=7s color=#A78BFA desc="居中收束">BIU|08 / 08|从想法|到成片。|Agent 负责编排，你保留最终决定|hold</component>
+    <component id=open src=builtin:ad-scene variant=hero dur=2s color=#8B5CF6 desc="居中开场">BIU VIDEO|01 / 08|一块内容|也能是一支片|在页面里直接播放、修改、继续创作</component>
+    <component id=describe src=builtin:ad-scene variant=split dur=2s color=#38BDF8 desc="左右分栏">01 / DESCRIBE|02 / 08|写下结构|Agent 编排节奏|timeline · track · component</component>
+    <component id=type src=builtin:ad-scene variant=marquee dur=2s color=#F472B6 desc="跑马字背景">02 / TYPE|03 / 08|文字不是出现|是登场|逐字、逐词、逐行，都跟着帧走</component>
+    <component id=transition src=builtin:ad-scene variant=stagger dur=2s color=#FACC15 desc="错位标题">03 / TRANSITION|04 / 08|切换画面|不必打断情绪|遮罩推进 · 双画面交叠 · 连续运动</component>
+    <component id=focus src=builtin:ad-scene variant=focus dur=2s color=#34D399 desc="聚焦圆">04 / FOCUS|05 / 08|镜头跟着|重点走|缩放、光标与标注，让视线有方向</component>
+    <component id=react src=builtin:ad-scene variant=code dur=2s color=#FB7185 desc="代码卡片">05 / REACT|06 / 08|不够表达？|直接写组件|frame + spring + interpolate + AbsoluteFill</component>
+    <component id=sync src=builtin:ad-scene variant=stack dur=2s color=#60A5FA desc="堆叠卡片">06 / SYNC|07 / 08|脚本、时间轴、播放|始终同步|改完一行，下一帧就能看到</component>
+    <component id=end src=builtin:ad-scene variant=finale dur=2s color=#A78BFA desc="居中收束">BIU|08 / 08|从想法|到成片。|Agent 负责编排，你保留最终决定|hold</component>
   </track>
   <track name=transitions layer=6>
     <component id=wipe-1 src=builtin:ad-wipe at="open.end - 26f" dur=26f color=#8B5CF6 desc="开场到结构" />
@@ -226,6 +226,27 @@ export function clipEnd(clip: { start: number; duration: number }) {
 
 export function projectDuration(project: Project) {
   return project.clips.reduce((max, clip) => Math.max(max, clipEnd(clip)), 0)
+}
+
+export function moveClip(project: Project, clipId: string, targetTrackId: string, start: number) {
+  const source = project.clips.find((clip) => clip.id === clipId)
+  const target = project.tracks.find((track) => track.id === targetTrackId)
+  if (!source || !target) return project
+  const moved: Clip = {
+    ...source,
+    start: Math.max(0, Math.round(start * project.fps) / project.fps),
+    track: target.name,
+    layer: target.layer,
+    follow: '',
+  }
+  const clips = project.clips.map((clip) => (clip.id === clipId ? moved : clip))
+  const tracks = project.tracks.map((track) => {
+    const next = track.clips.filter((clip) => clip.id !== clipId)
+    if (track.id === targetTrackId) next.push(moved)
+    next.sort((a, b) => a.start - b.start || a.duration - b.duration)
+    return { ...track, clips: next }
+  })
+  return { ...project, clips, tracks }
 }
 
 export function clipsAt(project: Project, time: number) {

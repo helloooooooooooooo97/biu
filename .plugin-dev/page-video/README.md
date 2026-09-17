@@ -28,8 +28,8 @@
 :::pageBlock {kind=video plugin=page-video}
 <timeline fps=30 size=1920x1080 background=#191919 description="BIU 动态广告片">
   <track name=scenes layer=3>
-    <component id=open src=builtin:ad-scene variant=hero dur=7s color=#8B5CF6>BIU VIDEO|01 / 02|一块内容|也能是一支片|在页面里直接创作</component>
-    <component id=end src=builtin:ad-scene variant=finale dur=7s color=#A78BFA>BIU|02 / 02|从想法|到成片。|Agent 负责编排|hold</component>
+    <component id=open src=builtin:ad-scene variant=hero dur=2s color=#8B5CF6>BIU VIDEO|01 / 02|一块内容|也能是一支片|在页面里直接创作</component>
+    <component id=end src=builtin:ad-scene variant=finale dur=2s color=#A78BFA>BIU|02 / 02|从想法|到成片。|Agent 负责编排|hold</component>
   </track>
   <track name=transitions layer=6>
     <component src=builtin:ad-wipe at="open.end - 26f" dur=26f color=#8B5CF6 />
