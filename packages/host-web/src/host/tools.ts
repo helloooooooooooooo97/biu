@@ -25,6 +25,7 @@ export function registerWebTools(ctx: Context) {
         },
       },
     },
+    execution: 'parallel',
     execute: async (args, signal) => {
       const queries = collectQueries(args)
       if (!queries.length) throw new Error('query is required')
@@ -49,6 +50,7 @@ export function registerWebTools(ctx: Context) {
       },
       required: ['url'],
     },
+    execution: 'parallel',
     execute: async (args, signal) => presentFetch(await ctx.web.fetch({ url: String(args.url ?? '') }, signal)),
   })
 }

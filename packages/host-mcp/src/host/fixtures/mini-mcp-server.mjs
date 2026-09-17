@@ -1,9 +1,24 @@
 // 按 MCP stdio 规范手写的最小服务器：换行分隔的 JSON-RPC，不是 LSP 的 Content-Length 帧。
 // 用它验证 Biu 这侧确实按规范握手与调用，而不是 SDK 自己跟自己对话。
 const TOOLS = [
-  { name: 'read_file', description: 'read a file', inputSchema: { type: 'object', properties: { path: { type: 'string' } } } },
-  { name: 'read_secret', description: 'read a secret', inputSchema: { type: 'object', properties: {} } },
-  { name: 'write_file', description: 'write a file', inputSchema: { type: 'object', properties: { path: { type: 'string' } } } },
+  {
+    name: 'read_file',
+    description: 'read a file',
+    inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
+    annotations: { readOnlyHint: true, destructiveHint: false },
+  },
+  {
+    name: 'read_secret',
+    description: 'read a secret',
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true, destructiveHint: false },
+  },
+  {
+    name: 'write_file',
+    description: 'write a file',
+    inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
+    annotations: { readOnlyHint: false, destructiveHint: true },
+  },
 ]
 
 function send(message) {

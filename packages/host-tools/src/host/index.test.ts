@@ -25,6 +25,30 @@ test('invoke missing tool fails; unregister drops the name', async () => {
   await assert.rejects(() => ctx.tools.invoke('ping'), /unknown tool: ping/)
 })
 
+test('execution mode defaults to exclusive and can depend on arguments', async () => {
+  const ctx = new Context()
+  await ctx.plugin(tools)
+  ctx.tools.register({
+    name: 'safe',
+    description: 'safe',
+    parameters: { type: 'object', properties: {} },
+    execution: 'parallel',
+    execute: () => 'ok',
+  })
+  ctx.tools.register({
+    name: 'dynamic',
+    description: 'dynamic',
+    parameters: { type: 'object', properties: {} },
+    execution: (args) => (args.readOnly === true ? 'parallel' : 'exclusive'),
+    execute: () => 'ok',
+  })
+
+  assert.equal(ctx.tools.executionMode('safe'), 'parallel')
+  assert.equal(ctx.tools.executionMode('dynamic', { readOnly: true }), 'parallel')
+  assert.equal(ctx.tools.executionMode('dynamic', { readOnly: false }), 'exclusive')
+  assert.equal(ctx.tools.executionMode('gone'), 'exclusive')
+})
+
 test('pre-execute waterfall can deny a call', async () => {
   const ctx = new Context()
   await ctx.plugin(tools)

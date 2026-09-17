@@ -5,8 +5,15 @@ export interface ToolSpec {
   name: string
   description: string
   parameters: Record<string, unknown>
+  /**
+   * parallel：允许与同一批次里的其它并行工具重叠执行。
+   * exclusive / 缺省：作为屏障独占执行，保持既有工具的串行语义。
+   */
+  execution?: ToolExecutionMode | ((args: Record<string, unknown>) => ToolExecutionMode)
   execute: (args: Record<string, unknown>, signal: AbortSignal) => unknown | Promise<unknown>
 }
+
+export type ToolExecutionMode = 'parallel' | 'exclusive'
 
 export type ToolOrigin = 'core' | 'store'
 
@@ -200,6 +207,17 @@ export class ToolsService extends Service {
 
   names() {
     return [...this.tools.keys()].filter((name) => this.visible(name))
+  }
+
+  executionMode(name: string, args: Record<string, unknown> = {}): ToolExecutionMode {
+    const execution = this.tools.get(name)?.execution
+    if (typeof execution !== 'function') return execution ?? 'exclusive'
+    try {
+      return execution(args)
+    } catch {
+      // 调度提示不能改变工具原本的报错路径；判断失败时保守串行。
+      return 'exclusive'
+    }
   }
 
   /** 工具执行中把当前结果推到 UI；无 listener 时为空操作。 */

@@ -164,6 +164,7 @@ export function apply(ctx: Context) {
       type: 'object',
       properties: { all: { type: 'boolean' } },
     },
+    execution: 'parallel',
     execute: (args) =>
       (args.all === true ? skills.list() : skills.summaries()).map((skill) => ({
         id: skill.id,
@@ -182,6 +183,7 @@ export function apply(ctx: Context) {
       properties: { id: { type: 'string' } },
       required: ['id'],
     },
+    execution: 'parallel',
     execute: (args) => skills.read(String(args.id)),
   })
 

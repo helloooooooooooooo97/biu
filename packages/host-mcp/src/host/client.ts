@@ -9,6 +9,12 @@ export type McpToolInfo = {
   name: string
   description: string
   inputSchema?: unknown
+  annotations?: {
+    readOnlyHint?: boolean
+    destructiveHint?: boolean
+    idempotentHint?: boolean
+    openWorldHint?: boolean
+  }
 }
 
 export const CLIENT_INFO = { name: 'biu', version: '0.1.0' } as const
@@ -96,6 +102,7 @@ export class McpConnection {
       name: tool.name,
       description: String(tool.description ?? ''),
       inputSchema: tool.inputSchema,
+      annotations: tool.annotations,
     }))
   }
 

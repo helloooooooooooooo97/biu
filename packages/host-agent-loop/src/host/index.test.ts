@@ -80,6 +80,116 @@ test('loop invokes tools then asks the model again', async () => {
   assert.equal(messages.some((item) => item.role === 'tool' && item.content === 'pong'), true)
 })
 
+test('parallel tools overlap while exclusive tools form barriers', async () => {
+  const { ctx, sessionId } = await spine()
+  const timeline: string[] = []
+  let active = 0
+  let maxActive = 0
+  const registerParallel = (name: string) =>
+    ctx.tools.register({
+      name,
+      description: name,
+      parameters: { type: 'object', properties: {} },
+      execution: 'parallel',
+      execute: async () => {
+        timeline.push(`${name}:start`)
+        active += 1
+        maxActive = Math.max(maxActive, active)
+        await new Promise((resolve) => setTimeout(resolve, 30))
+        active -= 1
+        timeline.push(`${name}:end`)
+        return name
+      },
+    })
+  registerParallel('p1')
+  registerParallel('p2')
+  registerParallel('p3')
+  ctx.tools.register({
+    name: 'exclusive',
+    description: 'exclusive',
+    parameters: { type: 'object', properties: {} },
+    execute: () => {
+      timeline.push('exclusive:start')
+      timeline.push('exclusive:end')
+      return 'exclusive'
+    },
+  })
+  const loop = new AgentLoop(
+    ctx,
+    new ScriptedLlm([
+      {
+        content: null,
+        toolCalls: [
+          { id: '1', name: 'p1', arguments: '{}' },
+          { id: '2', name: 'p2', arguments: '{}' },
+          { id: '3', name: 'exclusive', arguments: '{}' },
+          { id: '4', name: 'p3', arguments: '{}' },
+        ],
+      },
+      { content: 'done', toolCalls: [] },
+    ]),
+    sessionId,
+    new AbortController().signal,
+  )
+
+  const turn = await loop.run([{ kind: 'wake', text: 'run' }])
+  assert.equal(maxActive, 2)
+  assert.ok(timeline.indexOf('exclusive:start') > timeline.indexOf('p1:end'))
+  assert.ok(timeline.indexOf('exclusive:start') > timeline.indexOf('p2:end'))
+  assert.ok(timeline.indexOf('p3:start') > timeline.indexOf('exclusive:end'))
+  assert.deepEqual(turn.steps.map((item) => item.name), ['p1', 'p2', 'exclusive', 'p3'])
+
+  const events = (await ctx.sessions.require(sessionId)).events
+  const calls = events.filter((event) => event.type === 'tool/call' && ['1', '2', '3', '4'].includes(event.id))
+  const results = events.filter((event) => event.type === 'tool/result' && ['1', '2', '3', '4'].includes(event.id))
+  assert.equal(calls.length, 4)
+  assert.equal(results.length, 4)
+  assert.ok(Math.max(...calls.map((event) => event.seq)) < Math.min(...results.map((event) => event.seq)))
+})
+
+test('one parallel tool failure does not discard sibling results', async () => {
+  const { ctx, sessionId } = await spine()
+  ctx.tools.register({
+    name: 'bad',
+    description: 'bad',
+    parameters: { type: 'object', properties: {} },
+    execution: 'parallel',
+    execute: () => {
+      throw new Error('broken')
+    },
+  })
+  ctx.tools.register({
+    name: 'good',
+    description: 'good',
+    parameters: { type: 'object', properties: {} },
+    execution: 'parallel',
+    execute: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      return 'kept'
+    },
+  })
+  const loop = new AgentLoop(
+    ctx,
+    new ScriptedLlm([
+      {
+        content: null,
+        toolCalls: [
+          { id: '1', name: 'bad', arguments: '{}' },
+          { id: '2', name: 'good', arguments: '{}' },
+        ],
+      },
+      { content: 'done', toolCalls: [] },
+    ]),
+    sessionId,
+    new AbortController().signal,
+  )
+
+  const turn = await loop.run([{ kind: 'wake', text: 'run' }])
+  assert.equal(turn.steps[0]?.ok, false)
+  assert.match(turn.steps[0]?.detail ?? '', /broken/)
+  assert.deepEqual(turn.steps[1], { name: 'good', ok: true, detail: 'kept' })
+})
+
 test('missing tool is a step failure, not a crash', async () => {
   const { ctx, sessionId } = await spine()
   const loop = new AgentLoop(

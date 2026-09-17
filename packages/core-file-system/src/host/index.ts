@@ -1491,6 +1491,7 @@ export function apply(ctx: Context) {
       },
       required: ['path'],
     },
+    execution: 'parallel',
     execute: (args) => {
       const path = String(args.path)
       return withInspectorReveal(ctx, path, () =>
@@ -1511,6 +1512,7 @@ export function apply(ctx: Context) {
     name: 'db_read',
     description: '读取 File System 路径：表返回列式列表 columns/rows（不含 schema，结构用 db_stat），记录返回该行 JSON（空字段省略，不含 content 正文，正文用 db_content）。',
     parameters: PATH_PARAM,
+    execution: 'parallel',
     execute: (args) =>
       withInspectorReveal(ctx, String(args.path), () => db.read(String(args.path)).then((body) => agentDbCompact.query(body))),
   })
@@ -1599,6 +1601,7 @@ export function apply(ctx: Context) {
     name: 'db_stat',
     description: agentDbCompact.statBlurb,
     parameters: PATH_PARAM,
+    execution: 'parallel',
     execute: (args) => Promise.resolve(db.stat(String(args.path))).then((body) => agentDbCompact.query(body)),
   })
   ctx.tools.register({
@@ -1641,6 +1644,7 @@ export function apply(ctx: Context) {
       },
       required: ['path'],
     },
+    execution: (args) => (resolveContentCommand(args) === 'view' ? 'parallel' : 'exclusive'),
     execute: (args) =>
       withInspectorReveal(ctx, String(args.path), () =>
         db.editContent(String(args.path), args).then((body) => agentDbCompact.query(body)),
@@ -1675,6 +1679,10 @@ export function apply(ctx: Context) {
         etag: { type: 'string', description: 'write 必填，等于上次 view 的 etag' },
       },
       required: ['path'],
+    },
+    execution: (args) => {
+      const command = String(args.command ?? (args.value != null || args.from ? 'write' : 'view'))
+      return command === 'view' ? 'parallel' : 'exclusive'
     },
     execute: (args) =>
       withInspectorReveal(ctx, String(args.path), () =>
