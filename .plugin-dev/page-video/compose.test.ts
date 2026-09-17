@@ -82,6 +82,27 @@ test('old video root and unknown tags fail closed', () => {
   assert.equal(compileSafe('<timeline><track><clip dur=1s /></track></timeline>').ok, false)
 })
 
+test('component and AbsoluteFill share the timeline', () => {
+  const project = compileScript(`<timeline fps=30 size=960x540>
+  <track name=main>
+    <title dur=2s>标签照旧</title>
+    <AbsoluteFill dur=3s at=2s />
+    <component src=hero.js dur=3s at=2s desc="自定义 React 组件" />
+  </track>
+</timeline>`)
+  assert.equal(project.clips[0].kind, 'title')
+  assert.equal(project.clips.find((clip) => clip.kind === 'fill')?.start, 2)
+  assert.equal(project.clips.find((clip) => clip.kind === 'fill')?.bg, 'transparent')
+  const hero = project.clips.find((clip) => clip.kind === 'component')!
+  assert.equal(hero.src, 'hero.js')
+  assert.equal(hero.start, 2)
+  assert.equal(hero.description, '自定义 React 组件')
+  const dumped = dumpScript(project)
+  assert.match(dumped, /<AbsoluteFill /)
+  assert.match(dumped, /<component /)
+  assert.equal(compileSafe('<timeline><track><component dur=1s /></track></timeline>').ok, false)
+})
+
 test('serial gap and relative at expressions', () => {
   const project = compileScript(`<timeline fps=30>
   <track name=voice>

@@ -20,6 +20,8 @@ export type ClipKind =
   | 'stamp'
   | 'gap'
   | 'solid'
+  | 'component'
+  | 'fill'
 
 export type Transition = 'cut' | 'fade' | 'slide' | 'dissolve'
 export type Align = 'left' | 'center' | 'right'
@@ -205,6 +207,8 @@ const CLIP_KINDS = new Set<ClipKind>([
   'stamp',
   'gap',
   'solid',
+  'component',
+  'fill',
 ])
 const VISUAL = new Set<ClipKind>(['title', 'scene', 'media', 'solid'])
 const TRANS: Transition[] = ['cut', 'fade', 'slide', 'dissolve']
@@ -233,6 +237,9 @@ const ITEM_ALIAS: Record<string, ClipKind | 'transition'> = {
   bars: 'solid',
   gradient: 'solid',
   transition: 'transition',
+  component: 'component',
+  fill: 'fill',
+  absolutefill: 'fill',
 }
 
 export function emptyProject(script = SAMPLE_SCRIPT): Project {
@@ -577,7 +584,7 @@ function clipFrom(kind: ClipKind, attrs: Attrs, text: string, start: number, id:
   const y = parseUnit(attrs.y, 0.5, 0, 1)
   const dir = parseDir(attrs.dir)
   const name = String(attrs.id ?? '').trim()
-  let bg = parseColor(attrs.bg, kind === 'title' ? '#111111' : '#191919')
+  let bg = parseColor(attrs.bg, kind === 'title' ? '#111111' : kind === 'fill' || kind === 'component' ? 'transparent' : '#191919')
   if (kind === 'solid') bg = parseColor(attrs.color ?? attrs.from ?? attrs.bg, '#000000')
   return {
     id: name || id,
@@ -591,7 +598,7 @@ function clipFrom(kind: ClipKind, attrs: Attrs, text: string, start: number, id:
     description: parseDescription(attrs),
     bg,
     ink: parseColor(attrs.ink ?? attrs.to, '#f6f2ea'),
-    src: String(attrs.src ?? '').trim(),
+    src: String(attrs.src ?? attrs.from ?? '').trim(),
     fit: parseFit(attrs.fit),
     trans: parseTrans(attrs.trans),
     cx: parseUnit(attrs.cx, 0.5, 0, 1),
@@ -741,6 +748,9 @@ function diagnose(project: Project): Diagnostic[] {
     if ((clip.kind === 'media' || clip.kind === 'pip' || clip.kind === 'image' || clip.kind === 'audio') && !clip.src) {
       out.push({ level: 'warn', message: `素材缺失: <${clip.kind} id=${clip.id}>` })
     }
+    if (clip.kind === 'component' && !clip.src && !clip.text.trim()) {
+      out.push({ level: 'warn', message: `组件缺失源码: <component id=${clip.id}>` })
+    }
   }
   const captions = live.filter((clip) => clip.kind === 'caption').sort((a, b) => a.start - b.start)
   for (let i = 1; i < captions.length; i++) {
@@ -823,6 +833,7 @@ export function compileScript(source: string): Project {
     clipIndex += 1
     const clip = clipFrom(kind, attrs, text, Number.NaN, uid('c', clipIndex), project.fps, track, layer)
     if (needsSrc(kind) && !clip.src && !attrs.use) throw new ScriptError(kind, `<${kind}> needs src`)
+    if (kind === 'component' && !clip.src && !String(text ?? '').trim()) throw new ScriptError(kind, '<component> needs src or inline source')
     if (clip.name) {
       if (named.has(clip.name)) throw new ScriptError(clip.name, `duplicate id ${clip.name}`)
       named.set(clip.name, clip)
@@ -997,7 +1008,7 @@ function attr(key: string, value: string | number | undefined, skip?: string | n
 
 function dumpClip(clip: Clip, serialStart: number) {
   const needAt = Math.abs(clip.start - serialStart) > 0.001
-  const kind = clip.kind === 'media' ? 'clip' : clip.kind
+  const kind = clip.kind === 'media' ? 'clip' : clip.kind === 'fill' ? 'AbsoluteFill' : clip.kind
   const common =
     attr('id', clip.name) +
     attr('dur', fmtTime(clip.duration)) +
@@ -1058,7 +1069,9 @@ function dumpClip(clip: Clip, serialStart: number) {
     clip.kind === 'trim' ||
     clip.kind === 'box' ||
     clip.kind === 'spotlight' ||
-    clip.kind === 'gap'
+    clip.kind === 'gap' ||
+    (clip.kind === 'component' && !clip.text) ||
+    (clip.kind === 'fill' && !clip.text)
   return voidish ? `    <${kind}${common} />` : `    <${kind}${common}>${escapeText(clip.text)}</${kind}>`
 }
 

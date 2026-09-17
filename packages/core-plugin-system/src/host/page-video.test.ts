@@ -35,11 +35,14 @@ test('page-video is a headless page block with tag grammar', async () => {
   assert.match(web, /className="pv-preview"/)
   assert.match(web, /className="pv-embed-script"/)
   assert.match(web, /className="pv-embed-timeline"/)
+  assert.match(web, /function ComponentLayer/)
+  assert.match(web, /AbsoluteFill/)
   assert.match(readme, /<timeline fps=30 size=1920x1080/)
   assert.doesNotMatch(readme, /"script":/)
   assert.match(host, /video_script/)
   assert.match(host, /\/api\/page-video\/compile/)
-  assert.match(readme, /:::pageBlock \{kind=video plugin=page-video/)
+  assert.match(readme, /<component src=hero\.js/)
+  assert.match(readme, /<AbsoluteFill>/)
 })
 
 test('tag script compiles without prose parsing', () => {
