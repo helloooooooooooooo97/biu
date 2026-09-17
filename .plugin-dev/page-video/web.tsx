@@ -1,5 +1,11 @@
 import { createPortal } from 'react-dom'
 import type { ComponentType, DragEvent } from 'react'
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import { xml } from '@codemirror/lang-xml'
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { EditorState } from '@codemirror/state'
+import { EditorView, drawSelection, keymap, lineNumbers } from '@codemirror/view'
+import { tags } from '@lezer/highlight'
 import {
   ArrowUpRightIcon,
   ArrowsPointingInIcon,
@@ -64,7 +70,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v18'
+const STYLE_ID = 'pv-style-v19'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -294,27 +300,8 @@ const STYLE_CSS = `
 .pv-valid{margin-left:auto;display:flex;align-items:center;gap:5px;color:var(--pv-ok)}
 .pv-valid svg,.pv-invalid svg{width:13px;height:13px}
 .pv-invalid{margin-left:auto;display:flex;align-items:center;gap:5px;color:var(--pv-danger)}
-.pv-line-no{
-  position:sticky;left:0;z-index:2;flex:none;width:32px;padding:14px 0 14px 10px;box-sizing:border-box;
-  color:color-mix(in srgb,var(--pv-mute) 55%,transparent);background:var(--pv-panel);text-align:right;white-space:pre;
-  font-family:var(--font-mono);font-size:12px;line-height:1.65;user-select:none;
-}
-.pv-code-wrap{display:flex;align-items:stretch;flex:1;min-height:0;overflow:auto;background:var(--pv-panel)}
-.pv-code-editor{position:relative;flex:1;min-width:0}
-.pv-code-editor:focus-within{background:transparent}
-.pv-code-highlight,.pv-src{
-  box-sizing:border-box;margin:0;border:0;outline:0;resize:none;
-  padding:14px 16px 14px 10px;white-space:pre;tab-size:2;
-  font-family:var(--font-mono);font-size:12px;line-height:1.65;
-}
-.pv-code-highlight{position:relative;overflow:visible;pointer-events:none;color:var(--pv-ink);background:transparent}
-.pv-src{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;z-index:1;background:transparent;color:transparent;caret-color:var(--pv-ink);-webkit-text-fill-color:transparent}
-.pv-src::selection{background:color-mix(in srgb,var(--pv-blue) 24%,transparent)}
-.pv-code-tag{color:var(--dsw-pick,var(--pv-blue));font-weight:600}
-.pv-code-attr{color:var(--dsw-purple,#9065b0)}
-.pv-code-value{color:var(--dsw-ok,#1f8a65)}
-.pv-code-punct{color:var(--pv-mute)}
-.pv-code-text{color:var(--pv-ink)}
+.pv-code-wrap{flex:1;min-height:0;overflow:hidden;background:var(--pv-panel)}
+.pv-code-wrap .cm-editor{height:100%}
 .pv-err,.pv-hint{
   flex:0 0 32px;box-sizing:border-box;display:flex;align-items:center;gap:6px;
   padding:0 12px;border-top:1px solid var(--studio-line);font-size:11px;
@@ -955,52 +942,47 @@ function Stage({ project, time, playing, chrome = 'embed' }: { project: Project;
   )
 }
 
-function highlightTag(tag: string, key: string) {
-  const match = tag.match(/^(<\/?)([A-Za-z_][\w-]*)([\s\S]*?)(\/?>)$/)
-  if (!match) return [React.createElement('span', { className: 'pv-code-text', key }, tag)]
-  const nodes = [
-    React.createElement('span', { className: 'pv-code-punct', key: `${key}-open` }, match[1]),
-    React.createElement('span', { className: 'pv-code-tag', key: `${key}-tag` }, match[2]),
-  ]
-  const attrs = match[3] ?? ''
-  const re = /(\s+)([A-Za-z_][\w-]*)(\s*=\s*)("[^"]*"|'[^']*'|[^\s>]+)/g
-  let cursor = 0
-  let token: RegExpExecArray | null
-  let index = 0
-  while ((token = re.exec(attrs))) {
-    if (token.index > cursor) nodes.push(React.createElement('span', { className: 'pv-code-text', key: `${key}-raw-${index}` }, attrs.slice(cursor, token.index)))
-    nodes.push(token[1])
-    nodes.push(React.createElement('span', { className: 'pv-code-attr', key: `${key}-attr-${index}` }, token[2]))
-    nodes.push(React.createElement('span', { className: 'pv-code-punct', key: `${key}-eq-${index}` }, token[3]))
-    nodes.push(React.createElement('span', { className: 'pv-code-value', key: `${key}-value-${index}` }, token[4]))
-    cursor = token.index + token[0].length
-    index += 1
-  }
-  if (cursor < attrs.length) nodes.push(React.createElement('span', { className: 'pv-code-text', key: `${key}-tail` }, attrs.slice(cursor)))
-  nodes.push(React.createElement('span', { className: 'pv-code-punct', key: `${key}-close` }, match[4]))
-  return nodes
-}
+const scriptHighlight = HighlightStyle.define([
+  { tag: tags.tagName, color: 'var(--dsw-pick, var(--pv-blue))', fontWeight: '600' },
+  { tag: tags.attributeName, color: 'var(--dsw-purple, #9065b0)' },
+  { tag: tags.attributeValue, color: 'var(--dsw-ok, #1f8a65)' },
+  { tag: tags.string, color: 'var(--dsw-ok, #1f8a65)' },
+  { tag: tags.angleBracket, color: 'var(--pv-mute)' },
+])
 
-function highlightTimelineScript(script: string) {
-  const nodes: unknown[] = []
-  script.split('\n').forEach((line, lineIndex, lines) => {
-    const parts: unknown[] = []
-    const re = /<[^>]*>/g
-    let cursor = 0
-    let tag: RegExpExecArray | null
-    let tagIndex = 0
-    while ((tag = re.exec(line))) {
-      if (tag.index > cursor) parts.push(React.createElement('span', { className: 'pv-code-text', key: `text-${lineIndex}-${tagIndex}` }, line.slice(cursor, tag.index)))
-      parts.push(...highlightTag(tag[0], `tag-${lineIndex}-${tagIndex}`))
-      cursor = tag.index + tag[0].length
-      tagIndex += 1
-    }
-    if (cursor < line.length) parts.push(React.createElement('span', { className: 'pv-code-text', key: `tail-${lineIndex}` }, line.slice(cursor)))
-    nodes.push(React.createElement('span', { key: `line-${lineIndex}` }, parts))
-    if (lineIndex < lines.length - 1) nodes.push('\n')
-  })
-  return nodes
-}
+const scriptTheme = EditorView.theme({
+  '&': {
+    height: '100%',
+    background: 'transparent',
+    color: 'var(--pv-ink)',
+    fontSize: '12px',
+  },
+  '&.cm-editor': { outline: 'none', height: '100%' },
+  '.cm-scroller': {
+    fontFamily: 'var(--font-mono)',
+    lineHeight: '1.65',
+    overflow: 'auto',
+  },
+  '.cm-gutters': {
+    background: 'var(--pv-panel)',
+    border: 'none',
+    color: 'color-mix(in srgb, var(--pv-mute) 55%, transparent)',
+  },
+  '.cm-activeLineGutter': { background: 'transparent', color: 'var(--pv-ink)' },
+  '.cm-content': {
+    caretColor: 'var(--pv-ink)',
+    padding: '14px 16px 14px 8px',
+    minHeight: '100%',
+  },
+  '.cm-cursor': { borderLeftColor: 'var(--pv-ink)' },
+  '.cm-content ::selection': {
+    background: 'color-mix(in srgb, var(--pv-blue) 24%, transparent)',
+    color: 'inherit',
+  },
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionLayer .cm-selectionBackground': {
+    background: 'color-mix(in srgb, var(--pv-blue) 24%, transparent)',
+  },
+})
 
 function ScriptField({
   value,
@@ -1013,53 +995,69 @@ function ScriptField({
   onLive: (next: string) => void
   readOnly: boolean
 }) {
-  const [draft, setDraft] = useState(value)
+  const host = useRef<HTMLDivElement | null>(null)
+  const viewRef = useRef<EditorView | null>(null)
   const focused = useRef(false)
-  const draftRef = useRef(draft)
   const valueRef = useRef(value)
   const onCommitRef = useRef(onCommit)
-  const lineCount = Math.max(1, draft.split('\n').length)
-  draftRef.current = draft
+  const onLiveRef = useRef(onLive)
   valueRef.current = value
   onCommitRef.current = onCommit
+  onLiveRef.current = onLive
   useEffect(() => {
-    if (!focused.current) setDraft(value)
+    const el = host.current
+    if (!el) return
+    const view = new EditorView({
+      parent: el,
+      state: EditorState.create({
+        doc: value,
+        extensions: [
+          history(),
+          drawSelection(),
+          lineNumbers(),
+          xml(),
+          syntaxHighlighting(scriptHighlight),
+          scriptTheme,
+          keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+          EditorState.readOnly.of(readOnly),
+          EditorView.editable.of(!readOnly),
+          EditorView.domEventHandlers({
+            keydown(event) {
+              event.stopPropagation()
+              return false
+            },
+            focus() {
+              focused.current = true
+            },
+            blur() {
+              focused.current = false
+              const next = view.state.doc.toString()
+              if (next !== valueRef.current) onCommitRef.current(next)
+            },
+          }),
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) return
+            onLiveRef.current(update.state.doc.toString())
+          }),
+        ],
+      }),
+    })
+    viewRef.current = view
+    return () => {
+      const next = view.state.doc.toString()
+      if (next !== valueRef.current) onCommitRef.current(next)
+      view.destroy()
+      viewRef.current = null
+    }
+  }, [readOnly])
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view || focused.current) return
+    const current = view.state.doc.toString()
+    if (current === value) return
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } })
   }, [value])
-  useEffect(
-    () => () => {
-      if (draftRef.current !== valueRef.current) onCommitRef.current(draftRef.current)
-    },
-    [],
-  )
-  return (
-    <div className="pv-code-wrap">
-      <div className="pv-line-no" aria-hidden>{Array.from({ length: lineCount }, (_, i) => i + 1).join('\n')}</div>
-      <div className="pv-code-editor">
-        <pre className="pv-code-highlight" aria-hidden>{highlightTimelineScript(draft)}</pre>
-        <textarea
-          data-testid="page-video-script"
-          data-page-block-capture=""
-          spellCheck={false}
-          readOnly={readOnly}
-          className="pv-src"
-          value={draft}
-          onFocus={() => {
-            focused.current = true
-          }}
-          onBlur={() => {
-            focused.current = false
-            if (draftRef.current !== valueRef.current) onCommitRef.current(draftRef.current)
-          }}
-          onKeyDown={(event) => event.stopPropagation()}
-          onChange={(event) => {
-            const next = event.currentTarget.value
-            setDraft(next)
-            onLive(next)
-          }}
-        />
-      </div>
-    </div>
-  )
+  return <div ref={host} className="pv-code-wrap" data-testid="page-video-script" data-page-block-capture="" />
 }
 
 type TimelineTrack = {
