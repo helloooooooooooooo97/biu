@@ -15,41 +15,21 @@ import {
   SAMPLE_SCRIPT,
 } from './compose.ts'
 
-test('default sample walks through video-block features one at a time', () => {
+test('default sample is a frame-driven React advertisement', () => {
   const result = compileSafe(SAMPLE_SCRIPT)
   assert.equal(result.ok, true, result.ok ? '' : result.error)
   if (!result.ok) return
   const project = result.project
-  assert.match(SAMPLE_SCRIPT, />BIU 视频块介绍<\/title>/)
-  assert.match(SAMPLE_SCRIPT, />在页面里制作视频<\/title>/)
-  assert.match(SAMPLE_SCRIPT, />用标签描述画面<\/title>/)
-  assert.match(SAMPLE_SCRIPT, />多条轨道一起工作<\/title>/)
-  assert.match(SAMPLE_SCRIPT, />从脚本，到成片。<\/title>/)
-  assert.ok(project.tracks.length >= 4)
-  assert.ok(project.clips.filter((clip) => clip.kind === 'title').every((clip) => clip.bg === '#191919'))
-  assert.ok(project.clips.some((clip) => clip.kind === 'zoom' && clip.follow === 'cam'))
-  assert.ok(project.clips.some((clip) => clip.kind === 'cursor' && clip.follow === 'point'))
-  assert.ok(project.clips.some((clip) => clip.kind === 'arrow' && clip.follow === 'call'))
-  assert.ok(project.clips.some((clip) => clip.kind === 'box' && clip.follow === 'frame'))
-  assert.ok(project.clips.some((clip) => clip.kind === 'blur' && clip.follow === 'privacy'))
-  assert.ok(project.clips.some((clip) => clip.kind === 'spotlight' && clip.follow === 'focus'))
-  assert.ok(project.clips.some((clip) => clip.kind === 'text' && clip.unit === 'char' && clip.follow === 'type'))
+  assert.match(SAMPLE_SCRIPT, /src=builtin:biu-ad/)
+  assert.match(SAMPLE_SCRIPT, /React 逐帧文字与遮罩转场/)
+  assert.equal(project.background, '#191919')
+  assert.equal(project.tracks.length, 1)
+  assert.equal(project.clips.length, 1)
+  assert.equal(project.clips[0]?.kind, 'component')
+  assert.equal(project.clips[0]?.src, 'builtin:biu-ad')
+  assert.equal(project.clips[0]?.duration, 56)
   assert.doesNotMatch(SAMPLE_SCRIPT, /demo\/hero\.mp4/)
-  assert.ok(projectDuration(project) > 55)
-  const captions = project.clips.filter((clip) => clip.kind === 'caption').sort((a, b) => a.start - b.start)
-  for (let i = 1; i < captions.length; i++) {
-    assert.ok(clipEnd(captions[i - 1]!) <= captions[i]!.start + 1 / project.fps)
-  }
-  const demoKinds = new Set(['cursor', 'arrow', 'box', 'blur', 'spotlight', 'zoom', 'text'])
-  const demos = project.clips.filter((item) => demoKinds.has(item.kind))
-  for (let i = 0; i < demos.length; i++) {
-    for (let j = i + 1; j < demos.length; j++) {
-      const a = demos[i]!
-      const b = demos[j]!
-      const overlap = Math.min(clipEnd(a), clipEnd(b)) - Math.max(a.start, b.start)
-      assert.ok(overlap <= 1 / project.fps, `${a.kind} overlaps ${b.kind}`)
-    }
-  }
+  assert.equal(projectDuration(project), 56)
   assert.doesNotMatch(formatReport(project), /字幕重叠/)
   assert.doesNotMatch(formatReport(project), /[✅⚠️⛔ℹ️]/)
 })

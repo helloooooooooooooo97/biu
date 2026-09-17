@@ -26,29 +26,15 @@
 
 ```md
 :::pageBlock {kind=video plugin=page-video}
-<timeline fps=30 size=1920x1080 background=#191919 description="约一分钟的新手介绍">
-  <track name=main>
-    <title id=open dur=4.4s bg=#191919 ink=#f6f2ea enter="fadeUp">BIU 视频块介绍</title>
-    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.4s desc="左推" />
-    <title id=page dur=4.2s>在页面里制作视频</title>
-    <title id=script dur=4.4s>用标签描述画面</title>
-    <title id=type dur=4.6s>动态文字</title>
-    <title id=cam dur=4.2s>聚焦重要内容</title>
-    <title id=point dur=4.2s>还原操作过程</title>
-    <title id=end dur=4.2s enter="pop">从脚本，到成片。</title>
-  </track>
-  <track name=copy layer=4>
-    <caption follow=open offset="0.3s,-0.8s">不用离开 BIU，一块内容就是一条可播放的视频</caption>
-    <text follow=type offset="0.4s,-0.85s" unit=char stagger=0.055s>每一个字，都能按节奏登场</text>
-    <caption follow=end offset="0.35s,-0.3s">Agent 负责编排，你随时审阅、修改和播放</caption>
-  </track>
-  <track name=fx layer=5>
-    <zoom follow=cam offset="0.25s,-0.8s" cx=0.5 cy=0.48 depth=1.42 />
-    <cursor follow=point offset="0.35s,-0.8s" x=.16 y=.76 x2=.7 y2=.38 click=1.5s />
+<timeline fps=30 size=1920x1080 background=#191919 description="BIU 动态广告片">
+  <track name=motion layer=3>
+    <component id=biu-ad src=builtin:biu-ad dur=56s desc="React 逐字弹簧与斜切遮罩转场" />
   </track>
 </timeline>
 :::
 ```
+
+`builtin:biu-ad` 是默认的逐帧 React 广告片组件；它用 `spring`、`interpolate` 和 `AbsoluteFill` 完成八幕连续文字、光晕、网格漂移与遮罩转场，不依赖外部素材。
 
 先跑 `video_script`：它会返回覆盖时长、重叠、空镜、follow 失效等诊断，再 `db_content` 写入围栏。
 
