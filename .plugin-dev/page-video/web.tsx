@@ -1154,6 +1154,7 @@ function parseClipDragId(id: string) {
 const keepClipInPlace: Modifier = ({ transform }) => ({ ...transform, x: 0, y: 0 })
 
 function timelineModifiers(args: Parameters<Modifier>[0]) {
+  if (!args.active) return args.transform
   const job = parseClipDragId(String(args.active.id))
   if (job?.type === 'resize') return keepClipInPlace({ ...args, transform: restrictToHorizontalAxis(args) })
   return keepClipInPlace(args)
