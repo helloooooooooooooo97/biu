@@ -46,6 +46,7 @@ test('page-video owns its headless block, studio, and timeline UI contracts', as
   assert.match(src, /useDraggable/)
   assert.match(src, /onDragMove/)
   assert.match(src, /keepClipInPlace/)
+  assert.match(src, /if \(!args\.active\) return args\.transform/)
   assert.match(src, /pv-clip-handle::after/)
   assert.match(src, /pv-clip-handle\.is-active::after/)
   assert.doesNotMatch(src, /application\/x-page-video-clip/)
