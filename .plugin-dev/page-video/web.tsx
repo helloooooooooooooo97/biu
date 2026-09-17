@@ -64,7 +64,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v17'
+const STYLE_ID = 'pv-style-v18'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -204,7 +204,6 @@ const STYLE_CSS = `
 .pv-embed-timeline .pv-rail{border-top:0}
 .pv-embed-script{border-top:1px solid var(--pv-line);max-height:240px;display:flex;flex-direction:column;min-height:0;background:var(--pv-panel)}
 .pv-embed-script .pv-code-wrap{min-height:168px}
-.pv-embed-script .pv-code-editor{min-height:168px}
 .pv-embed-script .pv-err,.pv-embed-script .pv-hint{border-top:1px solid var(--pv-line)}
 .pv-icon{
   width:28px;height:28px;border:0;border-radius:5px;background:transparent;
@@ -296,20 +295,20 @@ const STYLE_CSS = `
 .pv-valid svg,.pv-invalid svg{width:13px;height:13px}
 .pv-invalid{margin-left:auto;display:flex;align-items:center;gap:5px;color:var(--pv-danger)}
 .pv-line-no{
-  flex:none;width:32px;padding:14px 0 14px 10px;box-sizing:border-box;
+  position:sticky;left:0;z-index:2;flex:none;width:32px;padding:14px 0 14px 10px;box-sizing:border-box;
   color:color-mix(in srgb,var(--pv-mute) 55%,transparent);background:var(--pv-panel);text-align:right;white-space:pre;
-  font-family:var(--font-mono);font-size:12px;line-height:1.65;user-select:none;overflow:hidden;
+  font-family:var(--font-mono);font-size:12px;line-height:1.65;user-select:none;
 }
-.pv-code-wrap{display:flex;flex:1;min-height:0}
-.pv-code-editor{position:relative;flex:1;min-width:0;min-height:0;background:var(--pv-panel)}
-.pv-code-editor:focus-within{background:var(--pv-bg)}
+.pv-code-wrap{display:flex;align-items:stretch;flex:1;min-height:0;overflow:auto;background:var(--pv-panel)}
+.pv-code-editor{position:relative;flex:1;min-width:0}
+.pv-code-editor:focus-within{background:transparent}
 .pv-code-highlight,.pv-src{
-  position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;margin:0;border:0;outline:0;resize:none;
-  padding:14px 16px 14px 10px;white-space:pre;tab-size:2;overflow:auto;
+  box-sizing:border-box;margin:0;border:0;outline:0;resize:none;
+  padding:14px 16px 14px 10px;white-space:pre;tab-size:2;
   font-family:var(--font-mono);font-size:12px;line-height:1.65;
 }
-.pv-code-highlight{pointer-events:none;color:var(--pv-ink);background:transparent;overflow:hidden}
-.pv-src{z-index:1;background:transparent;color:transparent;caret-color:var(--pv-ink);-webkit-text-fill-color:transparent}
+.pv-code-highlight{position:relative;overflow:visible;pointer-events:none;color:var(--pv-ink);background:transparent}
+.pv-src{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;z-index:1;background:transparent;color:transparent;caret-color:var(--pv-ink);-webkit-text-fill-color:transparent}
 .pv-src::selection{background:color-mix(in srgb,var(--pv-blue) 24%,transparent)}
 .pv-code-tag{color:var(--dsw-pick,var(--pv-blue));font-weight:600}
 .pv-code-attr{color:var(--dsw-purple,#9065b0)}
@@ -1019,7 +1018,6 @@ function ScriptField({
   const draftRef = useRef(draft)
   const valueRef = useRef(value)
   const onCommitRef = useRef(onCommit)
-  const highlightRef = useRef<HTMLPreElement | null>(null)
   const lineCount = Math.max(1, draft.split('\n').length)
   draftRef.current = draft
   valueRef.current = value
@@ -1037,7 +1035,7 @@ function ScriptField({
     <div className="pv-code-wrap">
       <div className="pv-line-no" aria-hidden>{Array.from({ length: lineCount }, (_, i) => i + 1).join('\n')}</div>
       <div className="pv-code-editor">
-        <pre ref={highlightRef} className="pv-code-highlight" aria-hidden>{highlightTimelineScript(draft)}</pre>
+        <pre className="pv-code-highlight" aria-hidden>{highlightTimelineScript(draft)}</pre>
         <textarea
           data-testid="page-video-script"
           data-page-block-capture=""
@@ -1051,12 +1049,6 @@ function ScriptField({
           onBlur={() => {
             focused.current = false
             if (draftRef.current !== valueRef.current) onCommitRef.current(draftRef.current)
-          }}
-          onScroll={(event) => {
-            const highlight = highlightRef.current
-            if (!highlight) return
-            highlight.scrollTop = event.currentTarget.scrollTop
-            highlight.scrollLeft = event.currentTarget.scrollLeft
           }}
           onKeyDown={(event) => event.stopPropagation()}
           onChange={(event) => {
@@ -1078,7 +1070,7 @@ type TimelineTrack = {
 }
 
 const TRACK_ORDER: Clip['kind'][] = ['title', 'scene', 'solid', 'media', 'fill', 'component', 'zoom', 'text', 'caption', 'arrow', 'blur', 'box', 'spotlight', 'stamp', 'cursor', 'pip', 'image', 'speed', 'trim', 'gap', 'audio']
-const TRACK_HEIGHT = 28
+const TRACK_HEIGHT = 32
 const TRACK_ICONS: Record<Clip['kind'], ComponentType<{ className?: string }>> = {
   title: Bars3BottomLeftIcon,
   scene: RectangleStackIcon,
@@ -1290,7 +1282,7 @@ function ClipBar({
       title={`${clip.kind} · ${fmtClock(clip.start)}–${fmtClock(clip.start + clip.duration)}`}
       style={{
         left: `${(clip.start / duration) * 100}%`,
-        top: `${row * TRACK_HEIGHT + 5}px`,
+        top: `${row * TRACK_HEIGHT + (TRACK_HEIGHT - 22) / 2}px`,
         width: `${Math.max((clip.duration / duration) * 100, 2.4)}%`,
       }}
     >
