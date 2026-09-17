@@ -55,7 +55,7 @@ Biu puts pages, tables, tasks, skills, plugins, and agents themselves in one wor
 
 This shared data and operation model is the **File System**. It is not a file browser bolted onto an app; it is the foundation of the workbench. Every table, page, block, and record has an addressable path.
 
-> “Good artists copy; great artists steal.” Steve Jobs famously quoted this line, commonly attributed to Picasso. Biu follows its underlying idea of absorbing and recombining inspiration: it does not reproduce product features, but borrows foundational models and combines them into its own system:
+As Picasso famously said, "Good artists copy, great artists steal." Rather than copying surface features, Biu draws foundational models from four classic systems and recombines them into its own core architecture:
 
 | Borrowed from | What |
 |---|---|
