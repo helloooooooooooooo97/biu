@@ -64,7 +64,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v15'
+const STYLE_ID = 'pv-style-v16'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -214,6 +214,7 @@ const STYLE_CSS = `
 .pv-icon:hover{background:var(--pv-hover);color:var(--pv-ink)}
 .pv-icon:active{background:color-mix(in srgb,var(--pv-ink) 10%,transparent);transform:scale(.96)}
 .pv-icon:focus-visible,.pv-lanes:focus-visible{outline:2px solid var(--dsw-pick-stroke,var(--pv-blue));outline-offset:-2px}
+.pv-player-controls .pv-icon:focus-visible{outline:0;background:var(--pv-hover);color:var(--pv-ink)}
 .pv-studio{
   --pv-ink:var(--dsw-label,#37352f);
   --pv-mute:var(--dsw-label-3,#787774);

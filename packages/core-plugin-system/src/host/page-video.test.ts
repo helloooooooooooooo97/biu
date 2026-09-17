@@ -35,6 +35,7 @@ test('page-video is a headless page block with tag grammar', async () => {
   assert.match(web, /appearance:none;-webkit-appearance:none/)
   assert.match(web, /::-webkit-slider-runnable-track/)
   assert.match(web, /::-moz-range-progress/)
+  assert.match(web, /\.pv-player-controls \.pv-icon:focus-visible\{outline:0/)
   assert.match(web, /background:var\(--dsw-sidebar,#202020\)/)
   assert.match(web, /className="pv-preview"/)
   assert.match(web, /className="pv-embed-script"/)
