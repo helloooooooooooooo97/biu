@@ -60,7 +60,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v11'
+const STYLE_ID = 'pv-style-v13'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -88,17 +88,20 @@ const STYLE_CSS = `
   background:var(--pv-bg);
 }
 .pv-stage{
-  display:block;position:relative;width:100%;aspect-ratio:16/9;margin:0;overflow:hidden;background:transparent;
+  display:block;position:relative;width:100%;margin:0;overflow:hidden;background:transparent;
 }
-.pv-embed .pv-stage,.pv-embed .pv-screen,.pv-embed .pv-cam{border-radius:0}
+.pv-stage-fit{
+  position:absolute;top:0;left:0;transform-origin:top left;
+}
+.pv-embed .pv-stage,.pv-embed .pv-screen,.pv-embed .pv-cam,.pv-embed .pv-stage-fit{border-radius:0}
 .pv-screen{position:absolute;inset:0;overflow:hidden;isolation:isolate;perspective:1400px}
 .pv-cam{position:absolute;inset:0;transform-origin:center center;will-change:transform;transform-style:preserve-3d}
 .pv-layer{position:absolute;inset:0}
 .pv-frame{position:absolute;inset:0;display:flex;flex-direction:column;padding:9% 10%;box-sizing:border-box}
-.pv-title{font-size:clamp(22px,4.4vw,40px);font-weight:700;letter-spacing:-.03em;line-height:1.15;width:100%}
+.pv-title{font-size:64px;font-weight:700;letter-spacing:-.03em;line-height:1.15;width:100%}
 .pv-caption{
   position:absolute;left:8%;right:8%;bottom:10%;z-index:3;
-  text-align:center;font-size:clamp(14px,2.1vw,20px);font-weight:600;
+  text-align:center;font-size:32px;font-weight:600;
   text-shadow:0 1px 10px rgba(0,0,0,.4);
 }
 .pv-fill,.pv-component{
@@ -241,10 +244,10 @@ const STYLE_CSS = `
 }
 .pv-preview{
   display:flex;flex-direction:column;min-width:0;min-height:0;
-  width:min(100cqw,calc((100cqh - 38px) * 16 / 9));
+  width:min(100cqw,calc((100cqh - 38px) * var(--pv-ar, 1.77778)));
 }
 .pv-canvas-frame{
-  position:relative;width:100%;aspect-ratio:16/9;height:auto;
+  position:relative;width:100%;aspect-ratio:var(--pv-ar, 1.77778);height:auto;
   background:#191919;border-radius:5px 5px 0 0;overflow:hidden;
   box-shadow:var(--dsw-shadow-lv2,0 8px 24px color-mix(in srgb,var(--pv-ink) 12%,transparent));
 }
@@ -746,6 +749,20 @@ function ComponentLayer({ clip, time, project }: { clip: Clip; time: number; pro
 }
 
 function Stage({ project, time, playing, chrome = 'embed' }: { project: Project; time: number; playing: boolean; chrome?: 'embed' | 'studio' }) {
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const [scale, setScale] = useState(1)
+  useEffect(() => {
+    const el = hostRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const apply = () => {
+      const next = el.clientWidth / Math.max(1, project.width)
+      setScale(Number.isFinite(next) && next > 0 ? next : 1)
+    }
+    apply()
+    const observer = new ResizeObserver(apply)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [project.width])
   const active = clipsAt(project, time)
   const bases = active.filter((clip) => clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media' || clip.kind === 'solid')
   const captions = active.filter((clip) => clip.kind === 'caption')
@@ -772,15 +789,25 @@ function Stage({ project, time, playing, chrome = 'embed' }: { project: Project;
   const wallpaper = project.wallpaper ? `url("${assetUrl(project.wallpaper)}")` : undefined
   return (
     <div
+      ref={hostRef}
       className="pv-stage"
       data-testid="page-video-stage"
       style={{
+        aspectRatio: `${project.width} / ${project.height}`,
         backgroundColor: project.background,
         backgroundImage: wallpaper,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
     >
+      <div
+        className="pv-stage-fit"
+        style={{
+          width: project.width,
+          height: project.height,
+          transform: `scale(${scale})`,
+        }}
+      >
       <div
         className="pv-screen"
         style={{
@@ -856,6 +883,7 @@ function Stage({ project, time, playing, chrome = 'embed' }: { project: Project;
       {audio.map((clip) => (
         <AudioEffect key={clip.id} clip={clip} time={time} playing={playing} />
       ))}
+      </div>
     </div>
   )
 }
@@ -1212,7 +1240,7 @@ function Studio({
       </div>
       <div className="pv-studio-body">
         <div className="pv-canvas">
-          <div className="pv-preview">
+          <div className="pv-preview" style={{ ['--pv-ar' as string]: String(project.width / Math.max(1, project.height)) }}>
             <div className="pv-canvas-frame">
               <Stage project={project} time={time} playing={playing} chrome="studio" />
             </div>
