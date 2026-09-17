@@ -24,34 +24,20 @@
 
 ```md
 :::pageBlock {kind=video plugin=page-video}
-<timeline fps=30 size=1920x1080 background=#111111 padding=4 radius=12 description="演示片：串行主轨、并行标注、转场、跟读、关键帧">
-  <composition id=sting>
-    <track>
-      <title dur=1.2s bg=#0f172a ink=#f8fafc enter="pop" align=center valign=middle>I am Biu.</title>
-    </track>
-  </composition>
+<timeline fps=30 size=1920x1080 background=#191919 description="视频块介绍：标签时间轴，Agent 写剪辑">
   <track name=main>
-    <clip use=sting />
-    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.5s ease="easeInOut" desc="左推" />
-    <title id=open dur=2.4s bg=#111111 ink=#f6f2ea enter="fadeUp" desc="开场">Motion is syntax.</title>
-    <gap dur=0.4s />
-    <scene dur=3s bg=#1a1a2e enter="fade">Agent writes the cut.</scene>
-    <transition kind=dissolve dur=0.6s />
-    <clip src=demo/hero.mp4 in=0.4s dur=4.8s speed=1.15 zoom="1→1.35→1.12" enter="fade+scale(1.06→1)">
-      <mask shape=ellipse x=.5 y=.5 w=.92 h=.86 />
-    </clip>
+    <title id=open dur=2.8s bg=#191919 ink=#f6f2ea enter="fadeUp" desc="Biu Agent OS">视频块</title>
+    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.45s desc="左推" />
+    <title dur=3.2s bg=#191919 ink=#f6f2ea desc="声明式剪辑">Agent 写标签，页面实时合成。</title>
+    <transition kind=dissolve dur=0.5s />
+    <scene id=fs dur=3.4s bg=#111111 ink=#ece7dc desc="一切皆文件">视频也是路径上的一块。</scene>
+    <title id=end dur=3.4s bg=#191919 ink=#f6f2ea enter="pop" desc="同一套动词">I am Biu.</title>
   </track>
-  <track name=fx layer=4>
-    <text at=1.4s dur=2.2s enter="fade+move(y:+24)" unit=char stagger=0.05s>Write once. Play everywhere.</text>
-    <caption follow=vo offset="-0.15s,+0.45s">Are you a timeline?</caption>
-    <cursor at=4.8s dur=2.6s x=.16 y=.78 x2=.74 y2=.32 click=1.4s />
-    <pip src=demo/face.mp4 at=9s dur=3.2s x=.84 y=.78 w=.18 h=.26 shape=circle />
-  </track>
-  <track name=voice>
-    <audio id=vo src=demo/vo.mp3 dur=2.1s volume=0.9 />
-  </track>
-  <track name=music kind=audio>
-    <audio src=demo/bed.mp3 dur=18s volume=0.28 />
+  <track name=copy layer=4>
+    <text at=0.45s dur=2.1s enter="fade+move(y:+16)" unit=word stagger=0.08s>page · plugin · path</text>
+    <text at=3.5s dur=2.7s enter="fade+move(y:+20)" unit=char stagger=0.045s>&lt;timeline&gt; 轨内串行 · 轨间并行</text>
+    <caption follow=fs offset="-0.08s,+0.35s">不是调色台。是 db_content 里的一块。</caption>
+    <caption follow=end offset="-0.12s,+0.45s">人和 Agent，同一套动词。</caption>
   </track>
 </timeline>
 :::

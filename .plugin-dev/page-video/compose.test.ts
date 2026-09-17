@@ -14,19 +14,21 @@ import {
   SAMPLE_SCRIPT,
 } from './compose.ts'
 
-test('default sample compiles a full feature reel', () => {
+test('default sample is a video-block intro for Biu', () => {
   const result = compileSafe(SAMPLE_SCRIPT)
   assert.equal(result.ok, true, result.ok ? '' : result.error)
   if (!result.ok) return
   const project = result.project
-  assert.ok(project.tracks.length >= 6)
-  assert.ok(project.clips.some((clip) => clip.kind === 'title'))
+  assert.match(SAMPLE_SCRIPT, /视频块/)
+  assert.match(SAMPLE_SCRIPT, /Biu Agent OS/)
+  assert.match(SAMPLE_SCRIPT, /db_content/)
+  assert.ok(project.tracks.length >= 4)
+  assert.ok(project.clips.some((clip) => clip.kind === 'title' && clip.text.includes('视频块')))
   assert.ok(project.clips.some((clip) => clip.kind === 'zoom'))
-  assert.ok(project.clips.some((clip) => clip.kind === 'caption' && clip.follow === 'vo'))
-  assert.ok(project.clips.some((clip) => clip.kind === 'pip'))
-  assert.ok(project.clips.some((clip) => clip.kind === 'audio'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'caption' && clip.follow === 'fs'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'cursor'))
   assert.ok(project.clips.some((clip) => clip.unit === 'char'))
-  assert.ok(project.clips.some((clip) => clip.mask?.shape === 'ellipse'))
+  assert.doesNotMatch(SAMPLE_SCRIPT, /demo\/hero\.mp4/)
   assert.ok(projectDuration(project) > 10)
 })
 

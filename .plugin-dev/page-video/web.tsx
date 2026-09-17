@@ -709,7 +709,7 @@ function Stage({ project, time, playing, chrome = 'embed' }: { project: Project;
                     textAlign: clip.align,
                   }}
                 >
-                  <div className="pv-kicker">{clip.kind}</div>
+                  <div className="pv-kicker">{clip.description || clip.kind}</div>
                   <div className="pv-title">{clip.text || '·'}</div>
                 </div>
               </div>
