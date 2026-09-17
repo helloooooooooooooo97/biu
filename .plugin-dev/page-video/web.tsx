@@ -1571,7 +1571,10 @@ function isLegacySampleScript(value: unknown) {
     value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
     value.includes('src=builtin:ad-wipe') &&
     !value.includes('src=builtin:ad-transition')
-  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd || genericTimelineOpening || uniformTransitionAd
+  const pageAttachedBgm =
+    value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
+    (value.includes('src=assets/bgm.mp3') || value.includes('src=builtin:ad-beat'))
+  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd || genericTimelineOpening || uniformTransitionAd || pageAttachedBgm
 }
 
 function Editor({
