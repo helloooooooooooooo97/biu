@@ -363,8 +363,8 @@ function fmtClock(t: number) {
 }
 
 function assetUrl(src: string) {
-  if (src === AD_BEAT_SRC) return adBeatUrl()
   const file = src.replace(/^assets\//, '')
+  if (src === AD_BEAT_SRC || file === 'ad-beat.wav') return adBeatUrl()
   if (!file) return ''
   if (/^https?:/i.test(file) || file.startsWith('/')) return file
   return `/api/page/file/${encodeURIComponent(file)}`
@@ -1577,7 +1577,7 @@ function isLegacySampleScript(value: unknown) {
     value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
     value.includes('src=builtin:ad-scene') &&
     value.includes('src=builtin:ad-transition') &&
-    !value.includes('src=builtin:ad-beat')
+    !value.includes('src=assets/ad-beat.wav')
   return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd || genericTimelineOpening || uniformTransitionAd || silentTimelineAd
 }
 
@@ -1598,7 +1598,7 @@ function Editor({
   )
   const [liveScript, setLiveScript] = useState(parsed.script)
   const [open, setOpen] = useState(false)
-  const [tracksOpen, setTracksOpen] = useState(false)
+  const [tracksOpen, setTracksOpen] = useState(true)
   const timelineId = useId()
   useEffect(() => {
     if (migrateSample && writable) update({ script: SAMPLE_SCRIPT })

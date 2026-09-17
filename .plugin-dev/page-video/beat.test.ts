@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { test } from 'vitest'
 import {
   AD_BEAT_DURATION,
@@ -8,11 +10,13 @@ import {
   buildAdBeatWav,
 } from './beat.ts'
 
-test('builtin ad beat is an original 16s wav drum bed', () => {
+test('builtin ad beat is an original 16s wav drum bed', async () => {
   const wav = buildAdBeatWav()
+  const onDisk = await readFile(resolve(import.meta.dirname, 'assets/ad-beat.wav'))
   assert.equal(AD_BEAT_SRC, 'builtin:ad-beat')
   assert.equal(String.fromCharCode(...wav.subarray(0, 4)), 'RIFF')
   assert.equal(String.fromCharCode(...wav.subarray(8, 12)), 'WAVE')
+  assert.equal(onDisk.equals(Buffer.from(wav)), true)
   const samples = (wav.length - 44) / 2
   assert.equal(samples, AD_BEAT_SAMPLE_RATE * AD_BEAT_DURATION)
   let peak = 0
