@@ -568,22 +568,22 @@ Biu 里它可以**落下来**：变成一页、一个块、一个技能、一张
 
 ## 产品演示
 
-三图覆盖同一套工作面：任务看板、执行席的回合轨迹与 token 用量。
+三张图展示同一套基础能力：共享的表、可运行的组件，以及精准的上下文。
 
 <p align="center">
-  <img src="docs/demo/task.png" alt="任务看板：多 Agent 通过 task_report 协作" width="880" />
+  <img src="docs/demo/file-system.png" alt="File System：会话表与页面表并排打开" width="880" />
 </p>
-<p align="center"><sub><code>task.png</code> — 多 Agent 在看板上汇报：chat 中进度回传，队列内待办 / 已完成保持对应</sub></p>
+<p align="center"><sub><code>file-system.png</code> — 会话和页面都是同一工作区里的普通表，共用同一套操作方式与地址空间；分栏视图让不同集合可以并排查看</sub></p>
 
 <p align="center">
-  <img src="docs/demo/trajectory.jpg" alt="检查器轨迹：模型 / 工具逐步做了什么" width="880" />
+  <img src="docs/demo/component.png" alt="Component：嵌入页面的视频块与其专用实时编辑器" width="880" />
 </p>
-<p align="center"><sub><code>trajectory.jpg</code> — 检查器「轨迹」以事件投影还原单回合完整过程：模型输出、tool 调用、审批、派工</sub></p>
+<p align="center"><sub><code>component.png</code> — 页面组合可复用的视频块；同一个组件也能在专用编辑器中打开，同时呈现预览、时间线、源码声明与终端</sub></p>
 
 <p align="center">
-  <img src="docs/demo/usage.jpg" alt="用量：本回合 token 怎么花的" width="880" />
+  <img src="docs/demo/context.png" alt="上下文：将工作区项目显式附加到 Agent 对话" width="880" />
 </p>
-<p align="center"><sub><code>usage.jpg</code> — 检查器「用量」展示 token 消耗；<code>task_report</code> 会固化当回合用量</sub></p>
+<p align="center"><sub><code>context.png</code> — 页面、会话、插件等工作区项目以可移除的上下文标签加入输入框，让 Agent 精确收到这次对话所选的资料</sub></p>
 
 ---
 

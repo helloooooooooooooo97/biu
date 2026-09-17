@@ -568,22 +568,22 @@ The system therefore grows round after round instead of resetting to zero each t
 
 ## Demo
 
-Three screenshots of the same work surface: the task board, a worker's turn trajectory, and token usage.
+Three screenshots show the same primitives at work: shared tables, live components, and precise context.
 
 <p align="center">
-  <img src="docs/demo/task.png" alt="Task board: multiple agents coordinating through task_report" width="880" />
+  <img src="docs/demo/file-system.png" alt="File System: session and page tables opened side by side" width="880" />
 </p>
-<p align="center"><sub><code>task.png</code> — agents reporting on the board: progress relayed in chat, queued and completed items kept in step</sub></p>
+<p align="center"><sub><code>file-system.png</code> — sessions and pages are ordinary tables in one workspace, with the same controls and address space; split views keep different collections visible side by side</sub></p>
 
 <p align="center">
-  <img src="docs/demo/trajectory.jpg" alt="Inspector trajectory: what the model and tools did, step by step" width="880" />
+  <img src="docs/demo/component.png" alt="Component: video blocks embedded in a page and opened in their live editor" width="880" />
 </p>
-<p align="center"><sub><code>trajectory.jpg</code> — the inspector's Trajectory tab reconstructs a full turn from event projections: model output, tool calls, approvals, dispatches</sub></p>
+<p align="center"><sub><code>component.png</code> — a page composes reusable video blocks; the same component opens in a dedicated editor with its preview, timeline, source declaration, and terminal</sub></p>
 
 <p align="center">
-  <img src="docs/demo/usage.jpg" alt="Usage: how this turn's tokens were spent" width="880" />
+  <img src="docs/demo/context.png" alt="Context: workspace items explicitly attached to an agent conversation" width="880" />
 </p>
-<p align="center"><sub><code>usage.jpg</code> — the inspector's Usage tab shows token spend; <code>task_report</code> pins the turn's usage</sub></p>
+<p align="center"><sub><code>context.png</code> — pages, sessions, plugins, and other workspace items become removable context chips in the composer, so the agent receives exactly the material selected for the conversation</sub></p>
 
 ---
 
