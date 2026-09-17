@@ -123,8 +123,24 @@ export type Project = {
 export type Camera = { scale: number; cx: number; cy: number; rx: number; ry: number; rz: number }
 
 export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919 description="BIU 动态广告片：React 逐帧文字与遮罩转场">
-  <track name=motion layer=3>
-    <component id=biu-ad src=builtin:biu-ad dur=56s desc="八幕连续广告片；逐字弹簧、网格漂移、色彩光晕、斜切遮罩转场" />
+  <track name=scenes layer=3>
+    <component id=open src=builtin:ad-scene dur=7s color=#8B5CF6 desc="开场">BIU VIDEO|01 / 08|一块内容|也能是一支片|在页面里直接播放、修改、继续创作</component>
+    <component id=describe src=builtin:ad-scene dur=7s color=#38BDF8 desc="声明结构">01 / DESCRIBE|02 / 08|写下结构|Agent 编排节奏|timeline · track · component</component>
+    <component id=type src=builtin:ad-scene dur=7s color=#F472B6 desc="动态文字">02 / TYPE|03 / 08|文字不是出现|是登场|逐字、逐词、逐行，都跟着帧走</component>
+    <component id=transition src=builtin:ad-scene dur=7s color=#FACC15 desc="转场">03 / TRANSITION|04 / 08|切换画面|不必打断情绪|遮罩推进 · 双画面交叠 · 连续运动</component>
+    <component id=focus src=builtin:ad-scene dur=7s color=#34D399 desc="聚焦">04 / FOCUS|05 / 08|镜头跟着|重点走|缩放、光标与标注，让视线有方向</component>
+    <component id=react src=builtin:ad-scene dur=7s color=#FB7185 desc="React 组件">05 / REACT|06 / 08|不够表达？|直接写组件|frame + spring + interpolate + AbsoluteFill</component>
+    <component id=sync src=builtin:ad-scene dur=7s color=#60A5FA desc="同步">06 / SYNC|07 / 08|脚本、时间轴、播放|始终同步|改完一行，下一帧就能看到</component>
+    <component id=end src=builtin:ad-scene dur=7s color=#A78BFA desc="收束">BIU|08 / 08|从想法|到成片。|Agent 负责编排，你保留最终决定|hold</component>
+  </track>
+  <track name=transitions layer=6>
+    <component id=wipe-1 src=builtin:ad-wipe at="open.end - 26f" dur=26f color=#8B5CF6 desc="开场到结构" />
+    <component id=wipe-2 src=builtin:ad-wipe at="describe.end - 26f" dur=26f color=#38BDF8 desc="结构到文字" />
+    <component id=wipe-3 src=builtin:ad-wipe at="type.end - 26f" dur=26f color=#F472B6 desc="文字到转场" />
+    <component id=wipe-4 src=builtin:ad-wipe at="transition.end - 26f" dur=26f color=#FACC15 desc="转场到聚焦" />
+    <component id=wipe-5 src=builtin:ad-wipe at="focus.end - 26f" dur=26f color=#34D399 desc="聚焦到 React" />
+    <component id=wipe-6 src=builtin:ad-wipe at="react.end - 26f" dur=26f color=#FB7185 desc="React 到同步" />
+    <component id=wipe-7 src=builtin:ad-wipe at="sync.end - 26f" dur=26f color=#60A5FA desc="同步到收束" />
   </track>
 </timeline>
 `

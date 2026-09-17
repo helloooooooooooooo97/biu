@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { DEFAULT_AD_COMPONENT_SOURCE } from './default-ad.ts'
+import { DEFAULT_AD_SCENE_SOURCE, DEFAULT_AD_WIPE_SOURCE } from './default-ad.ts'
 import { compileComponentSource, interpolate, makeAbsoluteFill, spring } from './runtime.ts'
 
 const React = {
@@ -68,30 +68,41 @@ test('named default export wins over helper components declared first', () => {
   assert.deepEqual(node.children, ['composition'])
 })
 
-test('built-in BIU advertisement compiles and renders deterministically', () => {
-  const view = compileComponentSource(DEFAULT_AD_COMPONENT_SOURCE, React)
-  assert.match(DEFAULT_AD_COMPONENT_SOURCE, /const titleLines = lines\.map/)
-  assert.match(DEFAULT_AD_COMPONENT_SOURCE, /flexDirection:"column"/)
-  assert.doesNotMatch(DEFAULT_AD_COMPONENT_SOURCE, /React\.createElement\("br"/)
-  for (const atom of ['Grid', 'Glow', 'Meta', 'KineticTitle', 'Note', 'Progress', 'Wipe']) {
-    assert.match(DEFAULT_AD_COMPONENT_SOURCE, new RegExp(`function ${atom}\\(`))
+test('built-in advertisement scene and wipe render as independent components', () => {
+  const sceneView = compileComponentSource(DEFAULT_AD_SCENE_SOURCE, React)
+  const wipeView = compileComponentSource(DEFAULT_AD_WIPE_SOURCE, React)
+  assert.match(DEFAULT_AD_SCENE_SOURCE, /const titleLines = lines\.map/)
+  assert.match(DEFAULT_AD_SCENE_SOURCE, /flexDirection:"column"/)
+  assert.doesNotMatch(DEFAULT_AD_SCENE_SOURCE, /React\.createElement\("br"/)
+  for (const atom of ['Grid', 'Glow', 'Meta', 'KineticTitle', 'Note', 'Progress']) {
+    assert.match(DEFAULT_AD_SCENE_SOURCE, new RegExp(`function ${atom}\\(`))
   }
-  const render = (time: number) =>
-    view({
+  const renderScene = (time: number) =>
+    sceneView({
       frame: Math.round(time * 30),
       time,
-      progress: time / 56,
-      durationInFrames: 1680,
+      progress: time / 7,
+      durationInFrames: 210,
       fps: 30,
       width: 1920,
       height: 1080,
       interpolate,
       spring,
       AbsoluteFill: makeAbsoluteFill(React.createElement),
+      content: '03 / TRANSITION|04 / 08|切换画面|不必打断情绪|连续运动',
+      color: '#FACC15',
     }) as { props: { style?: { background?: string } }; children: unknown[] }
-  const opening = render(0)
-  const transition = render(6.5)
+  const opening = renderScene(0)
+  const settled = renderScene(5)
   assert.equal(opening.props.style?.background, '#191919')
-  assert.ok(Array.isArray(opening.children[0]) && opening.children[0].length >= 6)
-  assert.ok(Array.isArray(transition.children[0]) && transition.children[0].length >= 6)
+  assert.ok(Array.isArray(opening.children[0]) && opening.children[0].length >= 5)
+  assert.ok(Array.isArray(settled.children[0]) && settled.children[0].length >= 5)
+  const wipe = wipeView({
+    progress: 0.5,
+    color: '#FACC15',
+    interpolate,
+    AbsoluteFill: makeAbsoluteFill(React.createElement),
+  } as never) as { props: { style?: { background?: string; left?: string } } }
+  assert.equal(wipe.props.style?.background, '#FACC15')
+  assert.equal(wipe.props.style?.left, '50%')
 })

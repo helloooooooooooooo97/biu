@@ -52,7 +52,7 @@ import {
   type Clip,
   type Project,
 } from './compose.ts'
-import { DEFAULT_AD_COMPONENT_SOURCE } from './default-ad.ts'
+import { DEFAULT_AD_SCENE_SOURCE, DEFAULT_AD_WIPE_SOURCE } from './default-ad.ts'
 import { compileComponentSource, interpolate, makeAbsoluteFill, spring, type FrameProps } from './runtime.ts'
 
 const React = globalThis.React
@@ -684,8 +684,10 @@ function ComponentLayer({ clip, time, project }: { clip: Clip; time: number; pro
     const load = async () => {
       try {
         let source = clip.text
-        if (clip.src === 'builtin:biu-ad') {
-          source = DEFAULT_AD_COMPONENT_SOURCE
+        if (clip.src === 'builtin:ad-scene' || clip.src === 'builtin:biu-ad') {
+          source = DEFAULT_AD_SCENE_SOURCE
+        } else if (clip.src === 'builtin:ad-wipe') {
+          source = DEFAULT_AD_WIPE_SOURCE
         } else if (clip.src) {
           const res = await fetch(assetUrl(clip.src), { cache: 'no-store' })
           if (!res.ok) throw new Error(`无法读取组件 ${clip.src}`)
@@ -729,6 +731,11 @@ function ComponentLayer({ clip, time, project }: { clip: Clip; time: number; pro
     interpolate,
     spring,
     AbsoluteFill: makeAbsoluteFill(React.createElement.bind(React)),
+    id: clip.name || clip.id,
+    content: clip.text,
+    description: clip.description,
+    color: clip.color,
+    background: clip.bg,
   }
   return (
     <div
@@ -1314,7 +1321,11 @@ function isLegacySampleScript(value: unknown) {
     value.includes('<title id=open') &&
     value.includes('<title id=compile') &&
     !value.includes('src=builtin:biu-ad')
-  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour
+  const singleComponentAd =
+    value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
+    value.includes('src=builtin:biu-ad') &&
+    !value.includes('src=builtin:ad-scene')
+  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd
 }
 
 function Editor({
