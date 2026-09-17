@@ -26,6 +26,7 @@ test('default sample walks through video-block features one at a time', () => {
   assert.match(SAMPLE_SCRIPT, />多条轨道一起工作<\/title>/)
   assert.match(SAMPLE_SCRIPT, />从脚本，到成片。<\/title>/)
   assert.ok(project.tracks.length >= 4)
+  assert.ok(project.clips.filter((clip) => clip.kind === 'title').every((clip) => clip.bg === '#191919'))
   assert.ok(project.clips.some((clip) => clip.kind === 'zoom' && clip.follow === 'cam'))
   assert.ok(project.clips.some((clip) => clip.kind === 'cursor' && clip.follow === 'point'))
   assert.ok(project.clips.some((clip) => clip.kind === 'arrow' && clip.follow === 'call'))

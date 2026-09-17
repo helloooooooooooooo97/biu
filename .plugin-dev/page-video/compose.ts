@@ -124,33 +124,33 @@ export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919
   <track name=main>
     <title id=open dur=4.4s bg=#191919 ink=#f6f2ea enter="fadeUp" align=center valign=middle desc="开场">BIU 视频块介绍</title>
     <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.4s desc="左推" />
-    <title id=page dur=4.2s bg=#202c3d ink=#f6f2ea align=center valign=middle desc="页面块">在页面里制作视频</title>
+    <title id=page dur=4.2s bg=#191919 ink=#f6f2ea align=center valign=middle desc="页面块">在页面里制作视频</title>
     <transition kind=dissolve dur=0.4s />
     <title id=script dur=4.4s bg=#191919 ink=#f6f2ea align=center valign=middle desc="声明式脚本">用标签描述画面</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=tracks dur=4.4s bg=#202020 ink=#f6f2ea align=center valign=middle desc="时间轴">多条轨道一起工作</title>
+    <title id=tracks dur=4.4s bg=#191919 ink=#f6f2ea align=center valign=middle desc="时间轴">多条轨道一起工作</title>
     <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.45s desc="左推转场" />
-    <title id=cut dur=4.2s bg=#273449 ink=#f6f2ea align=center valign=middle desc="转场">画面自然衔接</title>
+    <title id=cut dur=4.2s bg=#191919 ink=#f6f2ea align=center valign=middle desc="转场">画面自然衔接</title>
     <transition kind=dissolve dur=0.45s desc="叠化转场" />
     <title id=motion dur=4.4s bg=#191919 ink=#f6f2ea enter="fade+scale(0.92→1)" align=center valign=middle desc="组合动效">组合基础动效</title>
     <transition kind=dissolve dur=0.4s />
     <title id=type dur=4.6s bg=#191919 ink=#f6f2ea align=center valign=middle desc="逐字文字">动态文字</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=cam dur=4.2s bg=#202020 ink=#f6f2ea align=center valign=middle desc="镜头缩放">聚焦重要内容</title>
+    <title id=cam dur=4.2s bg=#191919 ink=#f6f2ea align=center valign=middle desc="镜头缩放">聚焦重要内容</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=point dur=4.2s bg=#111111 ink=#ece7dc align=center valign=middle desc="光标动画">还原操作过程</title>
+    <title id=point dur=4.2s bg=#191919 ink=#f6f2ea align=center valign=middle desc="光标动画">还原操作过程</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=call dur=4s bg=#111111 ink=#ece7dc align=center valign=middle desc="箭头标注">指出画面重点</title>
+    <title id=call dur=4s bg=#191919 ink=#f6f2ea align=center valign=middle desc="箭头标注">指出画面重点</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=frame dur=4s bg=#111111 ink=#ece7dc align=center valign=middle desc="框选标注">圈出关键区域</title>
+    <title id=frame dur=4s bg=#191919 ink=#f6f2ea align=center valign=middle desc="框选标注">圈出关键区域</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=privacy dur=4s bg=#111111 ink=#ece7dc align=center valign=middle desc="模糊遮挡">隐藏敏感信息</title>
+    <title id=privacy dur=4s bg=#191919 ink=#f6f2ea align=center valign=middle desc="模糊遮挡">隐藏敏感信息</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=focus dur=4s bg=#111111 ink=#ece7dc align=center valign=middle desc="聚光灯">把视线留在焦点</title>
+    <title id=focus dur=4s bg=#191919 ink=#f6f2ea align=center valign=middle desc="聚光灯">把视线留在焦点</title>
     <transition kind=dissolve dur=0.4s />
     <title id=sub dur=4.2s bg=#191919 ink=#f6f2ea align=center valign=middle desc="跟随字幕">字幕自动对齐片段</title>
     <transition kind=dissolve dur=0.4s />
-    <title id=compile dur=4.4s bg=#202c3d ink=#f6f2ea align=center valign=middle desc="源码与诊断">源码随时可改</title>
+    <title id=compile dur=4.4s bg=#191919 ink=#f6f2ea align=center valign=middle desc="源码与诊断">源码随时可改</title>
     <transition enter="fade" exit="fade" dur=0.4s />
     <title id=end dur=4.2s bg=#191919 ink=#f6f2ea enter="pop" align=center valign=middle desc="收束">从脚本，到成片。</title>
   </track>
