@@ -38,7 +38,6 @@ import {
   clipTransform,
   compileSafe,
   cursorAt,
-  formatReport,
   isVideoSrc,
   maskCss,
   parseProject,
@@ -59,7 +58,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v9'
+const STYLE_ID = 'pv-style-v10'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -268,11 +267,13 @@ const STYLE_CSS = `
 }
 .pv-src:focus{background:var(--pv-bg);box-shadow:inset 2px 0 var(--pv-ink)}
 .pv-err,.pv-hint{
-  flex:0 0 32px;box-sizing:border-box;display:flex;align-items:center;
+  flex:0 0 32px;box-sizing:border-box;display:flex;align-items:center;gap:6px;
   padding:0 12px;border-top:1px solid var(--studio-line);font-size:11px;
 }
 .pv-err{color:var(--pv-danger);background:var(--pv-danger-soft)}
 .pv-hint{color:var(--pv-mute);background:var(--pv-bg)}
+.pv-hint svg{width:13px;height:13px;flex:none;color:var(--pv-ok)}
+.pv-err svg{width:13px;height:13px;flex:none}
 .pv-studio-foot{
   min-height:0;border-top:1px solid var(--studio-line);background:var(--pv-bg);
   display:grid;grid-template-rows:32px minmax(0,1fr);overflow:hidden;
@@ -966,6 +967,23 @@ function PlayerBar({
   )
 }
 
+function CompileLine({ ok, project, error }: { ok: boolean; project: Project; error?: string }) {
+  if (!ok) {
+    return (
+      <div className="pv-err">
+        <ExclamationTriangleIcon className="size-4 shrink-0" />
+        {error}
+      </div>
+    )
+  }
+  return (
+    <div className="pv-hint">
+      <CheckIcon className="size-4 shrink-0" />
+      {project.diagnostics[0]?.message || '编译通过'}
+    </div>
+  )
+}
+
 function Studio({
   project,
   script,
@@ -1098,7 +1116,7 @@ function Studio({
               : <span className="pv-invalid"><ExclamationTriangleIcon className="size-4 shrink-0" />有错误</span>}
           </div>
           <ScriptField value={script} onCommit={onCommit} onLive={onLive} readOnly={!writable} />
-          {compiledOk ? <div className="pv-hint">{formatReport(project).split('\n')[0]}</div> : <div className="pv-err">{error}</div>}
+          <CompileLine ok={compiledOk} project={project} error={error} />
         </div>
       </div>
       <div
@@ -1229,9 +1247,7 @@ function Editor({
                 onLive={setLiveScript}
                 readOnly={!writable}
               />
-              {compiled.ok
-                ? <div className="pv-hint">{formatReport(project).split('\n')[0]}</div>
-                : <div className="pv-err">{compiled.error}</div>}
+              <CompileLine ok={compiled.ok} project={project} error={!compiled.ok ? compiled.error : undefined} />
             </div>
           </>
         ) : null}
