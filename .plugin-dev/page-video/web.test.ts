@@ -13,7 +13,7 @@ test('page-video owns its headless block, studio, and timeline UI contracts', as
   const src = await readFile(resolve(dir, 'web.tsx'), 'utf8')
   const host = await readFile(resolve(dir, 'host.ts'), 'utf8')
   const readme = await readFile(resolve(dir, 'README.md'), 'utf8')
-
+  const runtime = await readFile(resolve(dir, 'runtime.ts'), 'utf8')
   assert.equal(manifest.id, 'page-video')
   assert.equal(manifest.headless, true)
   assert.match(src, /kind: 'video'/)
@@ -100,5 +100,9 @@ test('page-video owns its headless block, studio, and timeline UI contracts', as
   assert.match(readme, /<timeline fps=30 size=1920x1080/)
   assert.match(readme, /<component src=hero\.js/)
   assert.match(readme, /<AbsoluteFill>/)
+  assert.match(readme, /Sucrase/)
+  assert.match(runtime, /from 'sucrase'/)
+  assert.match(runtime, /transforms: \['jsx', 'typescript'\]/)
+  assert.doesNotMatch(runtime, /function transformJsx/)
   assert.doesNotMatch(readme, /"script":/)
 })
