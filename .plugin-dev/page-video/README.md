@@ -34,11 +34,14 @@
   <track name=transitions layer=6>
     <component src=builtin:ad-transition variant=iris at="open.end - 26f" dur=26f color=#8B5CF6 />
   </track>
+  <track name=music kind=audio>
+    <audio src=builtin:ad-beat at=0s dur=16s volume=.72 />
+  </track>
 </timeline>
 :::
 ```
 
-`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景。版式 `variant` 可选 `hero`、`split`、`marquee`、`stagger`、`focus`、`code`、`stack`、`finale`；文字 `motion` 可选 `fade`、`fade-up`、`slide`、`type`、`reveal`、`scale`、`tracking`、`blur`。`builtin:ad-transition` 的 `variant` 可选 `wipe`、`iris`、`split`、`bars`、`flash`、`slide`、`shutter`。顺序、时长、版式、文字动效和转场都由脚本编排。
+`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景。版式 `variant` 可选 `hero`、`split`、`marquee`、`stagger`、`focus`、`code`、`stack`、`finale`；文字 `motion` 可选 `fade`、`fade-up`、`slide`、`type`、`reveal`、`scale`、`tracking`、`blur`。`builtin:ad-transition` 的 `variant` 可选 `wipe`、`iris`、`split`、`bars`、`flash`、`slide`、`shutter`。`builtin:ad-beat` 是内置 **CC0** 鼓点节奏床（120BPM，切镜闪白对齐），不依赖外部版权曲库。顺序、时长、版式、文字动效、转场和配乐都由脚本编排。
 
 先跑 `video_script`：它会返回覆盖时长、重叠、空镜、follow 失效等诊断，再 `db_content` 写入围栏。
 
