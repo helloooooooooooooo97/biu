@@ -59,14 +59,20 @@ function packedMediaName(name: string) {
 }
 
 async function copyPackedMedia(sandbox: string, dest: string) {
-  const names = existsSync(sandbox) ? await readdir(sandbox) : []
-  for (const name of names) {
-    if (!PACKED_MEDIA.test(name)) continue
-    const destName = packedMediaName(name)
-    if (!destName) continue
-    const from = join(sandbox, name)
-    if (!(await stat(from)).isFile()) continue
-    await writeFile(join(dest, destName), await readFile(from))
+  const assetsDest = join(dest, 'assets')
+  mkdirSync(assetsDest, { recursive: true })
+  const fromDirs = [sandbox, join(sandbox, 'assets')]
+  for (const fromDir of fromDirs) {
+    if (!existsSync(fromDir)) continue
+    const names = await readdir(fromDir)
+    for (const name of names) {
+      if (!PACKED_MEDIA.test(name)) continue
+      const destName = packedMediaName(name)
+      if (!destName) continue
+      const from = join(fromDir, name)
+      if (!(await stat(from)).isFile()) continue
+      await writeFile(join(assetsDest, destName), await readFile(from))
+    }
   }
 }
 
@@ -487,7 +493,8 @@ export class PluginStoreService extends Service {
     if (!hostCode && !hasWeb) throw new Error(`plugin ${manifest.id} has neither host nor web`)
     const mod = (hostCode
       ? await importHostFile(hostFile)
-      : { name: manifest.id, apply() {} }) as Plugin & { inject?: string[] }
+      : { name: manifest.id, apply() {} }) as Plugin & { inject?: string[]; setInstallDir?: (dir: string) => void }
+    mod.setInstallDir?.(dir)
     const entry: CatalogEntry = {
       id: manifest.id,
       name: manifest.name,
