@@ -16,6 +16,8 @@
 | `<solid />` `<gradient>` `<bars />` | 生成器素材，不用文件 |
 | `<title>` `<scene>` | 标题卡 / 色块 |
 | 标注 | `<text>` `<caption>` `<arrow>` `<blur>` `<box>` `<spotlight>` `<stamp>` `<cursor>` `<pip>` `<image>` `<zoom>` `<speed>` `<trim>` `<audio>` |
+| `<component>` | React 组件逃生口。`src`/`from` 指向附件；也可内联函数源码 |
+| `<AbsoluteFill>` | 铺满画布的弹性层，时间轴标签与组件内布局都能用 |
 | `<composition id>` | 可复用片段，用 `<clip use=id />` 展开 |
 
 时间：`4s`、`700ms`、`96f`（按 `fps` 换算，内部按帧吸附）。`at="q1.end + 0.7s"` 相对引用。`follow=q1 offset="-0.15s,+0.5s"` 把字幕绑到旁白。`desc` / `description` 是给人和 Agent 的备注，只出现在源码和时间轴上，**不渲染进画面**。
@@ -49,6 +51,18 @@
 ```
 
 先跑 `video_script`：它会返回覆盖时长、重叠、空镜、follow 失效等诊断，再 `db_content` 写入围栏。
+
+## React 组件与 AbsoluteFill
+
+常规剪辑继续用标签。复杂动效用 `<component src=hero.js dur=3s />`：文件经附件/`db_asset` 读取，改完立刻热重载，不 bundle。组件拿到 `frame` `time` `progress` `fps` `width` `height`，以及 `interpolate()` `spring()`。
+
+`<AbsoluteFill>` 铺满画布（`position:absolute; inset:0; display:flex; flex-direction:column`）。时间轴上可与标签混排；组件 JSX 里也可直接写 `<AbsoluteFill>`。无背景时下层会透出。组件抛错只坏自己这一层。
+
+```xml
+<title dur=2s>标签照旧</title>
+<AbsoluteFill dur=3s at=2s />
+<component src=hero.js dur=3s at=2s desc="自定义 React 组件" />
+```
 
 ## 能力（声明式，不是调色台）
 
