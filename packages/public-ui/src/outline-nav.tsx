@@ -70,6 +70,12 @@ export function OutlineNav({
   function hoverRail(event: ReactMouseEvent) {
     keepOpen()
     if (!outlineExpandOn() || !items.length) return
+    const hit = event.target instanceof Element ? event.target.closest('[data-outline-row]') : null
+    const rowId = hit?.getAttribute('data-outline-row')
+    if (rowId) {
+      hoverTick(rowId)
+      return
+    }
     const rail = railRef.current
     if (!rail) {
       hoverTick(items[0]!.id)
@@ -134,7 +140,6 @@ export function OutlineNav({
               key={item.id}
               type="button"
               className={`chat-outline-item${item.robot ? ' is-robot' : ''}${item.level ? ` is-h${item.level}` : ''}${hoverId === item.id ? ' is-active' : ''}`}
-              title={item.text}
               data-outline-row={item.id}
               data-testid={`${testId}-item-${item.id}`}
               onMouseEnter={() => hoverTick(item.id)}

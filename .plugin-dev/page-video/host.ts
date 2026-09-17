@@ -1,5 +1,5 @@
 import type { Context } from 'cordis'
-import { compileSafe } from './compose.ts'
+import { compileSafe, formatReport } from './compose.ts'
 
 export const name = 'page-video'
 export const inject = ['http', 'tools']
@@ -13,19 +13,19 @@ export function apply(ctx: Context) {
       route.send(400, { error: result.error })
       return
     }
-    route.send(200, result.project)
+    route.send(200, { project: result.project, diagnostics: result.project.diagnostics, report: formatReport(result.project) })
   })
 
   ctx.tools.register({
     name: 'video_script',
     description:
-      'Compile an agent-authored page-video <> script. Effects: <video background wallpaper padding radius shadow>, <media in dur speed crop>, <zoom>, <text anim>, <caption>, <arrow>, <blur>, <cursor click>, <pip>, <image>, and <audio>. The frontend live-composites the result; the timeline is read-only. Use tags instead of prose editing instructions.',
+      'Compile an agent-authored page-video <> script. Root is <timeline> with <track> lanes. Motion is atoms composed with + and ;. Supports <clip>, <gap>, <transition>, follow, <animate>/<keyframes>, <component src>, <AbsoluteFill>. No color grading. Returns diagnostics.',
     parameters: {
       type: 'object',
       properties: {
         script: {
           type: 'string',
-          description: 'Full <video>…</video> script using the page-video tag grammar.',
+          description: 'Full <timeline>…</timeline> script. Do not use the old <video> root.',
         },
       },
       required: ['script'],
@@ -34,7 +34,7 @@ export function apply(ctx: Context) {
       const script = String(args.script ?? '')
       const result = compileSafe(script)
       if (!result.ok) return { ok: false, error: result.error }
-      return { ok: true, project: result.project }
+      return { ok: true, project: result.project, diagnostics: result.project.diagnostics, report: formatReport(result.project) }
     },
   })
 }
