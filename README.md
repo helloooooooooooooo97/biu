@@ -10,7 +10,7 @@
 
 A pluggable, self-hosted agent workbench. Humans organize work in the interface; agents read, modify, and keep building on the same content.
 
-**Turn agent output from chat history into reusable, composable, and shareable pages, components, and capabilities.**
+**Accelerating how agents build, store, arrange, compose, and distribute everything they create.**
 
 </div>
 
@@ -20,12 +20,6 @@ A pluggable, self-hosted agent workbench. Humans organize work in the interface;
   <img alt="stars" src="https://img.shields.io/github/stars/helloooooooooooooo97/biu" />
   <img alt="node" src="https://img.shields.io/node/v/cordis" />
 </p>
-
-With Biu, you can:
-
-- manage pages, tables, sessions, and agents in one workspace;
-- compose runnable components such as videos, whiteboards, and code directly into pages;
-- select precise context for agents so they can continue from existing work.
 
 ---
 

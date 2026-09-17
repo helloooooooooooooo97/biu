@@ -10,7 +10,7 @@
 
 一个可插拔、自托管的 Agent 工作台。人在界面中组织工作，Agent 直接读取、修改并继续构建同一份内容。
 
-**让 Agent 的产出不再留在聊天记录里，而是成为可复用、可组合、可分享的页面、组件与能力。**
+**加速构建、存储、排列、组合、分发 Agent 创建的一切。**
 
 </div>
 
@@ -20,12 +20,6 @@
   <img alt="stars" src="https://img.shields.io/github/stars/helloooooooooooooo97/biu" />
   <img alt="node" src="https://img.shields.io/node/v/cordis" />
 </p>
-
-用 Biu，你可以：
-
-- 在同一个工作区管理页面、表格、会话和 Agent；
-- 把视频、画板、代码等可运行组件直接组合进页面；
-- 为 Agent 精确选择上下文，让它在现有成果上继续工作。
 
 ---
 
