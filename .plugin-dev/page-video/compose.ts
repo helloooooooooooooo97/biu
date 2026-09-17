@@ -120,61 +120,30 @@ export type Project = {
 
 export type Camera = { scale: number; cx: number; cy: number; rx: number; ry: number; rz: number }
 
-export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#111111 padding=4 radius=12 description="演示片：串行主轨、并行标注、转场、跟读、关键帧">
-  <composition id=sting>
-    <track>
-      <title dur=1.2s bg=#0f172a ink=#f8fafc enter="pop" align=center valign=middle>I am Biu.</title>
-    </track>
-  </composition>
+export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919 description="视频块介绍：标签时间轴，Agent 写剪辑">
   <track name=main>
-    <clip use=sting />
-    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.5s ease="easeInOut" desc="左推" />
-    <title id=open dur=2.4s bg=#111111 ink=#f6f2ea enter="fadeUp" exit="fade" align=center valign=middle desc="开场">Motion is syntax.</title>
-    <gap dur=0.4s />
-    <scene dur=3s bg=#1a1a2e ink=#ece7dc enter="fade" desc="色块">Agent writes the cut.</scene>
-    <transition kind=dissolve dur=0.6s />
-    <solid color=#0b1220 dur=3.2s desc="底色">
-      <animate prop="opacity" from="0.4" to="1" delay="0s" dur="0.8s" ease="inOut" />
-    </solid>
-    <gradient from=#111827 to=#312e81 dur=2.8s enter="fade" desc="渐变" />
-    <bars dur=1.6s desc="彩条" />
-    <clip src=demo/hero.mp4 in=0.4s dur=4.8s speed=1.15 crop=0.08,0.08,0.84,0.8 zoom="1→1.35→1.12" enter="fade+scale(1.06→1)" ease="easeOut" desc="主画面">
-      <mask shape=ellipse x=.5 y=.5 w=.92 h=.86 />
-      <keyframes prop="rotate">
-        <k at=0s v=0 ease=linear />
-        <k at=2.4s v=1.5 ease=inOut />
-        <k at=4.8s v=0 />
-      </keyframes>
-    </clip>
+    <title id=open dur=2.8s bg=#191919 ink=#f6f2ea enter="fadeUp" align=center valign=middle desc="Biu Agent OS">视频块</title>
+    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.45s ease="easeInOut" desc="左推" />
+    <title dur=3.2s bg=#191919 ink=#f6f2ea align=center valign=middle desc="声明式剪辑">Agent 写标签，页面实时合成。</title>
+    <transition kind=dissolve dur=0.5s />
+    <scene id=fs dur=3.4s bg=#111111 ink=#ece7dc desc="一切皆文件">视频也是路径上的一块。</scene>
+    <transition enter="fade" exit="fade" dur=0.4s />
+    <title id=end dur=3.4s bg=#191919 ink=#f6f2ea enter="pop" align=center valign=middle desc="同一套动词">I am Biu.</title>
   </track>
-  <track name=cam layer=3>
-    <zoom at=2.2s dur=0.9s cx=0.42 cy=0.36 depth=1.7 desc="推近标题" />
-    <zoom at=8.5s dur=1.1s cx=0.62 cy=0.48 depth=1.45 desc="拉到主画面" />
+  <track name=cam layer=2>
+    <zoom at=0.9s dur=0.85s cx=0.5 cy=0.48 depth=1.22 desc="推近开场" />
+    <zoom at=9.6s dur=0.9s cx=0.5 cy=0.5 depth=1.18 desc="收束" />
   </track>
-  <track name=fx layer=4>
-    <text at=1.4s dur=2.2s x=.5 y=.18 w=.8 h=.12 size=28 align=center enter="fade+move(y:+24)" unit=char stagger=0.05s ease="backOut" desc="逐字">Write once. Play everywhere.</text>
-    <caption follow=open offset="-0.12s,+0.4s">Motion is syntax.</caption>
-    <arrow at=5.2s dur=1.8s x=.22 y=.72 x2=.46 y2=.46 color=#7dd3fc width=5 desc="指向" />
-    <box at=5.4s dur=1.6s x=.58 y=.42 w=.22 h=.16 color=#fbbf24 desc="框选" />
-    <blur at=6.2s dur=2s x=.78 y=.22 w=.18 h=.14 amount=18 shape=rounded desc="马赛克敏感区" />
-    <spotlight at=9.2s dur=1.8s x=.5 y=.48 w=.36 h=.28 desc="追光" />
-    <stamp at=9.4s dur=1.4s x=.86 y=.12>LIVE</stamp>
-    <cursor at=4.8s dur=2.6s x=.16 y=.78 x2=.74 y2=.32 click=1.4s size=26 desc="点击" />
-    <pip src=demo/face.mp4 at=9s dur=3.2s x=.84 y=.78 w=.18 h=.26 shape=circle desc="画中画" />
-    <image src=demo/logo.png at=10.2s dur=2s x=.14 y=.14 w=.1 h=.12 enter="pop" desc="角标" />
-    <speed at=10.6s dur=1.2s rate=1.6 desc="变速" />
-    <trim at=0s dur=0.35s top=0.04 desc="遮幅" />
+  <track name=copy layer=4>
+    <text at=0.45s dur=2.1s x=.5 y=.18 w=.82 h=.1 size=18 align=center enter="fade+move(y:+16)" unit=word stagger=0.08s>page · plugin · path</text>
+    <text at=3.5s dur=2.7s x=.5 y=.76 w=.86 h=.12 size=22 align=center enter="fade+move(y:+20)" unit=char stagger=0.045s ease="backOut">&lt;timeline&gt; 轨内串行 · 轨间并行</text>
+    <caption follow=fs offset="-0.08s,+0.35s">不是调色台。是 db_content 里的一块。</caption>
+    <caption follow=end offset="-0.12s,+0.45s">人和 Agent，同一套动词。</caption>
   </track>
-  <track name=voice>
-    <audio id=vo src=demo/vo.mp3 dur=2.1s volume=0.9 />
-    <audio src=demo/vo-b.mp3 dur=1.8s at="vo.end + 0.6s" volume=0.9 />
-  </track>
-  <track name=sub layer=5>
-    <caption follow=vo offset="-0.15s,+0.45s">Are you a timeline?</caption>
-    <caption at="vo.end + 0.45s" dur=1.9s>No. I am a page.</caption>
-  </track>
-  <track name=music kind=audio>
-    <audio src=demo/bed.mp3 dur=18s volume=0.28 />
+  <track name=fx layer=5>
+    <cursor at=6.7s dur=2.5s x=.16 y=.78 x2=.52 y2=.5 click=1.15s size=28 desc="点进页面" />
+    <arrow at=7.15s dur=1.7s x=.2 y=.72 x2=.46 y2=.52 color=#2b7de6 width=4 desc="指向文案" />
+    <box at=7.35s dur=1.5s x=.5 y=.5 w=.56 h=.22 color=#2b7de6 desc="框选标题" />
   </track>
 </timeline>
 `
