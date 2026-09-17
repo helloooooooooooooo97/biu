@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { compileComponentSource, interpolate, makeAbsoluteFill, spring } from './runtime.ts'
+import { compileComponentSource, DEFAULT_AD_COMPONENT_SOURCE, interpolate, makeAbsoluteFill, spring } from './runtime.ts'
 
 const React = {
   createElement: (type: unknown, props: unknown, ...children: unknown[]) => {
@@ -54,4 +54,26 @@ test('component source can layout with AbsoluteFill', () => {
   }) as { type: unknown; props: { style?: { position?: string }; 'data-pv-fill'?: string }; children: unknown[] }
   assert.equal(node.props['data-pv-fill'], '')
   assert.equal(node.props.style?.position, 'absolute')
+})
+
+test('built-in BIU advertisement compiles and renders deterministically', () => {
+  const view = compileComponentSource(DEFAULT_AD_COMPONENT_SOURCE, React)
+  const render = (time: number) =>
+    view({
+      frame: Math.round(time * 30),
+      time,
+      progress: time / 56,
+      durationInFrames: 1680,
+      fps: 30,
+      width: 1920,
+      height: 1080,
+      interpolate,
+      spring,
+      AbsoluteFill: makeAbsoluteFill(React.createElement),
+    }) as { props: { style?: { background?: string } }; children: unknown[] }
+  const opening = render(0)
+  const transition = render(6.5)
+  assert.equal(opening.props.style?.background, '#191919')
+  assert.ok(Array.isArray(opening.children[0]) && opening.children[0].length >= 6)
+  assert.ok(Array.isArray(transition.children[0]) && transition.children[0].length >= 6)
 })
