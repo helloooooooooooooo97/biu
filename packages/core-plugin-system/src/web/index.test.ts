@@ -310,6 +310,8 @@ test('page-video drafts the tag script locally like html source', async () => {
   assert.match(src, /className="pv-player-controls"/)
   assert.match(src, /aria-expanded=\{tracksOpen\}/)
   assert.match(src, /!audioOnly && tracksOpen \? \(/)
+  assert.match(src, /className="pv-embed-script"/)
+  assert.match(src, /className="pv-embed-timeline"/)
   assert.match(src, /clip\.kind !== 'gap'/)
   assert.match(src, /className="pv-audio-scrub"/)
   assert.match(src, /aria-label="进度"/)

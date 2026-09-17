@@ -120,17 +120,61 @@ export type Project = {
 
 export type Camera = { scale: number; cx: number; cy: number; rx: number; ry: number; rz: number }
 
-export const SAMPLE_SCRIPT = `<timeline fps=30 size=1280x720 description="演示片：主轨串行，标注轨并行">
+export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#111111 padding=4 radius=12 description="演示片：串行主轨、并行标注、转场、跟读、关键帧">
+  <composition id=sting>
+    <track>
+      <title dur=1.2s bg=#0f172a ink=#f8fafc enter="pop" align=center valign=middle>I am Biu.</title>
+    </track>
+  </composition>
   <track name=main>
-    <title dur=2.2s bg=#111111 ink=#f6f2ea enter="fadeUp" align=center valign=middle desc="开场标题">Biu Studio</title>
-    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.5s desc="左推" />
-    <scene dur=3.4s bg=#1a1a2e ink=#ece7dc enter="fade" desc="色块场景">Agent-directed video.</scene>
+    <clip use=sting />
+    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.5s ease="easeInOut" desc="左推" />
+    <title id=open dur=2.4s bg=#111111 ink=#f6f2ea enter="fadeUp" exit="fade" align=center valign=middle desc="开场">Motion is syntax.</title>
+    <gap dur=0.4s />
+    <scene dur=3s bg=#1a1a2e ink=#ece7dc enter="fade" desc="色块">Agent writes the cut.</scene>
+    <transition kind=dissolve dur=0.6s />
+    <solid color=#0b1220 dur=3.2s desc="底色">
+      <animate prop="opacity" from="0.4" to="1" delay="0s" dur="0.8s" ease="inOut" />
+    </solid>
+    <gradient from=#111827 to=#312e81 dur=2.8s enter="fade" desc="渐变" />
+    <bars dur=1.6s desc="彩条" />
+    <clip src=demo/hero.mp4 in=0.4s dur=4.8s speed=1.15 crop=0.08,0.08,0.84,0.8 zoom="1→1.35→1.12" enter="fade+scale(1.06→1)" ease="easeOut" desc="主画面">
+      <mask shape=ellipse x=.5 y=.5 w=.92 h=.86 />
+      <keyframes prop="rotate">
+        <k at=0s v=0 ease=linear />
+        <k at=2.4s v=1.5 ease=inOut />
+        <k at=4.8s v=0 />
+      </keyframes>
+    </clip>
   </track>
-  <track name=fx layer=2>
-    <zoom at=2.4s dur=0.8s cx=0.46 cy=0.38 depth=1.7 desc="推近到标题左侧" />
-    <text at=2.7s dur=2s x=.5 y=.5 w=.7 h=.18 size=28 align=center valign=middle enter="fade+move(y:+24)" unit=word stagger=0.12s desc="画面正中的说明文字">Effects are syntax.</text>
-    <arrow at=3s dur=1.8s x=.25 y=.65 x2=.44 y2=.45 color=#7dd3fc width=5 desc="指向标题区域" />
-    <cursor at=2.3s dur=2.4s x=.18 y=.72 x2=.72 y2=.3 click=1.5s size=26 desc="光标滑向按钮并点击" />
+  <track name=cam layer=3>
+    <zoom at=2.2s dur=0.9s cx=0.42 cy=0.36 depth=1.7 desc="推近标题" />
+    <zoom at=8.5s dur=1.1s cx=0.62 cy=0.48 depth=1.45 desc="拉到主画面" />
+  </track>
+  <track name=fx layer=4>
+    <text at=1.4s dur=2.2s x=.5 y=.18 w=.8 h=.12 size=28 align=center enter="fade+move(y:+24)" unit=char stagger=0.05s ease="backOut" desc="逐字">Write once. Play everywhere.</text>
+    <caption follow=open offset="-0.12s,+0.4s">Motion is syntax.</caption>
+    <arrow at=5.2s dur=1.8s x=.22 y=.72 x2=.46 y2=.46 color=#7dd3fc width=5 desc="指向" />
+    <box at=5.4s dur=1.6s x=.58 y=.42 w=.22 h=.16 color=#fbbf24 desc="框选" />
+    <blur at=6.2s dur=2s x=.78 y=.22 w=.18 h=.14 amount=18 shape=rounded desc="马赛克敏感区" />
+    <spotlight at=9.2s dur=1.8s x=.5 y=.48 w=.36 h=.28 desc="追光" />
+    <stamp at=9.4s dur=1.4s x=.86 y=.12>LIVE</stamp>
+    <cursor at=4.8s dur=2.6s x=.16 y=.78 x2=.74 y2=.32 click=1.4s size=26 desc="点击" />
+    <pip src=demo/face.mp4 at=9s dur=3.2s x=.84 y=.78 w=.18 h=.26 shape=circle desc="画中画" />
+    <image src=demo/logo.png at=10.2s dur=2s x=.14 y=.14 w=.1 h=.12 enter="pop" desc="角标" />
+    <speed at=10.6s dur=1.2s rate=1.6 desc="变速" />
+    <trim at=0s dur=0.35s top=0.04 desc="遮幅" />
+  </track>
+  <track name=voice>
+    <audio id=vo src=demo/vo.mp3 dur=2.1s volume=0.9 />
+    <audio src=demo/vo-b.mp3 dur=1.8s at="vo.end + 0.6s" volume=0.9 />
+  </track>
+  <track name=sub layer=5>
+    <caption follow=vo offset="-0.15s,+0.45s">Are you a timeline?</caption>
+    <caption at="vo.end + 0.45s" dur=1.9s>No. I am a page.</caption>
+  </track>
+  <track name=music kind=audio>
+    <audio src=demo/bed.mp3 dur=18s volume=0.28 />
   </track>
 </timeline>
 `
