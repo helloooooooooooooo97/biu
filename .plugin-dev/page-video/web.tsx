@@ -659,24 +659,43 @@ function OverlayEffect({ clip, time, playing }: { clip: Clip; time: number; play
 
 function AudioEffect({ clip, time, playing }: { clip: Clip; time: number; playing: boolean }) {
   const audio = useRef<HTMLAudioElement | null>(null)
+  const lastTick = useRef(time)
   const speed = Math.max(0.1, propAt(clip, 'speed', time, clip.speed))
   const active = time >= clip.start && time < clip.start + clip.duration
   const local = clip.sourceIn + Math.max(0, time - clip.start) * speed
   const volume = clamp01(propAt(clip, 'volume', time, clip.volume))
+  const localRef = useRef(local)
+  localRef.current = local
   useEffect(() => {
     const el = audio.current
     if (!el) return
     el.volume = volume
-    el.playbackRate = speed
-    if (!active) {
-      el.pause()
+    if (Math.abs(el.playbackRate - speed) > 0.01) el.playbackRate = speed
+  }, [volume, speed])
+  useEffect(() => {
+    const el = audio.current
+    if (!el) return
+    if (!active || !playing) {
+      if (!el.paused) el.pause()
+      if (active) el.currentTime = localRef.current
       return
     }
-    if (Math.abs(el.currentTime - local) > 0.12) el.currentTime = local
-    if (playing) void el.play().catch(() => undefined)
-    else el.pause()
-  }, [active, speed, volume, local, playing])
-  return <audio ref={audio} src={assetUrl(clip.src)} preload="auto" />
+    el.currentTime = localRef.current
+    if (el.paused) void el.play().catch(() => undefined)
+  }, [active, playing])
+  useEffect(() => {
+    const el = audio.current
+    const jumped = time + 0.04 < lastTick.current || time - lastTick.current > 0.28
+    lastTick.current = time
+    if (!el) return
+    if (!active) return
+    if (!playing) {
+      if (Math.abs(el.currentTime - local) > 0.04) el.currentTime = local
+      return
+    }
+    if (jumped && Math.abs(el.currentTime - local) > 0.28) el.currentTime = local
+  }, [time, playing, active, local])
+  return <audio ref={audio} src={assetUrl(clip.src)} preload="auto" playsInline />
 }
 
 function clamp01(n: number) {

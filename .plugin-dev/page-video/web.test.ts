@@ -65,7 +65,9 @@ test('page-video owns its headless block, studio, and timeline UI contracts', as
   assert.match(src, /highlight\.scrollTop = event\.currentTarget\.scrollTop/)
 
   assert.match(src, /function ComponentLayer/)
-  assert.match(src, /function FillLayer/)
+  assert.match(src, /function AudioEffect/)
+  assert.match(src, /if \(el.paused\) void el.play/)
+  assert.doesNotMatch(src, /\[active, speed, volume, local, playing\]/)
   assert.match(src, /data-pv-fill/)
   assert.match(src, /from '\.\/runtime\.ts'/)
   assert.match(src, /function isLegacySampleScript/)
