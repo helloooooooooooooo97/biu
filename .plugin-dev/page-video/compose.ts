@@ -145,7 +145,7 @@ export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919
     <component id=transition-7 src=builtin:ad-transition variant=shutter at="sync.end - 26f" dur=26f color=#60A5FA desc="快门" />
   </track>
   <track name=music kind=audio layer=0>
-    <audio id=beat src=builtin:ad-beat at=0s dur=16s volume=.72 desc="120BPM 鼓点节奏床，切镜闪白对齐" />
+    <audio id=bgm src=assets/bgm.mp3 at=0s dur=16s volume=.7 desc="背景音乐（页面附件 bgm.mp3）" />
   </track>
 </timeline>
 `

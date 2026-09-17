@@ -35,13 +35,17 @@
     <component src=builtin:ad-transition variant=iris at="open.end - 26f" dur=26f color=#8B5CF6 />
   </track>
   <track name=music kind=audio>
-    <audio src=builtin:ad-beat at=0s dur=16s volume=.72 />
+    <audio src=assets/bgm.mp3 at=0s dur=16s volume=.7 />
   </track>
 </timeline>
 :::
 ```
 
-`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景。版式 `variant` 可选 `hero`、`split`、`marquee`、`stagger`、`focus`、`code`、`stack`、`finale`；文字 `motion` 可选 `fade`、`fade-up`、`slide`、`type`、`reveal`、`scale`、`tracking`、`blur`。`builtin:ad-transition` 的 `variant` 可选 `wipe`、`iris`、`split`、`bars`、`flash`、`slide`、`shutter`。`builtin:ad-beat` 是内置 **CC0** 鼓点节奏床（120BPM，切镜闪白对齐），不依赖外部版权曲库。顺序、时长、版式、文字动效、转场和配乐都由脚本编排。
+`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景。版式 `variant` 可选 `hero`、`split`、`marquee`、`stagger`、`focus`、`code`、`stack`、`finale`；文字 `motion` 可选 `fade`、`fade-up`、`slide`、`type`、`reveal`、`scale`、`tracking`、`blur`。`builtin:ad-transition` 的 `variant` 可选 `wipe`、`iris`、`split`、`bars`、`flash`、`slide`、`shutter`。音频用 `src=assets/<文件名>` 引用**页面附件**（浏览器按 `/api/page/file/<文件名>` 取），例如 `src=assets/bgm.mp3`；直接用 `https://…` 或 `/api/…` 开头的绝对地址也可以。`at`/`dur`/`volume`/`sourceIn`/`speed` 均可动画。
+
+> 注意：插件只打包代码，音频文件**不会**随插件走 —— 请把音频作为页面附件上传（拖进页面，或 `db_asset write name=bgm.mp3 from=<本地路径>`），再在脚本里用 `assets/bgm.mp3` 引用。老脚本里的 `builtin:ad-beat` 已移除，新建块默认带一条 `assets/bgm.mp3` 音轨。
+
+顺序、时长、版式、文字动效、转场和配乐都由脚本编排。
 
 先跑 `video_script`：它会返回覆盖时长、重叠、空镜、follow 失效等诊断，再 `db_content` 写入围栏。
 
