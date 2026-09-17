@@ -357,6 +357,7 @@ test('page-video drafts the tag script locally like html source', async () => {
   assert.match(src, /appearance:none;-webkit-appearance:none/)
   assert.match(src, /::-webkit-slider-runnable-track/)
   assert.match(src, /::-moz-range-progress/)
+  assert.match(src, /\.pv-player-controls \.pv-icon:focus-visible\{outline:0/)
   assert.doesNotMatch(src, /pv-split:hover,.pv-split\.is-drag\{background:[^}]*pv-blue/)
   assert.doesNotMatch(src, /pv-foot-split:hover,.pv-foot-split\.is-drag\{background:[^}]*pv-blue/)
   assert.doesNotMatch(src, /clamp\(22px,4\.4vw,40px\)/)
