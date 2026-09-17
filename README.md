@@ -8,9 +8,9 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-A pluggable, self-hosted workbench. **Everything is a file system**: its kernel is one abstraction, a single interface for reading and writing data in any domain.
+A pluggable, self-hosted workbench built around one kernel abstraction: **everything is a file system**, exposed through a single interface for reading and writing data in any domain.
 
-**Accelerating how agents build, store, arrange, compose, and distribute everything they create.**
+**A faster way for agents to build, store, organize, compose, and distribute everything they create.**
 
 </div>
 
@@ -21,7 +21,7 @@ A pluggable, self-hosted workbench. **Everything is a file system**: its kernel 
   <img alt="node" src="https://img.shields.io/node/v/cordis" />
 </p>
 
-Humans and agents use the same verbs against the same address space. Tasks, pages, skills, plugins, and agents themselves are all instances of that interface.
+Humans and agents use the same operation interface to access the same address space. Tasks, pages, skills, plugins, and agents themselves are all instances within that interface.
 
 That abstraction is called the **File System**. It is not a file browser bolted onto an app — it is the floor of the whole workbench: every table, page, block, and record lives at a path, addressable by both humans and agents.
 
@@ -40,7 +40,7 @@ What it borrows is not features, but models:
 
 ## Design principles
 
-Two judgements sit behind the whole design. They do different jobs: one governs **how many abstractions there are**, the other governs **how they are entered**.
+Two principles guide the design: one governs **how many abstractions the system exposes**, while the other governs **how humans and agents access them**.
 
 ### 1. Few atoms, many combinations
 
@@ -49,18 +49,18 @@ The anti-pattern is a one-to-one mapping between concepts and features — a "ta
 Biu's set of atoms is small:
 
 ```
-path · table · record · schema · verbs · blurb
+path · table · record · schema · operations · blurb
 ```
 
 Everything else is composed out of those six: tasks, pages, skills, plugins, facets, components, sessions, events…
 
 So **adding a domain is not adding a concept — it is composing the same atoms once more.**
 
-### 2. High abstraction, one entry point
+### 2. One abstraction, one entry point
 
-Few atoms is not enough on its own — if every domain had its own usage, humans and agents would still have to learn it N times.
+Few atoms are not enough on their own — if every domain had its own access pattern, humans and agents would still have to learn it N times.
 
-Biu turns "read and write data in any domain" into a single set of verbs, with exactly one entry point:
+Biu exposes one operation interface for reading and writing data in any domain:
 
 ```
 db_create /<table>
@@ -69,14 +69,14 @@ db_list   /<table>
 ...
 ```
 
-The same action, only the table name differs. **The number of verbs does not grow with the number of domains** — the domains have been abstracted away. An agent doesn't need to know how `/tasks` differs from `/skills`; it just runs `db_stat`.
+The commands and calling convention stay the same; only the table path changes. **Adding a domain does not require another API.** An agent can use `db_stat` to inspect a table's structure and capabilities, then read or write it with the common operations.
 
 ### The two together
 
 ```
 few atoms  +  one entry point
     ↓
-adding a capability needs neither a new concept nor a new usage
+adding a capability needs neither a new concept nor a new way of using the system
     ↓
 so a capability can be data, and an agent can extend an agent
 ```
@@ -91,7 +91,7 @@ This principle shows up again and again below, always as the same move:
 | Skill files | no new attachment mechanism — reuse a directory plus one read-only derived field |
 
 > **Note: this is not "the system is simple."** The concepts still have to be learned — path, table, record, facet, component, blurb, projection.
-> It says something else: **neither the concepts nor the usages grow with the number of features.**
+> It says something else: **neither the number of concepts nor the number of interaction patterns grows with the number of features.**
 
 ---
 
@@ -99,10 +99,10 @@ This principle shows up again and again below, always as the same move:
 
 - [Design principles](#design-principles)
   - [1. Few atoms, many combinations](#1-few-atoms-many-combinations)
-  - [2. High abstraction, one entry point](#2-high-abstraction-one-entry-point)
+  - [2. One abstraction, one entry point](#2-one-abstraction-one-entry-point)
 - [1. What it abstracts](#1-what-it-abstracts)
   - [One shape](#one-shape)
-  - [One set of verbs](#one-set-of-verbs)
+  - [One operation interface](#one-operation-interface)
   - [Self-describing semantics](#self-describing-semantics)
 - [2. So everything is an instance of it](#2-so-everything-is-an-instance-of-it)
   - [Agents: one operator model for humans and agents](#agents-one-operator-model-for-humans-and-agents)
@@ -114,7 +114,7 @@ This principle shows up again and again below, always as the same move:
   - [Second-class objects: the same interface, a smaller surface](#second-class-objects-the-same-interface-a-smaller-surface)
 - [3. Transparent: files are the floor, not a cage](#3-transparent-files-are-the-floor-not-a-cage)
 - [4. What that gets you](#4-what-that-gets-you)
-  - [The ability to create is not granted](#1-the-ability-to-create-is-not-granted)
+  - [Creation is not reserved for developers](#1-creation-is-not-reserved-for-developers)
   - [Context is injected precisely](#2-context-is-injected-precisely-not-guessed)
   - [Declarative: writing a desired state](#3-declarative-an-agent-can-write-a-desired-state-not-just-call-commands)
   - [Content carries its dependencies](#4-content-carries-its-dependencies-what-you-share-is-a-runnable-unit)
@@ -137,7 +137,7 @@ In most systems, "read and write data" gets written once per domain: one API for
 
 Biu collapses that layer into a single **File System**. What it abstracts is not storage — underneath, SQLite is SQLite, a file is a file — **it abstracts the interface**:
 
-> Data in any domain has exactly one shape, one set of verbs, and one description of itself.
+> Data in every domain follows the same structure, operation interface, and form of self-description.
 
 Adding a capability therefore doesn't touch the layers above. **Register a table, and it is as readable, writable, and queryable as every table that already exists.**
 
@@ -154,11 +154,11 @@ db_stat /skills
 
 Field names, types, writability, available actions — all in one call. **No hardcoded domain knowledge.**
 
-### One set of verbs
+### One operation interface
 
-The same `db_*` verbs apply to any table:
+The same `db_*` operations apply to every table:
 
-| You want to… | Verb |
+| You want to… | Operation |
 |---|---|
 | See what exists | `db_list /` |
 | See a table's shape | `db_stat /<table>` |
@@ -167,11 +167,11 @@ The same `db_*` verbs apply to any table:
 | Write | `db_create` · `db_update` · `db_delete` · `db_content` |
 | Run a domain action | `db_action /<table>/<id>` |
 
-That last one matters: **verbs can be domain-defined**. `/tasks` has `deliver` (dispatch) and `report`; `/plugins` has `sandbox` and `pack`. These are not built into the File System — **the table declares them** — yet they are invoked exactly the same way.
+That last one matters: **domains can define their own actions**. `/tasks` has `deliver` (dispatch) and `report`; `/plugins` has `sandbox` and `pack`. These actions are not built into the File System — **each table declares its own** — yet they are invoked through the same interface.
 
 ### Self-describing semantics
 
-A shared shape and shared verbs aren't enough on their own. Given `/tasks` and `/skills`, how does an agent know which to use?
+A shared structure and operation interface are not enough on their own. Given `/tasks` and `/skills`, how does an agent know which to use?
 
 **The table says so.** Every collection registers a `view.blurb` — prose that says what this table is, which `db_*` to use, what the common next action is, and what **not** to do.
 
@@ -186,19 +186,19 @@ $ db_list /
 
 Note that last one — it **proactively corrects a misunderstanding**. That is the real job of `blurb`: not documentation, but **operating instructions for an agent**.
 
-> **One shape lets an agent read. One set of verbs lets an agent act. Self-describing semantics let an agent know what to do.**
+> **A shared structure lets an agent read. A shared operation interface lets it act. Self-describing semantics tell it what to do.**
 
 ---
 
 ## 2. So everything is an instance of it
 
-Because the interface is uniform, agents, tasks, pages, skills, and plugins are not "modules that use the File System" — they are **rows on top of it**.
+Because the interface is uniform, agents, tasks, pages, skills, and plugins are not merely modules that use the File System — they are **records within it**.
 
 ```mermaid
 flowchart TB
   API["One interface"]
   Shape["One shape<br/>self-described schema"]
-  Verb["One set of verbs<br/>db_*"]
+  Verb["Shared operations<br/>db_*"]
   Say["Self-describing<br/>blurb"]
   Shape --- API
   Verb --- API
@@ -218,7 +218,7 @@ Each one answers the same three questions: **what is it, how does a human use it
 Every row in `/sessions` is an agent — an independent session with its own workspace, model, and tool set.
 
 > **An agent is not a consumer of the file system; it is an instance inside it.**
-> It reads others with the same `db_*` verbs, and is read by others with the same verbs.
+> It reads other objects through the same `db_*` interface, and other objects use that interface to read it.
 
 That single fact determines the shape of the product: **you can operate on agents the way you operate on data.** Spinning up an agent = `db_create /sessions`. Dispatching a task = writing another session's id into `assignee`.
 
@@ -235,7 +235,7 @@ $ db_action /sessions/<id> action=status  # how much context it has used
   actions: deliver (dispatch) · report (check in)
 ```
 
-A human creates cards, assigns them, and watches for blockers; an agent calls `task_deliver` and `task_report`. **Same table, same verbs.**
+A human creates cards, assigns them, and watches for blockers through the UI; an agent dispatches and reports through the same table. **Both operate on the same data through the same interface.**
 
 Dependencies are a graph derived from `parentId` / `dependsOn`; triggers share one state machine, `idle → pending → delivered → done`. An upstream `done` can auto-trigger downstream.
 
@@ -247,7 +247,7 @@ Dependencies are a graph derived from `parentId` / `dependsOn`; triggers share o
 | Report back | report timeline on the board | `task_report` |
 ### Plugins: the system extends itself the same way
 
-`/plugins` is rows in the same table. Installed (`.plugin`) and in-development (`.plugin-dev`) sit side by side, and **installation can only go through `sandbox` → write code → `pack`**.
+`/plugins` is another table registered through the same interface, with one record per plugin. Installed (`.plugin`) and in-development (`.plugin-dev`) entries sit side by side, and **plugin development and packaging follow one path: `sandbox` → write code → `pack`**.
 
 ```
 $ db_action /plugins/<id> action=sandbox   # create .plugin-dev/<id>/
@@ -266,9 +266,9 @@ A component declares what it is, but *where it sits, in what order, and alongsid
 | **Delivery** | Sharing resolves dependencies page by page, packing the plugin source along with it |
 | **Environment** | The page supplies a scoped set of variables to the plugins inside it — one plugin, different behaviour per page |
 
-The third is the most concrete: **a component on its own has no notion of delivery — the page is what turns it into a self-contained, runnable unit.**
+The third boundary is the most concrete: **a component on its own is not yet a deliverable; the page turns it into a self-contained, runnable unit.**
 
-The fourth runs deepest: **different pages are tenants by nature.**
+The fourth boundary has the deepest effect: **different pages create naturally isolated scopes, making them suitable tenant boundaries.**
 
 ```
 one plugin (one implementation)
@@ -289,7 +289,7 @@ emoji: 📘
 ---
 ```
 
-A plugin reads the attributes of the page it sits on, so a component is not a copied instance — it is **one implementation, parameterised by its environment**. That is also why this is tenancy and not merely configuration: the scope is the page's boundary, not a property of the plugin. And the mechanism needs nothing new — it grows straight out of "everything is data".
+A plugin reads the attributes of the page it sits on, so a component is not a copied implementation — it is **one implementation parameterized by its environment**. This is page-level tenant isolation, not merely a configuration difference: the page boundary defines the scope, rather than a property on the plugin. The mechanism needs nothing new; it follows directly from "everything is data."
 
 Both layers are declarative:
 
@@ -299,7 +299,7 @@ Page       declares "how"         the order of the fences + the prose around the
 Page       declares "which env"   its own attributes
 ```
 
-The system converges both layers into a real interface. So **a whole page is itself a declaration** — for an agent, making a page means writing a declaration, not building an interface.
+The system turns both declarations into a functioning interface. So **a whole page is itself a declaration** — for an agent, making a page means writing a declaration, not building an interface.
 
 That is also why composition doesn't explode: **components are a finite set of atoms; pages are an unlimited set of recipes.**
 
@@ -320,7 +320,7 @@ Markdown can carry **blocks** — a fenced section that renders as a live compon
 
 Any installed plugin can register a block type, and gets three things: an entry in the slash menu, a component rendered in the page, **and a row in the `/page-blocks` table**.
 
-That last one is the dividing line: **content is not an opaque text blob owned by the editor.** Blocks are installed like plugins and read and edited by agents like ordinary records. The HTML blocks already running in this workspace (static, plus iframes that can execute scripts), Excalidraw boards, and algorithm cards are all installed this way — none of them ship in the repo; all are installed at runtime.
+That last one is the dividing line: **content is not an opaque text blob owned by the editor.** Block types are installed with plugins, while blocks themselves are read and edited by agents like ordinary records. The HTML blocks already running in this workspace (static content and iframes that execute scripts), Excalidraw boards, and algorithm cards are installed at runtime rather than shipped in the repository.
 
 ### Components: declarative content units
 
@@ -332,25 +332,25 @@ A **block** inside a page (`/page-blocks`) is a Component. It is three things at
 | How it renders | A live component in the page — implemented by a plugin, installed and versioned like one |
 | As data | A row in `/page-blocks`: `pageId` · `blockId` · `blockKind` · `plugin` · `data` |
 
-The third layer is the key one: **content is not an opaque text blob owned by the editor.** Because a block is a record, it can be read, written, queried, and aggregated from outside the page.
+The third layer is the key one: because a block is also a record, it can be read, written, queried, and aggregated from outside the page.
 
 ```
 $ db_list   /page-blocks                        # every embedded component in the workspace
 $ db_update /page-blocks/<pageId>::<blockId>    # change a block's data (merged by default)
 ```
 
-**Collecting across pages**: every block row carries `plugin` and `pageId`, so how far one component is spread across pages is one query away:
+**Aggregating across pages**: every block record carries `plugin` and `pageId`, so one query can show where and how widely a component type is used:
 
 ```
 $ db_list /page-blocks filter.plugin=page-algorithm
   → every block in every page rendered by that plugin
 ```
 
-That is what it means for Components to be a first-class object: **they don't only live inside one page — they are a kind of data across the workspace that can be aggregated.** And because they are declarative, an agent doesn't need to write UI code — three fields are enough.
+That is what it means for components to be first-class objects: **they do not only live inside one page — they are a category of workspace data that can be aggregated.** And because they are declarative, an agent does not need to write UI code — three fields are enough.
 
 ### Facets: dimensions become data
 
-In every section above, the schema was defined by plugin code. But some dimensions emerge **while the system is running** — whether a movie should have a "director", whether a task should have a "quarterly rating" depends on what you are doing right now, and shouldn't require writing a plugin first.
+In every section above, the schema was defined by plugin code. But some dimensions emerge **while the system is running**. Whether a movie needs a "director" or a task needs a "quarterly rating" depends on the current use case; adding either dimension should not require a new plugin.
 
 `/facets` flips this around: **a dimension is itself a row in a table.**
 
@@ -409,7 +409,7 @@ Because the abstraction **never locks data behind the interface**.
 
 You can use only `db_*`, or read the disk directly. **The abstraction is a convenience, not a barrier.**
 
-This also puts "everything is a file" in its proper place: it is not the thesis — underneath, things are plainly heterogeneous, and claiming they are all files invites refutation — it is a **property**. You can reach data through one interface, and you can also see straight through to the disk.
+This clarifies what "everything is a file" means. It is not a literal description of the underlying storage, which remains heterogeneous; it describes a **property**: data is available through one interface while remaining directly visible on disk.
 
 Page bodies live in `.biu/page/<id>.md`, and the adjacent `.biu/pages.sqlite` only handles listing and search; table rows live in File System storage. A capability stores whatever it wants, under the same contract, and it shows up in the same tree.
 
@@ -421,7 +421,7 @@ Page bodies live in `.biu/page/<id>.md`, and the adjacent `.biu/pages.sqlite` on
 
 The previous sections traced one chain: a single interface, and everything as an instance of it. Follow that chain to the end and this is what grows out of it.
 
-### 1. The ability to create is not granted
+### 1. Creation is not reserved for developers
 
 This is the most direct consequence. Because everything is a row in a table, and an agent can write to any table:
 
@@ -434,11 +434,11 @@ db_create /facets     ← make a dimension
 db_create /plugins    ← make a capability (the only one needing pack, because it is code)
 ```
 
-**Same verb, same syntax, only the table name differs.**
+**Same operations, same syntax, only the table name differs.**
 
-In most systems, extending the system and using the system are two different identities: developers write plugins, users install them. Biu has no such line — **an agent that can `db_create` and a human that can `db_create` have the same authority.**
+In most systems, extending the system and using it are two separate roles: developers write plugins, while users install them. Biu does not impose that division — **humans and agents can create system objects through the same interface.**
 
-The system's boundary is therefore not "what features the developers built in advance" but "what appeared at runtime". And `plugins` has to be a table precisely to close this loop: if plugins could only be written by developers, an agent would forever be limited to what it is permitted to do.
+The system's boundary is therefore not limited to features that developers built in advance; it also includes capabilities created at runtime. The `plugins` collection must be a table to close this loop: if only developers could write plugins, agents would remain limited to capabilities provided in advance.
 
 ### 2. Context is injected precisely, not guessed
 
@@ -461,7 +461,7 @@ That makes context injection stop being a guessing game about what to stuff in:
 | What happened before | `/events` |
 | Who else is around | `/sessions`, the collaboration graph in `/tasks` |
 
-**The cost is O(what is needed), not O(everything).** No bespoke ingestion pipeline, and no second copy of the data maintained just so agents can understand it.
+**The cost scales with the data that actually needs to be read, not with all available data.** There is no bespoke ingestion pipeline and no second copy maintained solely for agents to understand.
 
 ### 3. Declarative: an agent can write a desired state, not just call commands
 
@@ -491,7 +491,7 @@ the plugin source it references   ← packed along with it
 
 The recipient gets not "a document" but **a self-contained unit that runs**.
 
-Writing it, sharing it, and running it are three stages of one thing: **declare** (a block declares its `plugin`), **resolve** (scan references, pack), **mount** (install the plugin, render the block).
+The dependency chain spans three stages: **declare** when writing (a block names its `plugin`), **resolve** when sharing (scan references and package them), and **mount** when running (install the plugin and render the block).
 
 This is also why `.plugin-dev` and `.plugin` sit side by side in the same table — **a plugin has to be a peer of the data in order to travel with it**.
 
@@ -510,7 +510,7 @@ Put all of this back into a known coordinate system and its shape becomes clear:
 
 **It is not an agent application; it is a kernel that agent applications can grow out of.**
 
-Cursor put an agent inside an editor, Notion put blocks inside a document — their core objects belong to the application. Biu's core objects are the data itself: **an agent is data, a capability is data, and an agent an agent made is data too**, so all of it can be read, written, copied, and shared.
+Cursor put an agent inside an editor, and Notion put blocks inside a document — their core objects are predefined by their respective applications. Biu's core objects are data themselves: **an agent is data, a capability is data, and an agent created by another agent is data too**, so all of them can be read, written, copied, and shared.
 
 That also explains why it has to exist — there can be many applications (a writing desk, a dispatch desk, an algorithm workbook), but **they can all share one kernel**.
 
@@ -522,11 +522,11 @@ The agent field has a few problems it has never really settled. This design answ
 
 ### 1. Context injection: no more guessing
 
-"What should the agent see" is the most expensive part of any agent system. The industry's current answer is to guess: retrieve a pile of possibly-relevant material, hand-configure a pile of rules, or push events at it. None of it lands.
+"What should the agent see?" is one of the most expensive questions in any agent system. Common approaches retrieve large amounts of potentially relevant material, rely on manually configured rules, or push events directly, but they often fail to provide the right context.
 
 Biu has two sources, neither of which is a guess.
 
-**First, capabilities register their own context.** Context is not generated centrally by the platform — every capability hands it over under the same contract: a block, a table, a tool. **It is the same pattern as "register a table"**: whoever provides a capability also says what context it brings.
+**First, capabilities register their own context.** Context is not generated centrally by the platform; each capability declares and provides it through the same contract: a block, a table, or a tool. **It follows the same pattern as registering a table**: whoever provides a capability also states what context it contributes.
 
 **Second, environmental awareness.** An agent and a human read the same address space, so the agent can see what the human is doing:
 
@@ -556,13 +556,13 @@ In Biu, having an agent produce a UI means writing three fields:
 
 ### 3. Self-improvement: what is valuable settles
 
-An ordinary agent's one good output sinks into the chat log and is gone — next time it writes the whole thing again.
+A valuable output from an ordinary agent usually sinks into the chat log and disappears — the next time, the agent generates it all over again.
 
 In Biu it can **settle**: it becomes a page, a block, a skill, a table. Because everything is data, settling needs no extra machinery — it is just an ordinary write.
 
 The system therefore grows round after round instead of resetting to zero each time.
 
-> → **For humans**: what you write stays in the same place. **Humans and agents share one sediment** — what I teach it today, it still knows tomorrow, and you can see where it lives.
+> → **For humans**: what you write stays in the same place. **Humans and agents share the same accumulated knowledge** — what you teach an agent today remains available tomorrow, and you can see where it lives.
 
 ---
 
@@ -610,7 +610,12 @@ export DEEPSEEK_API_KEY=...     # or OPENAI_API_KEY / ANTHROPIC_API_KEY
 export CHAT_MODEL=deepseek-chat # optional
 ```
 
-First run: open a **Live** session as the dispatcher, then one or more **chat** sessions as workers; open **Tasks** in the sidebar, create a card, and assign it to a worker session; dispatch it (by hand or from the dispatcher) with `task_deliver` to wake the worker, and have the worker call `task_report` each turn. The inspector on the right shows the **trajectory** alongside the matching **task**.
+On the first run:
+
+1. Open a **Live** session as the dispatcher and one or more **chat** sessions as workers.
+2. Open **Tasks** from the sidebar, create a card, and assign it to a worker session.
+3. Dispatch the task manually or from the dispatcher to wake the worker, then have the worker report progress after each turn.
+4. Use the inspector on the right to view the execution **trajectory** alongside the corresponding **task**.
 
 <details>
 <summary>Commands and environment variables</summary>
@@ -627,7 +632,7 @@ Also: `npm run dev:host` and `npm run dev:web`.
 
 | Variable | Default | |
 |------|------|--|
-| `PORT` / `HTTP_HOST` | `3141` / `127.0.0.1` | local workbench (do not set `0.0.0.0`, or the whole site lands on the LAN) |
+| `PORT` / `HTTP_HOST` | `3141` / `127.0.0.1` | local workbench (do not set `0.0.0.0`, or the entire workbench becomes accessible on the LAN) |
 | `SHARE_PORT` / `SHARE_HOST` | `3142` / `0.0.0.0` | opened by default by `make` / `npm run dev`; serves share pages only. `SHARE_PORT=0` disables |
 | `SHARE_PUBLIC_URL` | auto-detected LAN IPv4 | origin used for copied links, e.g. `http://192.168.1.8:3142` |
 | `SHARE_PROXY_UI` | `dev:host` points at Vite | share pages use `5173` in dev; `npm start` uses the build output |
@@ -654,7 +659,7 @@ flowchart TB
   Shell --- Cap
 ```
 
-- **The shell depends only on slots.** `composer`, `inspector-panels`, `app-modules`, and each Settings section are `place`d by capabilities themselves. Pages like File System are modules registered by caps.
+- **The shell depends only on slots.** Capabilities place `composer`, `inspector-panels`, `app-modules`, and each Settings section themselves. Pages such as File System are modules registered by capabilities.
 - **The agent loop is replaceable.** The `agents` handle stays; the factory can change.
 - **File System is a contract, not a component.** `@biu/type-file-system` defines `CollectionSpec`; `core-file-system` provides the implementation; any capability registers tables against it.
 - **Approvals sit on the pipeline.** Sensitive tools enter a hold state, and the approval UI docks — it is not folded into shell logic.
@@ -665,7 +670,7 @@ flowchart TB
 | `web` | `web/main.tsx` | no (shell) |
 | `plugins` | hub + ui-hub | yes |
 
-To add a capability: `packages/cap-<id>`, separate `./host` and `./web` in `exports`, write it into the `plugins` table, restart. `type-*` and `public-*` do not go in the table. Details: [docs/plugin-packages.md](docs/plugin-packages.md).
+To add a capability, create `packages/cap-<id>`, define separate `./host` and `./web` exports, register it in the `plugins` table, and restart. Do not register `type-*` or `public-*` packages in that table. See [docs/plugin-packages.md](docs/plugin-packages.md) for details.
 
 ---
 
@@ -690,7 +695,7 @@ biu
 ├── NOTICE.md                  # Apache NOTICE: copyright, Grok Bot, third-party deps
 ├── docs/
 │   ├── plugin-packages.md     # package prefixes and entry conventions
-│   └── demo/                  # README screenshots: task / trajectory / usage
+│   └── demo/                  # README screenshots: file-system / component / context
 ├── scripts/
 │   └── link-cordis-plugins.mjs
 ├── public/
@@ -764,14 +769,14 @@ Every `host-*` / `web-*` / `core-*` / `cap-*` package keeps its source under `sr
 
 ## License
 
-As of this version, **code and documentation written by Biu Agent OS itself** are licensed under the [Apache License 2.0](LICENSE):
+As of this version, **code and documentation original to the Biu Agent OS project** are licensed under the [Apache License 2.0](LICENSE):
 
 - **Free to use, modify, distribute, and commercialize**, with no copyleft — it can be embedded in closed-source products, with no separate commercial license required.
-- **Patent grant:** contributors grant the patents necessarily infringed by their contributions, so users are not held to ransom by those patents; if you bring a patent suit over this work, that patent license terminates (Apache-2.0 §3).
+- **Patent grant:** contributors grant the patent licenses necessary to use their contributions; if you bring a patent suit over this work, that patent license terminates (Apache-2.0 §3).
 - **NOTICE obligation:** redistribution must retain [NOTICE.md](NOTICE.md) and the license text; modified files must be marked as changed (Apache-2.0 §4).
 
-Snapshots previously released under MIT or PolyForm Noncommercial remain under those terms. This tree and everything after it is Apache-2.0.
+Snapshots previously released under MIT or PolyForm Noncommercial remain under those terms. The current repository tree and all subsequent releases are licensed under Apache-2.0.
 
-**Exception: the Grok Bot character.** The geometry, animation, and character design in `public/grok-bot/` are **not** Apache-2.0 Biu source; rights belong to xAI and other rights holders. See [NOTICE.md](NOTICE.md).
+**Exception: the Grok Bot character.** The geometry, animation, and character design in `public/grok-bot/` are **not part of the Biu source licensed under Apache-2.0**; rights belong to xAI and other rights holders. See [NOTICE.md](NOTICE.md).
 
 The software is provided "as is", without warranty of any kind.
