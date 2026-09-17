@@ -58,6 +58,9 @@ test('component source can layout with AbsoluteFill', () => {
 
 test('built-in BIU advertisement compiles and renders deterministically', () => {
   const view = compileComponentSource(DEFAULT_AD_COMPONENT_SOURCE, React)
+  assert.match(DEFAULT_AD_COMPONENT_SOURCE, /const titleLines = scene\.title\.map/)
+  assert.match(DEFAULT_AD_COMPONENT_SOURCE, /flexDirection:"column"/)
+  assert.doesNotMatch(DEFAULT_AD_COMPONENT_SOURCE, /React\.createElement\("br"/)
   const render = (time: number) =>
     view({
       frame: Math.round(time * 30),

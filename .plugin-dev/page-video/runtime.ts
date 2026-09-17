@@ -35,15 +35,23 @@ export default function BiuAd({time, fps, width, height, interpolate, spring, Ab
   const wipe = interpolate(local, [6.15, 6.95], [110, -10], {extrapolateLeft: "clamp", extrapolateRight: "clamp"});
   const drift = interpolate(local, [0, 7], [-28, 28], {extrapolateLeft: "clamp", extrapolateRight: "clamp"});
   const k = width / 1920;
-  const chars = scene.title.join("").split("");
-  const glyphs = chars.map(function(char, i) {
-    const lineBreak = i === scene.title[0].length;
-    const p = spring({frame: local*fps-i*1.35, fps, durationInFrames:20, config:{stiffness:210,damping:24}});
-    const y = (1-p)*110*k;
-    return React.createElement("span", {
-      key:i,
-      style:{display:"inline-block", whiteSpace:"pre", opacity:p*leave, transform:"translateY("+y+"px) rotate("+(1-p)*3+"deg)", color:lineBreak ? scene.accent : "#F7F5F2"}
-    }, lineBreak ? [React.createElement("br", {key:"br"}), char] : char);
+  let glyphOffset = 0;
+  const titleLines = scene.title.map(function(line, lineIndex) {
+    const lineStart = glyphOffset;
+    glyphOffset += line.length;
+    const glyphs = line.split("").map(function(char, charIndex) {
+      const i = lineStart + charIndex;
+      const p = spring({frame: local*fps-i*1.35, fps, durationInFrames:20, config:{stiffness:210,damping:24}});
+      const y = (1-p)*110*k;
+      return React.createElement("span", {
+        key:charIndex,
+        style:{display:"inline-block", whiteSpace:"pre", opacity:p*leave, transform:"translateY("+y+"px) rotate("+(1-p)*3+"deg)"}
+      }, char);
+    });
+    return React.createElement("div", {
+      key:lineIndex,
+      style:{display:"flex", whiteSpace:"nowrap", color:lineIndex === 1 ? scene.accent : "#F7F5F2"}
+    }, glyphs);
   });
   return (
     <AbsoluteFill style={{background:"#191919", color:"#F7F5F2", overflow:"hidden", fontFamily:"Inter, ui-sans-serif, system-ui"}}>
@@ -54,8 +62,8 @@ export default function BiuAd({time, fps, width, height, interpolate, spring, Ab
       </div>
       <div style={{position:"absolute", left:120*k, top:132*k, height:4*k, width:(120+enter*220)*k, background:scene.accent}} />
       <div style={{position:"absolute", left:120*k, right:120*k, top:"50%", transform:"translateY(-52%)"}}>
-        <div style={{display:"flex", flexWrap:"wrap", maxWidth:1550*k, fontSize:126*k, lineHeight:.98, fontWeight:780, letterSpacing:-7*k}}>
-          {glyphs}
+        <div style={{display:"flex", flexDirection:"column", alignItems:"flex-start", maxWidth:1550*k, fontSize:126*k, lineHeight:.98, fontWeight:780, letterSpacing:-5*k}}>
+          {titleLines}
         </div>
         <div style={{marginTop:48*k, display:"flex", alignItems:"center", gap:18*k, fontSize:25*k, letterSpacing:.5*k, color:"rgba(247,245,242,.64)", opacity:interpolate(local,[.7,1.3],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"})*leave, transform:"translateY("+(1-reveal)*18*k+"px)"}}>
           <span style={{width:9*k, height:9*k, borderRadius:"50%", background:scene.accent}} />{scene.note}
