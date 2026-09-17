@@ -736,6 +736,7 @@ function ComponentLayer({ clip, time, project }: { clip: Clip; time: number; pro
     description: clip.description,
     color: clip.color,
     background: clip.bg,
+    variant: clip.variant,
   }
   return (
     <div

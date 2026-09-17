@@ -18,26 +18,26 @@ function Meta({k, eyebrow, counter, accent, enter}) {
   );
 }
 
-function KineticTitle({k, lines, accent, time, fps, leave, springFn}) {
+function KineticTitle({k, lines, accent, time, fps, leave, springFn, align, shift, size}) {
   let glyphOffset = 0;
   const titleLines = lines.map(function(line, lineIndex) {
     const lineStart = glyphOffset;
     glyphOffset += line.length;
     const glyphs = line.split("").map(function(char, charIndex) {
       const i = lineStart+charIndex;
-      const p = springFn({frame:time*fps-i*1.35, fps, durationInFrames:20, config:{stiffness:210,damping:24}});
-      const y = (1-p)*110*k;
+      const p = springFn({frame:time*fps-i*1.15, fps, durationInFrames:18, config:{stiffness:180,damping:28}});
+      const y = (1-p)*36*k;
       return React.createElement("span", {
         key:charIndex,
-        style:{display:"inline-block", whiteSpace:"pre", opacity:p*leave, transform:"translateY("+y+"px) rotate("+(1-p)*3+"deg)"}
+        style:{display:"inline-block", whiteSpace:"pre", opacity:p*leave, transform:"translateY("+y+"px) rotate("+(1-p)*.6+"deg)"}
       }, char);
     });
     return React.createElement("div", {
       key:lineIndex,
-      style:{display:"flex", whiteSpace:"nowrap", color:lineIndex===1 ? accent : "#F7F5F2"}
+      style:{display:"flex", whiteSpace:"nowrap", color:lineIndex===1 ? accent : "#F7F5F2", transform:lineIndex===1 ? "translateX("+shift*k+"px)" : undefined}
     }, glyphs);
   });
-  return <div style={{display:"flex", flexDirection:"column", alignItems:"flex-start", maxWidth:1550*k, fontSize:126*k, lineHeight:.98, fontWeight:780, letterSpacing:-5*k}}>{titleLines}</div>;
+  return <div style={{display:"flex", flexDirection:"column", alignItems:align, maxWidth:1550*k, fontSize:size*k, lineHeight:.98, fontWeight:780, letterSpacing:-5*k}}>{titleLines}</div>;
 }
 
 function Note({k, text, accent, opacity, reveal}) {
@@ -56,7 +56,46 @@ function Progress({k, progress, accent}) {
   );
 }
 
-export default function AdScene({time, progress, durationInFrames, fps, width, content, color, interpolate, spring, AbsoluteFill}) {
+function SceneLayout({variant, k, color, counter, progress, children}) {
+  if (variant==="hero") return <div style={{position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center"}}>{children}</div>;
+  if (variant==="split") return (
+    <div style={{position:"absolute", left:120*k, right:120*k, top:190*k, bottom:120*k, display:"grid", gridTemplateColumns:"38% 62%", alignItems:"center"}}>
+      <div style={{fontSize:310*k, fontWeight:800, lineHeight:1, color:color, opacity:.28}}>{counter.slice(0,2)}</div>
+      <div>{children}</div>
+    </div>
+  );
+  if (variant==="marquee") return (
+    <div style={{position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center"}}>
+      <div style={{position:"absolute", left:-80*k, top:260*k, fontSize:210*k, fontWeight:850, letterSpacing:-8*k, whiteSpace:"nowrap", color:color, opacity:.09, transform:"translateX("+(progress*-220)*k+"px)"}}>TYPE TYPE TYPE</div>
+      <div style={{position:"relative"}}>{children}</div>
+    </div>
+  );
+  if (variant==="focus") return (
+    <div style={{position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center"}}>
+      <div style={{position:"absolute", width:650*k, height:650*k, border:"2px solid "+color, borderRadius:"50%", opacity:.35, transform:"scale("+(0.8+progress*.25)+")"}} />
+      <div style={{position:"relative"}}>{children}</div>
+    </div>
+  );
+  if (variant==="code") return (
+    <div style={{position:"absolute", left:120*k, right:120*k, top:205*k, bottom:120*k, display:"grid", gridTemplateColumns:"44% 56%", alignItems:"center", gap:90*k}}>
+      <div style={{padding:42*k, border:"1px solid rgba(255,255,255,.16)", borderRadius:18*k, background:"rgba(0,0,0,.28)", fontFamily:"ui-monospace, monospace", fontSize:22*k, lineHeight:1.9, color:"rgba(255,255,255,.6)"}}>
+        <div style={{color:color}}>function Frame()</div><div>const p = spring(frame)</div><div>return &lt;AbsoluteFill /&gt;</div>
+      </div>
+      <div>{children}</div>
+    </div>
+  );
+  if (variant==="stack") return (
+    <div style={{position:"absolute", left:120*k, right:120*k, top:200*k, bottom:120*k}}>
+      <div style={{position:"absolute", width:760*k, height:350*k, right:0, top:75*k, border:"2px solid "+color, borderRadius:24*k, opacity:.18, transform:"rotate(7deg)"}} />
+      <div style={{position:"absolute", width:760*k, height:350*k, right:35*k, top:40*k, border:"2px solid "+color, borderRadius:24*k, opacity:.35, transform:"rotate(3deg)"}} />
+      <div style={{position:"relative", paddingTop:90*k}}>{children}</div>
+    </div>
+  );
+  if (variant==="finale") return <div style={{position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", transform:"scale("+(0.96+progress*.04)+")"}}>{children}</div>;
+  return <div style={{position:"absolute", left:120*k, right:120*k, top:"50%", transform:"translateY(-52%)"}}>{children}</div>;
+}
+
+export default function AdScene({time, progress, durationInFrames, fps, width, content, color, variant, interpolate, spring, AbsoluteFill}) {
   const fields = String(content||"").split("|");
   const eyebrow = fields[0]||"BIU VIDEO";
   const counter = fields[1]||"01 / 01";
@@ -69,15 +108,18 @@ export default function AdScene({time, progress, durationInFrames, fps, width, c
   const noteIn = interpolate(time,[.7,1.3],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
   const drift = interpolate(progress,[0,1],[-28,28],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
   const k = width/1920;
+  const centered = variant==="hero" || variant==="marquee" || variant==="focus" || variant==="finale";
+  const titleSize = variant==="code" ? 104 : variant==="stack" ? 112 : 126;
+  const lineShift = variant==="stagger" ? 190 : 0;
   return (
     <AbsoluteFill style={{background:"#191919", color:"#F7F5F2", overflow:"hidden", fontFamily:"Inter, ui-sans-serif, system-ui"}}>
       <Grid k={k} drift={drift} />
       <Glow k={k} accent={color} enter={enter} />
       <Meta k={k} eyebrow={eyebrow} counter={counter} accent={color} enter={enter} />
-      <div style={{position:"absolute", left:120*k, right:120*k, top:"50%", transform:"translateY(-52%)"}}>
-        <KineticTitle k={k} lines={lines} accent={color} time={time} fps={fps} leave={leave} springFn={spring} />
+      <SceneLayout variant={variant} k={k} color={color} counter={counter} progress={progress}>
+        <KineticTitle k={k} lines={lines} accent={color} time={time} fps={fps} leave={leave} springFn={spring} align={centered ? "center" : "flex-start"} shift={lineShift} size={titleSize} />
         <Note k={k} text={note} accent={color} opacity={noteIn*leave} reveal={enter*leave} />
-      </div>
+      </SceneLayout>
       <Progress k={k} progress={progress} accent={color} />
     </AbsoluteFill>
   );
