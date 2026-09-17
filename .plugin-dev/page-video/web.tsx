@@ -1,5 +1,17 @@
+import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragMoveEvent,
+  type DragStartEvent,
+  type Modifier,
+} from '@dnd-kit/core'
+import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
 import { createPortal } from 'react-dom'
-import type { ComponentType, DragEvent } from 'react'
+import type { ComponentType } from 'react'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { xml } from '@codemirror/lang-xml'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
@@ -70,7 +82,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v20'
+const STYLE_ID = 'pv-style-v21'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -153,7 +165,7 @@ const STYLE_CSS = `
 .pv-track-label svg{width:16px;height:16px;color:currentColor}
 .pv-track-label:hover{color:var(--pv-ink);background:var(--pv-hover)}
 .pv-lanes{position:relative;min-width:0;cursor:pointer;outline:none;background:var(--pv-bg)}
-.pv-lanes.is-drop-target{background:var(--pv-hover)}
+.pv-lanes.is-col-resize{cursor:ew-resize;user-select:none}
 .pv-lanes:before{
   content:"";position:absolute;inset:0;pointer-events:none;
   background:
@@ -164,22 +176,26 @@ const STYLE_CSS = `
   position:absolute;height:22px;border:0;border-radius:4px;
   font-family:var(--font-sans);font-size:11px;line-height:1;color:var(--dsw-tag-ink,var(--pv-ink));
   padding:0 7px;display:flex;align-items:center;gap:5px;box-sizing:border-box;pointer-events:none;
-  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  overflow:visible;white-space:nowrap;
   background:color-mix(in srgb,var(--pv-ink) 13%,var(--pv-surface));
-  transition:filter .1s ease,opacity .1s ease,transform .1s ease;
+  transition:filter .1s ease;
 }
-.pv-clip[data-editable="true"]{pointer-events:auto;cursor:grab}
+.pv-clip-body{min-width:0;flex:1;display:flex;align-items:center;gap:5px;overflow:hidden;cursor:grab;touch-action:none}
+.pv-clip-body span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.pv-clip[data-editable="true"]{pointer-events:auto}
 .pv-clip[data-editable="true"]:hover{filter:brightness(.96)}
-.pv-clip[data-editable="true"]:active{cursor:grabbing}
-.pv-clip.is-dragging{opacity:.45;transform:scale(.985);z-index:4}
-.pv-clip.is-resizing{z-index:4;transition:none;opacity:1;transform:none}
+.pv-clip.is-dragging .pv-clip-body,.pv-clip-body:active{cursor:grabbing}
+.pv-clip.is-dragging,.pv-clip.is-resizing{z-index:4;transition:none}
 .pv-clip-handle{
-  position:absolute;top:0;bottom:0;width:8px;z-index:2;cursor:ew-resize;touch-action:none;
-  background:transparent;
+  position:absolute;top:0;bottom:0;z-index:2;width:9px;cursor:ew-resize;touch-action:none;user-select:none;
 }
-.pv-clip-handle[data-edge="start"]{left:0}
-.pv-clip-handle[data-edge="end"]{right:0}
-.pv-clip-handle:hover{background:color-mix(in srgb,currentColor 18%,transparent)}
+.pv-clip-handle[data-edge="start"]{left:-4px}
+.pv-clip-handle[data-edge="end"]{right:-4px}
+.pv-clip-handle::after{
+  content:"";position:absolute;top:0;bottom:0;left:50%;width:4px;transform:translateX(-50%);
+  background:transparent;pointer-events:none;
+}
+.pv-clip-handle:hover::after,.pv-clip-handle.is-active::after{background:var(--dsw-pick,var(--pv-blue))}
 .pv-clip svg{width:12px;height:12px;flex:none}
 .pv-clip[data-tone="effect"]{background:color-mix(in srgb,var(--pv-blue) 24%,var(--pv-surface));color:color-mix(in srgb,var(--pv-blue) 72%,var(--pv-ink))}
 .pv-clip[data-tone="audio"]{background:color-mix(in srgb,var(--pv-ok) 24%,var(--pv-surface));color:color-mix(in srgb,var(--pv-ok) 70%,var(--pv-ink))}
@@ -1128,6 +1144,21 @@ function timelineTracks(project: Project): TimelineTrack[] {
   return tracks
 }
 
+function parseClipDragId(id: string) {
+  const [kind, clipId, edge] = String(id).split(':')
+  if (kind === 'resize' && clipId && (edge === 'start' || edge === 'end')) return { type: 'resize' as const, clipId, edge }
+  if (kind === 'move' && clipId) return { type: 'move' as const, clipId }
+  return null
+}
+
+const keepClipInPlace: Modifier = ({ transform }) => ({ ...transform, x: 0, y: 0 })
+
+function timelineModifiers(args: Parameters<Modifier>[0]) {
+  const job = parseClipDragId(String(args.active.id))
+  if (job?.type === 'resize') return keepClipInPlace({ ...args, transform: restrictToHorizontalAxis(args) })
+  return keepClipInPlace(args)
+}
+
 function Timeline({
   project,
   duration,
@@ -1144,28 +1175,136 @@ function Timeline({
   onResize?: (clipId: string, edge: 'start' | 'end', time: number) => void
 }) {
   const lanesRef = useRef<HTMLDivElement | null>(null)
-  const resizeRef = useRef<{ id: string; edge: 'start' | 'end' } | null>(null)
-  const [dragging, setDragging] = useState('')
-  const [resizing, setResizing] = useState('')
-  const [preview, setPreview] = useState<{ id: string; start: number; duration: number } | null>(null)
-  const [dropTarget, setDropTarget] = useState(false)
+  const dragRef = useRef<{
+    type: 'move' | 'resize'
+    clipId: string
+    edge?: 'start' | 'end'
+    originX: number
+    originY: number
+    grab: number
+  } | null>(null)
+  const [activeId, setActiveId] = useState('')
+  const [preview, setPreview] = useState<{ id: string; start: number; duration: number; row: number } | null>(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   const seekBy = (delta: number) => onSeek(Math.min(duration, Math.max(0, time + delta)))
   const tracks = timelineTracks(project)
   const railHeight = `${Math.max(1, tracks.length) * TRACK_HEIGHT}px`
-  const timeAt = (clientX: number) => {
+  const editable = Boolean(onMove || onResize)
+  const job = parseClipDragId(activeId)
+  const pointerAt = (clientX: number, clientY: number) => {
     const rect = lanesRef.current?.getBoundingClientRect()
-    if (!rect) return 0
-    return Math.min(duration, Math.max(0, ((clientX - rect.left) / Math.max(1, rect.width)) * duration))
+    if (!rect) return { time: 0, row: 0 }
+    return {
+      time: Math.min(duration, Math.max(0, ((clientX - rect.left) / Math.max(1, rect.width)) * duration)),
+      row: Math.max(0, Math.min(tracks.length - 1, Math.floor((clientY - rect.top) / TRACK_HEIGHT))),
+    }
   }
-  const applyResize = (clientX: number, commit: boolean) => {
-    const job = resizeRef.current
-    if (!job) return
-    const at = timeAt(clientX)
-    const next = resizeClip(project, job.id, job.edge, at)
-    const clip = next.clips.find((item) => item.id === job.id)
-    if (clip) setPreview({ id: clip.id, start: clip.start, duration: clip.duration })
-    if (commit) onResize?.(job.id, job.edge, at)
+  const liveFromPointer = (clientX: number, clientY: number) => {
+    const current = dragRef.current
+    if (!current) return
+    const clip = project.clips.find((item) => item.id === current.clipId)
+    if (!clip) return
+    const at = pointerAt(clientX, clientY)
+    if (current.type === 'resize' && current.edge) {
+      const next = resizeClip(project, current.clipId, current.edge, at.time)
+      const resized = next.clips.find((item) => item.id === current.clipId)
+      if (resized) {
+        const row = tracks.findIndex((track) => track.clips.some((item) => item.id === resized.id))
+        setPreview({ id: resized.id, start: resized.start, duration: resized.duration, row: Math.max(0, row) })
+      }
+      return
+    }
+    const start = Math.max(0, at.time - current.grab)
+    setPreview({ id: clip.id, start, duration: clip.duration, row: at.row })
   }
+  const onDragStart = (event: DragStartEvent) => {
+    const parsed = parseClipDragId(String(event.active.id))
+    const pointer = event.activatorEvent as PointerEvent
+    if (!parsed || !Number.isFinite(pointer.clientX)) return
+    const clip = project.clips.find((item) => item.id === parsed.clipId)
+    if (!clip) return
+    const grab = parsed.type === 'move' ? Math.max(0, pointerAt(pointer.clientX, pointer.clientY).time - clip.start) : 0
+    dragRef.current = {
+      type: parsed.type,
+      clipId: parsed.clipId,
+      edge: parsed.edge,
+      originX: pointer.clientX,
+      originY: pointer.clientY,
+      grab,
+    }
+    setActiveId(String(event.active.id))
+    const row = tracks.findIndex((track) => track.clips.some((item) => item.id === clip.id))
+    setPreview({ id: clip.id, start: clip.start, duration: clip.duration, row: Math.max(0, row) })
+  }
+  const onDragMove = (event: DragMoveEvent) => {
+    const current = dragRef.current
+    if (!current) return
+    liveFromPointer(current.originX + event.delta.x, current.originY + event.delta.y)
+  }
+  const onDragEnd = (event: DragEndEvent) => {
+    const current = dragRef.current
+    dragRef.current = null
+    setActiveId('')
+    if (!current) {
+      setPreview(null)
+      return
+    }
+    liveFromPointer(current.originX + event.delta.x, current.originY + event.delta.y)
+    const clientX = current.originX + event.delta.x
+    const clientY = current.originY + event.delta.y
+    const at = pointerAt(clientX, clientY)
+    if (current.type === 'resize' && current.edge) onResize?.(current.clipId, current.edge, at.time)
+    else {
+      const track = tracks[at.row]
+      if (track) onMove?.(current.clipId, track.id, Math.max(0, at.time - current.grab))
+    }
+    setPreview(null)
+  }
+  const lanes = (
+    <div
+      ref={lanesRef}
+      className={`pv-lanes${job?.type === 'resize' ? ' is-col-resize' : ''}`}
+      role="slider"
+      tabIndex={0}
+      aria-label="视频时间轴"
+      aria-valuemin={0}
+      aria-valuemax={duration}
+      aria-valuenow={Math.min(duration, time)}
+      aria-valuetext={`${fmtClock(time)} / ${fmtClock(duration)}`}
+      onClick={(event) => {
+        if (activeId) return
+        const rect = event.currentTarget.getBoundingClientRect()
+        const x = (event.clientX - rect.left) / Math.max(1, rect.width)
+        onSeek(Math.min(1, Math.max(0, x)) * duration)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          event.preventDefault()
+          event.stopPropagation()
+          const frame = 1 / Math.max(1, project.fps)
+          seekBy(event.key === 'ArrowLeft' ? -frame : frame)
+        } else if (event.key === 'Home' || event.key === 'End') {
+          event.preventDefault()
+          event.stopPropagation()
+          onSeek(event.key === 'Home' ? 0 : duration)
+        }
+      }}
+    >
+      {tracks.flatMap((track, row) => track.clips.map((clip) => (
+        <ClipBar
+          key={clip.id}
+          clip={clip}
+          duration={duration}
+          row={preview?.id === clip.id ? preview.row : row}
+          editable={editable}
+          dragging={job?.type === 'move' && job.clipId === clip.id}
+          resizing={job?.type === 'resize' && job.clipId === clip.id}
+          preview={preview?.id === clip.id ? preview : null}
+        />
+      )))}
+      <div className="pv-playhead" style={{ left: `${(time / duration) * 100}%` }} />
+    </div>
+  )
   return (
     <div className="pv-rail" data-testid="page-video-rail" style={{ height: railHeight }}>
       <div className="pv-track-labels">
@@ -1175,113 +1314,35 @@ function Timeline({
           </div>
         ))}
       </div>
-      <div
-        ref={lanesRef}
-        className={`pv-lanes${dropTarget ? ' is-drop-target' : ''}`}
-        role="slider"
-        tabIndex={0}
-        aria-label="视频时间轴"
-        aria-valuemin={0}
-        aria-valuemax={duration}
-        aria-valuenow={Math.min(duration, time)}
-        aria-valuetext={`${fmtClock(time)} / ${fmtClock(duration)}`}
-        onDragOver={(event) => {
-          if (!onMove && !onResize) return
-          event.preventDefault()
-          event.dataTransfer.dropEffect = 'move'
-          setDropTarget(true)
-        }}
-        onDragLeave={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(false)
-        }}
-        onDrop={(event) => {
-          if (!onMove) return
-          event.preventDefault()
-          const clipId = event.dataTransfer.getData('application/x-page-video-clip')
-          const mode = event.dataTransfer.getData('application/x-page-video-mode')
-          const offset = Number(event.dataTransfer.getData('application/x-page-video-offset')) || 0
-          const rect = event.currentTarget.getBoundingClientRect()
-          const row = Math.max(0, Math.min(tracks.length - 1, Math.floor((event.clientY - rect.top) / TRACK_HEIGHT)))
-          const track = tracks[row]
-          const cursorTime = ((event.clientX - rect.left) / Math.max(1, rect.width)) * duration
-          if (clipId && mode !== 'resize-start' && mode !== 'resize-end' && track) {
-            onMove(clipId, track.id, Math.max(0, cursorTime - offset))
-          }
-          setDragging('')
-          setDropTarget(false)
-        }}
-        onClick={(event) => {
-          if (dragging) return
-          const rect = event.currentTarget.getBoundingClientRect()
-          const x = (event.clientX - rect.left) / Math.max(1, rect.width)
-          onSeek(Math.min(1, Math.max(0, x)) * duration)
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-            event.preventDefault()
-            event.stopPropagation()
-            const frame = 1 / Math.max(1, project.fps)
-            seekBy(event.key === 'ArrowLeft' ? -frame : frame)
-          } else if (event.key === 'Home' || event.key === 'End') {
-            event.preventDefault()
-            event.stopPropagation()
-            onSeek(event.key === 'Home' ? 0 : duration)
-          }
+      <DndContext
+        sensors={sensors}
+        modifiers={[timelineModifiers]}
+        onDragStart={onDragStart}
+        onDragMove={onDragMove}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => {
+          dragRef.current = null
+          setActiveId('')
+          setPreview(null)
         }}
       >
-        {tracks.flatMap((track, row) => track.clips.map((clip) => (
-          <ClipBar
-            key={clip.id}
-            clip={clip}
-            duration={duration}
-            row={row}
-            editable={Boolean(onMove || onResize)}
-            dragging={dragging === clip.id}
-            resizing={resizing === clip.id}
-            preview={preview?.id === clip.id ? preview : null}
-            onDragStart={(event) => {
-              if (resizeRef.current) {
-                event.preventDefault()
-                return
-              }
-              const rect = event.currentTarget.getBoundingClientRect()
-              const offset = ((event.clientX - rect.left) / Math.max(1, rect.width)) * clip.duration
-              event.dataTransfer.effectAllowed = 'move'
-              event.dataTransfer.setData('application/x-page-video-clip', clip.id)
-              event.dataTransfer.setData('application/x-page-video-mode', 'move')
-              event.dataTransfer.setData('application/x-page-video-offset', String(offset))
-              setDragging(clip.id)
-            }}
-            onResizePointerDown={(edge, event) => {
-              if (!onResize) return
-              event.preventDefault()
-              event.stopPropagation()
-              event.currentTarget.setPointerCapture(event.pointerId)
-              resizeRef.current = { id: clip.id, edge }
-              setResizing(clip.id)
-            }}
-            onResizePointerMove={(event) => {
-              if (!resizeRef.current || resizeRef.current.id !== clip.id) return
-              if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
-              event.preventDefault()
-              applyResize(event.clientX, false)
-            }}
-            onResizePointerUp={(event) => {
-              if (!resizeRef.current || resizeRef.current.id !== clip.id) return
-              applyResize(event.clientX, true)
-              resizeRef.current = null
-              setResizing('')
-              setPreview(null)
-            }}
-            onDragEnd={() => {
-              setDragging('')
-              setDropTarget(false)
-            }}
-          />
-        )))}
-        <div className="pv-playhead" style={{ left: `${(time / duration) * 100}%` }} />
-      </div>
+        {lanes}
+      </DndContext>
     </div>
+  )
+}
+
+function ClipHandle({ id, edge, label }: { id: string; edge: 'start' | 'end'; label: string }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id })
+  return (
+    <span
+      ref={setNodeRef}
+      className={`pv-clip-handle${isDragging ? ' is-active' : ''}`}
+      data-edge={edge}
+      aria-label={label}
+      {...listeners}
+      {...attributes}
+    />
   )
 }
 
@@ -1293,11 +1354,6 @@ function ClipBar({
   dragging,
   resizing,
   preview,
-  onDragStart,
-  onResizePointerDown,
-  onResizePointerMove,
-  onResizePointerUp,
-  onDragEnd,
 }: {
   clip: Clip
   duration: number
@@ -1306,24 +1362,18 @@ function ClipBar({
   dragging: boolean
   resizing: boolean
   preview: { start: number; duration: number } | null
-  onDragStart: (event: DragEvent<HTMLDivElement>) => void
-  onResizePointerDown: (edge: 'start' | 'end', event: React.PointerEvent<HTMLSpanElement>) => void
-  onResizePointerMove: (event: React.PointerEvent<HTMLSpanElement>) => void
-  onResizePointerUp: (event: React.PointerEvent<HTMLSpanElement>) => void
-  onDragEnd: () => void
 }) {
+  const move = useDraggable({ id: `move:${clip.id}`, disabled: !editable })
   const tone = clip.kind === 'audio' ? 'audio' : clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media' ? 'video' : 'effect'
   const start = preview?.start ?? clip.start
   const span = preview?.duration ?? clip.duration
   return (
     <div
+      ref={move.setNodeRef}
       className={`pv-clip${dragging ? ' is-dragging' : ''}${resizing ? ' is-resizing' : ''}`}
       data-tone={tone}
       data-editable={editable ? 'true' : undefined}
       data-testid={`page-video-clip-${clip.id}`}
-      draggable={editable && !resizing}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
       onClick={(event) => event.stopPropagation()}
       title={`${clip.kind} · ${fmtClock(start)}–${fmtClock(start + span)}`}
       style={{
@@ -1332,30 +1382,12 @@ function ClipBar({
         width: `${Math.max((span / duration) * 100, 2.4)}%`,
       }}
     >
-      {editable ? (
-        <span
-          className="pv-clip-handle"
-          data-edge="start"
-          aria-label="调整片段开始时间"
-          onPointerDown={(event) => onResizePointerDown('start', event)}
-          onPointerMove={onResizePointerMove}
-          onPointerUp={onResizePointerUp}
-          onPointerCancel={onResizePointerUp}
-        />
-      ) : null}
-      <TrackIcon kind={clip.kind} />
-      {clip.description || clip.name ? <span>{clip.description || clip.name}</span> : null}
-      {editable ? (
-        <span
-          className="pv-clip-handle"
-          data-edge="end"
-          aria-label="调整片段结束时间"
-          onPointerDown={(event) => onResizePointerDown('end', event)}
-          onPointerMove={onResizePointerMove}
-          onPointerUp={onResizePointerUp}
-          onPointerCancel={onResizePointerUp}
-        />
-      ) : null}
+      {editable ? <ClipHandle id={`resize:${clip.id}:start`} edge="start" label="调整片段开始时间" /> : null}
+      <div className="pv-clip-body" {...(editable ? { ...move.listeners, ...move.attributes } : {})}>
+        <TrackIcon kind={clip.kind} />
+        {clip.description || clip.name ? <span>{clip.description || clip.name}</span> : null}
+      </div>
+      {editable ? <ClipHandle id={`resize:${clip.id}:end`} edge="end" label="调整片段结束时间" /> : null}
     </div>
   )
 }
