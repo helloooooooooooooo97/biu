@@ -1,3 +1,4 @@
+import { AD_BEAT_SRC, adBeatUrl } from './beat.ts'
 import { createPortal } from 'react-dom'
 import type { ComponentType, DragEvent } from 'react'
 import {
@@ -362,6 +363,7 @@ function fmtClock(t: number) {
 }
 
 function assetUrl(src: string) {
+  if (src === AD_BEAT_SRC) return adBeatUrl()
   const file = src.replace(/^assets\//, '')
   if (!file) return ''
   if (/^https?:/i.test(file) || file.startsWith('/')) return file
@@ -1571,7 +1573,12 @@ function isLegacySampleScript(value: unknown) {
     value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
     value.includes('src=builtin:ad-wipe') &&
     !value.includes('src=builtin:ad-transition')
-  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd || genericTimelineOpening || uniformTransitionAd
+  const silentTimelineAd =
+    value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
+    value.includes('src=builtin:ad-scene') &&
+    value.includes('src=builtin:ad-transition') &&
+    !value.includes('src=builtin:ad-beat')
+  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd || genericTimelineOpening || uniformTransitionAd || silentTimelineAd
 }
 
 function Editor({
