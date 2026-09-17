@@ -347,6 +347,8 @@ test('page-video drafts the tag script locally like html source', async () => {
   assert.match(src, /className="pv-hint"/)
   assert.doesNotMatch(src, /✅/)
   assert.doesNotMatch(src, /formatReport/)
+  assert.match(src, /function isLegacySampleScript/)
+  assert.match(src, /if \(migrateSample && writable\) update\(\{ script: SAMPLE_SCRIPT \}\)/)
   assert.match(src, /chrome === 'studio' \? project\.radius : 0/)
   assert.doesNotMatch(src, /clip\.description \|\| clip\.kind/)
   assert.doesNotMatch(src, /pv-kicker/)

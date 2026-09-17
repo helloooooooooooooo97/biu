@@ -20,25 +20,27 @@ test('default sample walks through video-block features one at a time', () => {
   assert.equal(result.ok, true, result.ok ? '' : result.error)
   if (!result.ok) return
   const project = result.project
-  assert.match(SAMPLE_SCRIPT, /视频块/)
-  assert.match(SAMPLE_SCRIPT, /<title id=cut[\s\S]*>转场<\/title>/)
-  assert.match(SAMPLE_SCRIPT, /<title id=type[\s\S]*>逐字<\/title>/)
-  assert.match(SAMPLE_SCRIPT, /<title id=point[\s\S]*>光标<\/title>/)
-  assert.match(SAMPLE_SCRIPT, /<title id=call[\s\S]*>箭头<\/title>/)
-  assert.match(SAMPLE_SCRIPT, /<title id=frame[\s\S]*>框选<\/title>/)
+  assert.match(SAMPLE_SCRIPT, />BIU 视频块介绍<\/title>/)
+  assert.match(SAMPLE_SCRIPT, />在页面里制作视频<\/title>/)
+  assert.match(SAMPLE_SCRIPT, />用标签描述画面<\/title>/)
+  assert.match(SAMPLE_SCRIPT, />多条轨道一起工作<\/title>/)
+  assert.match(SAMPLE_SCRIPT, />从脚本，到成片。<\/title>/)
   assert.ok(project.tracks.length >= 4)
   assert.ok(project.clips.some((clip) => clip.kind === 'zoom' && clip.follow === 'cam'))
   assert.ok(project.clips.some((clip) => clip.kind === 'cursor' && clip.follow === 'point'))
   assert.ok(project.clips.some((clip) => clip.kind === 'arrow' && clip.follow === 'call'))
   assert.ok(project.clips.some((clip) => clip.kind === 'box' && clip.follow === 'frame'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'blur' && clip.follow === 'privacy'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'spotlight' && clip.follow === 'focus'))
   assert.ok(project.clips.some((clip) => clip.kind === 'text' && clip.unit === 'char' && clip.follow === 'type'))
   assert.doesNotMatch(SAMPLE_SCRIPT, /demo\/hero\.mp4/)
-  assert.ok(projectDuration(project) > 16)
+  assert.ok(projectDuration(project) > 55)
   const captions = project.clips.filter((clip) => clip.kind === 'caption').sort((a, b) => a.start - b.start)
   for (let i = 1; i < captions.length; i++) {
     assert.ok(clipEnd(captions[i - 1]!) <= captions[i]!.start + 1 / project.fps)
   }
-  const demos = project.clips.filter((item) => item.kind === 'cursor' || item.kind === 'arrow' || item.kind === 'box' || item.kind === 'zoom' || item.kind === 'text')
+  const demoKinds = new Set(['cursor', 'arrow', 'box', 'blur', 'spotlight', 'zoom', 'text'])
+  const demos = project.clips.filter((item) => demoKinds.has(item.kind))
   for (let i = 0; i < demos.length; i++) {
     for (let j = i + 1; j < demos.length; j++) {
       const a = demos[i]!
