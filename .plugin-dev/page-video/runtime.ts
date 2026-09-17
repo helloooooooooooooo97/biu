@@ -17,6 +17,7 @@ export type FrameProps = {
   color?: string
   background?: string
   variant?: string
+  textMotion?: string
 }
 
 export const ABSOLUTE_FILL_STYLE: Record<string, string | number> = {
