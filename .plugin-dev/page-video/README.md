@@ -24,20 +24,25 @@
 
 ```md
 :::pageBlock {kind=video plugin=page-video}
-<timeline fps=30 size=1920x1080 background=#191919 description="视频块介绍：标签时间轴，Agent 写剪辑">
+<timeline fps=30 size=1920x1080 background=#191919 description="视频块功能介绍：逐项演示">
   <track name=main>
-    <title id=open dur=2.8s bg=#191919 ink=#f6f2ea enter="fadeUp" desc="Biu Agent OS">视频块</title>
-    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.45s desc="左推" />
-    <title dur=3.2s bg=#191919 ink=#f6f2ea desc="声明式剪辑">Agent 写标签，页面实时合成。</title>
-    <transition kind=dissolve dur=0.5s />
-    <scene id=fs dur=3.4s bg=#111111 ink=#ece7dc desc="一切皆文件">视频也是路径上的一块。</scene>
-    <title id=end dur=3.4s bg=#191919 ink=#f6f2ea enter="pop" desc="同一套动词">I am Biu.</title>
+    <title id=open dur=2.4s bg=#191919 ink=#f6f2ea enter="fadeUp">视频块</title>
+    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.4s desc="左推" />
+    <title id=cut dur=2.4s>转场</title>
+    <transition kind=dissolve dur=0.45s desc="叠化" />
+    <title id=type dur=3.2s>逐字</title>
+    <title id=cam dur=2.8s>镜头</title>
+    <title id=point dur=2.8s>光标</title>
+    <title id=end dur=2.6s enter="pop">I am Biu.</title>
   </track>
   <track name=copy layer=4>
-    <text at=0.45s dur=2.1s enter="fade+move(y:+16)" unit=word stagger=0.08s>page · plugin · path</text>
-    <text at=3.5s dur=2.7s enter="fade+move(y:+20)" unit=char stagger=0.045s>&lt;timeline&gt; 轨内串行 · 轨间并行</text>
-    <caption follow=fs offset="0.2s,-0.6s">不是调色台。是 db_content 里的一块。</caption>
-    <caption follow=end offset="0.35s,-0.15s">人和 Agent，同一套动词。</caption>
+    <caption follow=open offset="0.2s,-0.55s">Agent 用标签写时间轴</caption>
+    <text follow=type offset="0.25s,-0.55s" unit=char stagger=0.06s>一条路径，一块插件</text>
+    <caption follow=end offset="0.25s,-0.2s">人和 Agent，同一套动词</caption>
+  </track>
+  <track name=fx layer=5>
+    <zoom follow=cam offset="0.15s,-0.55s" cx=0.5 cy=0.48 depth=1.35 />
+    <cursor follow=point offset="0.2s,-0.55s" x=.18 y=.76 x2=.58 y2=.5 click=0.9s />
   </track>
 </timeline>
 :::
