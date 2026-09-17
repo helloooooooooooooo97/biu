@@ -120,30 +120,44 @@ export type Project = {
 
 export type Camera = { scale: number; cx: number; cy: number; rx: number; ry: number; rz: number }
 
-export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919 description="视频块介绍：标签时间轴，Agent 写剪辑">
+export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919 description="视频块功能介绍：逐项演示转场、逐字、镜头、光标、箭头、框选、字幕">
   <track name=main>
-    <title id=open dur=2.8s bg=#191919 ink=#f6f2ea enter="fadeUp" align=center valign=middle desc="Biu Agent OS">视频块</title>
-    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.45s ease="easeInOut" desc="左推" />
-    <title dur=3.2s bg=#191919 ink=#f6f2ea align=center valign=middle desc="声明式剪辑">Agent 写标签，页面实时合成。</title>
-    <transition kind=dissolve dur=0.5s />
-    <scene id=fs dur=3.4s bg=#111111 ink=#ece7dc desc="一切皆文件">视频也是路径上的一块。</scene>
-    <transition enter="fade" exit="fade" dur=0.4s />
-    <title id=end dur=3.4s bg=#191919 ink=#f6f2ea enter="pop" align=center valign=middle desc="同一套动词">I am Biu.</title>
-  </track>
-  <track name=cam layer=2>
-    <zoom at=0.9s dur=0.85s cx=0.5 cy=0.48 depth=1.22 desc="推近开场" />
-    <zoom at=9.6s dur=0.9s cx=0.5 cy=0.5 depth=1.18 desc="收束" />
+    <title id=open dur=2.4s bg=#191919 ink=#f6f2ea enter="fadeUp" align=center valign=middle desc="开场">视频块</title>
+    <transition enter="move(x:+100%)" exit="move(x:-100%)" dur=0.4s desc="左推" />
+    <title id=cut dur=2.4s bg=#191919 ink=#f6f2ea align=center valign=middle desc="转场">转场</title>
+    <transition kind=dissolve dur=0.45s desc="叠化" />
+    <title id=type dur=3.2s bg=#191919 ink=#f6f2ea align=center valign=middle desc="文字">逐字</title>
+    <transition kind=dissolve dur=0.4s />
+    <title id=cam dur=2.8s bg=#191919 ink=#f6f2ea align=center valign=middle desc="镜头">镜头</title>
+    <transition kind=dissolve dur=0.4s />
+    <title id=point dur=2.8s bg=#111111 ink=#ece7dc align=center valign=middle desc="光标">光标</title>
+    <transition kind=dissolve dur=0.4s />
+    <title id=call dur=2.6s bg=#111111 ink=#ece7dc align=center valign=middle desc="箭头">箭头</title>
+    <transition kind=dissolve dur=0.4s />
+    <title id=frame dur=2.6s bg=#111111 ink=#ece7dc align=center valign=middle desc="框选">框选</title>
+    <transition kind=dissolve dur=0.4s />
+    <title id=sub dur=2.8s bg=#191919 ink=#f6f2ea align=center valign=middle desc="字幕">字幕</title>
+    <transition enter="fade" exit="fade" dur=0.35s />
+    <title id=end dur=2.6s bg=#191919 ink=#f6f2ea enter="pop" align=center valign=middle desc="收束">I am Biu.</title>
   </track>
   <track name=copy layer=4>
-    <text at=0.45s dur=2.1s x=.5 y=.18 w=.82 h=.1 size=18 align=center enter="fade+move(y:+16)" unit=word stagger=0.08s>page · plugin · path</text>
-    <text at=3.5s dur=2.7s x=.5 y=.76 w=.86 h=.12 size=22 align=center enter="fade+move(y:+20)" unit=char stagger=0.045s ease="backOut">&lt;timeline&gt; 轨内串行 · 轨间并行</text>
-    <caption follow=fs offset="0.2s,-0.6s">不是调色台。是 db_content 里的一块。</caption>
-    <caption follow=end offset="0.35s,-0.15s">人和 Agent，同一套动词。</caption>
+    <caption follow=open offset="0.2s,-0.55s">Agent 用标签写时间轴</caption>
+    <caption follow=cut offset="0.2s,-0.55s">左推、叠化，总时长不变</caption>
+    <text follow=type offset="0.25s,-0.55s" x=.5 y=.72 w=.84 h=.14 size=22 align=center enter="fade+move(y:+20)" unit=char stagger=0.06s ease="backOut">一条路径，一块插件</text>
+    <caption follow=cam offset="0.2s,-0.55s">zoom 推近画面</caption>
+    <caption follow=point offset="0.2s,-0.55s">光标划过并点击</caption>
+    <caption follow=call offset="0.2s,-0.55s">箭头指向焦点</caption>
+    <caption follow=frame offset="0.2s,-0.55s">框住要讲的区域</caption>
+    <caption follow=sub offset="0.2s,-0.55s">caption 跟在片段后面</caption>
+    <caption follow=end offset="0.25s,-0.2s">人和 Agent，同一套动词</caption>
+  </track>
+  <track name=cam layer=2>
+    <zoom follow=cam offset="0.15s,-0.55s" cx=0.5 cy=0.48 depth=1.35 desc="推近" />
   </track>
   <track name=fx layer=5>
-    <cursor at="fs.start + 0.35s" dur=2s x=.16 y=.78 x2=.52 y2=.5 click=0.9s size=28 desc="点进页面" />
-    <arrow at="fs.start + 0.55s" dur=1.6s x=.2 y=.72 x2=.46 y2=.52 color=#2b7de6 width=4 desc="指向文案" />
-    <box at="fs.start + 0.7s" dur=1.4s x=.5 y=.5 w=.56 h=.22 color=#2b7de6 desc="框选标题" />
+    <cursor follow=point offset="0.2s,-0.55s" x=.18 y=.76 x2=.58 y2=.5 click=0.9s size=28 desc="点击" />
+    <arrow follow=call offset="0.25s,-0.5s" x=.2 y=.7 x2=.5 y2=.48 color=#2b7de6 width=4 desc="指向" />
+    <box follow=frame offset="0.25s,-0.5s" x=.5 y=.5 w=.42 h=.22 color=#2b7de6 desc="框" />
   </track>
 </timeline>
 `
@@ -721,12 +735,7 @@ function diagnose(project: Project): Diagnostic[] {
 }
 
 export function formatReport(project: Project) {
-  return project.diagnostics
-    .map((item) => {
-      const mark = item.level === 'warn' ? '⚠️' : item.level === 'error' ? '⛔' : item.level === 'info' && item.message.startsWith('编译通过') ? '✅' : 'ℹ️'
-      return `${mark} ${item.message}`
-    })
-    .join('\n')
+  return project.diagnostics.map((item) => item.message).join('\n')
 }
 
 type Draft = {

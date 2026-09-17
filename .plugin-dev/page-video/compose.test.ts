@@ -15,32 +15,40 @@ import {
   SAMPLE_SCRIPT,
 } from './compose.ts'
 
-test('default sample is a video-block intro for Biu', () => {
+test('default sample walks through video-block features one at a time', () => {
   const result = compileSafe(SAMPLE_SCRIPT)
   assert.equal(result.ok, true, result.ok ? '' : result.error)
   if (!result.ok) return
   const project = result.project
   assert.match(SAMPLE_SCRIPT, /视频块/)
-  assert.match(SAMPLE_SCRIPT, /Biu Agent OS/)
-  assert.match(SAMPLE_SCRIPT, /db_content/)
+  assert.match(SAMPLE_SCRIPT, /<title id=cut[\s\S]*>转场<\/title>/)
+  assert.match(SAMPLE_SCRIPT, /<title id=type[\s\S]*>逐字<\/title>/)
+  assert.match(SAMPLE_SCRIPT, /<title id=point[\s\S]*>光标<\/title>/)
+  assert.match(SAMPLE_SCRIPT, /<title id=call[\s\S]*>箭头<\/title>/)
+  assert.match(SAMPLE_SCRIPT, /<title id=frame[\s\S]*>框选<\/title>/)
   assert.ok(project.tracks.length >= 4)
-  assert.ok(project.clips.some((clip) => clip.kind === 'title' && clip.text.includes('视频块')))
-  assert.ok(project.clips.some((clip) => clip.kind === 'zoom'))
-  assert.ok(project.clips.some((clip) => clip.kind === 'caption' && clip.follow === 'fs'))
-  assert.ok(project.clips.some((clip) => clip.kind === 'cursor'))
-  assert.ok(project.clips.some((clip) => clip.unit === 'char'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'zoom' && clip.follow === 'cam'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'cursor' && clip.follow === 'point'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'arrow' && clip.follow === 'call'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'box' && clip.follow === 'frame'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'text' && clip.unit === 'char' && clip.follow === 'type'))
   assert.doesNotMatch(SAMPLE_SCRIPT, /demo\/hero\.mp4/)
-  assert.ok(projectDuration(project) > 10)
+  assert.ok(projectDuration(project) > 16)
   const captions = project.clips.filter((clip) => clip.kind === 'caption').sort((a, b) => a.start - b.start)
   for (let i = 1; i < captions.length; i++) {
     assert.ok(clipEnd(captions[i - 1]!) <= captions[i]!.start + 1 / project.fps)
   }
-  const fxKinds = new Set(['cursor', 'arrow', 'box'])
-  const end = project.clips.find((clip) => clip.name === 'end')!
-  for (const clip of project.clips.filter((item) => fxKinds.has(item.kind))) {
-    assert.ok(clipEnd(clip) <= end.start + 0.05)
+  const demos = project.clips.filter((item) => item.kind === 'cursor' || item.kind === 'arrow' || item.kind === 'box' || item.kind === 'zoom' || item.kind === 'text')
+  for (let i = 0; i < demos.length; i++) {
+    for (let j = i + 1; j < demos.length; j++) {
+      const a = demos[i]!
+      const b = demos[j]!
+      const overlap = Math.min(clipEnd(a), clipEnd(b)) - Math.max(a.start, b.start)
+      assert.ok(overlap <= 1 / project.fps, `${a.kind} overlaps ${b.kind}`)
+    }
   }
   assert.doesNotMatch(formatReport(project), /字幕重叠/)
+  assert.doesNotMatch(formatReport(project), /[✅⚠️⛔ℹ️]/)
 })
 
 test('sample script compiles to a playable timeline', () => {
@@ -167,6 +175,7 @@ test('description gap transition and diagnostics', () => {
   assert.equal(project.clips.find((clip) => clip.kind === 'gap')?.duration, 0.5)
   assert.equal(project.clips.find((clip) => clip.kind === 'solid')?.kind, 'solid')
   assert.match(formatReport(project), /编译通过/)
+  assert.doesNotMatch(formatReport(project), /[✅⚠️⛔ℹ️]/)
   const dumped = dumpScript(project)
   assert.match(dumped, /<timeline /)
   assert.match(dumped, /<box /)
