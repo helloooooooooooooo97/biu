@@ -28,17 +28,17 @@
 :::pageBlock {kind=video plugin=page-video}
 <timeline fps=30 size=1920x1080 background=#191919 description="BIU 动态广告片">
   <track name=scenes layer=3>
-    <component id=open src=builtin:ad-scene variant=hero dur=2s color=#8B5CF6>BIU VIDEO BLOCK|01 / 02|BIU 视频块|介绍|一块内容，也能是一支可播放的视频</component>
-    <component id=end src=builtin:ad-scene variant=finale dur=2s color=#A78BFA>BIU VIDEO BLOCK|02 / 02|让创作|即刻发生。|BIU 视频块 · 从想法到成片|hold</component>
+    <component id=open src=builtin:ad-scene variant=hero motion=fade-up dur=2s color=#8B5CF6>BIU VIDEO BLOCK|01 / 02|BIU 视频块|介绍|一块内容，也能是一支可播放的视频</component>
+    <component id=end src=builtin:ad-scene variant=finale motion=fade dur=2s color=#A78BFA>BIU VIDEO BLOCK|02 / 02|让创作|即刻发生。|BIU 视频块 · 从想法到成片|hold</component>
   </track>
   <track name=transitions layer=6>
-    <component src=builtin:ad-wipe at="open.end - 26f" dur=26f color=#8B5CF6 />
+    <component src=builtin:ad-transition variant=iris at="open.end - 26f" dur=26f color=#8B5CF6 />
   </track>
 </timeline>
 :::
 ```
 
-`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景，`variant` 可选 `hero`、`split`、`marquee`、`stagger`、`focus`、`code`、`stack`、`finale`。`builtin:ad-wipe` 只渲染一次遮罩转场。默认广告片用时间轴串联八种 scene，并在独立高层轨道放七个 wipe；顺序、时长、版式和转场位置都由脚本编排。
+`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景。版式 `variant` 可选 `hero`、`split`、`marquee`、`stagger`、`focus`、`code`、`stack`、`finale`；文字 `motion` 可选 `fade`、`fade-up`、`slide`、`type`、`reveal`、`scale`、`tracking`、`blur`。`builtin:ad-transition` 的 `variant` 可选 `wipe`、`iris`、`split`、`bars`、`flash`、`slide`、`shutter`。顺序、时长、版式、文字动效和转场都由脚本编排。
 
 先跑 `video_script`：它会返回覆盖时长、重叠、空镜、follow 失效等诊断，再 `db_content` 写入围栏。
 

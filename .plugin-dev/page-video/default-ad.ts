@@ -18,23 +18,34 @@ function Meta({k, eyebrow, counter, accent, enter}) {
   );
 }
 
-function KineticTitle({k, lines, accent, time, fps, leave, springFn, align, shift, size}) {
+function KineticTitle({k, lines, accent, time, leave, interpolateFn, motion, align, shift, size}) {
   let glyphOffset = 0;
   const titleLines = lines.map(function(line, lineIndex) {
     const lineStart = glyphOffset;
     glyphOffset += line.length;
     const glyphs = line.split("").map(function(char, charIndex) {
       const i = lineStart+charIndex;
-      const p = springFn({frame:time*fps-i*1.15, fps, durationInFrames:18, config:{stiffness:180,damping:28}});
-      const y = (1-p)*36*k;
+      const delay = motion==="type" ? i*.045 : i*.022;
+      const raw = interpolateFn(time,[delay,delay+.32],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
+      const p = raw*raw*(3-2*raw);
+      let transform = "none";
+      let filter = undefined;
+      let opacity = p*leave;
+      if (motion==="slide") transform = "translateX("+(1-p)*-48*k+"px)";
+      else if (motion==="reveal") transform = "translateY("+(1-p)*30*k+"px)";
+      else if (motion==="scale") transform = "scale("+(0.86+p*.14)+")";
+      else if (motion==="tracking") transform = "translateX("+(charIndex-line.length/2)*(1-p)*10*k+"px)";
+      else if (motion==="blur") filter = "blur("+(1-p)*14*k+"px)";
+      else if (motion==="fade-up") transform = "translateY("+(1-p)*18*k+"px)";
+      else if (motion==="type") opacity = (raw>.72 ? 1 : 0)*leave;
       return React.createElement("span", {
         key:charIndex,
-        style:{display:"inline-block", whiteSpace:"pre", opacity:p*leave, transform:"translateY("+y+"px) rotate("+(1-p)*.6+"deg)"}
+        style:{display:"inline-block", whiteSpace:"pre", opacity:opacity, transform:transform, filter:filter}
       }, char);
     });
     return React.createElement("div", {
       key:lineIndex,
-      style:{display:"flex", whiteSpace:"nowrap", color:lineIndex===1 ? accent : "#F7F5F2", transform:lineIndex===1 ? "translateX("+shift*k+"px)" : undefined}
+      style:{display:"flex", whiteSpace:"nowrap", overflow:motion==="reveal" ? "hidden" : "visible", color:lineIndex===1 ? accent : "#F7F5F2", transform:lineIndex===1 ? "translateX("+shift*k+"px)" : undefined}
     }, glyphs);
   });
   return <div style={{display:"flex", flexDirection:"column", alignItems:align, maxWidth:1550*k, fontSize:size*k, lineHeight:.98, fontWeight:780, letterSpacing:-5*k}}>{titleLines}</div>;
@@ -95,7 +106,7 @@ function SceneLayout({variant, k, color, counter, progress, children}) {
   return <div style={{position:"absolute", left:120*k, right:120*k, top:"50%", transform:"translateY(-52%)"}}>{children}</div>;
 }
 
-export default function AdScene({time, progress, durationInFrames, fps, width, content, color, variant, interpolate, spring, AbsoluteFill}) {
+export default function AdScene({time, progress, durationInFrames, fps, width, content, color, variant, textMotion, interpolate, AbsoluteFill}) {
   const fields = String(content||"").split("|");
   const eyebrow = fields[0]||"BIU VIDEO";
   const counter = fields[1]||"01 / 01";
@@ -103,7 +114,8 @@ export default function AdScene({time, progress, durationInFrames, fps, width, c
   const note = fields[4]||"";
   const hold = fields[5]==="hold";
   const duration = durationInFrames/fps;
-  const enter = spring({frame:time*fps, fps, durationInFrames:24, config:{stiffness:180,damping:22}});
+  const enterRaw = interpolate(time,[0,.45],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
+  const enter = enterRaw*enterRaw*(3-2*enterRaw);
   const leave = hold ? 1 : interpolate(time,[duration-.65,duration-.1],[1,0],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
   const noteIn = interpolate(time,[.3,.65],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
   const drift = interpolate(progress,[0,1],[-28,28],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
@@ -117,7 +129,7 @@ export default function AdScene({time, progress, durationInFrames, fps, width, c
       <Glow k={k} accent={color} enter={enter} />
       <Meta k={k} eyebrow={eyebrow} counter={counter} accent={color} enter={enter} />
       <SceneLayout variant={variant} k={k} color={color} counter={counter} progress={progress}>
-        <KineticTitle k={k} lines={lines} accent={color} time={time} fps={fps} leave={leave} springFn={spring} align={centered ? "center" : "flex-start"} shift={lineShift} size={titleSize} />
+        <KineticTitle k={k} lines={lines} accent={color} time={time} leave={leave} interpolateFn={interpolate} motion={textMotion||"fade-up"} align={centered ? "center" : "flex-start"} shift={lineShift} size={titleSize} />
         <Note k={k} text={note} accent={color} opacity={noteIn*leave} reveal={enter*leave} />
       </SceneLayout>
       <Progress k={k} progress={progress} accent={color} />
@@ -126,9 +138,42 @@ export default function AdScene({time, progress, durationInFrames, fps, width, c
 }
 `
 
-export const DEFAULT_AD_WIPE_SOURCE = `
-export default function AdWipe({progress, color, interpolate, AbsoluteFill}) {
-  const left = interpolate(progress,[0,1],[110,-10],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
+export const DEFAULT_AD_TRANSITION_SOURCE = `
+export default function AdTransition({progress, color, variant, interpolate, AbsoluteFill}) {
+  const clamp = {extrapolateLeft:"clamp",extrapolateRight:"clamp"};
+  if (variant==="iris") {
+    const radius = interpolate(progress,[0,1],[0,76],clamp);
+    return <AbsoluteFill style={{background:color, clipPath:"circle("+radius+"% at 50% 50%)"}} />;
+  }
+  if (variant==="split") {
+    const offset = interpolate(progress,[0,1],[100,0],clamp);
+    return (
+      <AbsoluteFill style={{background:"transparent"}}>
+        <div style={{position:"absolute", left:0, right:0, top:0, height:"50%", background:color, transform:"translateY("+offset*-1+"%)"}} />
+        <div style={{position:"absolute", left:0, right:0, bottom:0, height:"50%", background:color, transform:"translateY("+offset+"%)"}} />
+      </AbsoluteFill>
+    );
+  }
+  if (variant==="bars") {
+    const bars = Array.from({length:8},function(_,i) {
+      const p = interpolate(progress,[i*.045,.62+i*.045],[0,1],clamp);
+      return React.createElement("div",{key:i,style:{position:"absolute",top:i*12.5+"%",left:0,width:p*105+"%",height:"12.6%",background:color}});
+    });
+    return <AbsoluteFill style={{background:"transparent"}}>{bars}</AbsoluteFill>;
+  }
+  if (variant==="flash") {
+    const opacity = interpolate(progress,[0,.45,1],[0,1,1],clamp);
+    return <AbsoluteFill style={{background:"#F7F5F2", opacity:opacity}} />;
+  }
+  if (variant==="slide") {
+    const x = interpolate(progress,[0,1],[105,0],clamp);
+    return <AbsoluteFill style={{background:color, transform:"translateX("+x+"%)"}} />;
+  }
+  if (variant==="shutter") {
+    const inset = interpolate(progress,[0,1],[50,0],clamp);
+    return <AbsoluteFill style={{background:color, clipPath:"inset("+inset+"% 0 "+inset+"% 0)"}} />;
+  }
+  const left = interpolate(progress,[0,1],[110,-10],clamp);
   return <AbsoluteFill style={{left:left+"%", background:color, transform:"skewX(-7deg) scaleX(1.08)", transformOrigin:"left"}} />;
 }
 `

@@ -61,6 +61,7 @@ export type Clip = {
   click: number
   color: string
   variant: string
+  textMotion: string
   anim: 'none' | 'fade' | 'rise' | 'pop' | 'slide-left' | 'typewriter' | 'pulse' | 'wave' | 'blur-in'
   shape: 'rectangle' | 'rounded' | 'circle'
   crop: [number, number, number, number]
@@ -125,23 +126,23 @@ export type Camera = { scale: number; cx: number; cy: number; rx: number; ry: nu
 
 export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919 description="BIU 动态广告片：React 逐帧文字与遮罩转场">
   <track name=scenes layer=3>
-    <component id=open src=builtin:ad-scene variant=hero dur=2s color=#8B5CF6 desc="片头">BIU VIDEO BLOCK|01 / 08|BIU 视频块|介绍|一块内容，也能是一支可播放的视频</component>
-    <component id=describe src=builtin:ad-scene variant=split dur=2s color=#38BDF8 desc="左右分栏">01 / DESCRIBE|02 / 08|写下结构|Agent 编排节奏|timeline · track · component</component>
-    <component id=type src=builtin:ad-scene variant=marquee dur=2s color=#F472B6 desc="跑马字背景">02 / TYPE|03 / 08|文字不是出现|是登场|逐字、逐词、逐行，都跟着帧走</component>
-    <component id=transition src=builtin:ad-scene variant=stagger dur=2s color=#FACC15 desc="错位标题">03 / TRANSITION|04 / 08|切换画面|不必打断情绪|遮罩推进 · 双画面交叠 · 连续运动</component>
-    <component id=focus src=builtin:ad-scene variant=focus dur=2s color=#34D399 desc="聚焦圆">04 / FOCUS|05 / 08|镜头跟着|重点走|缩放、光标与标注，让视线有方向</component>
-    <component id=react src=builtin:ad-scene variant=code dur=2s color=#FB7185 desc="代码卡片">05 / REACT|06 / 08|不够表达？|直接写组件|frame + spring + interpolate + AbsoluteFill</component>
-    <component id=sync src=builtin:ad-scene variant=stack dur=2s color=#60A5FA desc="堆叠卡片">06 / SYNC|07 / 08|脚本、时间轴、播放|始终同步|改完一行，下一帧就能看到</component>
-    <component id=end src=builtin:ad-scene variant=finale dur=2s color=#A78BFA desc="品牌 Slogan 尾卡">BIU VIDEO BLOCK|08 / 08|让创作|即刻发生。|BIU 视频块 · 从想法到成片|hold</component>
+    <component id=open src=builtin:ad-scene variant=hero motion=fade-up dur=2s color=#8B5CF6 desc="柔和上移片头">BIU VIDEO BLOCK|01 / 08|BIU 视频块|介绍|一块内容，也能是一支可播放的视频</component>
+    <component id=describe src=builtin:ad-scene variant=split motion=slide dur=2s color=#38BDF8 desc="左右滑入">01 / DESCRIBE|02 / 08|写下结构|Agent 编排节奏|timeline · track · component</component>
+    <component id=type src=builtin:ad-scene variant=marquee motion=type dur=2s color=#F472B6 desc="逐字显现">02 / TYPE|03 / 08|文字不是出现|是登场|逐字、逐词、逐行，都跟着帧走</component>
+    <component id=transition src=builtin:ad-scene variant=stagger motion=reveal dur=2s color=#FACC15 desc="遮罩上升">03 / TRANSITION|04 / 08|切换画面|不必打断情绪|遮罩推进 · 双画面交叠 · 连续运动</component>
+    <component id=focus src=builtin:ad-scene variant=focus motion=scale dur=2s color=#34D399 desc="平滑缩放">04 / FOCUS|05 / 08|镜头跟着|重点走|缩放、光标与标注，让视线有方向</component>
+    <component id=react src=builtin:ad-scene variant=code motion=tracking dur=2s color=#FB7185 desc="字距收拢">05 / REACT|06 / 08|不够表达？|直接写组件|frame + spring + interpolate + AbsoluteFill</component>
+    <component id=sync src=builtin:ad-scene variant=stack motion=blur dur=2s color=#60A5FA desc="模糊聚焦">06 / SYNC|07 / 08|脚本、时间轴、播放|始终同步|改完一行，下一帧就能看到</component>
+    <component id=end src=builtin:ad-scene variant=finale motion=fade dur=2s color=#A78BFA desc="品牌 Slogan 淡入">BIU VIDEO BLOCK|08 / 08|让创作|即刻发生。|BIU 视频块 · 从想法到成片|hold</component>
   </track>
   <track name=transitions layer=6>
-    <component id=wipe-1 src=builtin:ad-wipe at="open.end - 26f" dur=26f color=#8B5CF6 desc="开场到结构" />
-    <component id=wipe-2 src=builtin:ad-wipe at="describe.end - 26f" dur=26f color=#38BDF8 desc="结构到文字" />
-    <component id=wipe-3 src=builtin:ad-wipe at="type.end - 26f" dur=26f color=#F472B6 desc="文字到转场" />
-    <component id=wipe-4 src=builtin:ad-wipe at="transition.end - 26f" dur=26f color=#FACC15 desc="转场到聚焦" />
-    <component id=wipe-5 src=builtin:ad-wipe at="focus.end - 26f" dur=26f color=#34D399 desc="聚焦到 React" />
-    <component id=wipe-6 src=builtin:ad-wipe at="react.end - 26f" dur=26f color=#FB7185 desc="React 到同步" />
-    <component id=wipe-7 src=builtin:ad-wipe at="sync.end - 26f" dur=26f color=#60A5FA desc="同步到收束" />
+    <component id=transition-1 src=builtin:ad-transition variant=wipe at="open.end - 26f" dur=26f color=#8B5CF6 desc="斜切" />
+    <component id=transition-2 src=builtin:ad-transition variant=iris at="describe.end - 26f" dur=26f color=#38BDF8 desc="圆形扩张" />
+    <component id=transition-3 src=builtin:ad-transition variant=split at="type.end - 26f" dur=26f color=#F472B6 desc="上下合拢" />
+    <component id=transition-4 src=builtin:ad-transition variant=bars at="transition.end - 26f" dur=26f color=#FACC15 desc="条带推进" />
+    <component id=transition-5 src=builtin:ad-transition variant=flash at="focus.end - 26f" dur=26f color=#34D399 desc="闪白" />
+    <component id=transition-6 src=builtin:ad-transition variant=slide at="react.end - 26f" dur=26f color=#FB7185 desc="侧推" />
+    <component id=transition-7 src=builtin:ad-transition variant=shutter at="sync.end - 26f" dur=26f color=#60A5FA desc="快门" />
   </track>
 </timeline>
 `
@@ -615,6 +616,7 @@ function clipFrom(kind: ClipKind, attrs: Attrs, text: string, start: number, id:
     click: attrs.click == null ? -1 : Math.max(0, parseClock(attrs.click, fps, -1)),
     color: parseColor(attrs.color, '#ffffff'),
     variant: String(attrs.variant ?? '').trim(),
+    textMotion: String(attrs.motion ?? attrs['text-motion'] ?? '').trim(),
     anim: parseAnimation(attrs.anim),
     shape: parseShape(attrs.shape),
     crop: parseCrop(attrs.crop),
@@ -1037,6 +1039,7 @@ function dumpClip(clip: Clip, serialStart: number) {
     attr('click', clip.kind === 'cursor' && clip.click >= 0 ? fmtTime(clip.click) : undefined) +
     attr('color', clip.kind === 'text' || clip.kind === 'arrow' || clip.kind === 'cursor' || clip.kind === 'box' || clip.kind === 'solid' || clip.kind === 'component' ? clip.color : undefined) +
     attr('variant', clip.kind === 'component' ? clip.variant : undefined) +
+    attr('motion', clip.kind === 'component' ? clip.textMotion : undefined) +
     attr('anim', clip.kind === 'text' || clip.kind === 'image' ? clip.anim : undefined, 'none') +
     attr('shape', clip.kind === 'blur' || clip.kind === 'pip' || clip.kind === 'image' ? clip.shape : undefined, 'rectangle') +
     attr('in', clip.kind === 'media' || clip.kind === 'pip' || clip.kind === 'audio' ? fmtTime(clip.sourceIn) : undefined, '0s') +
