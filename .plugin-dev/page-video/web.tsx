@@ -64,7 +64,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v16'
+const STYLE_ID = 'pv-style-v17'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -204,7 +204,7 @@ const STYLE_CSS = `
 .pv-embed-timeline .pv-rail{border-top:0}
 .pv-embed-script{border-top:1px solid var(--pv-line);max-height:240px;display:flex;flex-direction:column;min-height:0;background:var(--pv-panel)}
 .pv-embed-script .pv-code-wrap{min-height:168px}
-.pv-embed-script .pv-src{resize:vertical;min-height:168px}
+.pv-embed-script .pv-code-editor{min-height:168px}
 .pv-embed-script .pv-err,.pv-embed-script .pv-hint{border-top:1px solid var(--pv-line)}
 .pv-icon{
   width:28px;height:28px;border:0;border-radius:5px;background:transparent;
@@ -261,13 +261,11 @@ const STYLE_CSS = `
 }
 .pv-split:before{content:"";position:absolute;inset:0 -5px}
 .pv-split:after{content:"";position:absolute;top:0;bottom:0;left:2px;width:1px;background:var(--studio-line)}
-.pv-split:hover:after,.pv-split.is-drag:after{background:color-mix(in srgb,var(--pv-mute) 55%,var(--studio-line))}
 .pv-foot-split{
   height:6px;cursor:row-resize;background:transparent;position:relative;z-index:2;touch-action:none;
 }
 .pv-foot-split:before{content:"";position:absolute;inset:-4px 0}
 .pv-foot-split:after{content:"";position:absolute;left:0;right:0;top:2px;height:1px;background:var(--studio-line)}
-.pv-foot-split:hover:after,.pv-foot-split.is-drag:after{background:color-mix(in srgb,var(--pv-mute) 55%,var(--studio-line))}
 .pv-canvas{
   container-type:size;min-width:0;min-height:0;padding:24px;
   display:grid;place-items:center;
@@ -303,15 +301,21 @@ const STYLE_CSS = `
   font-family:var(--font-mono);font-size:12px;line-height:1.65;user-select:none;overflow:hidden;
 }
 .pv-code-wrap{display:flex;flex:1;min-height:0}
-.pv-code-wrap .pv-src{
-  white-space:pre;tab-size:2;
-}
-.pv-src{
-  flex:1;min-height:0;width:100%;box-sizing:border-box;border:0;outline:none;resize:none;
-  padding:14px 16px 14px 10px;background:var(--pv-panel);color:var(--pv-ink);
+.pv-code-editor{position:relative;flex:1;min-width:0;min-height:0;background:var(--pv-panel)}
+.pv-code-editor:focus-within{background:var(--pv-bg)}
+.pv-code-highlight,.pv-src{
+  position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;margin:0;border:0;outline:0;resize:none;
+  padding:14px 16px 14px 10px;white-space:pre;tab-size:2;overflow:auto;
   font-family:var(--font-mono);font-size:12px;line-height:1.65;
 }
-.pv-src:focus{background:var(--pv-bg);box-shadow:inset 2px 0 var(--pv-ink)}
+.pv-code-highlight{pointer-events:none;color:var(--pv-ink);background:transparent;overflow:hidden}
+.pv-src{z-index:1;background:transparent;color:transparent;caret-color:var(--pv-ink);-webkit-text-fill-color:transparent}
+.pv-src::selection{background:color-mix(in srgb,var(--pv-blue) 24%,transparent)}
+.pv-code-tag{color:var(--dsw-pick,var(--pv-blue));font-weight:600}
+.pv-code-attr{color:var(--dsw-purple,#9065b0)}
+.pv-code-value{color:var(--dsw-ok,#1f8a65)}
+.pv-code-punct{color:var(--pv-mute)}
+.pv-code-text{color:var(--pv-ink)}
 .pv-err,.pv-hint{
   flex:0 0 32px;box-sizing:border-box;display:flex;align-items:center;gap:6px;
   padding:0 12px;border-top:1px solid var(--studio-line);font-size:11px;
@@ -931,6 +935,53 @@ function Stage({ project, time, playing, chrome = 'embed' }: { project: Project;
   )
 }
 
+function highlightTag(tag: string, key: string) {
+  const match = tag.match(/^(<\/?)([A-Za-z_][\w-]*)([\s\S]*?)(\/?>)$/)
+  if (!match) return [React.createElement('span', { className: 'pv-code-text', key }, tag)]
+  const nodes = [
+    React.createElement('span', { className: 'pv-code-punct', key: `${key}-open` }, match[1]),
+    React.createElement('span', { className: 'pv-code-tag', key: `${key}-tag` }, match[2]),
+  ]
+  const attrs = match[3] ?? ''
+  const re = /(\s+)([A-Za-z_][\w-]*)(\s*=\s*)("[^"]*"|'[^']*'|[^\s>]+)/g
+  let cursor = 0
+  let token: RegExpExecArray | null
+  let index = 0
+  while ((token = re.exec(attrs))) {
+    if (token.index > cursor) nodes.push(React.createElement('span', { className: 'pv-code-text', key: `${key}-raw-${index}` }, attrs.slice(cursor, token.index)))
+    nodes.push(token[1])
+    nodes.push(React.createElement('span', { className: 'pv-code-attr', key: `${key}-attr-${index}` }, token[2]))
+    nodes.push(React.createElement('span', { className: 'pv-code-punct', key: `${key}-eq-${index}` }, token[3]))
+    nodes.push(React.createElement('span', { className: 'pv-code-value', key: `${key}-value-${index}` }, token[4]))
+    cursor = token.index + token[0].length
+    index += 1
+  }
+  if (cursor < attrs.length) nodes.push(React.createElement('span', { className: 'pv-code-text', key: `${key}-tail` }, attrs.slice(cursor)))
+  nodes.push(React.createElement('span', { className: 'pv-code-punct', key: `${key}-close` }, match[4]))
+  return nodes
+}
+
+function highlightTimelineScript(script: string) {
+  const nodes: unknown[] = []
+  script.split('\n').forEach((line, lineIndex, lines) => {
+    const parts: unknown[] = []
+    const re = /<[^>]*>/g
+    let cursor = 0
+    let tag: RegExpExecArray | null
+    let tagIndex = 0
+    while ((tag = re.exec(line))) {
+      if (tag.index > cursor) parts.push(React.createElement('span', { className: 'pv-code-text', key: `text-${lineIndex}-${tagIndex}` }, line.slice(cursor, tag.index)))
+      parts.push(...highlightTag(tag[0], `tag-${lineIndex}-${tagIndex}`))
+      cursor = tag.index + tag[0].length
+      tagIndex += 1
+    }
+    if (cursor < line.length) parts.push(React.createElement('span', { className: 'pv-code-text', key: `tail-${lineIndex}` }, line.slice(cursor)))
+    nodes.push(React.createElement('span', { key: `line-${lineIndex}` }, parts))
+    if (lineIndex < lines.length - 1) nodes.push('\n')
+  })
+  return nodes
+}
+
 function ScriptField({
   value,
   onCommit,
@@ -947,6 +998,7 @@ function ScriptField({
   const draftRef = useRef(draft)
   const valueRef = useRef(value)
   const onCommitRef = useRef(onCommit)
+  const highlightRef = useRef<HTMLPreElement | null>(null)
   const lineCount = Math.max(1, draft.split('\n').length)
   draftRef.current = draft
   valueRef.current = value
@@ -963,27 +1015,36 @@ function ScriptField({
   return (
     <div className="pv-code-wrap">
       <div className="pv-line-no" aria-hidden>{Array.from({ length: lineCount }, (_, i) => i + 1).join('\n')}</div>
-      <textarea
-        data-testid="page-video-script"
-        data-page-block-capture=""
-        spellCheck={false}
-        readOnly={readOnly}
-        className="pv-src"
-        value={draft}
-        onFocus={() => {
-          focused.current = true
-        }}
-        onBlur={() => {
-          focused.current = false
-          if (draftRef.current !== valueRef.current) onCommitRef.current(draftRef.current)
-        }}
-        onKeyDown={(event) => event.stopPropagation()}
-        onChange={(event) => {
-          const next = event.currentTarget.value
-          setDraft(next)
-          onLive(next)
-        }}
-      />
+      <div className="pv-code-editor">
+        <pre ref={highlightRef} className="pv-code-highlight" aria-hidden>{highlightTimelineScript(draft)}</pre>
+        <textarea
+          data-testid="page-video-script"
+          data-page-block-capture=""
+          spellCheck={false}
+          readOnly={readOnly}
+          className="pv-src"
+          value={draft}
+          onFocus={() => {
+            focused.current = true
+          }}
+          onBlur={() => {
+            focused.current = false
+            if (draftRef.current !== valueRef.current) onCommitRef.current(draftRef.current)
+          }}
+          onScroll={(event) => {
+            const highlight = highlightRef.current
+            if (!highlight) return
+            highlight.scrollTop = event.currentTarget.scrollTop
+            highlight.scrollLeft = event.currentTarget.scrollLeft
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+          onChange={(event) => {
+            const next = event.currentTarget.value
+            setDraft(next)
+            onLive(next)
+          }}
+        />
+      </div>
     </div>
   )
 }
