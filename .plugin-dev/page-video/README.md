@@ -49,7 +49,7 @@
 
 ## React 组件与 AbsoluteFill
 
-常规剪辑继续用标签。复杂动效用 `<component src=hero.js dur=3s />`：文件经附件/`db_asset` 读取，改完立刻热重载，不 bundle。组件拿到 `frame` `time` `progress` `fps` `width` `height`，以及 `interpolate()` `spring()`。
+常规剪辑继续用标签。复杂动效用 `<component src=hero.js dur=3s />`：文件经附件/`db_asset` 读取，改完立刻热重载，不 bundle。组件拿到 `frame` `time` `progress` `fps` `width` `height`，以及 `interpolate()` `spring()`。源码走 **Sucrase** 做完整 JSX/TS 转换（`Array.map` 返回元素、`x < 3` 比较都可以），再在沙箱里执行。
 
 `<AbsoluteFill>` 铺满画布（`position:absolute; inset:0; display:flex; flex-direction:column`）。时间轴上可与标签混排；组件 JSX 里也可直接写 `<AbsoluteFill>`。无背景时下层会透出。组件抛错只坏自己这一层。
 
