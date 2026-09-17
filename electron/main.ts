@@ -534,9 +534,16 @@ async function ensureBrowserPanel() {
   }
 }
 
-// 开发期开个 CDP 端口，方便自动化和排查（打包不加）
-if (isDev) {
-  app.commandLine.appendSwitch('remote-debugging-port', '9222')
+// 默认不暴露 Electron 的 CDP，避免测试脚本把主窗口误认成 Headless Chrome。
+// 确实需要调试 Electron 时，通过环境变量显式指定独立端口。
+const electronCdpPort = process.env.BIU_ELECTRON_CDP_PORT?.trim()
+if (isDev && electronCdpPort) {
+  const port = Number(electronCdpPort)
+  if (Number.isInteger(port) && port > 0 && port <= 65535) {
+    app.commandLine.appendSwitch('remote-debugging-port', String(port))
+  } else {
+    console.warn(`[electron] ignored invalid BIU_ELECTRON_CDP_PORT: ${electronCdpPort}`)
+  }
 }
 
 // 容器 / 无用户命名空间的 Linux 上 Chromium 沙箱会直接起不来
