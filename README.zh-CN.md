@@ -25,8 +25,6 @@
 
 ## 产品演示
 
-三张图分别展示共享数据、可运行组件和精准上下文。
-
 <p align="center">
   <img src="docs/demo/file-system.png" alt="File System：会话表与页面表并排打开" width="880" />
 </p>
