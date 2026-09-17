@@ -1,0 +1,15 @@
+{
+  "id": "api-playground",
+  "name": "API 调试块",
+  "blurb": "在页面文档里插一个块，填 method/url/headers/body 点「发送」，host 侧真发 HTTP 请求（fetch），把状态码、耗时、响应头、响应体（JSON 自动美化）显示在块里；请求历史存进块 data.history 跟着文档走。无头插件，路由 POST /api/api-playground/send。",
+  "tags": [
+    "page",
+    "editor",
+    "dev",
+    "api"
+  ],
+  "author": "Biu",
+  "authorUrl": "",
+  "createdAt": 1789444130558,
+  "headless": true
+}

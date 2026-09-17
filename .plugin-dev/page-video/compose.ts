@@ -613,7 +613,12 @@ function clipFrom(kind: ClipKind, attrs: Attrs, text: string, start: number, id:
     y2: parseUnit(attrs.y2, dir ? clamp(y + dir.y, 0, 1) : y, 0, 1),
     w: parseUnit(attrs.w, kind === 'pip' ? 0.24 : kind === 'text' || kind === 'stamp' ? 0.56 : 0.25, 0.01, 1),
     h: parseUnit(attrs.h, kind === 'pip' ? 0.3 : kind === 'text' || kind === 'stamp' ? 0.16 : 0.2, 0.01, 1),
-    size: parseUnit(attrs.size, kind === 'cursor' ? 28 : 32, 8, 160),
+    size: parseUnit(attrs.size,
+      kind === 'cursor' ? 28
+        : kind === 'title' || kind === 'scene' ? 64
+        : kind === 'caption' ? 30
+        : 32,
+      8, 200),
     amount: parseUnit(attrs.amount ?? attrs.width, kind === 'spotlight' ? 18 : 12, 1, 40),
     speed: parseUnit(attrs.speed, 1, 0.1, 16),
     click: attrs.click == null ? -1 : Math.max(0, parseClock(attrs.click, fps, -1)),
@@ -1036,7 +1041,17 @@ function dumpClip(clip: Clip, serialStart: number) {
     attr('y2', clip.kind === 'arrow' || clip.kind === 'cursor' ? clip.y2 : undefined, clip.y) +
     attr('w', clip.kind === 'blur' || clip.kind === 'pip' || clip.kind === 'image' || clip.kind === 'text' || clip.kind === 'box' || clip.kind === 'spotlight' || clip.kind === 'stamp' ? clip.w : undefined) +
     attr('h', clip.kind === 'blur' || clip.kind === 'pip' || clip.kind === 'image' || clip.kind === 'text' || clip.kind === 'box' || clip.kind === 'spotlight' || clip.kind === 'stamp' ? clip.h : undefined) +
-    attr('size', clip.kind === 'text' || clip.kind === 'cursor' || clip.kind === 'stamp' ? clip.size : undefined) +
+    attr(
+      'size',
+      clip.kind === 'text' ||
+        clip.kind === 'cursor' ||
+        clip.kind === 'stamp' ||
+        clip.kind === 'title' ||
+        clip.kind === 'scene' ||
+        clip.kind === 'caption'
+        ? clip.size
+        : undefined,
+    ) +
     attr('amount', clip.kind === 'blur' || clip.kind === 'spotlight' || clip.kind === 'box' ? clip.amount : undefined) +
     attr('speed', clip.kind === 'media' || clip.kind === 'pip' || clip.kind === 'speed' ? clip.speed : undefined, 1) +
     attr('click', clip.kind === 'cursor' && clip.click >= 0 ? fmtTime(clip.click) : undefined) +
