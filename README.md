@@ -25,8 +25,6 @@ A pluggable, self-hosted agent workbench. Humans organize work in the interface;
 
 ## Demo
 
-Three screenshots show shared data, runnable components, and precise context.
-
 <p align="center">
   <img src="docs/demo/file-system.png" alt="File System: session and page tables opened side by side" width="880" />
 </p>
