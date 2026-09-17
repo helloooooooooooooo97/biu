@@ -36,8 +36,8 @@
   <track name=copy layer=4>
     <text at=0.45s dur=2.1s enter="fade+move(y:+16)" unit=word stagger=0.08s>page · plugin · path</text>
     <text at=3.5s dur=2.7s enter="fade+move(y:+20)" unit=char stagger=0.045s>&lt;timeline&gt; 轨内串行 · 轨间并行</text>
-    <caption follow=fs offset="-0.08s,+0.35s">不是调色台。是 db_content 里的一块。</caption>
-    <caption follow=end offset="-0.12s,+0.45s">人和 Agent，同一套动词。</caption>
+    <caption follow=fs offset="0.2s,-0.6s">不是调色台。是 db_content 里的一块。</caption>
+    <caption follow=end offset="0.35s,-0.15s">人和 Agent，同一套动词。</caption>
   </track>
 </timeline>
 :::

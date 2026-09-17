@@ -346,6 +346,7 @@ test('page-video drafts the tag script locally like html source', async () => {
   assert.match(src, /chrome === 'studio' \? project\.radius : 0/)
   assert.match(src, /clip\.description \|\| clip\.kind/)
   assert.match(src, /chrome="embed"/)
+  assert.match(src, /\(captions\.length - 1 - index\) \* 7/)
   assert.doesNotMatch(src, /\.pv-stage\{[^}]*background:#191919/)
   assert.doesNotMatch(src, /\.pv-studio\{[\s\S]*?background:#f7f7f5/)
   assert.doesNotMatch(src, /className="pv-chrome"/)
