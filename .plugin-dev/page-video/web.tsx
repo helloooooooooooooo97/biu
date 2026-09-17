@@ -94,7 +94,6 @@ const STYLE_CSS = `
 .pv-cam{position:absolute;inset:0;transform-origin:center center;will-change:transform;transform-style:preserve-3d}
 .pv-layer{position:absolute;inset:0}
 .pv-frame{position:absolute;inset:0;display:flex;flex-direction:column;padding:9% 10%;box-sizing:border-box}
-.pv-kicker{position:absolute;top:9%;left:10%;right:10%;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;opacity:.55}
 .pv-title{font-size:clamp(22px,4.4vw,40px);font-weight:700;letter-spacing:-.03em;line-height:1.15;width:100%}
 .pv-caption{
   position:absolute;left:8%;right:8%;bottom:10%;z-index:3;
@@ -709,7 +708,6 @@ function Stage({ project, time, playing, chrome = 'embed' }: { project: Project;
                     textAlign: clip.align,
                   }}
                 >
-                  <div className="pv-kicker">{clip.description || clip.kind}</div>
                   <div className="pv-title">{clip.text || '·'}</div>
                 </div>
               </div>
