@@ -33,6 +33,8 @@ test('page-video is a headless page block with tag grammar', async () => {
   assert.match(web, /aria-label="进度"/)
   assert.match(web, /background:var\(--dsw-sidebar,#202020\)/)
   assert.match(web, /className="pv-preview"/)
+  assert.match(web, /className="pv-embed-script"/)
+  assert.match(web, /className="pv-embed-timeline"/)
   assert.match(readme, /<timeline fps=30 size=1920x1080/)
   assert.doesNotMatch(readme, /"script":/)
   assert.match(host, /video_script/)
