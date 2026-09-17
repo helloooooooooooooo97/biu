@@ -9,6 +9,7 @@ import {
   ChatBubbleBottomCenterTextIcon,
   CheckIcon,
   CodeBracketIcon,
+  CubeIcon,
   CursorArrowRaysIcon,
   ExclamationTriangleIcon,
   FilmIcon,
@@ -51,6 +52,7 @@ import {
   type Clip,
   type Project,
 } from './compose.ts'
+import { compileComponentSource, interpolate, makeAbsoluteFill, spring, type FrameProps } from './runtime.ts'
 
 const React = globalThis.React
 const { useEffect, useId, useMemo, useRef, useState } = React
@@ -58,7 +60,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v10'
+const STYLE_ID = 'pv-style-v11'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -98,6 +100,14 @@ const STYLE_CSS = `
   position:absolute;left:8%;right:8%;bottom:10%;z-index:3;
   text-align:center;font-size:clamp(14px,2.1vw,20px);font-weight:600;
   text-shadow:0 1px 10px rgba(0,0,0,.4);
+}
+.pv-fill,.pv-component{
+  position:absolute;inset:0;width:100%;height:100%;z-index:4;
+  display:flex;flex-direction:column;pointer-events:none;background:transparent;
+}
+.pv-component-error{
+  margin:auto;padding:8px 12px;max-width:80%;
+  color:var(--pv-danger);font-size:12px;line-height:1.4;text-align:center;
 }
 .pv-media{position:absolute;inset:0;width:100%;height:100%;background:#111}
 .pv-effect{position:absolute;z-index:5;pointer-events:none;box-sizing:border-box}
@@ -632,6 +642,109 @@ function clamp01(n: number) {
   return Math.min(1, Math.max(0, n))
 }
 
+function FillLayer({ clip, time }: { clip: Clip; time: number }) {
+  const pose = poseStyle(clip, time)
+  return (
+    <div
+      className="pv-fill"
+      data-pv-fill=""
+      data-testid="page-video-fill"
+      style={{
+        background: clip.bg && clip.bg !== 'transparent' ? clip.bg : 'transparent',
+        opacity: alphaAt(clip, time) * Number(pose.opacity ?? 1),
+        transform: pose.transform,
+        filter: pose.filter,
+        clipPath: pose.clipPath,
+      }}
+    />
+  )
+}
+
+class ComponentBoundary extends React.Component<{ children?: unknown }, { error: string }> {
+  state = { error: '' }
+  static getDerivedStateFromError(error: unknown) {
+    return { error: error instanceof Error ? error.message : String(error) }
+  }
+  render() {
+    if (this.state.error) return <div className="pv-component-error">{this.state.error}</div>
+    return this.props.children
+  }
+}
+
+function ComponentLayer({ clip, time, project }: { clip: Clip; time: number; project: Project }) {
+  const [view, setView] = useState<((props: FrameProps) => unknown) | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let stop = false
+    let last = ''
+    const load = async () => {
+      try {
+        let source = clip.text
+        if (clip.src) {
+          const res = await fetch(assetUrl(clip.src), { cache: 'no-store' })
+          if (!res.ok) throw new Error(`无法读取组件 ${clip.src}`)
+          source = await res.text()
+        }
+        if (source === last) return
+        last = source
+        const compiled = compileComponentSource(source, React)
+        if (!stop) {
+          setView(() => compiled)
+          setError('')
+        }
+      } catch (err) {
+        if (!stop) {
+          setView(null)
+          setError(err instanceof Error ? err.message : String(err))
+        }
+      }
+    }
+    void load()
+    const tick = window.setInterval(() => {
+      void load()
+    }, 700)
+    return () => {
+      stop = true
+      window.clearInterval(tick)
+    }
+  }, [clip.src, clip.text])
+  const pose = poseStyle(clip, time)
+  const local = Math.max(0, time - clip.start)
+  const progress = clip.duration > 0 ? Math.min(1, local / clip.duration) : 0
+  const durationInFrames = Math.max(1, Math.round(clip.duration * project.fps))
+  const props: FrameProps = {
+    frame: Math.round(local * project.fps),
+    time: local,
+    progress,
+    durationInFrames,
+    fps: project.fps,
+    width: project.width,
+    height: project.height,
+    interpolate,
+    spring,
+    AbsoluteFill: makeAbsoluteFill(React.createElement.bind(React)),
+  }
+  return (
+    <div
+      className="pv-component"
+      data-testid="page-video-component"
+      style={{
+        opacity: alphaAt(clip, time) * Number(pose.opacity ?? 1),
+        transform: pose.transform,
+        filter: pose.filter,
+        clipPath: pose.clipPath,
+      }}
+    >
+      {error ? <div className="pv-component-error">{error}</div> : null}
+      {!error && view ? (
+        <ComponentBoundary>
+          {view(props)}
+        </ComponentBoundary>
+      ) : null}
+    </div>
+  )
+}
+
 function Stage({ project, time, playing, chrome = 'embed' }: { project: Project; time: number; playing: boolean; chrome?: 'embed' | 'studio' }) {
   const active = clipsAt(project, time)
   const bases = active.filter((clip) => clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media' || clip.kind === 'solid')
@@ -648,6 +761,8 @@ function Stage({ project, time, playing, chrome = 'embed' }: { project: Project;
     clip.kind === 'stamp' ||
     clip.kind === 'trim',
   )
+  const fills = active.filter((clip) => clip.kind === 'fill')
+  const components = active.filter((clip) => clip.kind === 'component')
   const audio = project.clips.filter((clip) => clip.kind === 'audio')
   const media = project.clips.filter((clip) => clip.kind === 'media')
   const bg = [...bases].reverse().find((clip) => clip.kind !== 'media')?.bg ?? '#191919'
@@ -714,6 +829,12 @@ function Stage({ project, time, playing, chrome = 'embed' }: { project: Project;
               </div>
               )
             })}
+          {fills.map((clip) => (
+            <FillLayer key={clip.id} clip={clip} time={time} />
+          ))}
+          {components.map((clip) => (
+            <ComponentLayer key={clip.id} clip={clip} time={time} project={project} />
+          ))}
         </div>
         {captions.map((clip, index) => (
           <div
@@ -803,7 +924,7 @@ type TimelineTrack = {
   clips: Clip[]
 }
 
-const TRACK_ORDER: Clip['kind'][] = ['title', 'scene', 'solid', 'media', 'zoom', 'text', 'caption', 'arrow', 'blur', 'box', 'spotlight', 'stamp', 'cursor', 'pip', 'image', 'speed', 'trim', 'gap', 'audio']
+const TRACK_ORDER: Clip['kind'][] = ['title', 'scene', 'solid', 'media', 'fill', 'component', 'zoom', 'text', 'caption', 'arrow', 'blur', 'box', 'spotlight', 'stamp', 'cursor', 'pip', 'image', 'speed', 'trim', 'gap', 'audio']
 const TRACK_HEIGHT = 28
 const TRACK_ICONS: Record<Clip['kind'], ComponentType<{ className?: string }>> = {
   title: Bars3BottomLeftIcon,
@@ -825,6 +946,8 @@ const TRACK_ICONS: Record<Clip['kind'], ComponentType<{ className?: string }>> =
   trim: ScissorsIcon,
   gap: MinusIcon,
   audio: SpeakerWaveIcon,
+  component: CubeIcon,
+  fill: CubeIcon,
 }
 
 function TrackIcon({ kind }: { kind: Clip['kind'] }) {
