@@ -249,6 +249,25 @@ export function moveClip(project: Project, clipId: string, targetTrackId: string
   return { ...project, clips, tracks }
 }
 
+export function resizeClip(project: Project, clipId: string, edge: 'start' | 'end', time: number) {
+  const source = project.clips.find((clip) => clip.id === clipId)
+  if (!source) return project
+  const frame = 1 / project.fps
+  const snapped = Math.max(0, Math.round(time * project.fps) / project.fps)
+  const end = clipEnd(source)
+  const start = edge === 'start' ? Math.min(end - frame, snapped) : source.start
+  const duration = edge === 'start' ? end - start : Math.max(frame, snapped - source.start)
+  const resized: Clip = { ...source, start, duration, follow: '' }
+  const clips = project.clips.map((clip) => (clip.id === clipId ? resized : clip))
+  const tracks = project.tracks.map((track) => ({
+    ...track,
+    clips: track.clips
+      .map((clip) => (clip.id === clipId ? resized : clip))
+      .sort((a, b) => a.start - b.start || a.duration - b.duration),
+  }))
+  return { ...project, clips, tracks }
+}
+
 export function clipsAt(project: Project, time: number) {
   return project.clips.filter((clip) => clip.kind !== 'gap' && time >= clip.start && time < clipEnd(clip) - 1e-9)
 }

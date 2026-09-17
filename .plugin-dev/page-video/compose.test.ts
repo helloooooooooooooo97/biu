@@ -13,6 +13,7 @@ import {
   moveClip,
   projectDuration,
   propAt,
+  resizeClip,
   SAMPLE_SCRIPT,
 } from './compose.ts'
 
@@ -150,6 +151,19 @@ test('dragging a clip moves it across tracks and snaps to frames', () => {
   assert.equal(moved.tracks[0]?.clips.some((item) => item.id === 'a'), false)
   assert.equal(moved.tracks[1]?.clips.some((item) => item.id === 'a'), true)
   assert.match(dumpScript(moved), /<title id=a dur=2s at=1\.23s/)
+})
+
+test('dragging either clip edge changes its time span', () => {
+  const project = compileScript(`<timeline fps=30><track><scene id=a at=1s dur=2s>A</scene></track></timeline>`)
+  const fromStart = resizeClip(project, 'a', 'start', 1.52)
+  const startClip = fromStart.clips.find((item) => item.id === 'a')!
+  assert.equal(startClip.start, 46 / 30)
+  assert.equal(startClip.duration, 3 - 46 / 30)
+  const fromEnd = resizeClip(project, 'a', 'end', 4.26)
+  const endClip = fromEnd.clips.find((item) => item.id === 'a')!
+  assert.equal(endClip.start, 1)
+  assert.equal(endClip.duration, 98 / 30)
+  assert.match(dumpScript(fromEnd), /<scene id=a dur=3\.27s at=1s/)
 })
 
 test('OpenScreen-style effects compile from agent tags', () => {

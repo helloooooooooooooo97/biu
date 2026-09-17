@@ -47,6 +47,7 @@ import {
   poseStyle,
   projectDuration,
   propAt,
+  resizeClip,
   SAMPLE_SCRIPT,
   speedAt,
   splitTextUnits,
@@ -165,6 +166,13 @@ const STYLE_CSS = `
 .pv-clip[data-editable="true"]:hover{filter:brightness(.96)}
 .pv-clip[data-editable="true"]:active{cursor:grabbing}
 .pv-clip.is-dragging{opacity:.45;transform:scale(.985);z-index:4}
+.pv-clip-handle{
+  position:absolute;top:0;bottom:0;width:7px;z-index:2;cursor:ew-resize;
+  background:transparent;
+}
+.pv-clip-handle[data-edge="start"]{left:0}
+.pv-clip-handle[data-edge="end"]{right:0}
+.pv-clip-handle:hover{background:color-mix(in srgb,currentColor 18%,transparent)}
 .pv-clip svg{width:12px;height:12px;flex:none}
 .pv-clip[data-tone="effect"]{background:color-mix(in srgb,var(--pv-blue) 24%,var(--pv-surface));color:color-mix(in srgb,var(--pv-blue) 72%,var(--pv-ink))}
 .pv-clip[data-tone="audio"]{background:color-mix(in srgb,var(--pv-ok) 24%,var(--pv-surface));color:color-mix(in srgb,var(--pv-ok) 70%,var(--pv-ink))}
@@ -1039,12 +1047,14 @@ function Timeline({
   time,
   onSeek,
   onMove,
+  onResize,
 }: {
   project: Project
   duration: number
   time: number
   onSeek: (t: number) => void
   onMove?: (clipId: string, trackId: string, start: number) => void
+  onResize?: (clipId: string, edge: 'start' | 'end', time: number) => void
 }) {
   const [dragging, setDragging] = useState('')
   const [dropTarget, setDropTarget] = useState(false)
@@ -1070,7 +1080,7 @@ function Timeline({
         aria-valuenow={Math.min(duration, time)}
         aria-valuetext={`${fmtClock(time)} / ${fmtClock(duration)}`}
         onDragOver={(event) => {
-          if (!onMove) return
+          if (!onMove && !onResize) return
           event.preventDefault()
           event.dataTransfer.dropEffect = 'move'
           setDropTarget(true)
@@ -1079,15 +1089,20 @@ function Timeline({
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(false)
         }}
         onDrop={(event) => {
-          if (!onMove) return
+          if (!onMove && !onResize) return
           event.preventDefault()
           const clipId = event.dataTransfer.getData('application/x-page-video-clip')
+          const mode = event.dataTransfer.getData('application/x-page-video-mode')
           const offset = Number(event.dataTransfer.getData('application/x-page-video-offset')) || 0
           const rect = event.currentTarget.getBoundingClientRect()
           const row = Math.max(0, Math.min(tracks.length - 1, Math.floor((event.clientY - rect.top) / TRACK_HEIGHT)))
           const track = tracks[row]
-          const raw = ((event.clientX - rect.left) / Math.max(1, rect.width)) * duration - offset
-          if (clipId && track) onMove(clipId, track.id, Math.max(0, raw))
+          const cursorTime = ((event.clientX - rect.left) / Math.max(1, rect.width)) * duration
+          if (clipId && (mode === 'resize-start' || mode === 'resize-end')) {
+            onResize?.(clipId, mode === 'resize-start' ? 'start' : 'end', cursorTime)
+          } else if (clipId && track) {
+            onMove?.(clipId, track.id, Math.max(0, cursorTime - offset))
+          }
           setDragging('')
           setDropTarget(false)
         }}
@@ -1116,14 +1131,22 @@ function Timeline({
             clip={clip}
             duration={duration}
             row={row}
-            editable={Boolean(onMove)}
+            editable={Boolean(onMove || onResize)}
             dragging={dragging === clip.id}
             onDragStart={(event) => {
               const rect = event.currentTarget.getBoundingClientRect()
               const offset = ((event.clientX - rect.left) / Math.max(1, rect.width)) * clip.duration
               event.dataTransfer.effectAllowed = 'move'
               event.dataTransfer.setData('application/x-page-video-clip', clip.id)
+              event.dataTransfer.setData('application/x-page-video-mode', 'move')
               event.dataTransfer.setData('application/x-page-video-offset', String(offset))
+              setDragging(clip.id)
+            }}
+            onResizeStart={(edge, event) => {
+              event.stopPropagation()
+              event.dataTransfer.effectAllowed = 'move'
+              event.dataTransfer.setData('application/x-page-video-clip', clip.id)
+              event.dataTransfer.setData('application/x-page-video-mode', `resize-${edge}`)
               setDragging(clip.id)
             }}
             onDragEnd={() => {
@@ -1145,6 +1168,7 @@ function ClipBar({
   editable,
   dragging,
   onDragStart,
+  onResizeStart,
   onDragEnd,
 }: {
   clip: Clip
@@ -1153,6 +1177,7 @@ function ClipBar({
   editable: boolean
   dragging: boolean
   onDragStart: (event: DragEvent<HTMLDivElement>) => void
+  onResizeStart: (edge: 'start' | 'end', event: DragEvent<HTMLSpanElement>) => void
   onDragEnd: () => void
 }) {
   const tone = clip.kind === 'audio' ? 'audio' : clip.kind === 'title' || clip.kind === 'scene' || clip.kind === 'media' ? 'video' : 'effect'
@@ -1173,8 +1198,28 @@ function ClipBar({
         width: `${Math.max((clip.duration / duration) * 100, 2.4)}%`,
       }}
     >
+      {editable ? (
+        <span
+          className="pv-clip-handle"
+          data-edge="start"
+          draggable
+          aria-label="调整片段开始时间"
+          onDragStart={(event) => onResizeStart('start', event)}
+          onDragEnd={onDragEnd}
+        />
+      ) : null}
       <TrackIcon kind={clip.kind} />
       {clip.description || clip.name ? <span>{clip.description || clip.name}</span> : null}
+      {editable ? (
+        <span
+          className="pv-clip-handle"
+          data-edge="end"
+          draggable
+          aria-label="调整片段结束时间"
+          onDragStart={(event) => onResizeStart('end', event)}
+          onDragEnd={onDragEnd}
+        />
+      ) : null}
     </div>
   )
 }
@@ -1399,6 +1444,16 @@ function Studio({
                 onLive(next)
                 onCommit(next)
                 onSeek(start)
+              }
+            : undefined}
+          onResize={writable
+            ? (clipId, edge, at) => {
+                const resized = resizeClip(project, clipId, edge, at)
+                const next = dumpScript(resized)
+                onLive(next)
+                onCommit(next)
+                const clip = resized.clips.find((item) => item.id === clipId)
+                if (clip) onSeek(edge === 'start' ? clip.start : clip.start + clip.duration)
               }
             : undefined}
         />
