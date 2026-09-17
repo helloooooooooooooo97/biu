@@ -1147,12 +1147,15 @@ function Studio({
 
 function isLegacySampleScript(value: unknown) {
   if (typeof value !== 'string') return false
-  return (
+  const shortFeatureList =
     value.includes('description="视频块功能介绍：逐项演示转场、逐字、镜头、光标、箭头、框选、字幕"') &&
     value.includes('<title id=cut') &&
     value.includes('>转场</title>') &&
     value.includes('>I am Biu.</title>')
-  )
+  const multicolorNewcomerTour =
+    value.includes('description="约一分钟的新手介绍：逐项讲解并演示 BIU 视频块"') &&
+    (value.includes('bg=#202c3d') || value.includes('bg=#273449') || value.includes('bg=#111111'))
+  return shortFeatureList || multicolorNewcomerTour
 }
 
 function Editor({
