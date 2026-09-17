@@ -59,7 +59,7 @@ const { useEffect, useId, useMemo, useRef, useState } = React
 export const name = 'page-video'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'pv-style-v8'
+const STYLE_ID = 'pv-style-v9'
 const STYLE_CSS = `
 .pv{
   --pv-ink:var(--dsw-label,#37352f);
@@ -161,6 +161,10 @@ const STYLE_CSS = `
 .pv-track-toggle{padding:0}
 .pv-embed-timeline{border-top:1px solid var(--pv-line)}
 .pv-embed-timeline .pv-rail{border-top:0}
+.pv-embed-script{border-top:1px solid var(--pv-line);max-height:240px;display:flex;flex-direction:column;min-height:0;background:var(--pv-panel)}
+.pv-embed-script .pv-code-wrap{min-height:168px}
+.pv-embed-script .pv-src{resize:vertical;min-height:168px}
+.pv-embed-script .pv-err,.pv-embed-script .pv-hint{border-top:1px solid var(--pv-line)}
 .pv-icon{
   width:28px;height:28px;border:0;border-radius:5px;background:transparent;
   color:var(--pv-mute);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
@@ -1208,9 +1212,22 @@ function Editor({
           )}
         />
         {!audioOnly && tracksOpen ? (
-          <div id={timelineId} className="pv-embed-timeline">
-            <Timeline project={project} duration={duration} time={time} onSeek={setTime} />
-          </div>
+          <>
+            <div id={timelineId} className="pv-embed-timeline">
+              <Timeline project={project} duration={duration} time={time} onSeek={setTime} />
+            </div>
+            <div className="pv-embed-script">
+              <ScriptField
+                value={liveScript || SAMPLE_SCRIPT}
+                onCommit={commitScript}
+                onLive={setLiveScript}
+                readOnly={!writable}
+              />
+              {compiled.ok
+                ? <div className="pv-hint">{formatReport(project).split('\n')[0]}</div>
+                : <div className="pv-err">{compiled.error}</div>}
+            </div>
+          </>
         ) : null}
       </div>
       {open ? (

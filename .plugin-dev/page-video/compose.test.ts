@@ -11,7 +11,24 @@ import {
   formatReport,
   projectDuration,
   propAt,
+  SAMPLE_SCRIPT,
 } from './compose.ts'
+
+test('default sample compiles a full feature reel', () => {
+  const result = compileSafe(SAMPLE_SCRIPT)
+  assert.equal(result.ok, true, result.ok ? '' : result.error)
+  if (!result.ok) return
+  const project = result.project
+  assert.ok(project.tracks.length >= 6)
+  assert.ok(project.clips.some((clip) => clip.kind === 'title'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'zoom'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'caption' && clip.follow === 'vo'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'pip'))
+  assert.ok(project.clips.some((clip) => clip.kind === 'audio'))
+  assert.ok(project.clips.some((clip) => clip.unit === 'char'))
+  assert.ok(project.clips.some((clip) => clip.mask?.shape === 'ellipse'))
+  assert.ok(projectDuration(project) > 10)
+})
 
 test('sample script compiles to a playable timeline', () => {
   const project = compileScript(`<timeline fps=30 size=1280x720>
