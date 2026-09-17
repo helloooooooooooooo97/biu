@@ -258,6 +258,11 @@ test('initSandbox writes source; pack bundles into .plugin/<id>/', async () => {
     assert.doesNotMatch(hostJs, /ctx: \{/)
     const packedReadme = await readFile(join(pluginDir, 'store-echo', 'README.md'), 'utf8')
     assert.equal(packedReadme, sandboxReadme)
+    const mp3 = join(sandboxDir, 'store-echo', 'bgm.MP3')
+    await writeFile(mp3, Buffer.from('ID3', 'ascii'))
+    await store.pack('store-echo')
+    const packedMp3 = await readFile(join(pluginDir, 'store-echo', 'bgm.mp3'))
+    assert.equal(packedMp3.equals(Buffer.from('ID3', 'ascii')), true)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

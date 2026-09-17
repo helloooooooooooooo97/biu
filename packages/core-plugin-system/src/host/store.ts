@@ -51,6 +51,24 @@ const ALLOWED_FILES = new Set(['manifest.json', 'host.js', 'web.js'])
 const README_FILE = 'README.md'
 /** pack 进 .plugin 的可执行代码；版本号按这两个文件一起算。 */
 const PLUGIN_CODE_FILES = ['host.js', 'web.js'] as const
+const PACKED_MEDIA = /\.(mp3|wav|ogg|m4a)$/i
+
+function packedMediaName(name: string) {
+  if (!/^[A-Za-z0-9._-]+\.(mp3|wav|ogg|m4a)$/i.test(name)) return ''
+  return name.replace(/\.[^.]+$/, (ext) => ext.toLowerCase())
+}
+
+async function copyPackedMedia(sandbox: string, dest: string) {
+  const names = existsSync(sandbox) ? await readdir(sandbox) : []
+  for (const name of names) {
+    if (!PACKED_MEDIA.test(name)) continue
+    const destName = packedMediaName(name)
+    if (!destName) continue
+    const from = join(sandbox, name)
+    if (!(await stat(from)).isFile()) continue
+    await writeFile(join(dest, destName), await readFile(from))
+  }
+}
 
 /** 已安装插件代码短版本：host.js 与 web.js 按文件名顺序一起 SHA-1，取前 12 位。 */
 export async function hashInstalledPluginCode(dir: string): Promise<string | undefined> {
@@ -278,6 +296,7 @@ export class PluginStoreService extends Service {
     const sandboxReadme = join(sandbox, README_FILE)
     if (existsSync(sandboxReadme)) await writeFile(join(dest, README_FILE), await readFile(sandboxReadme))
     else await this.ensureReadme(dest, manifest.name, manifest.blurb)
+    await copyPackedMedia(sandbox, dest)
     // 运行中才重新挂载；停着的下次 start 会从磁盘再挂。
     if (this.isEnabled(manifest.id)) await this.mountFromDisk(manifest, dest)
     return { id: manifest.id, sandboxPath: sandbox, pluginPath: dest }
