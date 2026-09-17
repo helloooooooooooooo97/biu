@@ -54,7 +54,9 @@ describe('顶栏三级标题', () => {
     expect(style).toContain('.fsdb-crumb-btn{display:inline-flex')
     expect(style).toMatch(/\.fsdb-crumb-btn\{[^}]*color:var\(--dsw-sidebar-fg\)/)
     expect(style).toMatch(/\.fsdb-crumb-btn\{[^}]*font-weight:500/)
-    expect(style).toMatch(/\.fsdb-crumb-option\{[^}]*font-weight:600/)
+    expect(style).toMatch(/\.fsdb-crumb-option\{[^}]*font-weight:500/)
+    expect(style).toMatch(/\.fsdb-crumb-option svg[\s\S]*?color:var\(--dsw-icon\)/)
+    expect(style).toMatch(/\.fsdb-crumb-option\.is-active svg[\s\S]*?color:var\(--dsw-icon-active\)/)
   })
 
   it('改视图名会先写入缓存再通知面包屑', () => {
