@@ -362,9 +362,10 @@ function fmtClock(t: number) {
 }
 
 function assetUrl(src: string) {
-  const file = src.replace(/^assets\//, '')
+  const file = src.replace(/^assets\//, '').replace(/^\/api\/page-video\/assets\//, '')
   if (!file) return ''
-  if (/^https?:/i.test(file) || file.startsWith('/')) return file
+  if (/^https?:/i.test(src) || (src.startsWith('/') && !src.startsWith('/api/page-video/assets/'))) return src
+  if (file === 'bgm.mp3') return `/api/page-video/assets/${encodeURIComponent(file)}`
   return `/api/page/file/${encodeURIComponent(file)}`
 }
 
@@ -1571,10 +1572,10 @@ function isLegacySampleScript(value: unknown) {
     value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
     value.includes('src=builtin:ad-wipe') &&
     !value.includes('src=builtin:ad-transition')
-  const pageAttachedBgm =
+  const oldBgmSrc =
     value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
-    (value.includes('src=assets/bgm.mp3') || value.includes('src=builtin:ad-beat'))
-  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd || genericTimelineOpening || uniformTransitionAd || pageAttachedBgm
+    (value.includes('src=builtin:ad-beat') || value.includes('src=/api/page-video/assets/bgm.mp3'))
+  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd || genericTimelineOpening || uniformTransitionAd || oldBgmSrc
 }
 
 function Editor({

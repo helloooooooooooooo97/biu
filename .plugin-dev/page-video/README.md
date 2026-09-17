@@ -35,13 +35,13 @@
     <component src=builtin:ad-transition variant=iris at="open.end - 26f" dur=26f color=#8B5CF6 />
   </track>
   <track name=music kind=audio>
-    <audio src=/api/page-video/assets/bgm.mp3 at=0s dur=16s volume=.7 />
+    <audio src=assets/bgm.mp3 at=0s dur=16s volume=.7 />
   </track>
 </timeline>
 :::
 ```
 
-`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景。版式 `variant` 可选 `hero`、`split`、`marquee`、`stagger`、`focus`、`code`、`stack`、`finale`；文字 `motion` 可选 `fade`、`fade-up`、`slide`、`type`、`reveal`、`scale`、`tracking`、`blur`。`builtin:ad-transition` 的 `variant` 可选 `wipe`、`iris`、`split`、`bars`、`flash`、`slide`、`shutter`。默认配乐是插件包里的 `assets/bgm.mp3`，地址 `/api/page-video/assets/bgm.mp3`（pack 时把沙箱 `assets/` 和根目录音频拷进 `.plugin/page-video/assets/`）。其它音频仍可用 `src=assets/<文件名>` 走页面附件 `/api/page/file/`，或直接写 `https://…`。`at`/`dur`/`volume`/`sourceIn`/`speed` 均可动画。
+`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景。版式 `variant` 可选 `hero`、`split`、`marquee`、`stagger`、`focus`、`code`、`stack`、`finale`；文字 `motion` 可选 `fade`、`fade-up`、`slide`、`type`、`reveal`、`scale`、`tracking`、`blur`。`builtin:ad-transition` 的 `variant` 可选 `wipe`、`iris`、`split`、`bars`、`flash`、`slide`、`shutter`。默认配乐跟 pack 产物一样写 `src=assets/bgm.mp3`。播放器认出插件包里的 `bgm.mp3` 就会去 `.plugin/page-video/assets/` 取。其它文件名仍走页面附件。`at`/`dur`/`volume`/`sourceIn`/`speed` 均可动画。
 
 顺序、时长、版式、文字动效、转场和配乐都由脚本编排。
 
