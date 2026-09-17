@@ -568,22 +568,22 @@ Biu 里它可以**落下来**：变成一页、一个块、一个技能、一张
 
 ## 产品演示
 
-三张图对应三条主线：文件系统本身、组件、以及上下文。
+三张图展示同一套基础能力：共享的表、可运行的组件，以及精准的上下文。
 
 <p align="center">
-  <img src="docs/demo/file-system.png" alt="File System：一张表、一条记录、schema 自述与 db_* 工具" width="880" />
+  <img src="docs/demo/file-system.png" alt="File System：会话表与页面表并排打开" width="880" />
 </p>
-<p align="center"><sub><code>file-system.png</code> — 一切皆文件系统：表、记录、schema、动作都在同一个地址空间里，人和 Agent 用同一套 <code>db_*</code> 访问</sub></p>
+<p align="center"><sub><code>file-system.png</code> — 会话和页面都是同一工作区里的普通表，共用同一套操作方式与地址空间；分栏视图让不同集合可以并排查看</sub></p>
 
 <p align="center">
-  <img src="docs/demo/component.png" alt="Component：页面里的声明式块" width="880" />
+  <img src="docs/demo/component.png" alt="Component：嵌入页面的视频块与其专用实时编辑器" width="880" />
 </p>
-<p align="center"><sub><code>component.png</code> — 页面是 Component 的容器：块声明 <code>kind</code> + <code>plugin</code> + data，系统收敛成活的组件</sub></p>
+<p align="center"><sub><code>component.png</code> — 页面组合可复用的视频块；同一个组件也能在专用编辑器中打开，同时呈现预览、时间线、源码声明与终端</sub></p>
 
 <p align="center">
-  <img src="docs/demo/context.png" alt="上下文：Agent 读到人正在做什么" width="880" />
+  <img src="docs/demo/context.png" alt="上下文：将工作区项目显式附加到 Agent 对话" width="880" />
 </p>
-<p align="center"><sub><code>context.png</code> — 感知面等于操作面：Agent 读同一个地址空间，于是知道人在哪、在做什么</sub></p>
+<p align="center"><sub><code>context.png</code> — 页面、会话、插件等工作区项目以可移除的上下文标签加入输入框，让 Agent 精确收到这次对话所选的资料</sub></p>
 
 ---
 
