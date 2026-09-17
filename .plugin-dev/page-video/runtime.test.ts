@@ -68,6 +68,34 @@ test('named default export wins over helper components declared first', () => {
   assert.deepEqual(node.children, ['composition'])
 })
 
+test('component source can map arrays to nested JSX and keep comparisons', () => {
+  const view = compileComponentSource(
+    `export default function Fib({ content }) {
+      const n = Number(content) || 0
+      const cells = [0, 1, 2].filter((x) => x < 3)
+      return (
+        <div>
+          {cells.map((x) => (
+            <span key={x}>{x < 2 ? 'leaf' : 'node'}-{n}</span>
+          ))}
+        </div>
+      )
+    }`,
+    React,
+  )
+  const node = view({ content: '8' } as never) as {
+    type: string
+    children: Array<Array<{ type: string; children: string[] }>>
+  }
+  assert.equal(node.type, 'div')
+  const kids = node.children[0]
+  assert.ok(Array.isArray(kids))
+  assert.equal(kids.length, 3)
+  assert.equal(kids[0]?.type, 'span')
+  assert.deepEqual(kids[0]?.children, ['leaf', '-', 8])
+  assert.deepEqual(kids[2]?.children, ['node', '-', 8])
+})
+
 test('built-in advertisement scenes and transitions render varied deterministic motion', () => {
   const sceneView = compileComponentSource(DEFAULT_AD_SCENE_SOURCE, React)
   const transitionView = compileComponentSource(DEFAULT_AD_TRANSITION_SOURCE, React)
