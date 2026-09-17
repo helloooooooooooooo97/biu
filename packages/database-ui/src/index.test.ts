@@ -55,7 +55,7 @@ test('datetime cell uses antd DatePicker, not datetime-local', () => {
   assert.match(index, /CellDateTime/)
   assert.match(menu, /\.db-datetime\{[^}]*color:inherit/)
   assert.match(menu, /\.db-datetime \.ant-picker-input > input\{[^}]*color:var\(--dsw-label\)/)
-  assert.match(menu, /\.db-datetime \.ant-picker-input > input::placeholder\{[^}]*font-weight:600/)
+  assert.match(menu, /\.db-datetime \.ant-picker-input > input::placeholder\{[^}]*font-weight:500/)
   assert.match(menu, /\.db-datetime \.ant-picker-borderless:focus-visible,.db-datetime \.ant-picker-borderless:has\(input:focus-visible\)\{[^}]*outline:none/)
   assert.match(picker, /format="YYYY\/MM\/DD HH:mm"/)
   assert.match(picker, /suffixIcon=\{null\}/)
