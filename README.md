@@ -8,9 +8,14 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-A pluggable, self-hosted agent workbench. Humans organize work in the interface; agents read, modify, and keep building on the same content.
+<p>
+  <strong>The definitive paradigm for human-AI collaboration.</strong><br />
+  <strong>Accelerating how you create, store, arrange, compose, and distribute.</strong>
+</p>
 
-**Accelerating how agents build, store, arrange, compose, and distribute everything they create.**
+<p>
+  <em>“Ask not what Biu can do — ask what Biu cannot.”</em>
+</p>
 
 </div>
 
@@ -50,16 +55,27 @@ Biu puts pages, tables, tasks, skills, plugins, and agents themselves in one wor
 
 This shared data and operation model is the **File System**. It is not a file browser bolted onto an app; it is the foundation of the workbench. Every table, page, block, and record has an addressable path.
 
+> “Good artists copy; great artists steal.” Steve Jobs famously quoted this line, commonly attributed to Picasso. Biu follows its underlying idea of absorbing and recombining inspiration: it does not reproduce product features, but borrows foundational models and combines them into its own system:
+
+| Borrowed from | What |
+|---|---|
+| **Linux** | The kernel model — everything is a path, one set of system calls (`db_action` is to `ioctl` what `blurb` is to `/proc`) |
+| **K8s** | Declarative — a block declares a desired state, a plugin is mountable |
+| **Cursor** | Agent-native — and one step further: the agent itself is data |
+| **Notion** | The block model — except block types come from installable plugins rather than a closed set of built-in components |
+
+> In implementation, the kernel is built on [Cordis](https://github.com/cordiverse/cordis), and plugin registration is managed through a single manifest, [`cordis.plugins.json`](cordis.plugins.json). Plugins register new tables and capabilities; the File System provides the shared data model and operation interface across the workbench.
+
 ---
 
 ## Table of contents
 
 - [Demo](#demo)
 - [Why a File System?](#why-a-file-system)
+  - [Design lineage](#design-lineage)
 - [Design principles](#design-principles)
   - [1. Few atoms, many combinations](#1-few-atoms-many-combinations)
   - [2. One abstraction, one entry point](#2-one-abstraction-one-entry-point)
-  - [Design lineage](#design-lineage)
 - [1. What it abstracts](#1-what-it-abstracts)
   - [One shape](#one-shape)
   - [One operation interface](#one-operation-interface)
@@ -144,19 +160,6 @@ This principle shows up again and again below, always as the same move:
 
 > **Note: this is not "the system is simple."** The concepts still have to be learned — path, table, record, facet, component, blurb, projection.
 > It says something else: **neither the number of concepts nor the number of interaction patterns grows with the number of features.**
-
-### Design lineage
-
-> “Good artists copy; great artists steal.” Steve Jobs famously quoted this line, commonly attributed to Picasso. Biu follows its underlying idea of absorbing and recombining inspiration: it does not reproduce product features, but borrows foundational models and combines them into its own system.
-
-| Borrowed from | What |
-|---|---|
-| **Linux** | The kernel model — everything is a path, one set of system calls (`db_action` is to `ioctl` what `blurb` is to `/proc`) |
-| **K8s** | Declarative — a block declares a desired state, a plugin is mountable |
-| **Cursor** | Agent-native — and one step further: the agent itself is data |
-| **Notion** | The block model — except block types come from installable plugins rather than a closed set of built-in components |
-
-> In implementation, the kernel is built on [Cordis](https://github.com/cordiverse/cordis), and plugin registration is managed through a single manifest, [`cordis.plugins.json`](cordis.plugins.json). Plugins register new tables and capabilities; the File System provides the shared data model and operation interface across the workbench.
 
 ---
 
