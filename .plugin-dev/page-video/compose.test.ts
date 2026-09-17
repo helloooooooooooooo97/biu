@@ -10,6 +10,7 @@ import {
   clipEnd,
   clipsAt,
   formatReport,
+  moveClip,
   projectDuration,
   propAt,
   SAMPLE_SCRIPT,
@@ -30,13 +31,13 @@ test('default sample is a frame-driven React advertisement', () => {
   const wipes = project.clips.filter((clip) => clip.src === 'builtin:ad-wipe')
   assert.equal(scenes.length, 8)
   assert.equal(wipes.length, 7)
-  assert.ok(scenes.every((clip) => clip.kind === 'component' && clip.duration === 7))
+  assert.ok(scenes.every((clip) => clip.kind === 'component' && clip.duration === 2))
   assert.deepEqual(scenes.map((clip) => clip.variant), ['hero', 'split', 'marquee', 'stagger', 'focus', 'code', 'stack', 'finale'])
   assert.ok(wipes.every((clip) => clip.kind === 'component' && clip.duration === 26 / project.fps))
-  assert.ok(Math.abs((wipes[0]?.start ?? 0) - (7 - 26 / project.fps)) < 1e-9)
-  assert.ok(Math.abs((wipes[6]?.start ?? 0) - (49 - 26 / project.fps)) < 1e-9)
+  assert.ok(Math.abs((wipes[0]?.start ?? 0) - (2 - 26 / project.fps)) < 1e-9)
+  assert.ok(Math.abs((wipes[6]?.start ?? 0) - (14 - 26 / project.fps)) < 1e-9)
   assert.doesNotMatch(SAMPLE_SCRIPT, /demo\/hero\.mp4/)
-  assert.equal(projectDuration(project), 56)
+  assert.equal(projectDuration(project), 16)
   assert.match(dumpScript(project), /variant=marquee/)
   assert.match(dumpScript(project), /color=#F472B6/)
   assert.doesNotMatch(formatReport(project), /字幕重叠/)
@@ -133,6 +134,22 @@ test('dump round-trips compiled clips', () => {
   const again = compileScript(dumpScript(project))
   assert.equal(again.fps, 24)
   assert.equal(again.clips[0].text, 'Hi')
+})
+
+test('dragging a clip moves it across tracks and snaps to frames', () => {
+  const project = compileScript(`<timeline fps=30>
+  <track name=main><title id=a dur=2s>A</title></track>
+  <track name=fx layer=4><text id=b at=1s dur=1s>Label</text></track>
+</timeline>`)
+  const target = project.tracks.find((track) => track.name === 'fx')!
+  const moved = moveClip(project, 'a', target.id, 1.234)
+  const clip = moved.clips.find((item) => item.id === 'a')!
+  assert.equal(clip.start, 37 / 30)
+  assert.equal(clip.track, 'fx')
+  assert.equal(clip.layer, 4)
+  assert.equal(moved.tracks[0]?.clips.some((item) => item.id === 'a'), false)
+  assert.equal(moved.tracks[1]?.clips.some((item) => item.id === 'a'), true)
+  assert.match(dumpScript(moved), /<title id=a dur=2s at=1\.23s/)
 })
 
 test('OpenScreen-style effects compile from agent tags', () => {

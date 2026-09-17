@@ -104,8 +104,8 @@ export default function AdScene({time, progress, durationInFrames, fps, width, c
   const hold = fields[5]==="hold";
   const duration = durationInFrames/fps;
   const enter = spring({frame:time*fps, fps, durationInFrames:24, config:{stiffness:180,damping:22}});
-  const leave = hold ? 1 : interpolate(time,[duration-1.25,duration-.25],[1,0],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
-  const noteIn = interpolate(time,[.7,1.3],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
+  const leave = hold ? 1 : interpolate(time,[duration-.65,duration-.1],[1,0],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
+  const noteIn = interpolate(time,[.3,.65],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
   const drift = interpolate(progress,[0,1],[-28,28],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
   const k = width/1920;
   const centered = variant==="hero" || variant==="marquee" || variant==="focus" || variant==="finale";
