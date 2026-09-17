@@ -62,7 +62,10 @@ test('page-video owns its headless block, studio, and timeline UI contracts', as
   assert.match(src, /className: 'pv-code-tag'/)
   assert.match(src, /className: 'pv-code-attr'/)
   assert.match(src, /className: 'pv-code-value'/)
-  assert.match(src, /highlight\.scrollTop = event\.currentTarget\.scrollTop/)
+  assert.match(src, /const TRACK_HEIGHT = 32/)
+  assert.match(src, /row \* TRACK_HEIGHT \+ \(TRACK_HEIGHT - 22\) \/ 2/)
+  assert.match(src, /\.pv-code-wrap\{display:flex;align-items:stretch;flex:1;min-height:0;overflow:auto/)
+  assert.doesNotMatch(src, /highlight\.scrollTop = event\.currentTarget\.scrollTop/)
 
   assert.match(src, /function ComponentLayer/)
   assert.match(src, /function AudioEffect/)
