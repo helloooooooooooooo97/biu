@@ -137,13 +137,13 @@ export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919
   <track name=copy layer=4>
     <text at=0.45s dur=2.1s x=.5 y=.18 w=.82 h=.1 size=18 align=center enter="fade+move(y:+16)" unit=word stagger=0.08s>page · plugin · path</text>
     <text at=3.5s dur=2.7s x=.5 y=.76 w=.86 h=.12 size=22 align=center enter="fade+move(y:+20)" unit=char stagger=0.045s ease="backOut">&lt;timeline&gt; 轨内串行 · 轨间并行</text>
-    <caption follow=fs offset="-0.08s,+0.35s">不是调色台。是 db_content 里的一块。</caption>
-    <caption follow=end offset="-0.12s,+0.45s">人和 Agent，同一套动词。</caption>
+    <caption follow=fs offset="0.2s,-0.6s">不是调色台。是 db_content 里的一块。</caption>
+    <caption follow=end offset="0.35s,-0.15s">人和 Agent，同一套动词。</caption>
   </track>
   <track name=fx layer=5>
-    <cursor at=6.7s dur=2.5s x=.16 y=.78 x2=.52 y2=.5 click=1.15s size=28 desc="点进页面" />
-    <arrow at=7.15s dur=1.7s x=.2 y=.72 x2=.46 y2=.52 color=#2b7de6 width=4 desc="指向文案" />
-    <box at=7.35s dur=1.5s x=.5 y=.5 w=.56 h=.22 color=#2b7de6 desc="框选标题" />
+    <cursor at="fs.start + 0.35s" dur=2s x=.16 y=.78 x2=.52 y2=.5 click=0.9s size=28 desc="点进页面" />
+    <arrow at="fs.start + 0.55s" dur=1.6s x=.2 y=.72 x2=.46 y2=.52 color=#2b7de6 width=4 desc="指向文案" />
+    <box at="fs.start + 0.7s" dur=1.4s x=.5 y=.5 w=.56 h=.22 color=#2b7de6 desc="框选标题" />
   </track>
 </timeline>
 `
@@ -703,6 +703,18 @@ function diagnose(project: Project): Diagnostic[] {
   for (const clip of live) {
     if ((clip.kind === 'media' || clip.kind === 'pip' || clip.kind === 'image' || clip.kind === 'audio') && !clip.src) {
       out.push({ level: 'warn', message: `素材缺失: <${clip.kind} id=${clip.id}>` })
+    }
+  }
+  const captions = live.filter((clip) => clip.kind === 'caption').sort((a, b) => a.start - b.start)
+  for (let i = 1; i < captions.length; i++) {
+    const prev = captions[i - 1]!
+    const next = captions[i]!
+    const overlap = clipEnd(prev) - next.start
+    if (overlap > 1 / project.fps) {
+      out.push({
+        level: 'warn',
+        message: `字幕重叠 ${overlap.toFixed(2)}s：「${prev.text}」与「${next.text}」`,
+      })
     }
   }
   return out

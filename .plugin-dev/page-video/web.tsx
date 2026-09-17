@@ -716,8 +716,16 @@ function Stage({ project, time, playing, chrome = 'embed' }: { project: Project;
               )
             })}
         </div>
-        {captions.map((clip) => (
-          <div key={clip.id} className="pv-caption" style={{ color: clip.ink, opacity: alphaAt(clip, time) * propAt(clip, 'opacity', time, clip.opacity) }}>
+        {captions.map((clip, index) => (
+          <div
+            key={clip.id}
+            className="pv-caption"
+            style={{
+              color: clip.ink,
+              opacity: alphaAt(clip, time) * propAt(clip, 'opacity', time, clip.opacity),
+              bottom: `${10 + (captions.length - 1 - index) * 7}%`,
+            }}
+          >
             {clip.text}
           </div>
         ))}

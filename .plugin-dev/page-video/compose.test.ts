@@ -7,6 +7,7 @@ import {
   compileScript,
   cursorAt,
   dumpScript,
+  clipEnd,
   clipsAt,
   formatReport,
   projectDuration,
@@ -30,6 +31,16 @@ test('default sample is a video-block intro for Biu', () => {
   assert.ok(project.clips.some((clip) => clip.unit === 'char'))
   assert.doesNotMatch(SAMPLE_SCRIPT, /demo\/hero\.mp4/)
   assert.ok(projectDuration(project) > 10)
+  const captions = project.clips.filter((clip) => clip.kind === 'caption').sort((a, b) => a.start - b.start)
+  for (let i = 1; i < captions.length; i++) {
+    assert.ok(clipEnd(captions[i - 1]!) <= captions[i]!.start + 1 / project.fps)
+  }
+  const fxKinds = new Set(['cursor', 'arrow', 'box'])
+  const end = project.clips.find((clip) => clip.name === 'end')!
+  for (const clip of project.clips.filter((item) => fxKinds.has(item.kind))) {
+    assert.ok(clipEnd(clip) <= end.start + 0.05)
+  }
+  assert.doesNotMatch(formatReport(project), /字幕重叠/)
 })
 
 test('sample script compiles to a playable timeline', () => {
