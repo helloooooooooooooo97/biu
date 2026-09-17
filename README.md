@@ -14,7 +14,9 @@
 </p>
 
 <p>
-  <em>“Ask not what Biu can do — ask what Biu cannot.”</em>
+  <em>“McLuhan said the medium is the message.<br />
+  In reinventing the ultimate medium, we define the message itself.<br />
+  Ask not what Biu can do — ask what Biu cannot.”</em>
 </p>
 
 </div>
