@@ -1562,7 +1562,11 @@ function isLegacySampleScript(value: unknown) {
     value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
     value.includes('src=builtin:ad-scene') &&
     value.includes('dur=7s')
-  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd
+  const genericTimelineOpening =
+    value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
+    value.includes('src=builtin:ad-scene') &&
+    value.includes('一块内容|也能是一支片')
+  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd || genericTimelineOpening
 }
 
 function Editor({
