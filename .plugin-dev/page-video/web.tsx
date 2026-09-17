@@ -52,7 +52,8 @@ import {
   type Clip,
   type Project,
 } from './compose.ts'
-import { compileComponentSource, DEFAULT_AD_COMPONENT_SOURCE, interpolate, makeAbsoluteFill, spring, type FrameProps } from './runtime.ts'
+import { DEFAULT_AD_COMPONENT_SOURCE } from './default-ad.ts'
+import { compileComponentSource, interpolate, makeAbsoluteFill, spring, type FrameProps } from './runtime.ts'
 
 const React = globalThis.React
 const { useEffect, useId, useMemo, useRef, useState } = React

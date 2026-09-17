@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { compileComponentSource, DEFAULT_AD_COMPONENT_SOURCE, interpolate, makeAbsoluteFill, spring } from './runtime.ts'
+import { DEFAULT_AD_COMPONENT_SOURCE } from './default-ad.ts'
+import { compileComponentSource, interpolate, makeAbsoluteFill, spring } from './runtime.ts'
 
 const React = {
   createElement: (type: unknown, props: unknown, ...children: unknown[]) => {
@@ -56,8 +57,25 @@ test('component source can layout with AbsoluteFill', () => {
   assert.equal(node.props.style?.position, 'absolute')
 })
 
+test('named default export wins over helper components declared first', () => {
+  const view = compileComponentSource(
+    `function Atom() { return <span>helper</span> }
+     export default function Composition() { return <div>composition</div> }`,
+    React,
+  )
+  const node = view({} as never) as { type: string; children: string[] }
+  assert.equal(node.type, 'div')
+  assert.deepEqual(node.children, ['composition'])
+})
+
 test('built-in BIU advertisement compiles and renders deterministically', () => {
   const view = compileComponentSource(DEFAULT_AD_COMPONENT_SOURCE, React)
+  assert.match(DEFAULT_AD_COMPONENT_SOURCE, /const titleLines = lines\.map/)
+  assert.match(DEFAULT_AD_COMPONENT_SOURCE, /flexDirection:"column"/)
+  assert.doesNotMatch(DEFAULT_AD_COMPONENT_SOURCE, /React\.createElement\("br"/)
+  for (const atom of ['Grid', 'Glow', 'Meta', 'KineticTitle', 'Note', 'Progress', 'Wipe']) {
+    assert.match(DEFAULT_AD_COMPONENT_SOURCE, new RegExp(`function ${atom}\\(`))
+  }
   const render = (time: number) =>
     view({
       frame: Math.round(time * 30),
