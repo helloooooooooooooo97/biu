@@ -234,9 +234,35 @@ test('/skills new button creates a disabled draft before description is filled',
 
   assert.equal(rows.length, 1)
   assert.equal(rows[0]?.title, '新技能')
+  assert.equal(rows[0]?.id, 'new-skill')
   assert.equal(rows[0]?.description, '')
   assert.equal(rows[0]?.enabled, false)
   assert.equal(ctx.systemPrompt.assemble().includes('新技能'), false)
+
+  const again = await spec.create!([{}])
+  assert.equal(again[0]?.id, 'new-skill')
+  assert.equal(new SkillsStore().list().filter((item) => item.name === '新技能').length, 1)
+})
+
+test('blank create reuses one draft instead of timestamp ids', () => {
+  const store = new SkillsStore()
+  const first = store.create({})
+  const second = store.create({ name: '新技能' })
+  assert.equal(first.id, 'new-skill')
+  assert.equal(second.id, first.id)
+  assert.equal(store.list().length, 1)
+})
+
+test('legacy empty placeholder directories are not imported on boot', async () => {
+  const empty = join(process.env.BIU_SKILLS_DIR!, '空技能')
+  mkdirSync(empty, { recursive: true })
+  writeFileSync(join(empty, 'SKILL.md'), '---\nname: 新技能\ndescription: ""\n---\n\n')
+
+  const { ctx } = await boot()
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  assert.equal(new SkillsStore().list().length, 0)
+  assert.equal(ctx.skills.migrateLegacyDirectories(), 0)
+  assert.equal(new SkillsStore().list().length, 0)
 })
 
 test('startup migrates legacy .biu/skills directories once', async () => {
