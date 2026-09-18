@@ -292,6 +292,7 @@ export function ensureSandboxNpm(sandbox: string) {
       timeout: 120_000,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, npm_config_update_notifier: 'false' },
+      shell: process.platform === 'win32',
     })
   } catch (error) {
     const detail = error instanceof Error && 'stderr' in error ? String((error as { stderr?: string }).stderr || error.message) : String(error)

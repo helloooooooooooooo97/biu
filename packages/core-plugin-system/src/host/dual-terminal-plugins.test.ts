@@ -76,6 +76,7 @@ describe('page terminal store plugin', () => {
       dependencies?: Record<string, string>
     }
     assert.match(src, /ensureSandboxNpm/)
+    assert.match(src, /shell: process\.platform === 'win32'/)
     assert.doesNotMatch(src, /nodePaths/)
     assert.ok(pagePkg.dependencies?.['@xterm/xterm'])
     assert.ok(pagePkg.dependencies?.['@xterm/addon-fit'])
