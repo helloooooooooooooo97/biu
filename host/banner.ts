@@ -6,16 +6,16 @@ const bold = '\x1b[1m'
 const cyan = '\x1b[36m'
 const green = '\x1b[32m'
 
-/** IBM-inspired 8-bar wordmark: wide letters drawn with thin horizontal strokes. */
+/** IBM-inspired 8-bar wordmark: wide letters drawn with medium horizontal stripes. */
 export const BIU_MARK = `${bold}
-  ━━━━━━━━━━━━━━━       ━━━━━━━━━━━━       ━━━          ━━━
-  ━━━          ━━━          ━━━            ━━━          ━━━
-  ━━━          ━━━          ━━━            ━━━          ━━━
-  ━━━━━━━━━━━━━━━           ━━━            ━━━          ━━━
-  ━━━          ━━━          ━━━            ━━━          ━━━
-  ━━━          ━━━          ━━━            ━━━          ━━━
-  ━━━          ━━━          ━━━             ━━━        ━━━
-  ━━━━━━━━━━━━━━━       ━━━━━━━━━━━━           ━━━━━━━━━━
+  ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬       ▬▬▬▬▬▬▬▬▬▬▬▬       ▬▬▬          ▬▬▬
+  ▬▬▬          ▬▬▬          ▬▬▬            ▬▬▬          ▬▬▬
+  ▬▬▬          ▬▬▬          ▬▬▬            ▬▬▬          ▬▬▬
+  ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬           ▬▬▬            ▬▬▬          ▬▬▬
+  ▬▬▬          ▬▬▬          ▬▬▬            ▬▬▬          ▬▬▬
+  ▬▬▬          ▬▬▬          ▬▬▬            ▬▬▬          ▬▬▬
+  ▬▬▬          ▬▬▬          ▬▬▬             ▬▬▬        ▬▬▬
+  ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬       ▬▬▬▬▬▬▬▬▬▬▬▬           ▬▬▬▬▬▬▬▬▬▬
 ${reset}`
 
 export function hyperlink(url: string, label = url) {
