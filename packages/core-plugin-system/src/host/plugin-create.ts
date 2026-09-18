@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { dirname, extname, join, resolve } from 'node:path'
@@ -104,6 +104,7 @@ export async function persistStoreManifestCreatedAt(dir: string, now = Date.now(
 
 const HOST_ENTRIES = ['host.ts', 'host.tsx', 'host.js']
 const WEB_ENTRIES = ['web.tsx', 'web.ts', 'web.js']
+const NATIVE_PLUGIN_DEPENDENCIES = new Set(['node-pty'])
 
 export function findEntry(dir: string, names: string[]) {
   return names.map((name) => join(dir, name)).find((path) => existsSync(path)) ?? null
@@ -298,9 +299,84 @@ export function ensureSandboxNpm(sandbox: string) {
   }
 }
 
+function sandboxDependencies(sandbox: string): Record<string, string> {
+  const pkgFile = join(sandbox, 'package.json')
+  if (!existsSync(pkgFile)) return {}
+  const pkg = JSON.parse(readFileSync(pkgFile, 'utf8')) as { dependencies?: Record<string, string> }
+  return pkg.dependencies ?? {}
+}
+
+function pluginExternalDependencies(sandbox: string) {
+  return Object.keys(sandboxDependencies(sandbox)).filter((name) => NATIVE_PLUGIN_DEPENDENCIES.has(name))
+}
+
+function copyDependencyClosure(name: string, sourceModules: string, destModules: string, copied: Set<string>) {
+  if (copied.has(name)) return
+  const source = join(sourceModules, ...name.split('/'))
+  if (!existsSync(join(source, 'package.json'))) throw new Error(`plugin runtime dependency missing: ${name}`)
+  copied.add(name)
+  const dest = join(destModules, ...name.split('/'))
+  mkdirSync(dirname(dest), { recursive: true })
+  cpSync(source, dest, { recursive: true })
+  const pkg = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8')) as {
+    dependencies?: Record<string, string>
+    optionalDependencies?: Record<string, string>
+  }
+  for (const child of Object.keys({ ...(pkg.dependencies ?? {}), ...(pkg.optionalDependencies ?? {}) })) {
+    const nested = join(source, 'node_modules')
+    copyDependencyClosure(child, existsSync(join(nested, ...child.split('/'))) ? nested : sourceModules, destModules, copied)
+  }
+}
+
+function prunePluginRuntime(dir: string) {
+  if (!existsSync(dir)) return
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name)
+    const stat = statSync(path)
+    if (stat.isDirectory()) {
+      if (['test', 'tests', '__tests__'].includes(name)) {
+        rmSync(path, { recursive: true, force: true })
+      } else {
+        prunePluginRuntime(path)
+      }
+    } else if (/\.(?:d\.ts|map|md|pdb)$/i.test(name)) {
+      rmSync(path, { force: true })
+    }
+  }
+}
+
+/** 原生 external 由插件自己携带；不再要求桌面宿主提供。 */
+export function copyPluginRuntimeDependencies(sandbox: string, dest: string) {
+  const external = pluginExternalDependencies(sandbox)
+  const destModules = join(dest, 'node_modules')
+  rmSync(destModules, { recursive: true, force: true })
+  if (!external.length) return []
+  const sourceModules = join(sandbox, 'node_modules')
+  for (const name of external) copyDependencyClosure(name, sourceModules, destModules, new Set())
+  prunePluginRuntime(destModules)
+
+  const pty = join(destModules, 'node-pty')
+  for (const name of ['binding.gyp', 'deps', 'scripts', 'src', 'third_party', 'typings']) {
+    rmSync(join(pty, name), { recursive: true, force: true })
+  }
+  const prebuilds = join(pty, 'prebuilds')
+  if (existsSync(prebuilds)) {
+    const keep = `${process.platform}-${process.arch}`
+    for (const name of readdirSync(prebuilds)) {
+      if (name !== keep) rmSync(join(prebuilds, name), { recursive: true, force: true })
+    }
+    const helper = join(prebuilds, keep, 'spawn-helper')
+    if (process.platform !== 'win32' && existsSync(helper)) chmodSync(helper, 0o755)
+  }
+  const builtHelper = join(pty, 'build', 'Release', 'spawn-helper')
+  if (process.platform !== 'win32' && existsSync(builtHelper)) chmodSync(builtHelper, 0o755)
+  return external
+}
+
 /** 沙箱入口打包：相对 import + 沙箱 npm（react / @biu/* 除外）。 */
 export async function bundleStoreEntry(entryFile: string, kind: 'host' | 'web') {
-  ensureSandboxNpm(dirname(entryFile))
+  const sandbox = dirname(entryFile)
+  ensureSandboxNpm(sandbox)
   const { build } = await import('esbuild')
   const result = await build({
     absWorkingDir: dirname(entryFile),
@@ -323,8 +399,8 @@ export async function bundleStoreEntry(entryFile: string, kind: 'host' | 'web') 
     },
     conditions: ['production', 'import', 'module', 'browser', 'default'],
     plugins: storeBundlePlugins(kind),
-    // 原生模块不能打进 host.js，运行时走宿主 node_modules
-    external: kind === 'host' ? ['node-pty'] : [],
+    // 原生模块不能打进 host.js，由插件 pack 到自己的 node_modules。
+    external: kind === 'host' ? pluginExternalDependencies(sandbox) : [],
   })
   const text = result.outputFiles?.[0]?.text
   if (!text?.trim()) throw new Error(`${kind} bundle is empty`)

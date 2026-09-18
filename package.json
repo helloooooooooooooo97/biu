@@ -13,10 +13,11 @@
   "type": "module",
   "main": "electron/out/main.js",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "electron/host-runtime"
   ],
   "scripts": {
-    "postinstall": "node scripts/link-cordis-plugins.mjs && node scripts/chmod-node-pty-helper.mjs",
+    "postinstall": "node scripts/link-cordis-plugins.mjs",
     "predev": "node scripts/link-cordis-plugins.mjs",
     "prestart": "node scripts/link-cordis-plugins.mjs",
     "dev": "concurrently -k \"npm:dev:host\" \"npm:dev:web\"",
@@ -69,7 +70,6 @@
     "lowlight": "^3.3.0",
     "marked": "^18.0.10",
     "marked-highlight": "^2.2.4",
-    "node-pty": "^1.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.18.2",

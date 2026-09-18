@@ -26,6 +26,7 @@ const VIRTUAL_UI = 'virtual:cordis-ui-loaders'
 const RESOLVED_UI = `\0${VIRTUAL_UI}`
 const VIRTUAL_WEB = 'virtual:cordis-web-runtime'
 const RESOLVED_WEB = `\0${VIRTUAL_WEB}`
+const PACKAGED_MODULES = Symbol.for('biu.packagedHostModules')
 
 export { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, dataDir, dataPath, migrateDataDir, migrateLegacyPageDir, LEGACY_PAGE_ROOT, PAGE_ROOT, PAGE_DB, PAGE_ASSETS } from './data-dir.ts'
 
@@ -113,6 +114,10 @@ export function packageEntryFile(pkgDir: string, specifier = '.'): string {
 }
 
 export async function importConfiguredPackage(root: string, packageName: string) {
+  const packaged = (globalThis as any)[PACKAGED_MODULES] as Record<string, () => Promise<unknown>> | undefined
+  if (packaged && Object.prototype.hasOwnProperty.call(packaged, packageName)) {
+    return packaged[packageName]()
+  }
   const dir = findWorkspacePackageDir(root, packageName)
   if (dir) {
     const entry = packageEntryFile(dir, packageName)

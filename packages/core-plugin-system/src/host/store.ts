@@ -8,6 +8,7 @@ import type { CatalogEntry } from '@biu/host-hub'
 import {
   buildStoreManifest,
   bundleStoreEntry,
+  copyPluginRuntimeDependencies,
   findEntry,
   HOST_ENTRIES,
   persistStoreManifestCreatedAt,
@@ -299,6 +300,7 @@ export class PluginStoreService extends Service {
     else if (existsSync(join(dest, 'host.js'))) await rm(join(dest, 'host.js'))
     if (webEntry) await writeFile(join(dest, 'web.js'), await bundleStoreEntry(webEntry, 'web'))
     else if (existsSync(join(dest, 'web.js'))) await rm(join(dest, 'web.js'))
+    copyPluginRuntimeDependencies(sandbox, dest)
     const sandboxReadme = join(sandbox, README_FILE)
     if (existsSync(sandboxReadme)) await writeFile(join(dest, README_FILE), await readFile(sandboxReadme))
     else await this.ensureReadme(dest, manifest.name, manifest.blurb)

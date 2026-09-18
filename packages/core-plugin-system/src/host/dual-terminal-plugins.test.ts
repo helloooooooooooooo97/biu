@@ -1,10 +1,16 @@
 /** @vitest-environment node */
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { describe, it } from 'vitest'
-import { bundleStoreEntry, parseStoreManifest } from './plugin-create.ts'
+import {
+  bundleStoreEntry,
+  copyPluginRuntimeDependencies,
+  ensureSandboxNpm,
+  parseStoreManifest,
+} from './plugin-create.ts'
 
 const root = resolve(import.meta.dirname, '../../../..')
 
@@ -25,11 +31,14 @@ describe('page terminal store plugin', () => {
   it('node-pty spawn-helper is executable so posix_spawnp can start a shell', async () => {
     if (process.platform === 'win32') return
     const { chmodSync, existsSync: exists, statSync } = await import('node:fs')
-    const helper = resolve(root, 'node_modules/node-pty/prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
+    const sandbox = resolve(root, '.plugin-dev', 'page-terminal')
+    ensureSandboxNpm(sandbox)
+    const helper = resolve(sandbox, 'node_modules/node-pty/prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
     if (!exists(helper)) return
     if ((statSync(helper).mode & 0o111) === 0) chmodSync(helper, 0o755)
     assert.ok(statSync(helper).mode & 0o111, 'spawn-helper must be executable')
-    const pty = await import('node-pty')
+    const { createRequire } = await import('node:module')
+    const pty = createRequire(resolve(sandbox, 'package.json'))('node-pty') as any
     const child = pty.spawn('/bin/sh', ['-c', 'echo pty-ok'], {
       name: 'xterm',
       cols: 80,
@@ -70,6 +79,25 @@ describe('page terminal store plugin', () => {
     assert.doesNotMatch(src, /nodePaths/)
     assert.ok(pagePkg.dependencies?.['@xterm/xterm'])
     assert.ok(pagePkg.dependencies?.['@xterm/addon-fit'])
+    assert.ok(pagePkg.dependencies?.['node-pty'])
+  })
+
+  it('packs native dependencies inside the plugin and prunes other platforms', async () => {
+    const sandbox = resolve(root, '.plugin-dev', 'page-terminal')
+    ensureSandboxNpm(sandbox)
+    const dest = await mkdtemp(resolve(tmpdir(), 'biu-plugin-pack-'))
+    try {
+      assert.deepEqual(copyPluginRuntimeDependencies(sandbox, dest), ['node-pty'])
+      assert.ok(existsSync(resolve(dest, 'node_modules/node-pty/package.json')))
+      const files = await readdir(resolve(dest, 'node_modules'), { recursive: true })
+      assert.equal(files.some((file) => file.toLowerCase().endsWith('.pdb')), false)
+      const prebuilds = resolve(dest, 'node_modules/node-pty/prebuilds')
+      if (existsSync(prebuilds)) {
+        assert.deepEqual(await readdir(prebuilds), [`${process.platform}-${process.arch}`])
+      }
+    } finally {
+      await rm(dest, { recursive: true, force: true })
+    }
   })
 
   it('documents the complete page block fence', async () => {

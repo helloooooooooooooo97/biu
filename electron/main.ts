@@ -558,17 +558,16 @@ function stopHost() {
   spawnedHost = false
 }
 
-/** 打包后没有外挂 npm start，由 Electron 用同一份 Node 跑 tsx host。 */
+/** 打包后没有外挂 npm start，由 Electron 用同一份 Node 跑预编译 host。 */
 async function startHost() {
   if (isDev) return
   if (await portOpen(HOST_PORT)) return
-  const tsx = join(repoRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs')
-  const entry = join(repoRoot, 'host', 'index.ts')
-  if (!existsSync(tsx) || !existsSync(entry)) {
-    throw new Error(`packed host missing: ${tsx} / ${entry}`)
+  const entry = join(repoRoot, 'host', 'index.mjs')
+  if (!existsSync(entry)) {
+    throw new Error(`packed host missing: ${entry}`)
   }
   const home = app.getPath('userData')
-  hostChild = spawn(process.execPath, [tsx, entry], {
+  hostChild = spawn(process.execPath, [entry], {
     cwd: repoRoot,
     stdio: 'inherit',
     env: {

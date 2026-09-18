@@ -1,26 +1,19 @@
 import { spawn } from 'node:child_process'
 import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { build } from 'esbuild'
 import { compileMain } from './electron-launch.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const appDir = join(root, 'pack-app')
 const hostDir = join(root, 'pack-host')
+const hostRuntimeManifest = join(root, 'electron', 'host-runtime', 'package.json')
 
-// 前端依赖已经由 Vite 打进 dist。这里只复制 host 源码真正会 import 的
-// 直接依赖及其 npm 依赖闭包，避免把 antd、Excalidraw 等整棵前端依赖树塞进安装包。
-const HOST_RUNTIME_PACKAGES = [
-  '@modelcontextprotocol/sdk',
-  'cordis',
-  'esbuild',
-  'node-pty',
-  'tsx',
-  'vite',
-  'ws',
-  'yaml',
-]
+const HOST_RUNTIME_PACKAGES = Object.keys(
+  JSON.parse(readFileSync(hostRuntimeManifest, 'utf8')).dependencies ?? {},
+)
 
 function run(command, args) {
   return new Promise((resolveDone, reject) => {
@@ -46,6 +39,74 @@ function copyDir(from, to, skip = new Set()) {
     if (skip.has(name)) continue
     cpSync(join(from, name), join(to, name), { recursive: true })
   }
+}
+
+function packageName(specifier) {
+  const parts = specifier.split('/')
+  return specifier.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0]
+}
+
+function packageSubpath(specifier) {
+  const name = packageName(specifier)
+  return specifier === name ? '.' : `.${specifier.slice(name.length)}`
+}
+
+function exportTarget(value, fallback) {
+  if (typeof value === 'string') return value
+  if (value && typeof value === 'object') return value.import || value.default || fallback
+  return fallback
+}
+
+function configuredHostEntries() {
+  const config = JSON.parse(readFileSync(join(root, 'cordis.plugins.json'), 'utf8'))
+  const refs = [...(config.host ?? []), ...(config.plugins ?? [])]
+    .map((item) => item.package)
+    .filter(Boolean)
+  const packageDirs = new Map()
+  for (const dir of readdirSync(join(root, 'packages'))) {
+    const manifest = join(root, 'packages', dir, 'package.json')
+    if (!existsSync(manifest)) continue
+    const pkg = JSON.parse(readFileSync(manifest, 'utf8'))
+    if (pkg.name) packageDirs.set(pkg.name, { dir: join(root, 'packages', dir), pkg })
+  }
+  return [...new Set(refs)].map((specifier) => {
+    const found = packageDirs.get(packageName(specifier))
+    if (!found) throw new Error(`configured host package not found: ${specifier}`)
+    const subpath = packageSubpath(specifier)
+    const fallback = found.pkg.main || 'src/index.ts'
+    const target = exportTarget(found.pkg.exports?.[subpath], fallback)
+    return { specifier, entry: join(found.dir, target) }
+  })
+}
+
+async function compilePackagedHost() {
+  const entries = configuredHostEntries()
+  const modules = entries.map(
+    ({ specifier, entry }) =>
+      `${JSON.stringify(specifier)}: () => import(${JSON.stringify(`./${relative(root, entry).replace(/\\/g, '/')}`)})`,
+  )
+  const source = [
+    `globalThis[Symbol.for('biu.packagedHostModules')] = { ${modules.join(', ')} }`,
+    `await import('./host/index.ts')`,
+  ].join('\n')
+  mkdirSync(join(hostDir, 'host'), { recursive: true })
+  await build({
+    stdin: {
+      contents: source,
+      resolveDir: root,
+      sourcefile: 'desktop-host-entry.ts',
+      loader: 'ts',
+    },
+    outfile: join(hostDir, 'host', 'index.mjs'),
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node24',
+    sourcemap: false,
+    legalComments: 'none',
+    external: HOST_RUNTIME_PACKAGES.flatMap((name) => [name, `${name}/*`]),
+    logLevel: 'info',
+  })
 }
 
 export function npmQueryInvocation(
@@ -83,18 +144,6 @@ function stageHostNodeModules() {
     cpSync(join(root, location), join(hostDir, location), { recursive: true })
     copied.push(location)
   }
-  // npm workspace 在 CI 中是指向构建目录的绝对链接，不能原样带进安装包。
-  // 将内置包复制到 @biu scope，保证安装后仍可按包名互相解析。
-  const scopeDir = join(hostDir, 'node_modules', '@biu')
-  mkdirSync(scopeDir, { recursive: true })
-  for (const name of readdirSync(join(root, 'packages'))) {
-    const packageDir = join(root, 'packages', name)
-    const manifest = join(packageDir, 'package.json')
-    if (!existsSync(manifest)) continue
-    const pkg = JSON.parse(readFileSync(manifest, 'utf8'))
-    if (typeof pkg.name !== 'string' || !pkg.name.startsWith('@biu/')) continue
-    cpSync(packageDir, join(scopeDir, pkg.name.slice('@biu/'.length)), { recursive: true })
-  }
 }
 
 /** asar/app 只装壳。host 单独放 pack-host，避免 extraResources 的 package.json 把壳里的同名文件排除掉。 */
@@ -127,25 +176,19 @@ export function stagePackApp() {
   }
 }
 
-export function stagePackHost() {
+export async function stagePackHost() {
   rmSync(hostDir, { recursive: true, force: true })
   mkdirSync(hostDir, { recursive: true })
-  for (const name of ['package.json', 'package-lock.json', 'cordis.plugins.json']) {
-    cpSync(join(root, name), join(hostDir, name))
-  }
-  copyDir(join(root, 'host'), join(hostDir, 'host'))
-  copyDir(join(root, 'packages'), join(hostDir, 'packages'))
-  mkdirSync(join(hostDir, 'scripts'), { recursive: true })
-  for (const name of readdirSync(join(root, 'scripts'))) {
-    if (name.endsWith('.mjs')) cpSync(join(root, 'scripts', name), join(hostDir, 'scripts', name))
-  }
+  cpSync(hostRuntimeManifest, join(hostDir, 'package.json'))
+  cpSync(join(root, 'cordis.plugins.json'), join(hostDir, 'cordis.plugins.json'))
+  await compilePackagedHost()
   stageHostNodeModules()
 }
 
 export async function packDesktop(builderArgs = process.argv.slice(2)) {
   await compileMain()
   stagePackApp()
-  stagePackHost()
+  await stagePackHost()
   const bin = join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder')
   await run(bin, builderArgs.length ? builderArgs : ['--publish', 'never'])
 }
