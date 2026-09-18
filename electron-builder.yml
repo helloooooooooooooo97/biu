@@ -50,7 +50,4 @@ nsis:
   shortcutName: Biu
   uninstallDisplayName: Biu
 linux:
-  target:
-    - target: dir
-      arch:
-        - x64
+  target: []
