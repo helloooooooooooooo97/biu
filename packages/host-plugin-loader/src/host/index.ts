@@ -136,15 +136,19 @@ export function linkConfiguredPackages(root: string) {
     }
     const linkPath = join(root, 'node_modules', ...name.split('/'))
     mkdirSync(dirname(linkPath), { recursive: true })
-    if (existsSync(linkPath)) {
-      try {
-        if (lstatSync(linkPath).isSymbolicLink()) rmSync(linkPath)
-        else continue
-      } catch {
-        continue
+    try {
+      const stat = lstatSync(linkPath)
+      if (stat.isSymbolicLink() || stat.isDirectory()) {
+        rmSync(linkPath, { recursive: true, force: true })
       }
+    } catch {
+      // 路径不存在或没有权限时忽略
     }
-    symlinkSync(dir, linkPath, 'dir')
+    try {
+      symlinkSync(dir, linkPath, 'dir')
+    } catch (e: any) {
+      if (e?.code !== 'EEXIST') throw e
+    }
   }
 }
 
