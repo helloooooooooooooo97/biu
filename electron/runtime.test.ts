@@ -13,7 +13,7 @@ afterEach(async () => {
   await Promise.all(cleanup.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
-test('desktop host chooses another port when the preferred port is occupied', async () => {
+test('desktop share service chooses another port when the preferred port is occupied', async () => {
   const server = createServer()
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)

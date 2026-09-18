@@ -67,6 +67,8 @@ export type HttpListenConfig = {
   port?: number
   host?: string
   publicDir?: string
+  /** 请求端口被占用时回退到系统分配端口。 */
+  fallbackPort?: boolean
   /** LAN listener that only serves share pages. 0 = off. */
   sharePort?: number
   shareHost?: string
@@ -93,6 +95,7 @@ function resolveListenConfig(config?: HttpListenConfig) {
     port: Number(config?.port ?? process.env.PORT ?? 3141),
     host: config?.host ?? process.env.HTTP_HOST ?? '127.0.0.1',
     publicDir: config?.publicDir ?? defaultPublicDir(),
+    fallbackPort: config?.fallbackPort ?? process.env.BIU_PORT_FALLBACK === '1',
     sharePort: Number.isFinite(sharePortRaw) ? sharePortRaw : 0,
     shareHost: config?.shareHost ?? process.env.SHARE_HOST ?? '0.0.0.0',
   }
@@ -113,7 +116,7 @@ export class HttpService extends Service {
   /** 同一 HTTP server 上只能有一条 upgrade 路由；多挂几个 `ws.Server({ server })` 会互相 abort 握手。 */
   private wsServers = new Map<string, WebSocketServer>()
 
-  constructor(ctx: Context, public config: { port: number; host: string; publicDir: string; sharePort: number; shareHost: string }) {
+  constructor(ctx: Context, public config: { port: number; host: string; publicDir: string; fallbackPort: boolean; sharePort: number; shareHost: string }) {
     super(ctx, 'http')
     ctx.effect(() => {
       const server = createServer((req, res) => {
@@ -141,7 +144,13 @@ export class HttpService extends Service {
       ctx.on('session/event', (payload) => this.broadcast('session', payload))
       ctx.on('agent/status', (payload) => this.broadcast('agent', payload))
       ctx.on('agent/inbox', (payload) => this.broadcast('inbox', payload))
+      let portFallbackUsed = false
       server.on('error', (error: NodeJS.ErrnoException) => {
+        if (error.code === 'EADDRINUSE' && config.fallbackPort && config.port > 0 && !portFallbackUsed) {
+          portFallbackUsed = true
+          server.listen(0, config.host ?? '127.0.0.1')
+          return
+        }
         if (error.code === 'EADDRINUSE') {
           ctx.logger('http').error(
             `端口 ${config.port} 已被占用。请先结束旧进程：make stop  或  lsof -ti:${config.port} | xargs kill`,
@@ -153,8 +162,10 @@ export class HttpService extends Service {
       })
       const host = config.host ?? '127.0.0.1'
       server.listen(config.port, host, () => {
-        ctx.emit('http/ready', { port: config.port })
-        ctx.logger('http').info(`listening on http://${host}:${config.port}${host === '0.0.0.0' ? ' (内网可达，整站暴露)' : ''}`)
+        const address = server.address()
+        const port = address && typeof address !== 'string' ? address.port : config.port
+        ctx.emit('http/ready', { port })
+        ctx.logger('http').info(`listening on http://${host}:${port}${host === '0.0.0.0' ? ' (内网可达，整站暴露)' : ''}`)
       })
       return () =>
         new Promise<void>((resolve) => {
@@ -186,9 +197,11 @@ export class HttpService extends Service {
           }
         })
         shareServer.listen(sharePort, shareHost, () => {
-          ctx.emit('http/share-ready', { port: sharePort })
+          const address = shareServer.address()
+          const actualPort = address && typeof address !== 'string' ? address.port : sharePort
+          ctx.emit('http/share-ready', { port: actualPort })
           ctx.logger('http').info(
-            `share-only listening on http://${shareHost}:${sharePort} （仅 /share 与 /api/share，不暴露本机工作台）`,
+            `share-only listening on http://${shareHost}:${actualPort} （仅 /share 与 /api/share，不暴露本机工作台）`,
           )
         })
         return () =>

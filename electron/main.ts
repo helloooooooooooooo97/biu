@@ -11,7 +11,6 @@
 import { app, BrowserWindow, BrowserView, ipcMain, shell, session } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import net from 'node:net'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { availablePort, seedPluginSandboxes } from './runtime.js'
@@ -24,7 +23,7 @@ const repoRoot = app.isPackaged ? join(process.resourcesPath, 'biu') : join(elec
 const DEV_URL = process.env.BIU_DEV_URL || 'http://127.0.0.1:5173'
 const distIndex = join(electronRoot, '..', 'dist', 'index.html')
 const isDev = process.env.BIU_ELECTRON_DEV === '1' || (!app.isPackaged && !existsSync(distIndex) && process.env.BIU_ELECTRON_DEV !== '0')
-let hostPort = Number(process.env.PORT || 3141)
+let hostPort = Number(process.env.PORT || 0)
 let hostUrl = process.env.BIU_HOST_URL || `http://127.0.0.1:${hostPort}`
 
 let hostChild: ChildProcess | null = null
@@ -538,24 +537,45 @@ async function ensureBrowserPanel() {
   }
 }
 
-function portOpen(port: number, host = '127.0.0.1') {
-  return new Promise<boolean>((resolve) => {
-    const sock = net.connect({ port, host })
-    sock.once('connect', () => {
-      sock.end()
-      resolve(true)
-    })
-    sock.once('error', () => resolve(false))
-  })
-}
-
 async function waitForHost(ms = 60_000) {
   const start = Date.now()
   while (Date.now() - start < ms) {
-    if (await portOpen(hostPort)) return
+    try {
+      const response = await fetch(`${hostUrl}/api/db/stat?path=/`)
+      if (response.ok) return
+    } catch {
+      /* external host 还没起来 */
+    }
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
-  throw new Error(`host :${hostPort} did not start`)
+  throw new Error(`host ${hostUrl} did not start`)
+}
+
+function waitForHostReady(child: ChildProcess, ms = 60_000) {
+  return new Promise<number>((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer)
+      child.off('message', onMessage)
+      child.off('exit', onExit)
+    }
+    const onMessage = (message: unknown) => {
+      const ready = message as { type?: unknown; port?: unknown }
+      const port = Number(ready?.port)
+      if (ready?.type !== 'biu:host-ready' || !Number.isInteger(port) || port <= 0) return
+      cleanup()
+      resolve(port)
+    }
+    const onExit = (code: number | null) => {
+      cleanup()
+      reject(new Error(`packed host exited before ready (${code})`))
+    }
+    const timer = setTimeout(() => {
+      cleanup()
+      reject(new Error('packed host did not report ready'))
+    }, ms)
+    child.on('message', onMessage)
+    child.once('exit', onExit)
+  })
 }
 
 function stopHost() {
@@ -579,9 +599,7 @@ async function startHost() {
   if (!existsSync(entry)) {
     throw new Error(`packed host missing: ${entry}`)
   }
-  const requestedPort = Number.isInteger(hostPort) && hostPort > 0 ? hostPort : 3141
-  hostPort = await availablePort(requestedPort)
-  hostUrl = `http://127.0.0.1:${hostPort}`
+  const requestedPort = Number.isInteger(hostPort) && hostPort > 0 ? hostPort : 0
   const requestedSharePort = Number(process.env.SHARE_PORT || 3142)
   const sharePort = await availablePort(
     Number.isInteger(requestedSharePort) && requestedSharePort > 0 ? requestedSharePort : 3142,
@@ -591,13 +609,14 @@ async function startHost() {
   const pluginDir = process.env.BIU_PLUGIN_DIR || join(workspace, '.plugin')
   const pluginDevDir = process.env.BIU_PLUGIN_DEV_DIR || join(workspace, '.plugin-dev')
   seedPluginSandboxes(join(repoRoot, '.plugin-dev'), pluginDevDir)
-  hostChild = spawn(process.execPath, [entry], {
+  const child = spawn(process.execPath, [entry], {
     cwd: repoRoot,
-    stdio: 'inherit',
+    stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: '1',
-      PORT: String(hostPort),
+      PORT: String(requestedPort),
+      BIU_PORT_FALLBACK: '1',
       HTTP_HOST: process.env.HTTP_HOST || '127.0.0.1',
       SHARE_PORT: String(sharePort),
       SHARE_HOST: process.env.SHARE_HOST || '127.0.0.1',
@@ -608,11 +627,13 @@ async function startHost() {
       BIU_PLUGIN_STATE: process.env.BIU_PLUGIN_STATE || join(pluginDir, 'store.json'),
     },
   })
+  hostChild = child
   spawnedHost = true
-  hostChild.on('exit', (code) => {
+  hostPort = await waitForHostReady(child)
+  hostUrl = `http://127.0.0.1:${hostPort}`
+  child.on('exit', (code) => {
     if (spawnedHost) console.error(`[electron] host exited ${code}`)
   })
-  await waitForHost()
 }
 
 // 开发期开个 CDP 端口，方便自动化和排查（打包不加）

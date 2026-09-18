@@ -17,10 +17,15 @@ ctx.logger.exporter({
 })
 
 let sharePort = 0
+let resolveHostReady!: (port: number) => void
+const hostReady = new Promise<number>((resolve) => {
+  resolveHostReady = resolve
+})
 ctx.on('http/share-ready', ({ port }) => {
   sharePort = port
 })
 ctx.on('http/ready', ({ port: ready }) => {
+  resolveHostReady(ready)
   const ui = process.env.SHARE_PROXY_UI ? 'http://127.0.0.1:5173/' : `http://127.0.0.1:${ready}/`
   const api = `http://127.0.0.1:${ready}/`
   if (process.env.SHARE_PROXY_UI) {
@@ -44,6 +49,8 @@ async function boot() {
     const mod = await importConfiguredPackage(rootDir, item.package)
     await ctx.plugin(mod, item.config)
   }
+  const port = await hostReady
+  process.send?.({ type: 'biu:host-ready', port })
 }
 
 boot().catch((error) => {

@@ -81,7 +81,10 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(main, /function startHost/)
   assert.match(main, /BIU_HOME/)
   assert.match(main, /host', 'index\.mjs/)
-  assert.match(main, /await availablePort\(requestedPort\)/)
+  assert.match(main, /PORT: String\(requestedPort\)/)
+  assert.match(main, /BIU_PORT_FALLBACK: '1'/)
+  assert.match(main, /waitForHostReady\(child\)/)
+  assert.match(main, /'ipc'/)
   assert.match(main, /await win\.loadURL\(hostUrl\)/)
   assert.match(main, /seedPluginSandboxes/)
   assert.match(main, /BIU_PLUGIN_DEV_DIR: pluginDevDir/)
@@ -91,6 +94,7 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
 
   const host = await readFile(resolve(root, 'host/index.ts'), 'utf8')
   assert.match(host, /BIU_HOME/)
+  assert.match(host, /process\.send\?\.\(\{ type: 'biu:host-ready', port \}\)/)
 
   const docs = await readFile(resolve(root, 'docs/desktop-install.md'), 'utf8')
   assert.match(docs, /xattr -dr com.apple.quarantine \/Applications\/Biu.app/)
