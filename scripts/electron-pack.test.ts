@@ -16,7 +16,7 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(yml, /notarize: false/)
   assert.match(yml, /target: dmg/)
   assert.match(yml, /target: nsis/)
-  assert.match(yml, /to: biu/)
+  assert.match(yml, /files:\n {2}- package.json/)
   assert.match(yml, /provider: github/)
 
   const wf = await readFile(resolve(root, '.github/workflows/desktop-release.yml'), 'utf8')

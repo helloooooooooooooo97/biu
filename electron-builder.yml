@@ -5,6 +5,7 @@ artifactName: Biu-${version}-${os}-${arch}.${ext}
 directories:
   output: release
 files:
+  - package.json
   - electron/out/**/*
   - electron/preload.cjs
   - dist/**/*
