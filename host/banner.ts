@@ -6,16 +6,16 @@ const bold = '\x1b[1m'
 const cyan = '\x1b[36m'
 const green = '\x1b[32m'
 
-/** IBM 8-bar: B, I, U as eight thin horizontal strips. */
+/** IBM-inspired 8-bar wordmark: wide letters drawn with thin horizontal strokes. */
 export const BIU_MARK = `${bold}
-  ▄▄▄▄▄▄▄▄    ▄▄▄▄    ▄▄    ▄▄
-  ▄▄    ▄▄    ▄▄▄▄    ▄▄    ▄▄
-  ▄▄    ▄▄    ▄▄▄▄    ▄▄    ▄▄
-  ▄▄▄▄▄▄▄▄    ▄▄▄▄    ▄▄    ▄▄
-  ▄▄    ▄▄    ▄▄▄▄    ▄▄    ▄▄
-  ▄▄    ▄▄    ▄▄▄▄    ▄▄    ▄▄
-  ▄▄    ▄▄    ▄▄▄▄    ▄▄    ▄▄
-  ▄▄▄▄▄▄▄▄    ▄▄▄▄     ▄▄▄▄▄▄
+  ━━━━━━━━━━━━━━━       ━━━━━━━━━━━━       ━━━          ━━━
+  ━━━          ━━━          ━━━            ━━━          ━━━
+  ━━━          ━━━          ━━━            ━━━          ━━━
+  ━━━━━━━━━━━━━━━           ━━━            ━━━          ━━━
+  ━━━          ━━━          ━━━            ━━━          ━━━
+  ━━━          ━━━          ━━━            ━━━          ━━━
+  ━━━          ━━━          ━━━             ━━━        ━━━
+  ━━━━━━━━━━━━━━━       ━━━━━━━━━━━━           ━━━━━━━━━━
 ${reset}`
 
 export function hyperlink(url: string, label = url) {
