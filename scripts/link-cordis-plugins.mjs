@@ -59,14 +59,18 @@ for (const name of allConfiguredNames()) {
   }
   const linkPath = join(root, 'node_modules', ...String(name).split('/'))
   mkdirSync(dirname(linkPath), { recursive: true })
-  if (existsSync(linkPath)) {
-    try {
-      if (lstatSync(linkPath).isSymbolicLink()) rmSync(linkPath)
-      else continue
-    } catch {
-      continue
+  try {
+    const stat = lstatSync(linkPath)
+    if (stat.isSymbolicLink() || stat.isDirectory()) {
+      rmSync(linkPath, { recursive: true, force: true })
     }
+  } catch {
+    // 路径不存在时忽略
   }
-  symlinkSync(dir, linkPath, 'dir')
+  try {
+    symlinkSync(dir, linkPath, 'dir')
+  } catch (e) {
+    if (e?.code !== 'EEXIST') throw e
+  }
   console.log(`[link-cordis-plugins] ${name} -> ${dir}`)
 }
