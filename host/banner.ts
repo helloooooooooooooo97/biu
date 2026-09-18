@@ -6,17 +6,13 @@ const bold = '\x1b[1m'
 const cyan = '\x1b[36m'
 const green = '\x1b[32m'
 
-/** Circular mark with two eyes — same silhouette as public/favicon.svg */
+/** Block letters B · I · U */
 export const BIU_MARK = `${bold}
-              ████████████
-           ██              ██
-         ██                  ██
-        ██      ██    ██      ██
-        ██      ██    ██      ██
-         ██                  ██
-           ██              ██
-              ████████████
-                 B I U
+  ██████    ████    ██    ██
+  ██   ██    ██     ██    ██
+  ██████     ██     ██    ██
+  ██   ██    ██     ██    ██
+  ██████    ████     ██████
 ${reset}`
 
 export function hyperlink(url: string, label = url) {
