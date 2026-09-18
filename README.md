@@ -604,7 +604,13 @@ The system therefore grows round after round instead of resetting to zero each t
 
 Requires Node.js 20+ and npm. `main` and the development branch `hmr-dev` are currently aligned.
 
-macOS / Windows installers are on [GitHub Releases](https://github.com/helloooooooooooooo97/biu/releases). Unsigned macOS: drag to Applications, **right-click → Open once**, then double-click works. See [docs/desktop-install.md](docs/desktop-install.md).
+macOS / Windows installers are on [GitHub Releases](https://github.com/helloooooooooooooo97/biu/releases). macOS is ad-hoc signed: if Gatekeeper says the app is damaged, run:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Biu.app
+```
+
+See [docs/desktop-install.md](docs/desktop-install.md).
 
 ```bash
 git clone https://github.com/helloooooooooooooo97/biu.git

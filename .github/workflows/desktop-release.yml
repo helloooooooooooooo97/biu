@@ -55,20 +55,16 @@ jobs:
             release/*.blockmap
           generate_release_notes: true
           body: |
-            ## macOS 怎么装（未公证，第一次不要双击）
+            ## macOS（ad-hoc）
 
-            能装、能用。第一次会被系统拦住，**右键打开一次之后就可以双击。**
+            拖进「应用程序」后若提示已损坏，终端执行一行：
 
-            1. 打开 dmg，把 Biu 拖进「应用程序」
-            2. 在「应用程序」里 **Control+点按 / 右键 Biu → 打开 → 打开**
-            3. 若仍提示已损坏，终端执行一次：
             ```bash
             xattr -dr com.apple.quarantine /Applications/Biu.app
-            open /Applications/Biu.app
             ```
 
-            Apple 芯片用 `*-mac-arm64.dmg`，Intel 用 `*-mac-x64.dmg`。
+            Apple 芯片：`*-mac-arm64.dmg`。Intel：`*-mac-x64.dmg`。也可右键 → 打开。
 
             Windows：SmartScreen → 更多信息 → 仍要运行。
 
-            完整说明见 `docs/desktop-install.md`。
+            `docs/desktop-install.md`
