@@ -3,7 +3,6 @@ import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { build } from 'esbuild'
 import { compileMain } from './electron-launch.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -80,6 +79,7 @@ function configuredHostEntries() {
 }
 
 async function compilePackagedHost() {
+  const { build } = await import('esbuild')
   const entries = configuredHostEntries()
   const modules = entries.map(
     ({ specifier, entry }) =>

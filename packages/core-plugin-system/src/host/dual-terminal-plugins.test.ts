@@ -93,7 +93,8 @@ describe('page terminal store plugin', () => {
       assert.equal(files.some((file) => file.toLowerCase().endsWith('.pdb')), false)
       const prebuilds = resolve(dest, 'node_modules/node-pty/prebuilds')
       if (existsSync(prebuilds)) {
-        assert.deepEqual(await readdir(prebuilds), [`${process.platform}-${process.arch}`])
+        const sourcePrebuild = resolve(sandbox, 'node_modules/node-pty/prebuilds', `${process.platform}-${process.arch}`)
+        assert.deepEqual(await readdir(prebuilds), existsSync(sourcePrebuild) ? [`${process.platform}-${process.arch}`] : [])
       }
     } finally {
       await rm(dest, { recursive: true, force: true })
@@ -124,7 +125,7 @@ describe('page terminal store plugin', () => {
     assert.match(web, /term\.scrollToBottom/)
     assert.match(web, /new IntersectionObserver\(scheduleFit\)/)
     assert.match(web, /Object\.assign\(term\.element\.style/)
-    assert.match(web, /contain: 'strict'/)
+    assert.match(web, /contain: 'layout paint'/)
     assert.match(web, /className="pt-mount"/)
     assert.match(web, /padding: '9px 8px 5px 10px'/)
   })
