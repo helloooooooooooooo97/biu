@@ -9,17 +9,25 @@
  */
 
 import { app, BrowserWindow, BrowserView, ipcMain, shell, session } from 'electron'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import net from 'node:net'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const electronRoot = join(__dirname, '..')
+const repoRoot = app.isPackaged ? join(process.resourcesPath, 'biu') : join(electronRoot, '..')
 
 /** dev：vite 起的地址；打包 / 无 dev 标记：本地 dist 文件。 */
 const DEV_URL = process.env.BIU_DEV_URL || 'http://127.0.0.1:5173'
 const distIndex = join(electronRoot, '..', 'dist', 'index.html')
 const isDev = process.env.BIU_ELECTRON_DEV === '1' || (!app.isPackaged && !existsSync(distIndex) && process.env.BIU_ELECTRON_DEV !== '0')
+const HOST_PORT = Number(process.env.PORT || 3141)
+const HOST_URL = process.env.BIU_HOST_URL || `http://127.0.0.1:${HOST_PORT}`
+
+let hostChild: ChildProcess | null = null
+let spawnedHost = false
 
 /** 侧栏浏览器那块的原生视图。同一时间只开一个。 */
 let view: BrowserView | null = null
@@ -499,7 +507,7 @@ html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden::befor
 
 async function ensureBrowserPanel() {
   if (browserPanelReady) return
-  const host = process.env.BIU_HOST_URL || 'http://127.0.0.1:3141'
+  const host = HOST_URL
   for (let i = 0; i < 25; i += 1) {
     try {
       await fetch(`${host}/api/db/action`, {
@@ -523,6 +531,64 @@ async function ensureBrowserPanel() {
   }
 }
 
+function portOpen(port: number, host = '127.0.0.1') {
+  return new Promise<boolean>((resolve) => {
+    const sock = net.connect({ port, host })
+    sock.once('connect', () => {
+      sock.end()
+      resolve(true)
+    })
+    sock.once('error', () => resolve(false))
+  })
+}
+
+async function waitForHost(ms = 60_000) {
+  const start = Date.now()
+  while (Date.now() - start < ms) {
+    if (await portOpen(HOST_PORT)) return
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  throw new Error(`host :${HOST_PORT} did not start`)
+}
+
+function stopHost() {
+  if (!spawnedHost || !hostChild) return
+  hostChild.kill()
+  hostChild = null
+  spawnedHost = false
+}
+
+/** 打包后没有外挂 npm start，由 Electron 用同一份 Node 跑 tsx host。 */
+async function startHost() {
+  if (isDev) return
+  if (await portOpen(HOST_PORT)) return
+  const tsx = join(repoRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs')
+  const entry = join(repoRoot, 'host', 'index.ts')
+  if (!existsSync(tsx) || !existsSync(entry)) {
+    throw new Error(`packed host missing: ${tsx} / ${entry}`)
+  }
+  const home = app.getPath('userData')
+  hostChild = spawn(process.execPath, [tsx, entry], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+      PORT: String(HOST_PORT),
+      HTTP_HOST: process.env.HTTP_HOST || '127.0.0.1',
+      SHARE_PORT: process.env.SHARE_PORT || '3142',
+      SHARE_HOST: process.env.SHARE_HOST || '127.0.0.1',
+      BIU_HOME: home,
+      CORDIS_WORKSPACE: process.env.CORDIS_WORKSPACE || join(home, 'workspace'),
+    },
+  })
+  spawnedHost = true
+  hostChild.on('exit', (code) => {
+    if (spawnedHost) console.error(`[electron] host exited ${code}`)
+  })
+  await waitForHost()
+}
+
 // 开发期开个 CDP 端口，方便自动化和排查（打包不加）
 if (isDev) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
@@ -537,7 +603,12 @@ if (process.platform === 'linux') {
 app.whenReady().then(async () => {
   // 允许被嵌的话就允许；这里只是让一些站少弹无谓的告警
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(true))
+  await startHost()
   await createWindow()
+})
+
+app.on('before-quit', () => {
+  stopHost()
 })
 
 app.on('window-all-closed', () => {

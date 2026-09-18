@@ -10,9 +10,12 @@ test('electron scripts compile ts and reuse busy ports', async () => {
   assert.equal(pkg.scripts['electron:dev'], 'node scripts/electron-dev.mjs')
   assert.equal(pkg.scripts['electron:wait'], 'node scripts/electron-launch.mjs')
   assert.match(pkg.scripts['electron:build'], /electron-launch/)
+  assert.match(pkg.scripts['electron:pack'], /electron-pack/)
   assert.doesNotMatch(JSON.stringify(pkg.scripts), /electron\/main\.ts/)
 
   const main = await readFile(resolve(import.meta.dirname, '../electron/main.ts'), 'utf8')
+  assert.match(main, /startHost/)
+  assert.match(main, /ELECTRON_RUN_AS_NODE/)
   assert.match(main, /no-sandbox/)
   assert.match(main, /BIU_ELECTRON_DEV/)
   assert.match(main, /trafficLightPosition/)

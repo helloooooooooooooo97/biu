@@ -5,7 +5,7 @@ import { lanIPv4, printReadyBanner } from './banner.ts'
 import './types.ts'
 
 const rootDir = findRepoRoot()
-migrateDataDir(rootDir)
+migrateDataDir(process.env.BIU_HOME || rootDir)
 
 const ctx = new Context()
 ctx.logger.exporter({

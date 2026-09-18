@@ -1,0 +1,68 @@
+appId: os.biu.app
+productName: Biu
+copyright: Apache-2.0
+artifactName: Biu-${version}-${os}-${arch}.${ext}
+directories:
+  output: release
+files:
+  - electron/out/**/*
+  - electron/preload.cjs
+  - dist/**/*
+extraResources:
+  - from: .
+    to: biu
+    filter:
+      - package.json
+      - package-lock.json
+      - cordis.plugins.json
+      - host/**/*
+      - packages/**/*
+      - scripts/*.mjs
+      - node_modules/**/*
+      - '!node_modules/electron/**'
+      - '!node_modules/electron-builder/**'
+      - '!node_modules/electron-builder-squirrel-windows/**'
+      - '!node_modules/app-builder-bin/**'
+      - '!node_modules/app-builder-lib/**'
+      - '!**/node_modules/.cache/**'
+      - '!**/*.map'
+asar: true
+npmRebuild: false
+publish:
+  provider: github
+  releaseType: release
+mac:
+  category: public.app-category.developer-tools
+  icon: public/favicon.svg
+  # 没有 Apple 开发者证书：ad-hoc 签名。别人从网上下载仍会被 Gatekeeper 隔离，见 docs/desktop-install.md。
+  identity: '-'
+  gatekeeperAssess: false
+  hardenedRuntime: false
+  notarize: false
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+win:
+  icon: public/favicon.svg
+  signAndEditExecutable: false
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  shortcutName: Biu
+  uninstallDisplayName: Biu
+linux:
+  target: []
