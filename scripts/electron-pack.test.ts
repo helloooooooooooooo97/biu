@@ -48,6 +48,8 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(source, /compilePackagedHost/)
   assert.match(source, /target: 'node24'/)
   assert.doesNotMatch(source, /copyDir\(join\(root, 'packages'/)
+  assert.match(source, /join\(esbuildDir, 'bin'\)/)
+  assert.match(source, /name\.startsWith\('downloaded-'\)/)
   assert.match(yml, /beforeBuild: scripts\/electron-builder-before-build\.cjs/)
   assert.match(yml, /provider: github/)
 
