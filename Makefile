@@ -1,4 +1,4 @@
-.PHONY: dev host web test install stop restart build build
+.PHONY: dev host web test install stop restart build rebuild
 
 # 默认：装依赖并同时起 host(:3141) + Vite(:5173)
 dev: install
@@ -45,3 +45,7 @@ test:
 # Vite 生产构建。全仓 tsc 仍有历史债，不挡这条。
 build:
 	npm run build
+
+# 打包后部署运行：先释放占用端口，再执行打包，最后启动服务
+rebuild: stop build
+	npm start
