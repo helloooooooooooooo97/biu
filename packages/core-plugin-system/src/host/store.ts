@@ -129,7 +129,10 @@ function importHostModule(code: string) {
 async function importHostFile(hostFile: string) {
   try {
     return await import(`${pathToFileURL(hostFile).href}?t=${Date.now()}`)
-  } catch {
+  } catch (error) {
+    // data: URL 没有文件目录，无法解析插件自带的原生 node_modules。
+    // 原生插件应保留原始 file:// 错误，避免回退后错误地查找宿主依赖。
+    if (existsSync(join(dirname(hostFile), 'node_modules'))) throw error
     return importHostModule(await readFile(hostFile, 'utf8'))
   }
 }

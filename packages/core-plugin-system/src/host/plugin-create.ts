@@ -284,20 +284,44 @@ export function ensureSandboxNpm(sandbox: string) {
   const deps = pkg.dependencies ?? {}
   const names = Object.keys(deps)
   if (!names.length) return
-  if (names.every((name) => existsSync(join(sandbox, 'node_modules', name, 'package.json')))) return
+  const dependencyReady = (name: string) =>
+    existsSync(join(sandbox, 'node_modules', name, 'package.json')) &&
+    (!NATIVE_PLUGIN_DEPENDENCIES.has(name) || nativeModuleReady(sandbox, name))
+  if (names.every(dependencyReady)) return
+  const options = {
+    cwd: sandbox,
+    encoding: 'utf8' as const,
+    timeout: 180_000,
+    stdio: ['ignore', 'pipe', 'pipe'] as const,
+    env: { ...process.env, npm_config_update_notifier: 'false' },
+    shell: process.platform === 'win32',
+  }
   try {
     execFileSync('npm', ['install', '--omit=dev', '--no-audit', '--no-fund', '--ignore-scripts'], {
-      cwd: sandbox,
-      encoding: 'utf8',
+      ...options,
       timeout: 120_000,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, npm_config_update_notifier: 'false' },
-      shell: process.platform === 'win32',
     })
+    for (const name of pluginExternalDependencies(sandbox)) {
+      if (!nativeModuleReady(sandbox, name)) {
+        execFileSync('npm', ['rebuild', name, '--no-audit', '--no-fund'], options)
+      }
+      if (!nativeModuleReady(sandbox, name)) {
+        throw new Error(`native plugin dependency is not runnable: ${name}`)
+      }
+    }
   } catch (error) {
     const detail = error instanceof Error && 'stderr' in error ? String((error as { stderr?: string }).stderr || error.message) : String(error)
     throw new Error(`plugin npm install failed in ${sandbox}: ${detail.trim()}`)
   }
+}
+
+function nativeModuleReady(sandbox: string, name: string) {
+  if (name !== 'node-pty') return true
+  const dir = join(sandbox, 'node_modules', name)
+  return (
+    existsSync(join(dir, 'prebuilds', `${process.platform}-${process.arch}`, 'pty.node')) ||
+    existsSync(join(dir, 'build', 'Release', 'pty.node'))
+  )
 }
 
 function sandboxDependencies(sandbox: string): Record<string, string> {
@@ -368,7 +392,9 @@ export function copyPluginRuntimeDependencies(sandbox: string, dest: string) {
     }
     const helper = join(prebuilds, keep, 'spawn-helper')
     if (process.platform !== 'win32' && existsSync(helper)) chmodSync(helper, 0o755)
+    if (!readdirSync(prebuilds).length) rmSync(prebuilds, { recursive: true, force: true })
   }
+  rmSync(join(pty, 'build', 'Debug'), { recursive: true, force: true })
   const builtHelper = join(pty, 'build', 'Release', 'spawn-helper')
   if (process.platform !== 'win32' && existsSync(builtHelper)) chmodSync(builtHelper, 0o755)
   return external

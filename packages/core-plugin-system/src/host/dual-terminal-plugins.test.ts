@@ -77,10 +77,16 @@ describe('page terminal store plugin', () => {
     }
     assert.match(src, /ensureSandboxNpm/)
     assert.match(src, /shell: process\.platform === 'win32'/)
+    assert.match(src, /\['rebuild', name/)
+    assert.match(src, /nativeModuleReady/)
     assert.doesNotMatch(src, /nodePaths/)
     assert.ok(pagePkg.dependencies?.['@xterm/xterm'])
     assert.ok(pagePkg.dependencies?.['@xterm/addon-fit'])
     assert.ok(pagePkg.dependencies?.['node-pty'])
+    if (process.platform === 'linux') {
+      ensureSandboxNpm(resolve(root, '.plugin-dev', 'page-terminal'))
+      assert.ok(existsSync(pluginFile('page-terminal', 'node_modules/node-pty/build/Release/pty.node')))
+    }
   })
 
   it('packs native dependencies inside the plugin and prunes other platforms', async () => {
