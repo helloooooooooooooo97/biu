@@ -21,6 +21,8 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(yml, /target: dmg/)
   assert.match(yml, /target: nsis/)
   assert.match(yml, /from: pack-host/)
+  assert.match(yml, /from: pack-host\/node_modules/)
+  assert.match(yml, /to: biu\/node_modules/)
   assert.doesNotMatch(yml.split('extraResources:')[1] ?? '', /^\s*- package\.json\s*$/m)
   assert.match(source, /stagePackHost/)
   assert.match(yml, /beforeBuild: scripts\/electron-builder-before-build\.cjs/)
