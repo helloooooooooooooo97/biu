@@ -144,16 +144,6 @@ function stageHostNodeModules() {
     cpSync(join(root, location), join(hostDir, location), { recursive: true })
     copied.push(location)
   }
-  // esbuild 的安装脚本会留下两份 fallback 二进制；运行时从 @esbuild/<platform>
-  // optional package 解析，只保留那一份即可。
-  const esbuildDir = join(hostDir, 'node_modules', 'esbuild')
-  rmSync(join(esbuildDir, 'bin'), { recursive: true, force: true })
-  const libDir = join(esbuildDir, 'lib')
-  if (existsSync(libDir)) {
-    for (const name of readdirSync(libDir)) {
-      if (name.startsWith('downloaded-')) rmSync(join(libDir, name), { force: true })
-    }
-  }
 }
 
 /** asar/app 只装壳。host 单独放 pack-host，避免 extraResources 的 package.json 把壳里的同名文件排除掉。 */
