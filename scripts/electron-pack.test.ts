@@ -30,6 +30,8 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(source, /HOST_RUNTIME_PACKAGES/)
   assert.match(source, /npm, \['query', selector, '--json'\]/)
   assert.doesNotMatch(source, /copyDir\(join\(root, 'node_modules'/)
+  assert.doesNotMatch(source, /cpSync\(join\(root, 'node_modules', '@biu'\)/)
+  assert.match(source, /pkg\.name\.startsWith\('@biu\/'\)/)
   assert.match(yml, /beforeBuild: scripts\/electron-builder-before-build\.cjs/)
   assert.match(yml, /provider: github/)
 

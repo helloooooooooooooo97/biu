@@ -68,8 +68,18 @@ function stageHostNodeModules() {
     cpSync(join(root, location), join(hostDir, location), { recursive: true })
     copied.push(location)
   }
-  // 内置包通过 npm workspace 链接互相解析；它们的源码已复制到 pack-host/packages。
-  cpSync(join(root, 'node_modules', '@biu'), join(hostDir, 'node_modules', '@biu'), { recursive: true })
+  // npm workspace 在 CI 中是指向构建目录的绝对链接，不能原样带进安装包。
+  // 将内置包复制到 @biu scope，保证安装后仍可按包名互相解析。
+  const scopeDir = join(hostDir, 'node_modules', '@biu')
+  mkdirSync(scopeDir, { recursive: true })
+  for (const name of readdirSync(join(root, 'packages'))) {
+    const packageDir = join(root, 'packages', name)
+    const manifest = join(packageDir, 'package.json')
+    if (!existsSync(manifest)) continue
+    const pkg = JSON.parse(readFileSync(manifest, 'utf8'))
+    if (typeof pkg.name !== 'string' || !pkg.name.startsWith('@biu/')) continue
+    cpSync(packageDir, join(scopeDir, pkg.name.slice('@biu/'.length)), { recursive: true })
+  }
 }
 
 /** asar/app 只装壳。host 单独放 pack-host，避免 extraResources 的 package.json 把壳里的同名文件排除掉。 */
