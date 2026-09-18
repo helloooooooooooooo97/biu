@@ -40,6 +40,15 @@ function copyDir(from, to, skip = new Set()) {
   }
 }
 
+function stageBuiltinPluginSources() {
+  const source = join(root, '.plugin-dev')
+  if (!existsSync(source)) return
+  cpSync(source, join(hostDir, '.plugin-dev'), {
+    recursive: true,
+    filter: (path) => !relative(source, path).split(/[\\/]/).includes('node_modules'),
+  })
+}
+
 function packageName(specifier) {
   const parts = specifier.split('/')
   return specifier.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0]
@@ -179,6 +188,7 @@ export async function stagePackHost() {
     throw new Error('desktop web build missing: dist/index.html')
   }
   cpSync(join(root, 'dist'), join(hostDir, 'dist'), { recursive: true })
+  stageBuiltinPluginSources()
   await compilePackagedHost()
   stageHostNodeModules()
 }

@@ -14,6 +14,7 @@ import { existsSync } from 'node:fs'
 import net from 'node:net'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { availablePort, seedPluginSandboxes } from './runtime.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const electronRoot = join(__dirname, '..')
@@ -23,8 +24,8 @@ const repoRoot = app.isPackaged ? join(process.resourcesPath, 'biu') : join(elec
 const DEV_URL = process.env.BIU_DEV_URL || 'http://127.0.0.1:5173'
 const distIndex = join(electronRoot, '..', 'dist', 'index.html')
 const isDev = process.env.BIU_ELECTRON_DEV === '1' || (!app.isPackaged && !existsSync(distIndex) && process.env.BIU_ELECTRON_DEV !== '0')
-const HOST_PORT = Number(process.env.PORT || 3141)
-const HOST_URL = process.env.BIU_HOST_URL || `http://127.0.0.1:${HOST_PORT}`
+let hostPort = Number(process.env.PORT || 3141)
+let hostUrl = process.env.BIU_HOST_URL || `http://127.0.0.1:${hostPort}`
 
 let hostChild: ChildProcess | null = null
 let spawnedHost = false
@@ -457,7 +458,7 @@ async function createWindow() {
     await win.loadURL(DEV_URL)
     win.webContents.openDevTools({ mode: 'detach' })
   } else {
-    await win.loadURL(HOST_URL)
+    await win.loadURL(hostUrl)
   }
 }
 
@@ -507,20 +508,26 @@ html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden::befor
 
 async function ensureBrowserPanel() {
   if (browserPanelReady) return
-  const host = HOST_URL
+  const host = hostUrl
   for (let i = 0; i < 25; i += 1) {
     try {
-      await fetch(`${host}/api/db/action`, {
+      const pack = await fetch(`${host}/api/db/action`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ path: '/plugins/page-browser', action: 'pack' }),
       })
+      if (!pack.ok) throw new Error(`page-browser pack failed: ${pack.status}`)
+      const packed = (await pack.json()) as { value?: { running?: boolean } }
+      if (packed.value?.running) {
+        browserPanelReady = true
+        return
+      }
       const start = await fetch(`${host}/api/db/action`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ path: '/plugins/page-browser', action: 'start' }),
       })
-      if (start.ok || start.status === 400) {
+      if (start.ok) {
         browserPanelReady = true
         return
       }
@@ -545,10 +552,10 @@ function portOpen(port: number, host = '127.0.0.1') {
 async function waitForHost(ms = 60_000) {
   const start = Date.now()
   while (Date.now() - start < ms) {
-    if (await portOpen(HOST_PORT)) return
+    if (await portOpen(hostPort)) return
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
-  throw new Error(`host :${HOST_PORT} did not start`)
+  throw new Error(`host :${hostPort} did not start`)
 }
 
 function stopHost() {
@@ -561,24 +568,44 @@ function stopHost() {
 /** 打包后没有外挂 npm start，由 Electron 用同一份 Node 跑预编译 host。 */
 async function startHost() {
   if (isDev) return
-  if (await portOpen(HOST_PORT)) return
+  if (process.env.BIU_HOST_URL) {
+    const remote = new URL(process.env.BIU_HOST_URL)
+    hostPort = Number(remote.port || (remote.protocol === 'https:' ? 443 : 80))
+    hostUrl = remote.origin
+    await waitForHost()
+    return
+  }
   const entry = join(repoRoot, 'host', 'index.mjs')
   if (!existsSync(entry)) {
     throw new Error(`packed host missing: ${entry}`)
   }
+  const requestedPort = Number.isInteger(hostPort) && hostPort > 0 ? hostPort : 3141
+  hostPort = await availablePort(requestedPort)
+  hostUrl = `http://127.0.0.1:${hostPort}`
+  const requestedSharePort = Number(process.env.SHARE_PORT || 3142)
+  const sharePort = await availablePort(
+    Number.isInteger(requestedSharePort) && requestedSharePort > 0 ? requestedSharePort : 3142,
+  )
   const home = app.getPath('userData')
+  const workspace = process.env.CORDIS_WORKSPACE || join(home, 'workspace')
+  const pluginDir = process.env.BIU_PLUGIN_DIR || join(workspace, '.plugin')
+  const pluginDevDir = process.env.BIU_PLUGIN_DEV_DIR || join(workspace, '.plugin-dev')
+  seedPluginSandboxes(join(repoRoot, '.plugin-dev'), pluginDevDir)
   hostChild = spawn(process.execPath, [entry], {
     cwd: repoRoot,
     stdio: 'inherit',
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: '1',
-      PORT: String(HOST_PORT),
+      PORT: String(hostPort),
       HTTP_HOST: process.env.HTTP_HOST || '127.0.0.1',
-      SHARE_PORT: process.env.SHARE_PORT || '3142',
+      SHARE_PORT: String(sharePort),
       SHARE_HOST: process.env.SHARE_HOST || '127.0.0.1',
       BIU_HOME: home,
-      CORDIS_WORKSPACE: process.env.CORDIS_WORKSPACE || join(home, 'workspace'),
+      CORDIS_WORKSPACE: workspace,
+      BIU_PLUGIN_DIR: pluginDir,
+      BIU_PLUGIN_DEV_DIR: pluginDevDir,
+      BIU_PLUGIN_STATE: process.env.BIU_PLUGIN_STATE || join(pluginDir, 'store.json'),
     },
   })
   spawnedHost = true
