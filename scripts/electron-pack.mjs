@@ -1,11 +1,21 @@
 import { spawn } from 'node:child_process'
-import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { compileMain } from './electron-launch.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const appDir = join(root, 'pack-app')
+const hostDir = join(root, 'pack-host')
+
+const SKIP_HOST_NODE = new Set([
+  'electron',
+  'electron-builder',
+  'electron-builder-squirrel-windows',
+  'app-builder-bin',
+  'app-builder-lib',
+  '.cache',
+])
 
 function run(command, args) {
   return new Promise((resolveDone, reject) => {
@@ -25,7 +35,15 @@ function run(command, args) {
   })
 }
 
-/** asar 只装壳：package.json + electron 主进程 + vite dist。host 走 extraResources。 */
+function copyDir(from, to, skip = new Set()) {
+  mkdirSync(to, { recursive: true })
+  for (const name of readdirSync(from)) {
+    if (skip.has(name)) continue
+    cpSync(join(from, name), join(to, name), { recursive: true })
+  }
+}
+
+/** asar/app 只装壳。host 单独放 pack-host，避免 extraResources 的 package.json 把壳里的同名文件排除掉。 */
 export function stagePackApp() {
   rmSync(appDir, { recursive: true, force: true })
   mkdirSync(join(appDir, 'electron', 'out'), { recursive: true })
@@ -47,12 +65,33 @@ export function stagePackApp() {
   )
   cpSync(join(root, 'electron', 'out'), join(appDir, 'electron', 'out'), { recursive: true })
   cpSync(join(root, 'electron', 'preload.cjs'), join(appDir, 'electron', 'preload.cjs'))
-  cpSync(join(root, 'dist'), join(appDir, 'dist'), { recursive: true })
+  if (existsSync(join(root, 'dist'))) {
+    cpSync(join(root, 'dist'), join(appDir, 'dist'), { recursive: true })
+  } else {
+    mkdirSync(join(appDir, 'dist'), { recursive: true })
+    writeFileSync(join(appDir, 'dist', 'index.html'), '<!doctype html><title>Biu</title>')
+  }
+}
+
+export function stagePackHost() {
+  rmSync(hostDir, { recursive: true, force: true })
+  mkdirSync(hostDir, { recursive: true })
+  for (const name of ['package.json', 'package-lock.json', 'cordis.plugins.json']) {
+    cpSync(join(root, name), join(hostDir, name))
+  }
+  copyDir(join(root, 'host'), join(hostDir, 'host'))
+  copyDir(join(root, 'packages'), join(hostDir, 'packages'))
+  mkdirSync(join(hostDir, 'scripts'), { recursive: true })
+  for (const name of readdirSync(join(root, 'scripts'))) {
+    if (name.endsWith('.mjs')) cpSync(join(root, 'scripts', name), join(hostDir, 'scripts', name))
+  }
+  copyDir(join(root, 'node_modules'), join(hostDir, 'node_modules'), SKIP_HOST_NODE)
 }
 
 export async function packDesktop(builderArgs = process.argv.slice(2)) {
   await compileMain()
   stagePackApp()
+  stagePackHost()
   const bin = join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder')
   await run(bin, builderArgs.length ? builderArgs : ['--publish', 'never'])
 }
