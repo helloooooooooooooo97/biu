@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -8,14 +9,18 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const appDir = join(root, 'pack-app')
 const hostDir = join(root, 'pack-host')
 
-const SKIP_HOST_NODE = new Set([
-  'electron',
-  'electron-builder',
-  'electron-builder-squirrel-windows',
-  'app-builder-bin',
-  'app-builder-lib',
-  '.cache',
-])
+// 前端依赖已经由 Vite 打进 dist。这里只复制 host 源码真正会 import 的
+// 直接依赖及其 npm 依赖闭包，避免把 antd、Excalidraw 等整棵前端依赖树塞进安装包。
+const HOST_RUNTIME_PACKAGES = [
+  '@modelcontextprotocol/sdk',
+  'cordis',
+  'esbuild',
+  'node-pty',
+  'tsx',
+  'vite',
+  'ws',
+  'yaml',
+]
 
 function run(command, args) {
   return new Promise((resolveDone, reject) => {
@@ -41,6 +46,30 @@ function copyDir(from, to, skip = new Set()) {
     if (skip.has(name)) continue
     cpSync(join(from, name), join(to, name), { recursive: true })
   }
+}
+
+function stageHostNodeModules() {
+  const ids = HOST_RUNTIME_PACKAGES.map((name) => `#${name}`).join(',')
+  const selector = `:is(${ids}), :is(${ids}) *`
+  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+  const nodes = JSON.parse(
+    execFileSync(npm, ['query', selector, '--json'], {
+      cwd: root,
+      encoding: 'utf8',
+      maxBuffer: 32 * 1024 * 1024,
+    }),
+  )
+  const locations = [...new Set(nodes.map((node) => node.location))]
+    .filter((location) => location === 'node_modules' || location.startsWith('node_modules/'))
+    .sort((a, b) => a.length - b.length)
+  const copied = []
+  for (const location of locations) {
+    if (copied.some((parent) => location.startsWith(`${parent}/`))) continue
+    cpSync(join(root, location), join(hostDir, location), { recursive: true })
+    copied.push(location)
+  }
+  // 内置包通过 npm workspace 链接互相解析；它们的源码已复制到 pack-host/packages。
+  cpSync(join(root, 'node_modules', '@biu'), join(hostDir, 'node_modules', '@biu'), { recursive: true })
 }
 
 /** asar/app 只装壳。host 单独放 pack-host，避免 extraResources 的 package.json 把壳里的同名文件排除掉。 */
@@ -85,7 +114,7 @@ export function stagePackHost() {
   for (const name of readdirSync(join(root, 'scripts'))) {
     if (name.endsWith('.mjs')) cpSync(join(root, 'scripts', name), join(hostDir, 'scripts', name))
   }
-  copyDir(join(root, 'node_modules'), join(hostDir, 'node_modules'), SKIP_HOST_NODE)
+  stageHostNodeModules()
 }
 
 export async function packDesktop(builderArgs = process.argv.slice(2)) {
