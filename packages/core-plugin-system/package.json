@@ -17,7 +17,8 @@
     "@biu/public-ui": "0.1.0",
     "@biu/type-file-system": "0.1.0",
     "@biu/type-slots": "0.1.0",
+    "@biu/web-session-view": "0.1.0",
     "@biu/web-slots": "0.1.0",
-    "@biu/web-session-view": "0.1.0"
+    "esbuild-wasm": "^0.28.2"
   }
 }

@@ -45,9 +45,20 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(source, /npmQueryInvocation\(selector\)/)
   assert.doesNotMatch(source, /copyDir\(join\(root, 'node_modules'/)
   assert.doesNotMatch(source, /cpSync\(join\(root, 'node_modules', '@biu'\)/)
-  assert.match(source, /pkg\.name\.startsWith\('@biu\/'\)/)
+  assert.match(source, /compilePackagedHost/)
+  assert.match(source, /target: 'node24'/)
+  assert.doesNotMatch(source, /copyDir\(join\(root, 'packages'/)
   assert.match(yml, /beforeBuild: scripts\/electron-builder-before-build\.cjs/)
   assert.match(yml, /provider: github/)
+
+  const runtime = JSON.parse(await readFile(resolve(root, 'electron/host-runtime/package.json'), 'utf8'))
+  assert.deepEqual(Object.keys(runtime.dependencies).sort(), [
+    '@modelcontextprotocol/sdk',
+    'cordis',
+    'esbuild-wasm',
+    'ws',
+    'yaml',
+  ])
 
   const wf = await readFile(resolve(root, '.github/workflows/desktop-release.yml'), 'utf8')
   assert.match(wf, /tags:\s*\n\s+- 'v\*'/)
@@ -64,6 +75,8 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(main, /resourcesPath/)
   assert.match(main, /function startHost/)
   assert.match(main, /BIU_HOME/)
+  assert.match(main, /host', 'index\.mjs/)
+  assert.doesNotMatch(main, /node_modules', 'tsx/)
 
   const host = await readFile(resolve(root, 'host/index.ts'), 'utf8')
   assert.match(host, /BIU_HOME/)
