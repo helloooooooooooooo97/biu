@@ -89,7 +89,7 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
         const pack = asCreateFiles(fields.files)
         const created = pack?.length
           ? skills.import({
-              id: String(fields.id ?? ''),
+              id: String(fields.id ?? '').trim() || undefined,
               name: String(fields.title ?? fields.name ?? ''),
               description: String(fields.description ?? ''),
               source: String(fields.source ?? ''),
@@ -100,7 +100,7 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
               // 不传 draft：由 store 按“记录字段 + SKILL.md frontmatter”综合判定。
             })
           : skills.create({
-              id: String(fields.id ?? ''),
+              id: String(fields.id ?? '').trim() || undefined,
               name: String(fields.title ?? fields.name ?? ''),
               description: String(fields.description ?? ''),
               source: String(fields.source ?? ''),
