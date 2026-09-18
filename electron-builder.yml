@@ -4,11 +4,9 @@ copyright: Apache-2.0
 artifactName: Biu-${version}-${os}-${arch}.${ext}
 directories:
   output: release
+  app: .pack-app
 files:
-  - package.json
-  - electron/out/**/*
-  - electron/preload.cjs
-  - dist/**/*
+  - "**/*"
 extraResources:
   - from: .
     to: biu

@@ -12,11 +12,14 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(pkg.repository.url, /github\.com\/helloooooooooooooo97\/biu/)
 
   const yml = await readFile(resolve(root, 'electron-builder.yml'), 'utf8')
+  const source = await readFile(resolve(root, 'scripts/electron-pack.mjs'), 'utf8')
+  assert.match(yml, /app: \.pack-app/)
+  assert.match(source, /stagePackApp/)
   assert.match(yml, /identity: '-'/)
   assert.match(yml, /notarize: false/)
   assert.match(yml, /target: dmg/)
   assert.match(yml, /target: nsis/)
-  assert.match(yml, /files:\n {2}- package.json/)
+  assert.match(yml, /to: biu/)
   assert.match(yml, /provider: github/)
 
   const wf = await readFile(resolve(root, '.github/workflows/desktop-release.yml'), 'utf8')
@@ -24,7 +27,7 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(wf, /macos-latest/)
   assert.match(wf, /windows-latest/)
   assert.match(wf, /action-gh-release/)
-  assert.match(wf, /xattr -dr com.apple.quarantine/)
+  assert.match(wf, /xattr -dr com.apple.quarantine \/Applications\/Biu.app/)
 
   const main = await readFile(resolve(root, 'electron/main.ts'), 'utf8')
   assert.match(main, /ELECTRON_RUN_AS_NODE/)
@@ -38,5 +41,4 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   const docs = await readFile(resolve(root, 'docs/desktop-install.md'), 'utf8')
   assert.match(docs, /xattr -dr com.apple.quarantine \/Applications\/Biu.app/)
   assert.match(docs, /ad-hoc/)
-  assert.match(wf, /xattr -dr com.apple.quarantine \/Applications\/Biu.app/)
 })
