@@ -55,17 +55,20 @@ jobs:
             release/*.blockmap
           generate_release_notes: true
           body: |
-            ## 安装注意（未公证 / 未签名）
+            ## macOS 怎么装（未公证，第一次不要双击）
 
-            **macOS 没有 Apple 开发者证书，不能公证。** 浏览器下载后 Gatekeeper 会隔离应用，双击常显示「已损坏」或无法打开。这不是安装包坏了。
+            能装、能用。第一次会被系统拦住，**右键打开一次之后就可以双击。**
 
-            1. 把 `Biu-*-mac-*.dmg` 里的 Biu 拖进「应用程序」
-            2. **不要双击**：在 Launchpad / Finder 里 **右键 → 打开**，再点打开
-            3. 若仍提示已损坏，在终端执行：
+            1. 打开 dmg，把 Biu 拖进「应用程序」
+            2. 在「应用程序」里 **Control+点按 / 右键 Biu → 打开 → 打开**
+            3. 若仍提示已损坏，终端执行一次：
             ```bash
             xattr -dr com.apple.quarantine /Applications/Biu.app
+            open /Applications/Biu.app
             ```
 
-            Windows 未做 Authenticode 签名时，SmartScreen 可能拦截：更多信息 → 仍要运行。
+            Apple 芯片用 `*-mac-arm64.dmg`，Intel 用 `*-mac-x64.dmg`。
 
-            完整说明见仓库 `docs/desktop-install.md`。
+            Windows：SmartScreen → 更多信息 → 仍要运行。
+
+            完整说明见 `docs/desktop-install.md`。

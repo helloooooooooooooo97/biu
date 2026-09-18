@@ -37,5 +37,6 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
 
   const docs = await readFile(resolve(root, 'docs/desktop-install.md'), 'utf8')
   assert.match(docs, /xattr -dr com.apple.quarantine/)
-  assert.match(docs, /右键/)
+  assert.match(docs, /之后就可以和平时一样双击/)
+  assert.match(docs, /Control 再点一下/)
 })

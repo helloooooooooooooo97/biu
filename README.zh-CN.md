@@ -604,7 +604,7 @@ Biu 里它可以**落下来**：变成一页、一个块、一个技能、一张
 
 需要 Node.js 20+ 和 npm。`main` 与开发分支 `hmr-dev` 当前对齐。
 
-macOS / Windows 安装包在 [GitHub Releases](https://github.com/helloooooooooooooo97/biu/releases)。macOS **未公证**：请右键打开，或执行 `xattr -dr com.apple.quarantine`。说明见 [docs/desktop-install.md](docs/desktop-install.md)。
+macOS / Windows 安装包在 [GitHub Releases](https://github.com/helloooooooooooooo97/biu/releases)。macOS 未公证：**拖进应用程序 → 右键打开一次**，之后即可双击。步骤见 [docs/desktop-install.md](docs/desktop-install.md)。
 
 ```bash
 git clone https://github.com/helloooooooooooooo97/biu.git
