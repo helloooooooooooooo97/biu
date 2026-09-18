@@ -1,0 +1,41 @@
+import { test } from 'vitest'
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
+
+const root = resolve(import.meta.dirname, '..')
+
+test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing', async () => {
+  const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'))
+  assert.equal(pkg.main, 'electron/out/main.js')
+  assert.equal(pkg.scripts['electron:pack'], 'npm run build && node scripts/electron-pack.mjs')
+  assert.match(pkg.repository.url, /github\.com\/helloooooooooooooo97\/biu/)
+
+  const yml = await readFile(resolve(root, 'electron-builder.yml'), 'utf8')
+  assert.match(yml, /identity: '-'/)
+  assert.match(yml, /notarize: false/)
+  assert.match(yml, /target: dmg/)
+  assert.match(yml, /target: nsis/)
+  assert.match(yml, /to: biu/)
+  assert.match(yml, /provider: github/)
+
+  const wf = await readFile(resolve(root, '.github/workflows/desktop-release.yml'), 'utf8')
+  assert.match(wf, /tags:\s*\n\s+- 'v\*'/)
+  assert.match(wf, /macos-latest/)
+  assert.match(wf, /windows-latest/)
+  assert.match(wf, /action-gh-release/)
+  assert.match(wf, /xattr -dr com.apple.quarantine/)
+
+  const main = await readFile(resolve(root, 'electron/main.ts'), 'utf8')
+  assert.match(main, /ELECTRON_RUN_AS_NODE/)
+  assert.match(main, /resourcesPath/)
+  assert.match(main, /function startHost/)
+  assert.match(main, /BIU_HOME/)
+
+  const host = await readFile(resolve(root, 'host/index.ts'), 'utf8')
+  assert.match(host, /BIU_HOME/)
+
+  const docs = await readFile(resolve(root, 'docs/desktop-install.md'), 'utf8')
+  assert.match(docs, /xattr -dr com.apple.quarantine/)
+  assert.match(docs, /右键/)
+})

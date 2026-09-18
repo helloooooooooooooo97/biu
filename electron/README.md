@@ -28,6 +28,7 @@ npm run electron:dev     # 编译 electron/main.ts，host/vite 已在跑就复�
 ```bash
 npm run dev              # 原来的网页版，照常可用（面板会提示需要 Electron）
 npm run electron:build   # 先 vite build，再用 dist 起 Electron（不依赖 5173）
+npm run electron:pack    # 打 dmg / exe / zip，见 docs/desktop-install.md
 ```
 
 ## 文件

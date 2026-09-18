@@ -604,6 +604,8 @@ The system therefore grows round after round instead of resetting to zero each t
 
 Requires Node.js 20+ and npm. `main` and the development branch `hmr-dev` are currently aligned.
 
+macOS / Windows installers are on [GitHub Releases](https://github.com/helloooooooooooooo97/biu/releases). Unsigned macOS builds need **right-click → Open** or `xattr -dr com.apple.quarantine` — see [docs/desktop-install.md](docs/desktop-install.md).
+
 ```bash
 git clone https://github.com/helloooooooooooooo97/biu.git
 cd biu
@@ -708,6 +710,7 @@ biu
 ├── NOTICE.md                  # Apache NOTICE: copyright, Grok Bot, third-party deps
 ├── docs/
 │   ├── plugin-packages.md     # package prefixes and entry conventions
+│   ├── desktop-install.md     # unsigned macOS / Windows installers
 │   └── demo/                  # README screenshots: file-system / component / context
 ├── scripts/
 │   └── link-cordis-plugins.mjs

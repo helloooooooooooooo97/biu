@@ -3,8 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
+  "author": "Biu",
+  "homepage": "https://github.com/helloooooooooooooo97/biu",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/helloooooooooooooo97/biu.git"
+  },
   "description": "Biu Agent OS：一切即插件，多 Agent 不靠群聊，而是通过任务看板协作。基于 Cordis，事件流驱动，一切可溯源。",
   "type": "module",
+  "main": "electron/out/main.js",
   "workspaces": [
     "packages/*"
   ],
@@ -21,7 +28,8 @@
     "test": "vitest run",
     "electron:dev": "node scripts/electron-dev.mjs",
     "electron:wait": "node scripts/electron-launch.mjs",
-    "electron:build": "npm run build && env BIU_ELECTRON_DEV=0 node scripts/electron-launch.mjs"
+    "electron:build": "npm run build && env BIU_ELECTRON_DEV=0 node scripts/electron-launch.mjs",
+    "electron:pack": "npm run build && node scripts/electron-pack.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",
@@ -81,6 +89,7 @@
     "@vitejs/plugin-react": "^5.0.0",
     "concurrently": "^9.2.0",
     "electron": "^33.4.11",
+    "electron-builder": "^26.15.3",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.20.5",
