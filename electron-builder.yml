@@ -18,6 +18,10 @@ extraResources:
       - packages/**/*
       - scripts/*.mjs
       - node_modules/**/*
+      - '!.pack-app/**'
+      - '!release/**'
+      - '!dist/**'
+      - '!electron/**'
       - '!node_modules/electron/**'
       - '!node_modules/electron-builder/**'
       - '!node_modules/electron-builder-squirrel-windows/**'
@@ -25,7 +29,7 @@ extraResources:
       - '!node_modules/app-builder-lib/**'
       - '!**/node_modules/.cache/**'
       - '!**/*.map'
-asar: true
+asar: false
 npmRebuild: false
 publish:
   provider: github

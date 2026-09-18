@@ -36,7 +36,7 @@ export function stagePackApp() {
       {
         name: pkg.name,
         version: pkg.version,
-        productName: 'Biu',
+        description: pkg.description,
         main: 'electron/out/main.js',
         author: pkg.author,
         license: pkg.license,

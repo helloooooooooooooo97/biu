@@ -14,6 +14,7 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   const yml = await readFile(resolve(root, 'electron-builder.yml'), 'utf8')
   const source = await readFile(resolve(root, 'scripts/electron-pack.mjs'), 'utf8')
   assert.match(yml, /app: \.pack-app/)
+  assert.match(yml, /asar: false/)
   assert.match(source, /stagePackApp/)
   assert.match(yml, /identity: '-'/)
   assert.match(yml, /notarize: false/)
