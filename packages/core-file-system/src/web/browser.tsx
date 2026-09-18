@@ -1203,19 +1203,15 @@ export function CollectionBrowser({
   const tableRef = useRef<HTMLTableElement>(null)
   const checkStackRef = useRef<HTMLDivElement>(null)
   const checkHoverRef = useRef<string | 'head' | null>(null)
-  const [checkSlots, setCheckSlots] = useState<{ kind: 'head' | 'gap' | 'row'; id?: string; h: number }[]>([])
+  const [checkSlots, setCheckSlots] = useState<{ kind: 'head' | 'gap' | 'row'; id?: string; top: number; h: number }[]>([])
 
   const paintCheckHover = useCallback((next: string | 'head' | null, force = false) => {
     if (!force && checkHoverRef.current === next) return
     const root = checkStackRef.current
     if (root) {
-      for (const el of Array.from(root.querySelectorAll('.fsdb-check-slot.is-hover'))) {
-        if (next && el.getAttribute('data-check') === next) continue
-        el.classList.remove('is-hover')
-      }
-      if (next) {
-        const hit = root.querySelector(`[data-check="${typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(next) : next}"]`)
-        hit?.classList.add('is-hover')
+      const key = next == null ? null : String(next)
+      for (const el of Array.from(root.querySelectorAll('.fsdb-check-slot'))) {
+        el.classList.toggle('is-hover', key != null && el.getAttribute('data-check') === key)
       }
     }
     checkHoverRef.current = next
@@ -1227,19 +1223,31 @@ export function CollectionBrowser({
       setCheckSlots([])
       return
     }
+    let raf = 0
     const measure = () => {
-      const next: { kind: 'head' | 'gap' | 'row'; id?: string; h: number }[] = []
+      if (!table.offsetHeight) {
+        raf = requestAnimationFrame(measure)
+        return
+      }
+      const next: { kind: 'head' | 'gap' | 'row'; id?: string; top: number; h: number }[] = []
       const head = table.tHead?.rows[0]
-      if (head) next.push({ kind: 'head', h: head.getBoundingClientRect().height })
+      if (head) next.push({ kind: 'head', top: head.offsetTop, h: head.offsetHeight })
       for (const tr of Array.from(table.tBodies[0]?.rows ?? [])) {
-        const h = tr.getBoundingClientRect().height
-        if (tr.classList.contains('fsdb-group-row') || !tr.dataset.recordId) next.push({ kind: 'gap', h })
-        else next.push({ kind: 'row', id: tr.dataset.recordId, h })
+        const top = tr.offsetTop
+        const h = tr.offsetHeight
+        if (tr.classList.contains('fsdb-group-row') || !tr.dataset.recordId) next.push({ kind: 'gap', top, h })
+        else next.push({ kind: 'row', id: tr.dataset.recordId, top, h })
       }
       setCheckSlots((prev) => {
         if (
           prev.length === next.length &&
-          prev.every((slot, i) => slot.kind === next[i]!.kind && slot.id === next[i]!.id && slot.h === next[i]!.h)
+          prev.every(
+            (slot, i) =>
+              slot.kind === next[i]!.kind &&
+              slot.id === next[i]!.id &&
+              slot.top === next[i]!.top &&
+              slot.h === next[i]!.h,
+          )
         ) {
           return prev
         }
@@ -1249,7 +1257,11 @@ export function CollectionBrowser({
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(table)
-    return () => ro.disconnect()
+    for (const img of Array.from(table.querySelectorAll('img'))) ro.observe(img)
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
   }, [collapsed, collapsedGroups, columns, grouping, grouped, items, page, pageSize, wrapCells, truncateCells, columnWidths])
 
   useLayoutEffect(() => {
@@ -3299,9 +3311,9 @@ export function CollectionBrowser({
                       {checkSlots.map((slot, index) => (
                         <div
                           key={slot.kind === 'row' ? `${slot.id}-${index}` : `${slot.kind}-${index}`}
-                          className="fsdb-check-slot"
+                          className={`fsdb-check-slot${slot.kind === 'head' ? ' is-head' : ''}`}
                           data-check={slot.kind === 'head' ? 'head' : slot.id}
-                          style={{ height: slot.h }}
+                          style={slot.kind === 'head' ? { height: slot.h } : { top: slot.top, height: slot.h }}
                           onMouseEnter={() => {
                             if (slot.kind === 'head') paintCheckHover('head')
                             else if (slot.id) paintCheckHover(slot.id)
