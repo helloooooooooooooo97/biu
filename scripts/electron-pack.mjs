@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { compileMain } from './electron-launch.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const appDir = join(root, '.pack-app')
+const appDir = join(root, 'pack-app')
 
 function run(command, args) {
   return new Promise((resolveDone, reject) => {
