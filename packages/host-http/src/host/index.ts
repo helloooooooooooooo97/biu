@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { existsSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import type { Duplex } from 'node:stream'
@@ -20,7 +21,15 @@ const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.map': 'application/json',
 }
 
 function compile(pattern: string) {
@@ -70,12 +79,20 @@ function defaultSharePort() {
   return 3142
 }
 
+function defaultPublicDir() {
+  const env = String(process.env.BIU_PUBLIC_DIR ?? '').trim()
+  if (env) return env
+  const dist = join(process.cwd(), 'dist')
+  if (existsSync(join(dist, 'index.html'))) return dist
+  return join(process.cwd(), 'public')
+}
+
 function resolveListenConfig(config?: HttpListenConfig) {
   const sharePortRaw = config?.sharePort ?? defaultSharePort()
   return {
     port: Number(config?.port ?? process.env.PORT ?? 3141),
     host: config?.host ?? process.env.HTTP_HOST ?? '127.0.0.1',
-    publicDir: config?.publicDir ?? join(process.cwd(), 'public'),
+    publicDir: config?.publicDir ?? defaultPublicDir(),
     sharePort: Number.isFinite(sharePortRaw) ? sharePortRaw : 0,
     shareHost: config?.shareHost ?? process.env.SHARE_HOST ?? '0.0.0.0',
   }

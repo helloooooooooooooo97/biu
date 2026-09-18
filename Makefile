@@ -46,6 +46,6 @@ test:
 build:
 	npm run build
 
-# 打包后部署运行：先释放占用端口，再执行打包，最后启动服务
+# 打包后部署运行：先释放占用端口，再 vite build，最后 npm start（无 Vite，UI 由 :3141 提供 dist）
 rebuild: stop build
 	npm start
