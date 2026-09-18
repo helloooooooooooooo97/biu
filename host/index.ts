@@ -1,6 +1,7 @@
 import { Context } from 'cordis'
 import { importConfiguredPackage, readCordisConfig, findRepoRoot } from '@biu/host-plugin-loader'
 import { migrateDataDir } from '@biu/host-plugin-loader/data-dir'
+import { lanIPv4, printReadyBanner } from './banner.ts'
 import './types.ts'
 
 const rootDir = findRepoRoot()
@@ -14,9 +15,26 @@ ctx.logger.exporter({
     console.log(`${time} ${message.type.padEnd(5)} ${message.name} ${args}`)
   },
 })
+
+let sharePort = 0
+ctx.on('http/share-ready', ({ port }) => {
+  sharePort = port
+})
 ctx.on('http/ready', ({ port: ready }) => {
-  const ui = process.env.SHARE_PROXY_UI ? 'http://127.0.0.1:5173' : `http://127.0.0.1:${ready}`
-  ctx.logger('boot').info(`api http://127.0.0.1:${ready}  ·  ui ${ui}`)
+  const ui = process.env.SHARE_PROXY_UI ? 'http://127.0.0.1:5173/' : `http://127.0.0.1:${ready}/`
+  const api = `http://127.0.0.1:${ready}/`
+  if (process.env.SHARE_PROXY_UI) {
+    ctx.logger('boot').info(`api ${api}  ·  ui ${ui}`)
+    return
+  }
+  const paint = () => {
+    const lan = lanIPv4()
+    const share =
+      sharePort > 0 ? `http://${lan ?? '127.0.0.1'}:${sharePort}/share` : undefined
+    printReadyBanner({ ui, api, share })
+  }
+  if (sharePort > 0) paint()
+  else setTimeout(paint, 80)
 })
 
 async function boot() {
