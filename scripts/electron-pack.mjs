@@ -168,12 +168,6 @@ export function stagePackApp() {
   )
   cpSync(join(root, 'electron', 'out'), join(appDir, 'electron', 'out'), { recursive: true })
   cpSync(join(root, 'electron', 'preload.cjs'), join(appDir, 'electron', 'preload.cjs'))
-  if (existsSync(join(root, 'dist'))) {
-    cpSync(join(root, 'dist'), join(appDir, 'dist'), { recursive: true })
-  } else {
-    mkdirSync(join(appDir, 'dist'), { recursive: true })
-    writeFileSync(join(appDir, 'dist', 'index.html'), '<!doctype html><title>Biu</title>')
-  }
 }
 
 export async function stagePackHost() {
@@ -181,6 +175,10 @@ export async function stagePackHost() {
   mkdirSync(hostDir, { recursive: true })
   cpSync(hostRuntimeManifest, join(hostDir, 'package.json'))
   cpSync(join(root, 'cordis.plugins.json'), join(hostDir, 'cordis.plugins.json'))
+  if (!existsSync(join(root, 'dist', 'index.html'))) {
+    throw new Error('desktop web build missing: dist/index.html')
+  }
+  cpSync(join(root, 'dist'), join(hostDir, 'dist'), { recursive: true })
   await compilePackagedHost()
   stageHostNodeModules()
 }

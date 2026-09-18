@@ -19,7 +19,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const electronRoot = join(__dirname, '..')
 const repoRoot = app.isPackaged ? join(process.resourcesPath, 'biu') : join(electronRoot, '..')
 
-/** dev：vite 起的地址；打包 / 无 dev 标记：本地 dist 文件。 */
+/** dev 走 Vite；打包后由本地 host 同源托管 UI、API 与 WebSocket。 */
 const DEV_URL = process.env.BIU_DEV_URL || 'http://127.0.0.1:5173'
 const distIndex = join(electronRoot, '..', 'dist', 'index.html')
 const isDev = process.env.BIU_ELECTRON_DEV === '1' || (!app.isPackaged && !existsSync(distIndex) && process.env.BIU_ELECTRON_DEV !== '0')
@@ -457,7 +457,7 @@ async function createWindow() {
     await win.loadURL(DEV_URL)
     win.webContents.openDevTools({ mode: 'detach' })
   } else {
-    await win.loadFile(join(electronRoot, '..', 'dist', 'index.html'))
+    await win.loadURL(HOST_URL)
   }
 }
 
