@@ -42,6 +42,8 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.doesNotMatch(yml.split('extraResources:')[1] ?? '', /^\s*- package\.json\s*$/m)
   assert.match(source, /stagePackHost/)
   assert.match(source, /HOST_RUNTIME_PACKAGES/)
+  assert.match(source, /cpSync\(join\(root, 'dist'\), join\(hostDir, 'dist'\)/)
+  assert.doesNotMatch(source, /join\(appDir, 'dist'\)/)
   assert.match(source, /npmQueryInvocation\(selector\)/)
   assert.doesNotMatch(source, /copyDir\(join\(root, 'node_modules'/)
   assert.doesNotMatch(source, /cpSync\(join\(root, 'node_modules', '@biu'\)/)
@@ -76,6 +78,8 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(main, /function startHost/)
   assert.match(main, /BIU_HOME/)
   assert.match(main, /host', 'index\.mjs/)
+  assert.match(main, /await win\.loadURL\(HOST_URL\)/)
+  assert.doesNotMatch(main, /await win\.loadFile/)
   assert.doesNotMatch(main, /node_modules', 'tsx/)
 
   const host = await readFile(resolve(root, 'host/index.ts'), 'utf8')
