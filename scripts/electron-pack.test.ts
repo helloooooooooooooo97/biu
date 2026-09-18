@@ -21,8 +21,11 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(yml, /target: dmg/)
   assert.match(yml, /target: nsis/)
   assert.match(yml, /from: pack-host/)
+  assert.match(yml, /from: pack-host\/node_modules/)
+  assert.match(yml, /to: biu\/node_modules/)
   assert.doesNotMatch(yml.split('extraResources:')[1] ?? '', /^\s*- package\.json\s*$/m)
   assert.match(source, /stagePackHost/)
+  assert.match(yml, /beforeBuild: scripts\/electron-builder-before-build\.cjs/)
   assert.match(yml, /provider: github/)
 
   const wf = await readFile(resolve(root, '.github/workflows/desktop-release.yml'), 'utf8')
@@ -30,6 +33,7 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(wf, /macos-latest/)
   assert.match(wf, /windows-latest/)
   assert.match(wf, /action-gh-release/)
+  assert.match(wf, /ulimit -n 65536/)
   assert.match(wf, /xattr -dr com.apple.quarantine \/Applications\/Biu.app/)
 
   const main = await readFile(resolve(root, 'electron/main.ts'), 'utf8')

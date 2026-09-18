@@ -12,8 +12,17 @@ files:
 extraResources:
   - from: pack-host
     to: biu
+    filter:
+      - "**/*"
+      - "!node_modules{,/**/*}"
+  # extraResources 的目录遍历会跳过名为 node_modules 的根目录；
+  # 以该目录本身为 source，才能把 host 运行时依赖复制到目标位置。
+  - from: pack-host/node_modules
+    to: biu/node_modules
 asar: false
-npmRebuild: false
+# host 依赖已由 scripts/electron-pack.mjs 放进 pack-host/node_modules。
+# 返回 false 告诉 electron-builder 不要再扫描、复制根 node_modules 到壳应用。
+beforeBuild: scripts/electron-builder-before-build.cjs
 publish:
   provider: github
   releaseType: release
