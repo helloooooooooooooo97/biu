@@ -7,28 +7,11 @@ directories:
   app: pack-app
 files:
   - "**/*"
+# extraResources 的 glob 会从 app 文件里排除同名路径。
+# 所以 host 整包放 pack-host/，不要在这里写裸的 package.json。
 extraResources:
-  - from: .
+  - from: pack-host
     to: biu
-    filter:
-      - package.json
-      - package-lock.json
-      - cordis.plugins.json
-      - host/**/*
-      - packages/**/*
-      - scripts/*.mjs
-      - node_modules/**/*
-      - '!pack-app/**'
-      - '!release/**'
-      - '!dist/**'
-      - '!electron/**'
-      - '!node_modules/electron/**'
-      - '!node_modules/electron-builder/**'
-      - '!node_modules/electron-builder-squirrel-windows/**'
-      - '!node_modules/app-builder-bin/**'
-      - '!node_modules/app-builder-lib/**'
-      - '!**/node_modules/.cache/**'
-      - '!**/*.map'
 asar: false
 npmRebuild: false
 publish:
@@ -37,7 +20,6 @@ publish:
 mac:
   category: public.app-category.developer-tools
   icon: public/favicon.svg
-  # 没有 Apple 开发者证书：ad-hoc 签名。别人从网上下载仍会被 Gatekeeper 隔离，见 docs/desktop-install.md。
   identity: '-'
   gatekeeperAssess: false
   hardenedRuntime: false
