@@ -48,15 +48,30 @@ function copyDir(from, to, skip = new Set()) {
   }
 }
 
+export function npmQueryInvocation(
+  selector,
+  platform = process.platform,
+  env = process.env,
+  node = process.execPath,
+) {
+  const args = ['query', selector, '--json']
+  if (env.npm_execpath) {
+    return { command: node, args: [env.npm_execpath, ...args], shell: false }
+  }
+  // Windows 不能由 execFileSync 直接执行 npm.cmd（EINVAL）；fallback 必须走 shell。
+  return { command: 'npm', args, shell: platform === 'win32' }
+}
+
 function stageHostNodeModules() {
   const ids = HOST_RUNTIME_PACKAGES.map((name) => `#${name}`).join(',')
   const selector = `:is(${ids}), :is(${ids}) *`
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+  const invocation = npmQueryInvocation(selector)
   const nodes = JSON.parse(
-    execFileSync(npm, ['query', selector, '--json'], {
+    execFileSync(invocation.command, invocation.args, {
       cwd: root,
       encoding: 'utf8',
       maxBuffer: 32 * 1024 * 1024,
+      shell: invocation.shell,
     }),
   )
   const locations = [...new Set(nodes.map((node) => node.location))]

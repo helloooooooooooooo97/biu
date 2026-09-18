@@ -2,8 +2,22 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { npmQueryInvocation } from './electron-pack.mjs'
 
 const root = resolve(import.meta.dirname, '..')
+
+test('npm query runs through node instead of npm.cmd on Windows', () => {
+  const cli = String.raw`C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js`
+  const node = String.raw`C:\Program Files\nodejs\node.exe`
+  const invocation = npmQueryInvocation('#cordis', 'win32', { npm_execpath: cli }, node)
+  assert.equal(invocation.command, node)
+  assert.deepEqual(invocation.args, [cli, 'query', '#cordis', '--json'])
+  assert.equal(invocation.shell, false)
+
+  const fallback = npmQueryInvocation('#cordis', 'win32', {}, node)
+  assert.equal(fallback.command, 'npm')
+  assert.equal(fallback.shell, true)
+})
 
 test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing', async () => {
   const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'))
@@ -28,7 +42,7 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.doesNotMatch(yml.split('extraResources:')[1] ?? '', /^\s*- package\.json\s*$/m)
   assert.match(source, /stagePackHost/)
   assert.match(source, /HOST_RUNTIME_PACKAGES/)
-  assert.match(source, /npm, \['query', selector, '--json'\]/)
+  assert.match(source, /npmQueryInvocation\(selector\)/)
   assert.doesNotMatch(source, /copyDir\(join\(root, 'node_modules'/)
   assert.doesNotMatch(source, /cpSync\(join\(root, 'node_modules', '@biu'\)/)
   assert.match(source, /pkg\.name\.startsWith\('@biu\/'\)/)
