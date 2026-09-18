@@ -6,13 +6,16 @@ const bold = '\x1b[1m'
 const cyan = '\x1b[36m'
 const green = '\x1b[32m'
 
-/** Block letters B · I · U */
+/** IBM 8-bar: B, I, U as eight thin horizontal strips. */
 export const BIU_MARK = `${bold}
-  ██████    ████    ██    ██
-  ██   ██    ██     ██    ██
-  ██████     ██     ██    ██
-  ██   ██    ██     ██    ██
-  ██████    ████     ██████
+  ▄▄▄▄▄▄▄▄    ▄▄▄▄    ▄▄    ▄▄
+  ▄▄    ▄▄    ▄▄▄▄    ▄▄    ▄▄
+  ▄▄    ▄▄    ▄▄▄▄    ▄▄    ▄▄
+  ▄▄▄▄▄▄▄▄    ▄▄▄▄    ▄▄    ▄▄
+  ▄▄    ▄▄    ▄▄▄▄    ▄▄    ▄▄
+  ▄▄    ▄▄    ▄▄▄▄    ▄▄    ▄▄
+  ▄▄    ▄▄    ▄▄▄▄    ▄▄    ▄▄
+  ▄▄▄▄▄▄▄▄    ▄▄▄▄     ▄▄▄▄▄▄
 ${reset}`
 
 export function hyperlink(url: string, label = url) {
