@@ -2,8 +2,9 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { Context } from 'cordis'
 import { PluginStoreService } from './index.ts'
 import { compileStoreModule } from './plugin-create.ts'
@@ -479,17 +480,39 @@ test('pack rejects @biu imports', async () => {
   }
 })
 
-test('compileStoreModule strips TypeScript in-process', async () => {
-  const code = await compileStoreModule(
-    `export const name = 'store-echo'\nexport function apply(ctx: { ok: boolean }) { return ctx.ok }`,
-    'host',
+test('compileStoreModule does not require node on PATH', async () => {
+  const path = process.env.PATH
+  process.env.PATH = '/path-without-node'
+  try {
+    const code = await compileStoreModule(
+      `export const name = 'store-echo'\nexport function apply(ctx: { ok: boolean }) { return ctx.ok }`,
+      'host',
+    )
+    assert.match(code, /\bapply\b/)
+    assert.doesNotMatch(code, /ctx: \{/)
+  } finally {
+    if (path === undefined) delete process.env.PATH
+    else process.env.PATH = path
+  }
+})
+
+test('native esbuild starts its platform binary without a PATH node executable', () => {
+  execFileSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '--eval',
+      `import('esbuild').then(({ transform }) => transform('const n: number = 1', { loader: 'ts' }))`,
+    ],
+    {
+      cwd: resolve(import.meta.dirname, '../../../..'),
+      env: { ...process.env, PATH: '/path-without-node' },
+      stdio: 'pipe',
+    },
   )
-  assert.match(code, /\bapply\b/)
-  assert.doesNotMatch(code, /ctx: \{/)
 })
 
 test('excalidraw board onChange does not setState', async () => {
-  const { resolve } = await import('node:path')
   const src = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-excalidraw/web.tsx'), 'utf8')
   const onChange = src.match(/const onChange = useCallback\([\s\S]*?\}, \[file\]\)/)?.[0]
   assert.ok(onChange)

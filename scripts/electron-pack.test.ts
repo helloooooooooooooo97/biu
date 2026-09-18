@@ -60,7 +60,7 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.deepEqual(Object.keys(runtime.dependencies).sort(), [
     '@modelcontextprotocol/sdk',
     'cordis',
-    'esbuild-wasm',
+    'esbuild',
     'ws',
     'yaml',
   ])

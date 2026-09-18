@@ -2,7 +2,7 @@ import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rm
 import { readFile, writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { dirname, extname, join, resolve } from 'node:path'
-import type { Plugin as EsbuildPlugin } from 'esbuild-wasm'
+import type { Plugin as EsbuildPlugin } from 'esbuild'
 import { declaredStoreShell, parseStoreShell, requireDeclaredShell, type StoreShell } from '../shell.ts'
 
 export type PluginCreateInput = {
@@ -114,7 +114,7 @@ export function findEntry(dir: string, names: string[]) {
 export async function compileStoreModule(source: string, kind: 'host' | 'web') {
   const trimmed = source.trim()
   if (!trimmed) throw new Error(`${kind} source is empty`)
-  const { transform } = await import('esbuild-wasm')
+  const { transform } = await import('esbuild')
   const result = await transform(trimmed, {
     loader: kind === 'web' ? 'tsx' : 'ts',
     format: 'esm',
@@ -404,7 +404,7 @@ export function copyPluginRuntimeDependencies(sandbox: string, dest: string) {
 export async function bundleStoreEntry(entryFile: string, kind: 'host' | 'web') {
   const sandbox = dirname(entryFile)
   ensureSandboxNpm(sandbox)
-  const { build } = await import('esbuild-wasm')
+  const { build } = await import('esbuild')
   const result = await build({
     absWorkingDir: dirname(entryFile),
     entryPoints: [entryFile],
