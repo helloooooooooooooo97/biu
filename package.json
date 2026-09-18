@@ -88,7 +88,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.0.0",
     "concurrently": "^9.2.0",
-    "electron": "^33.4.11",
+    "electron": "^44.4.2",
     "electron-builder": "^26.15.3",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.3.3",
