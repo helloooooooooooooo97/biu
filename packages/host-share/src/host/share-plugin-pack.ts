@@ -1,9 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
-
-function isSharePluginId(id: string) {
-  return /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(id)
-}
+import { isSharePluginId } from '../share-resources.ts'
 
 const SKIP = new Set(['node_modules', '.git', '.DS_Store'])
 

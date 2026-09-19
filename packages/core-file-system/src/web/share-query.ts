@@ -10,7 +10,8 @@ import {
   type FilterGroup,
   type SortRule,
 } from '../query-logic.ts'
-import { normalizePageSize, type SavedView } from './saved-view.ts'
+import { normalizePageSize } from './saved-view.ts'
+import type { ShareViewHint } from '@biu/host-share/snapshot'
 
 export type ShareQueryState = {
   q: string
@@ -26,10 +27,10 @@ export function shareQueryStorageKey(token: string) {
   return `fsdb.share.query:${token}`
 }
 
-export function shareQueryFromView(view?: Partial<SavedView>): ShareQueryState {
+export function shareQueryFromView(view?: ShareViewHint): ShareQueryState {
   return {
     q: String(view?.query ?? ''),
-    sorts: normalizeSorts(view?.sorts, view?.sortField || 'title', view?.sortDir === 'desc' ? 'desc' : 'asc'),
+    sorts: normalizeSorts(view?.sorts as SortRule[] | undefined, view?.sortField || 'title', view?.sortDir === 'desc' ? 'desc' : 'asc'),
     filterTree: resolveViewFilterTree({
       filters: view?.filters,
       filterTree: view?.filterTree,

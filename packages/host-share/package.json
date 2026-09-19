@@ -4,8 +4,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "分享网络地址与插件源码打包，不是 File System 数据模型",
+  "description": "分享：对外地址、LAN 网关、快照类型、资源扫描、插件源码打包",
   "exports": {
-    ".": "./src/host/index.ts"
+    ".": "./src/host/index.ts",
+    "./snapshot": "./src/share-snapshot.ts",
+    "./resources": "./src/share-resources.ts"
+  },
+  "dependencies": {
+    "@biu/type-file-system": "0.1.0"
   }
 }

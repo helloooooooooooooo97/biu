@@ -41,7 +41,7 @@ import {
 import { parsePageBanner, type PageBanner } from '../page-banner.ts'
 import { SavedViewsStore, clientViewFromDbRow, viewsCollection, type StoredView } from './saved-views.ts'
 import { publicShareUrl, readSharePluginWebJs, zipSharePluginSource } from '@biu/host-share'
-import { collectShareResources } from '../share-resources.ts'
+import { collectShareResources } from '@biu/host-share'
 import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'

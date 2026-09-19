@@ -11,5 +11,8 @@
   "peerDependencies": {
     "cordis": "4.0.0-rc.8",
     "ws": "^8.18.3"
+  },
+  "dependencies": {
+    "@biu/host-share": "0.1.0"
   }
 }

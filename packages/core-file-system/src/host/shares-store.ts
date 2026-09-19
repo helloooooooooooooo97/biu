@@ -3,9 +3,9 @@ import { dirname } from 'node:path'
 import { openAndMigrateBiu } from '@biu/host-plugin-loader/data-dir'
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { normalizeCollectionPath } from '../paths.ts'
-import type { ShareKind, ShareRecord } from '../share-snapshot.ts'
+import type { ShareKind, ShareRecord } from '@biu/host-share/snapshot'
 
-export type { ShareKind, ShareRecord } from '../share-snapshot.ts'
+export type { ShareKind, ShareRecord } from '@biu/host-share/snapshot'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 

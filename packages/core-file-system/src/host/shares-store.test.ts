@@ -6,7 +6,7 @@ import { DatabaseService } from './index.ts'
 import { SavedViewsStore, viewsCollection } from './saved-views.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { buildShareSnapshot } from './share-payload.ts'
-import { parseSharePath } from '../share-snapshot.ts'
+import { parseSharePath } from '@biu/host-share/snapshot'
 import { builtinAllViewId } from '../catalog-views.ts'
 
 test('share tokens mint unique links and can set a password', () => {

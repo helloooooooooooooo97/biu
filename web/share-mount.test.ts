@@ -2,7 +2,7 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { parseSharePath } from '../packages/core-file-system/src/share-snapshot.ts'
+import { parseSharePath } from '@biu/host-share/snapshot'
 
 test('share hrefs skip the full workstation boot', () => {
   assert.equal(Boolean(parseSharePath('/share/abc')), true)

@@ -1,4 +1,4 @@
-import { collectAssetNames } from './asset-refs.ts'
+import { collectAssetNames } from '@biu/type-file-system'
 
 export type ShareResourceStats = {
   pages: number

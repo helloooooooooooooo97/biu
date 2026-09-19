@@ -14,7 +14,7 @@ import { HeadlessDismiss } from '@biu/public-ui'
 import { ShareOwnerCorner } from './share-owner-corner.tsx'
 
 export { registerShareOwnerExtra } from './share-owner-corner.tsx'
-import { parseSharePath, sharePublicPath, type ShareSnapshot } from '../share-snapshot.ts'
+import { parseSharePath, sharePublicPath, type ShareSnapshot } from '@biu/host-share/snapshot'
 import { parsePageBanner } from '../page-banner.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { contentToMarkdown, markdownFileName, recordToMarkdown, zipMarkdownPack } from './export-markdown.ts'
