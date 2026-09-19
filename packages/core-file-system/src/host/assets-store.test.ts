@@ -33,6 +33,7 @@ test('documents overwrite in place and require etag', async () => {
   const store = new FileSystemAssets(dir)
   const first = await store.writeDoc('画板-ab.json', '{"a":1}')
   assert.equal(first.name, '画板-ab.json')
+  assert.equal(first.href, assetHref('画板-ab.json'))
   assert.equal(await readFile(join(dir, 'doc', '画板-ab.json'), 'utf8'), '{"a":1}')
   await assert.rejects(() => store.writeDoc('画板-ab.json', '{"a":2}'), (error) => error instanceof AssetConflictError)
   const next = await store.writeDoc('画板-ab.json', '{"a":2}', { etag: first.etag })

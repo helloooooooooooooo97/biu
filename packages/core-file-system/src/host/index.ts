@@ -1831,7 +1831,7 @@ export function apply(ctx: Context) {
     name: 'db_doc',
     description: [
       '读写一条记录的可变文档（画板场景、视频脚本、htmlframe HTML）。图片等不可变资源用 db_asset。',
-      'path 为 /<表>/<id>。write 落盘 .biu/assets/doc/<逻辑名>，覆盖必须带 etag（上次 view 的内容哈希），对不上返回 etag conflict。引用写成 /api/doc/file/<逻辑名> 或 /api/page/file/<逻辑名>。',
+      'path 为 /<表>/<id>。write 落盘 .biu/assets/doc/<逻辑名>，覆盖必须带 etag（上次 view 的内容哈希），对不上返回 etag conflict。引用写成 /api/db/file/<逻辑名>（按名字寻址；哈希名则是 CAS）。画板也可走 /api/page/file/<逻辑名>。',
       'command=view：列出引用或读该文档（文本带 text）和 etag。',
       'command=write：稳定名覆盖 + If-Match。可带 block_id / source / kind=core|asset。',
     ].join(' '),
@@ -2246,10 +2246,10 @@ export function apply(ctx: Context) {
       route.send(400, { error: String(error) })
     }
   })
-  ctx.http.route('GET', '/api/db/file/:name', async (route) => {
+  const serveDbFile: Parameters<typeof ctx.http.route>[2] = async (route) => {
     try {
       const name = route.params.name ?? ''
-      const { bytes, type, etag } = await assets.read(name)
+      const { bytes, type, etag } = await assets.readAny(name)
       route.res.writeHead(200, {
         'content-type': type,
         'cache-control': isHashedAssetName(name) ? 'public, max-age=31536000, immutable' : 'no-store',
@@ -2259,34 +2259,14 @@ export function apply(ctx: Context) {
     } catch {
       route.send(404, { error: 'not found' })
     }
-  })
-  ctx.http.route('PUT', '/api/db/file/:name', async (route) => {
+  }
+  const putDbFile: Parameters<typeof ctx.http.route>[2] = async (route) => {
     try {
-      const written = await assets.write(route.params.name ?? '', await route.bytes())
-      ctx.http.broadcast?.(DATABASE_CHANNEL, { ts: Date.now(), asset: { name: written.name, etag: written.etag } })
-      route.send(200, { ok: true, ...written })
-    } catch (error) {
-      route.send(400, { error: String(error) })
-    }
-  })
-  ctx.http.route('GET', '/api/doc/file/:name', async (route) => {
-    try {
-      const { bytes, type, etag } = await assets.readDoc(route.params.name ?? '')
-      route.res.writeHead(200, {
-        'content-type': type,
-        'cache-control': 'no-store',
-        etag: `"${etag}"`,
-      })
-      route.res.end(bytes)
-    } catch {
-      route.send(404, { error: 'not found' })
-    }
-  })
-  ctx.http.route('PUT', '/api/doc/file/:name', async (route) => {
-    try {
-      const written = await assets.writeDoc(route.params.name ?? '', await route.bytes(), {
-        etag: parseIfMatch(route.req.headers['if-match']),
-      })
+      const name = route.params.name ?? ''
+      const bytes = await route.bytes()
+      const written = isHashedAssetName(name)
+        ? await assets.write(name, bytes)
+        : await assets.writeDoc(name, bytes, { etag: parseIfMatch(route.req.headers['if-match']) })
       ctx.http.broadcast?.(DATABASE_CHANNEL, { ts: Date.now(), asset: { name: written.name, etag: written.etag } })
       route.send(200, { ok: true, ...written })
     } catch (error) {
@@ -2296,7 +2276,11 @@ export function apply(ctx: Context) {
       }
       route.send(400, { error: String(error) })
     }
-  })
+  }
+  ctx.http.route('GET', '/api/db/file/:name', serveDbFile)
+  ctx.http.route('PUT', '/api/db/file/:name', putDbFile)
+  ctx.http.route('GET', '/api/doc/file/:name', serveDbFile)
+  ctx.http.route('PUT', '/api/doc/file/:name', putDbFile)
   ctx.http.route('POST', '/api/db/action', async (route) => {
     try {
       const body = (await route.json()) as { path?: string; action?: string; args?: unknown }

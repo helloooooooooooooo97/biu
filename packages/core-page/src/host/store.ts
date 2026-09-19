@@ -96,7 +96,7 @@ function asNotes(value: unknown): string | undefined {
 }
 
 export function fileUrl(name: string) {
-  return `/api/doc/file/${encodeURIComponent(name)}`
+  return `/api/db/file/${encodeURIComponent(name)}`
 }
 
 function pageRel(id: string) {

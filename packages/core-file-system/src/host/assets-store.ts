@@ -16,15 +16,10 @@ export { isHashedAssetName, AssetConflictError, parseIfMatch } from '@biu/host-p
 
 export const FILE_SYSTEM_ASSETS = ASSETS_ROOT
 export const FILE_SYSTEM_ASSET_PREFIX = '/api/db/file/'
-export const FILE_SYSTEM_DOC_PREFIX = '/api/doc/file/'
 export const ASSET_CHANGED_EVENT = 'biu:asset-changed'
 
 export function assetHref(name: string) {
   return `${FILE_SYSTEM_ASSET_PREFIX}${encodeURIComponent(name)}`
-}
-
-export function docHref(name: string) {
-  return `${FILE_SYSTEM_DOC_PREFIX}${encodeURIComponent(name)}`
 }
 
 export function mimeOfAsset(name: string) {
@@ -69,7 +64,7 @@ export class FileSystemAssets {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/') || !isAssetFileName(file)) throw new Error('invalid asset')
     const written = await writeDocument(this.docRoot(), file, content, opts)
-    return { name: written.name, href: docHref(written.name), etag: written.etag, bytes: written.bytes.length, storage: 'doc' as const }
+    return { name: written.name, href: assetHref(written.name), etag: written.etag, bytes: written.bytes.length, storage: 'doc' as const }
   }
 
   async read(name: string) {

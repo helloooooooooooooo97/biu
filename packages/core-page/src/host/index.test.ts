@@ -376,11 +376,11 @@ test('gcAssets deletes unreferenced doc files after one day', async () => {
   await store.writeAsset('orphan.json', '{"ok":3}')
   const a = await store.create({
     title: 'A',
-    notes: '![keep](/api/doc/file/keep.json)\n',
+    notes: '![keep](/api/db/file/keep.json)\n',
   })
   await store.create({
     title: 'B',
-    notes: '![drop](/api/doc/file/drop.json)\n',
+    notes: '![drop](/api/db/file/drop.json)\n',
   })
   const stale = Date.now() / 1000 - 2 * 24 * 60 * 60
   await utimes(join(root, '.biu/assets/doc', 'drop.json'), stale, stale)
