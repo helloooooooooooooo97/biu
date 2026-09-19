@@ -88,6 +88,16 @@ describe('Details collapse UI', () => {
     expect(screen.getByRole('group', { name: 'Step 2' })).toBeTruthy()
   })
 
+  it('keeps Details open chrome at sidebar-fg instead of the black active token', () => {
+    const thread = readFileSync(resolve(import.meta.dirname, './thread.tsx'), 'utf8')
+    const css = readFileSync(resolve(import.meta.dirname, '../../../../web/style.css'), 'utf8')
+    expect(thread).toContain('data-testid="details-toggle"')
+    expect(thread).toMatch(/detailsOpen \? ' bg-\(--dsw-hover\) text-\(--dsw-sidebar-fg\)'/)
+    expect(thread).not.toMatch(/detailsOpen \? ' bg-\(--dsw-hover\) text-\(--dsw-sidebar-fg-active\)'/)
+    expect(css).toMatch(/\.chat-reply-details\s*\{[^}]*color:\s*var\(--dsw-sidebar-fg\)/s)
+    expect(css).toMatch(/html:not\(\.dark\) \.chat-reply-details[\s\S]*color:\s*#5f5e5a/)
+  })
+
   it('inspect button uses the trajectory map icon', () => {
     const source = readFileSync(resolve(import.meta.dirname, './tool-card.tsx'), 'utf8')
     expect(source).toContain('<MapIcon className="size-3.5" aria-hidden />')

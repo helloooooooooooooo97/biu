@@ -5238,12 +5238,12 @@ html:not(.dark) .chat-outline-item.is-active {
 }
 
 /* 折叠靠 hidden，不卸载，展开不再重建 Markdown/工具 DOM。
-   色比最终回复暗一档，避免 Details 和最后一条正文抢对比度。 */
+   日间展开态用 #5f5e5a，不要落到正文 --dsw-label（#2c2c2b）。 */
 .chat-reply-details {
   display: flex;
   flex-direction: column;
   gap: var(--dsw-chat-gap);
-  color: var(--dsw-label-2);
+  color: var(--dsw-sidebar-fg);
 }
 
 .chat-reply-details .chat-md,
@@ -5257,11 +5257,11 @@ html:not(.dark) .chat-outline-item.is-active {
 .chat-reply-details .chat-md code,
 .chat-reply-details .chat-md pre,
 .chat-reply-details .chat-md pre code {
-  color: var(--dsw-label-2);
+  color: var(--dsw-sidebar-fg);
 }
 
 .chat-reply-details .chat-md a {
-  color: var(--dsw-label-2);
+  color: var(--dsw-sidebar-fg);
 }
 
 .chat-reply-details .chat-step-bar {
@@ -6898,4 +6898,20 @@ html:not(.dark) .tool-call-status.is-running,
 html:not(.dark) .tool-call-head:hover .tool-call-title,
 html:not(.dark) .tool-call-toggle:hover .tool-call-title {
   color: #91918e;
+}
+
+html:not(.dark) .chat-reply-details,
+html:not(.dark) .chat-reply-details .chat-md,
+html:not(.dark) .chat-reply-details .chat-md-stream-pre,
+html:not(.dark) .chat-reply-details .chat-md p,
+html:not(.dark) .chat-reply-details .chat-md li,
+html:not(.dark) .chat-reply-details .chat-md h1,
+html:not(.dark) .chat-reply-details .chat-md h2,
+html:not(.dark) .chat-reply-details .chat-md h3,
+html:not(.dark) .chat-reply-details .chat-md h4,
+html:not(.dark) .chat-reply-details .chat-md code,
+html:not(.dark) .chat-reply-details .chat-md pre,
+html:not(.dark) .chat-reply-details .chat-md pre code,
+html:not(.dark) .chat-reply-details .chat-md a {
+  color: #5f5e5a;
 }
