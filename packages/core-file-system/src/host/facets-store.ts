@@ -19,7 +19,7 @@ type DatabaseSync = import('node:sqlite').DatabaseSync
 
 const require = createRequire(import.meta.url)
 
-export const FILE_SYSTEM_SQLITE = `${DATA_DIR_NAME}/file-system.sqlite`
+export const FILE_SYSTEM_SQLITE = `${DATA_DIR_NAME}/biu.sqlite`
 
 export type FacetStamp = {
   collection: string

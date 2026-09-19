@@ -340,9 +340,9 @@ That is also why composition doesn't explode: **components are a finite set of a
 Page bodies live in SQLite; attachments share one tree with two layers:
 
 ```
-.biu/pages.sqlite     ← titles, notes body, tree, facets
-.biu/assets/page/     ← page images, board JSON
-.biu/assets/db/       ← table / File System attachments
+.biu/biu.sqlite       ← pages, tasks, sessions, facets, views
+.biu/events.sqlite    ← session event log
+.biu/assets/          ← attachments
 ```
 
 Markdown can carry **blocks** — a fenced section that renders as a live component:
@@ -438,7 +438,7 @@ At this point a fair question: if what's underneath is SQLite, directories, and 
 Because the abstraction **never locks data behind the interface**.
 
 ```
-/pages/abc    →  .biu/pages.sqlite            notes column
+/pages/abc    →  .biu/biu.sqlite               pages.notes
 /skills/bento →  .biu/skill/bento/DESIGN.md   really cats out of the filesystem
 ```
 
@@ -446,7 +446,7 @@ You can use only `db_*`, or read the disk directly. **The abstraction is a conve
 
 This clarifies what "everything is a file" means. It is not a literal description of the underlying storage, which remains heterogeneous; it describes a **property**: data is available through one interface while remaining directly visible on disk.
 
-Page bodies live in `.biu/pages.sqlite`; attachments live under `.biu/assets/page` and `.biu/assets/db`. Table rows live in File System storage. A capability stores whatever it wants, under the same contract, and it shows up in the same tree.
+Page bodies live in `.biu/biu.sqlite` (`pages.notes`); session events live in `.biu/events.sqlite`. Attachments share `.biu/assets`. Table rows live in the same biu database. A capability stores whatever it wants, under the same contract, and it shows up in the same tree.
 
 **Transparency buys one more thing: traceability.** An append-only event stream records every action, and every surface is a projection of it. The session log is authoritative — projections can be swapped; the log cannot be lost. Because you can see both the state and how it came to be, you never have to distrust the abstraction layer.
 

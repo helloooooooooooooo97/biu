@@ -29,6 +29,7 @@ const RESOLVED_WEB = `\0${VIRTUAL_WEB}`
 const PACKAGED_MODULES = Symbol.for('biu.packagedHostModules')
 
 export { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, adoptPackedUserData, dataDir, dataHome, dataPath, assetsLayerPath, migrateDataDir, migrateLegacyPageDir, LEGACY_PAGE_ROOT, PAGE_ROOT, PAGE_DB, PAGE_ASSETS, ASSETS_ROOT, PAGE_ASSET_LAYER, DB_ASSET_LAYER } from './data-dir.ts'
+export { BIU_SQLITE, EVENTS_SQLITE, LEGACY_PAGE_SQLITE, LEGACY_TASKS_SQLITE, LEGACY_SESSIONS_SQLITE, LEGACY_FILE_SYSTEM_SQLITE, adoptTwoSqlite } from './sqlite-two.ts'
 
 export function pluginWebSpecifier(item: CordisPluginEntry): string | undefined {
   return item.web

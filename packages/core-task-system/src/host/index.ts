@@ -1415,7 +1415,7 @@ export { tasksCollection } from './collection.ts'
 export function apply(ctx: Context) {
   startTaskClock(ctx)
   const host = ctx as HostCtx
-  const dbPath = dataPath(dataHome(), 'tasks.sqlite')
+  const dbPath = dataPath(dataHome(), 'biu.sqlite')
   const tasks = new TasksService(ctx, dbPath).open()
 
   async function present(row: TaskRow): Promise<TaskRow> {
