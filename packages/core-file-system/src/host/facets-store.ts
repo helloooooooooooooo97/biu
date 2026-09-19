@@ -1,4 +1,11 @@
-import { DATA_DIR_NAME, openAndMigrateBiu, upsertAttachmentRow, writeEditorContent, readEditorContent } from '@biu/host-plugin-loader/data-dir'
+import {
+  DATA_DIR_NAME,
+  openAndMigrateBiu,
+  upsertAttachmentRow,
+  writeEditorContent,
+  readEditorContent,
+  replaceContentRefs as replaceContentRefsRows,
+} from '@biu/host-plugin-loader/data-dir'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import {
@@ -455,12 +462,7 @@ export class FacetStore {
     const db = this.ensure()
     db.exec('BEGIN IMMEDIATE')
     try {
-      db.prepare('DELETE FROM content_refs WHERE collection = ? AND record_id = ?').run(collection, recordId)
-      const insert = db.prepare(
-        'INSERT OR IGNORE INTO content_refs (collection, record_id, name, source) VALUES (?, ?, ?, ?)',
-      )
-      for (const name of content) insert.run(collection, recordId, name, 'content')
-      for (const name of banner) insert.run(collection, recordId, name, 'banner')
+      replaceContentRefsRows(db, collection, recordId, content, banner)
       db.exec('COMMIT')
     } catch (error) {
       db.exec('ROLLBACK')

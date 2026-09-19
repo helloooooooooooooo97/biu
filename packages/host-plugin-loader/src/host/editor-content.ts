@@ -31,16 +31,37 @@ export function readEditorContent(db: DatabaseSync, collection: string, recordId
   return String(row?.body ?? '')
 }
 
-export function replaceContentRefs(db: DatabaseSync, collection: string, recordId: string, names: Iterable<string>) {
+function bannerHtml(db: DatabaseSync, collection: string, recordId: string) {
+  if (!tableNames(db).includes('record_banners')) return ''
+  const row = db
+    .prepare('SELECT html FROM record_banners WHERE collection = ? AND record_id = ?')
+    .get(collection, recordId) as { html?: string } | undefined
+  return String(row?.html ?? '')
+}
+
+/** Per-source replace. Never deletes a source that is not being rewritten. */
+export function replaceContentRefs(
+  db: DatabaseSync,
+  collection: string,
+  recordId: string,
+  content: Iterable<string>,
+  banner: Iterable<string> = [],
+) {
   db.prepare('DELETE FROM content_refs WHERE collection = ? AND record_id = ? AND source = ?').run(
     collection,
     recordId,
     'content',
   )
+  db.prepare('DELETE FROM content_refs WHERE collection = ? AND record_id = ? AND source = ?').run(
+    collection,
+    recordId,
+    'banner',
+  )
   const insert = db.prepare(
     'INSERT OR IGNORE INTO content_refs (collection, record_id, name, source) VALUES (?, ?, ?, ?)',
   )
-  for (const name of names) insert.run(collection, recordId, name, 'content')
+  for (const name of content) insert.run(collection, recordId, name, 'content')
+  for (const name of banner) insert.run(collection, recordId, name, 'banner')
 }
 
 function syncLegacyColumn(db: DatabaseSync, collection: string, recordId: string, body: string) {
@@ -67,7 +88,7 @@ export function writeEditorContent(
        ON CONFLICT(collection, record_id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at`,
     ).run(collection, recordId, text, Date.now())
     syncLegacyColumn(db, collection, recordId, text)
-    replaceContentRefs(db, collection, recordId, names)
+    replaceContentRefs(db, collection, recordId, names, assetNamesFromHtml(bannerHtml(db, collection, recordId)))
   }
   if (opts?.transaction === false) {
     run()

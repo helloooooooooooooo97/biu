@@ -317,7 +317,7 @@ export class PagesStore {
     }
   }
 
-  private async runGc(opts?: { graceMs?: number; now?: number }) {
+  private async runGc(opts?: { graceMs?: number; now?: number; candidateMs?: number }) {
     if (!this.db) return
     const sqlitePath = this.fs.resolve(PAGE_DB)
     await gcCasAssets({
@@ -326,10 +326,11 @@ export class PagesStore {
       ...workspaceFromSqlite(sqlitePath),
       graceMs: opts?.graceMs,
       now: opts?.now,
+      candidateMs: opts?.candidateMs,
     })
   }
 
-  async gcAssets(opts?: { graceMs?: number; now?: number }) {
+  async gcAssets(opts?: { graceMs?: number; now?: number; candidateMs?: number }) {
     await this.openDb()
     adoptCasAssets(this.fs.resolve(DATA_DIR_NAME))
     await this.runGc(opts)

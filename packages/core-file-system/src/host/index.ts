@@ -763,13 +763,12 @@ export class DatabaseService extends Service implements Database {
   }
 
   private refreshContentRefs(spec: CollectionSpec, record: DbRecord) {
-    const schema = schemaFor(spec)
-    const field = schema.contentField ?? 'content'
     const banner = this.facets.recordBanner(spec.path, record.id)
+    const body = readEditorContent(this.facets.ensure(), spec.path, record.id)
     this.facets.replaceContentRefs(
       spec.path,
       record.id,
-      assetNamesFromMarkdown(String(record[field] ?? '')),
+      assetNamesFromMarkdown(body),
       assetNamesFromHtml(String(banner?.html ?? '')),
     )
   }

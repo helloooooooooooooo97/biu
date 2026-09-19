@@ -18,8 +18,16 @@ export { openSqlite, configureSqlite, quoteSqlitePath, SQLITE_BUSY_TIMEOUT_MS, S
 export { ensureBiuAssetSchema, LATEST_BIU_SCHEMA, createLatestSchema } from './biu-schema.ts'
 export { migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
 export { migrateEvents, openAndMigrateEvents, LATEST_EVENTS_SCHEMA } from './events-migrate.ts'
-export { writeEditorContent, readEditorContent, rebuildContentRefs } from './editor-content.ts'
-export { liveAssetNames, gcCasAssets, ASSET_GC_GRACE_MS, workspaceFromSqlite } from './gc-assets.ts'
+export { writeEditorContent, readEditorContent, rebuildContentRefs, replaceContentRefs } from './editor-content.ts'
+export {
+  liveAssetNames,
+  maybeAssetNames,
+  collectAssetEvidence,
+  gcCasAssets,
+  ASSET_GC_GRACE_MS,
+  ASSET_GC_CANDIDATE_MS,
+  workspaceFromSqlite,
+} from './gc-assets.ts'
 export { copyReferencedEditorAssets } from './pack-editor-assets.ts'
 import { adoptTwoSqlite } from './sqlite-two.ts'
 import { adoptCasAssets } from './adopt-cas-assets.ts'
