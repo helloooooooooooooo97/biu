@@ -1,7 +1,7 @@
 import type { DbRecord } from '@biu/type-file-system'
 import { recordBuiltinValues } from '@biu/type-file-system'
 import { listPageBlockFences, pageBlockData, pageBlockRecordId, parsePageBlockRecordId, uniquifyPageBlockMarkdown, defaultPageBlockTitle } from '@biu/core-editor/host'
-import { assetNamesFromBlock, assetNamesFromHtml, collectAssetNames } from '@biu/type-file-system'
+import { assetNamesFromBlock, assetNamesFromHtml } from '@biu/type-file-system'
 import { readEditorContent, replacePageBlockRefs, writeEditorContent } from '@biu/host-plugin-loader/data-dir'
 import type { PagesStore, PageRow } from './store.ts'
 
@@ -34,8 +34,6 @@ function assetNamesFromFence(kind: string, plugin: string, data: Record<string, 
   const names = new Set(assetNamesFromBlock(kind, plugin, data))
   if (kind === 'html' || kind === 'htmlframe') {
     for (const name of assetNamesFromHtml(body)) names.add(name)
-  } else if (kind === 'excalidraw' || kind === 'video') {
-    for (const name of collectAssetNames(body)) names.add(name)
   }
   return names
 }

@@ -17,7 +17,7 @@ export type AssetGcHooks = {
   notices?: NoticesService
 }
 
-export function assetGcContext(hooks: AssetGcHooks) {
+function assetGcContext(hooks: AssetGcHooks) {
   return {
     db: hooks.db,
     assetsDir: hooks.assetsDir,
@@ -34,10 +34,10 @@ function adoptIfDurable(hooks: AssetGcHooks) {
   adoptCasAssets(dirname(hooks.sqlitePath))
 }
 
-export async function runWorkspaceAssetGc(hooks: AssetGcHooks, opts?: { now?: number; dryRun?: boolean }) {
+export async function runWorkspaceAssetGc(hooks: AssetGcHooks, opts?: { now?: number }) {
   adoptIfDurable(hooks)
   const ctx = assetGcContext(hooks)
-  const result = await gcCasAssets({ ...ctx, now: opts?.now, dryRun: opts?.dryRun })
+  const result = await gcCasAssets({ ...ctx, now: opts?.now })
   const candidates = listGcCandidates(hooks.db)
   if (result.fused) {
     notify(hooks, '资产回收已跳过', '拟删除比例异常，本轮没有删文件。', 'asset-gc:fuse')

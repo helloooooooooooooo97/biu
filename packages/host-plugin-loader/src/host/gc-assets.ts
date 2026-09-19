@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { assetNamesFromHtml, assetNamesFromMarkdown } from '../../../type-file-system/src/asset-ref.ts'
 import { listCasAssetFiles, listDocAssetFiles } from './adopt-cas-assets.ts'
 import { hasEditorContent } from './editor-content.ts'
-import { tableColumnNames, tableNames } from './biu-schema.ts'
+import { tableNames } from './biu-schema.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 
@@ -62,21 +62,6 @@ function scanBodies(db: DatabaseSync, live: Set<string>) {
       addPrecise(live, row.body ?? '')
     }
   }
-  if (tables.has('pages') && tableColumnNames(db, 'pages').includes('notes')) {
-    for (const row of db.prepare('SELECT notes FROM pages').all() as Array<{ notes?: string }>) {
-      addPrecise(live, row.notes ?? '')
-    }
-  }
-  if (tables.has('tasks') && tableColumnNames(db, 'tasks').includes('description')) {
-    for (const row of db.prepare('SELECT description FROM tasks').all() as Array<{ description?: string }>) {
-      addPrecise(live, row.description ?? '')
-    }
-  }
-  if (tables.has('facets') && tableColumnNames(db, 'facets').includes('notes')) {
-    for (const row of db.prepare('SELECT notes FROM facets').all() as Array<{ notes?: string }>) {
-      addPrecise(live, row.notes ?? '')
-    }
-  }
   if (tables.has('record_banners')) {
     for (const row of db.prepare('SELECT html FROM record_banners').all() as Array<{ html?: string }>) {
       for (const name of assetNamesFromHtml(row.html ?? '')) live.add(name)
@@ -92,16 +77,12 @@ function scanBodies(db: DatabaseSync, live: Set<string>) {
   }
 }
 
-export function collectAssetEvidence(db: DatabaseSync, opts?: { dataDir?: string; workspace?: string }) {
+export function liveAssetNames(db: DatabaseSync, opts?: { dataDir?: string; workspace?: string }) {
   const live = new Set<string>()
   scanBodies(db, live)
   scanSkillFiles(opts?.dataDir, live)
   scanPluginReadmes(opts?.workspace, live)
-  return { live }
-}
-
-export function liveAssetNames(db: DatabaseSync, opts?: { dataDir?: string; workspace?: string }) {
-  return collectAssetEvidence(db, opts).live
+  return live
 }
 
 function ensureCandidates(db: DatabaseSync) {
@@ -125,7 +106,7 @@ export function listGcCandidates(db: DatabaseSync) {
 
 type ListedFile = { name: string; path: string; mtimeMs: number; graceMs: number }
 
-export type GcPlan = {
+type GcPlan = {
   live: Set<string>
   files: ListedFile[]
   pending: ListedFile[]
@@ -194,7 +175,6 @@ export async function gcCasAssets(opts: {
   candidateMs?: number
   fuseRatio?: number
   fuseMin?: number
-  dryRun?: boolean
 }) {
   const now = opts.now ?? Date.now()
   const plan = planGc(opts)
@@ -212,16 +192,13 @@ export async function gcCasAssets(opts: {
     const row = get.get(file.name) as { first_seen?: number } | undefined
     const first = Number(row?.first_seen) || Math.max(now, file.mtimeMs + file.graceMs)
     if (first > now) continue
-    if (!opts.dryRun) upsert.run(file.name, first, now)
+    upsert.run(file.name, first, now)
   }
   if (plan.fused) {
     console.warn(
       `[asset-gc] fuse: skip deleting ${plan.doomed.length}/${plan.files.length} files (${plan.doomed.map((file) => file.name).join(', ')})`,
     )
     return { deleted: [] as string[], fused: true, pending: plan.pending.map((file) => file.name) }
-  }
-  if (opts.dryRun) {
-    return { deleted: [] as string[], fused: false, pending: plan.pending.map((file) => file.name), doomed: plan.doomed.map((file) => file.name) }
   }
   const deleted: string[] = []
   for (const file of plan.doomed) {
