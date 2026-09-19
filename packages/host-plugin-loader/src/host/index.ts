@@ -36,8 +36,12 @@ export {
   isHashedAssetName,
   writeContentAddressed,
   readContentAddressed,
+  writeDocument,
+  readDocument,
+  AssetConflictError,
+  parseIfMatch,
 } from './asset-cas.ts'
-export { adoptCasAssets, listCasAssetFiles } from './adopt-cas-assets.ts'
+export { adoptCasAssets, listCasAssetFiles, listDocAssetFiles } from './adopt-cas-assets.ts'
 export { BIU_SQLITE, EVENTS_SQLITE, LEGACY_PAGE_SQLITE, LEGACY_TASKS_SQLITE, LEGACY_SESSIONS_SQLITE, LEGACY_FILE_SYSTEM_SQLITE, adoptTwoSqlite } from './sqlite-two.ts'
 
 export function pluginWebSpecifier(item: CordisPluginEntry): string | undefined {

@@ -168,6 +168,7 @@ export class FacetStore {
         mime TEXT NOT NULL,
         bytes INTEGER NOT NULL,
         kind TEXT NOT NULL DEFAULT 'asset',
+        storage TEXT NOT NULL DEFAULT 'cas',
         created_at INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS content_refs (
@@ -189,6 +190,14 @@ export class FacetStore {
       CREATE INDEX IF NOT EXISTS block_refs_record ON block_refs(collection, record_id);
       CREATE INDEX IF NOT EXISTS block_refs_block ON block_refs(collection, record_id, block_id);
     `)
+    const cols = this.db!.prepare('PRAGMA table_info(attachments)').all() as Array<{ name: string }>
+    if (!cols.some((col) => col.name === 'storage')) {
+      try {
+        this.db!.exec(`ALTER TABLE attachments ADD COLUMN storage TEXT NOT NULL DEFAULT 'cas'`)
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   private ensureNotesColumn() {
@@ -568,19 +577,21 @@ export class FacetStore {
     db.prepare('DELETE FROM block_refs WHERE collection = ? AND record_id = ?').run(collection, recordId)
   }
 
-  putAttachment(row: { name: string; etag: string; mime: string; bytes: number; kind?: string }) {
+  putAttachment(row: { name: string; etag: string; mime: string; bytes: number; kind?: string; storage?: string }) {
     const kind = row.kind === 'core' ? 'core' : 'asset'
+    const storage = row.storage === 'doc' ? 'doc' : 'cas'
     this.ensure()
       .prepare(
-        `INSERT INTO attachments (name, etag, mime, bytes, kind, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO attachments (name, etag, mime, bytes, kind, storage, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(name) DO UPDATE SET
            etag = excluded.etag,
            mime = excluded.mime,
            bytes = excluded.bytes,
+           storage = excluded.storage,
            kind = CASE WHEN attachments.kind = 'core' OR excluded.kind = 'core' THEN 'core' ELSE excluded.kind END`,
       )
-      .run(row.name, row.etag, row.mime, row.bytes, kind, Date.now())
+      .run(row.name, row.etag, row.mime, row.bytes, kind, storage, Date.now())
   }
 
   replaceContentRefs(collection: string, recordId: string, content: Iterable<string>, banner: Iterable<string> = []) {

@@ -1,7 +1,7 @@
 /** Browser-safe asset name helpers. Do not import host / node:fs from here. */
 
 const ASSET_FILE_RE = /^[\p{L}\p{N}._-]+$/u
-const ASSET_REF_RE = /(?:(?:\.page\/)?assets\/|\/api\/(?:page|db)\/file\/)([\p{L}\p{N}._-]+)/gu
+const ASSET_REF_RE = /(?:(?:\.page\/)?assets\/|\/api\/(?:page|db|doc)\/file\/)([\p{L}\p{N}._-]+)/gu
 
 function baseName(name: string) {
   const normalized = name.replace(/\\/g, '/')

@@ -2,7 +2,7 @@ import { assetsRootPath, dataHome, migrateLegacyPageDir } from '@biu/host-plugin
 import type { Context } from 'cordis'
 import type { CollectionSpec } from '@biu/type-file-system'
 import { DATABASE_CHANNEL, REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
-import { PagesStore, type WorkspaceFs } from './store.ts'
+import { PagesStore, PageAssetConflictError, type WorkspaceFs } from './store.ts'
 import { pageBlocksCollection } from './page-blocks-collection.ts'
 import { PAGE_BLOCK_TICK_MS, PageBlocksIndex } from './page-blocks-index.ts'
 
@@ -90,6 +90,10 @@ function servePageFile(ctx: Context, store: PagesStore) {
         inner.http.broadcast?.(DATABASE_CHANNEL, { ts: Date.now(), asset: { name: written.name, etag: written.etag } })
         route.send(200, { ok: true, ...written })
       } catch (error) {
+        if (error instanceof PageAssetConflictError) {
+          route.send(409, { error: 'etag conflict', etag: error.etag })
+          return
+        }
         route.send(400, { error: String(error) })
       }
     })

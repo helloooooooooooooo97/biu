@@ -1,5 +1,5 @@
 import { mkdir, unlink } from 'node:fs/promises'
-import { basename } from 'node:path'
+import { basename, join } from 'node:path'
 import { createRequire } from 'node:module'
 import type { DbRecord, SchemaFieldValue } from '@biu/type-file-system'
 import { emptySchemaValue, normalizeSchemaValue } from '@biu/type-file-system'
@@ -8,23 +8,25 @@ import {
   adoptCasAssets,
   assetsRootPath,
   dataHome,
-  isHashedAssetName,
   listCasAssetFiles,
+  listDocAssetFiles,
   migrateLegacyPageDir,
   PAGE_DB,
   PAGE_ROOT,
-  readContentAddressed,
-  writeContentAddressed,
+  readDocument,
+  writeDocument,
+  AssetConflictError,
 } from '@biu/host-plugin-loader/data-dir'
 import { splitMarkdown } from './markdown.ts'
 
 export { PAGE_ROOT, PAGE_DB, PAGE_ASSETS } from '@biu/host-plugin-loader/data-dir'
+export { AssetConflictError as PageAssetConflictError } from '@biu/host-plugin-loader/data-dir'
 /** 正文不再引用后，附件再留一天，避免撤销/未落盘指针误删。 */
 export const ASSET_GC_GRACE_MS = 24 * 60 * 60 * 1000
 
 const ID_RE = /^[A-Za-z0-9._-]+$/
 const ASSET_FILE_RE = /^[\p{L}\p{N}._-]+$/u
-const ASSET_REF_RE = /(?:(?:\.page\/)?assets\/|\/api\/(?:page|db)\/file\/)([\p{L}\p{N}._-]+)/gu
+const ASSET_REF_RE = /(?:(?:\.page\/)?assets\/|\/api\/(?:page|db|doc)\/file\/)([\p{L}\p{N}._-]+)/gu
 
 export function isPageAssetFileName(name: string) {
   return Boolean(name) && name === basename(name) && name !== '.gitkeep' && ASSET_FILE_RE.test(name)
@@ -94,7 +96,7 @@ function asNotes(value: unknown): string | undefined {
 }
 
 export function fileUrl(name: string) {
-  return `/api/db/file/${encodeURIComponent(name)}`
+  return `/api/doc/file/${encodeURIComponent(name)}`
 }
 
 function pageRel(id: string) {
@@ -331,10 +333,10 @@ export class PagesStore {
     await this.gcAssets()
   }
 
-  async writeAsset(name: string, content: string | Buffer | Uint8Array, _opts?: { etag?: string }) {
+  async writeAsset(name: string, content: string | Buffer | Uint8Array, opts?: { etag?: string }) {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/') || !isPageAssetFileName(file)) throw new Error('invalid asset')
-    const written = await writeContentAddressed(this.assetsDir, file, content)
+    const written = await writeDocument(join(this.assetsDir, 'doc'), file, content, opts)
     return { name: written.name, href: fileUrl(written.name), etag: written.etag }
   }
 
@@ -342,8 +344,8 @@ export class PagesStore {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/')) throw new Error('invalid asset')
     try {
-      const { bytes } = await readContentAddressed(this.assetsDir, file)
-      return { bytes, type: mimeOf(file), etag: isHashedAssetName(file) ? file : file }
+      const { bytes, etag } = await readDocument(join(this.assetsDir, 'doc'), file)
+      return { bytes, type: mimeOf(file), etag }
     } catch {
       throw new Error('not found')
     }
@@ -383,8 +385,24 @@ export class PagesStore {
     const graceMs = opts?.graceMs ?? ASSET_GC_GRACE_MS
     const now = opts?.now ?? Date.now()
     const live = this.liveAssetNames()
-    for (const file of listCasAssetFiles(this.assetsDir)) {
-      if (live.has(file.name)) continue
+    const core = new Set<string>()
+    const tables = this.db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all() as Array<{ name: string }>
+    if (tables.some((row) => row.name === 'attachments')) {
+      for (const row of this.db.prepare(`SELECT name FROM attachments WHERE kind = 'core'`).all() as Array<{ name: string }>) {
+        core.add(row.name)
+      }
+    }
+    for (const file of listCasAssetFiles(join(this.assetsDir, 'cas'))) {
+      if (live.has(file.name) || core.has(file.name)) continue
+      if (now - file.mtimeMs < graceMs) continue
+      try {
+        await unlink(file.path)
+      } catch {
+        /* gone */
+      }
+    }
+    for (const file of listDocAssetFiles(join(this.assetsDir, 'doc'))) {
+      if (live.has(file.name) || core.has(file.name)) continue
       if (now - file.mtimeMs < graceMs) continue
       try {
         await unlink(file.path)

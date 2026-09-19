@@ -12,7 +12,7 @@ import * as fsPlugin from '@biu/host-fs'
 import * as page from './index.ts'
 import { dumpMarkdown, splitMarkdown } from './markdown.ts'
 import { hashedAssetName, hashedAssetRel } from '@biu/host-plugin-loader/data-dir'
-import { ASSET_GC_GRACE_MS, PAGE_DB, PAGE_ROOT, PagesStore, collectPageAssetNames } from './store.ts'
+import { ASSET_GC_GRACE_MS, PAGE_DB, PAGE_ROOT, PageAssetConflictError, PagesStore, collectPageAssetNames } from './store.ts'
 import { PageBlocksIndex } from './page-blocks-index.ts'
 
 test('markdown frontmatter roundtrips YAML properties and body', () => {
@@ -123,21 +123,21 @@ test('page plugin stores pages in SQLite under .biu', async () => {
   const assetsDir = join(root, '.biu/assets')
   const store = new PagesStore(ctx.fs.workspace as never, assetsDir)
   const asset = await store.writeAsset('board.json', '{\n  "elements": []\n}\n')
-  assert.match(asset.name, /^[a-f0-9]{64}\.json$/)
-  const diskAsset = await readFile(join(assetsDir, hashedAssetRel(asset.name)), 'utf8')
+  assert.equal(asset.name, 'board.json')
+  const diskAsset = await readFile(join(assetsDir, 'doc', 'board.json'), 'utf8')
   assert.match(diskAsset, /elements/)
-  const read = await store.readAsset(asset.name)
+  const read = await store.readAsset('board.json')
   assert.equal(read.type, 'application/json; charset=utf-8')
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-  const shotWritten = await store.writeAsset('shot.png', png)
-  const shot = await store.readAsset(shotWritten.name)
+  await store.writeAsset('shot.png', png)
+  const shot = await store.readAsset('shot.png')
   assert.equal(shot.type, 'image/png')
   assert.deepEqual([...shot.bytes], [...png])
   await assert.rejects(() => store.writeAsset('../secret.json', '{}'), /invalid asset/)
-  const same = await store.writeAsset('board.json', '{\n  "elements": []\n}\n')
-  assert.equal(same.name, asset.name)
-  const overwritten = await store.writeAsset('board.json', '{}')
-  assert.notEqual(overwritten.name, asset.name)
+  await assert.rejects(() => store.writeAsset('board.json', '{}'), (error) => error instanceof PageAssetConflictError)
+  const overwritten = await store.writeAsset('board.json', '{}', { etag: asset.etag })
+  assert.equal(overwritten.name, 'board.json')
+  assert.notEqual(overwritten.etag, asset.etag)
 })
 
 test('page-blocks collection updates one fence by page::block id', async () => {
@@ -354,55 +354,57 @@ test('collectPageAssetNames picks page asset pointers', () => {
     ':::pageBlock {kind=excalidraw}\n{"file":"assets/excalidraw-aa.json"}\n:::\n',
     { href: '/api/page/file/pack.zip' },
     { href: '/api/db/file/shared.bin' },
+    { href: '/api/doc/file/note.json' },
   )
   assert.equal(names.has('hero.png'), true)
   assert.equal(names.has('excalidraw-aa.json'), true)
   assert.equal(names.has('pack.zip'), true)
   assert.equal(names.has('shared.bin'), true)
+  assert.equal(names.has('note.json'), true)
   assert.equal(collectPageAssetNames('assets/画板-ab.json').has('画板-ab.json'), true)
   assert.equal(ASSET_GC_GRACE_MS, 24 * 60 * 60 * 1000)
 })
 
-test('gcAssets deletes unreferenced CAS files after one day', async () => {
+test('gcAssets deletes unreferenced doc files after one day', async () => {
   const ctx = new Context()
   await ctx.plugin(tools)
   const root = await mkdtemp(join(tmpdir(), 'page-gc-'))
   await ctx.plugin(fsPlugin, { root })
   const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets'))
-  const keep = await store.writeAsset('keep.json', '{"ok":1}')
-  const drop = await store.writeAsset('drop.json', '{"ok":2}')
-  const orphan = await store.writeAsset('orphan.json', '{"ok":3}')
+  await store.writeAsset('keep.json', '{"ok":1}')
+  await store.writeAsset('drop.json', '{"ok":2}')
+  await store.writeAsset('orphan.json', '{"ok":3}')
   const a = await store.create({
     title: 'A',
-    notes: `![keep](/api/db/file/${keep.name})\n`,
+    notes: '![keep](/api/doc/file/keep.json)\n',
   })
   await store.create({
     title: 'B',
-    notes: `![drop](/api/db/file/${drop.name})\n`,
+    notes: '![drop](/api/doc/file/drop.json)\n',
   })
   const stale = Date.now() / 1000 - 2 * 24 * 60 * 60
-  await utimes(join(root, '.biu/assets', hashedAssetRel(drop.name)), stale, stale)
-  await utimes(join(root, '.biu/assets', hashedAssetRel(orphan.name)), stale, stale)
+  await utimes(join(root, '.biu/assets/doc', 'drop.json'), stale, stale)
+  await utimes(join(root, '.biu/assets/doc', 'orphan.json'), stale, stale)
   const b = (await store.list()).find((row) => row.title === 'B')!
   await store.update(b.id, { notes: 'gone\n' })
   await store.gcAssets({ now: Date.now() })
 
-  const dropGone = await readFile(join(root, '.biu/assets', hashedAssetRel(drop.name)), 'utf8').then(
+  const dropGone = await readFile(join(root, '.biu/assets/doc', 'drop.json'), 'utf8').then(
     () => false,
     () => true,
   )
-  const orphanGone = await readFile(join(root, '.biu/assets', hashedAssetRel(orphan.name)), 'utf8').then(
+  const orphanGone = await readFile(join(root, '.biu/assets/doc', 'orphan.json'), 'utf8').then(
     () => false,
     () => true,
   )
-  const kept = await readFile(join(root, '.biu/assets', hashedAssetRel(keep.name)), 'utf8')
+  const kept = await readFile(join(root, '.biu/assets/doc', 'keep.json'), 'utf8')
   assert.equal(dropGone, true)
   assert.equal(orphanGone, true)
   assert.match(kept, /ok/)
 
-  const hashed = await store.writeAsset('fresh-orphan.json', '{}')
+  await store.writeAsset('fresh-orphan.json', '{}')
   await store.gcAssets()
-  const fresh = await readFile(join(root, '.biu/assets', hashedAssetRel(hashed.name)), 'utf8')
+  const fresh = await readFile(join(root, '.biu/assets/doc', 'fresh-orphan.json'), 'utf8')
   assert.equal(fresh, '{}')
   assert.equal(a.title, 'A')
 })
@@ -420,7 +422,7 @@ test('PagesStore migrates leftover .page into .biu', async () => {
   assert.equal(home?.notes, 'from-legacy\n')
   assert.equal(existsSync(join(root, PAGE_ROOT, 'home.md')), false)
   const board = hashedAssetName(Buffer.from('{"ok":1}'), 'board.json')
-  const asset = await readFile(join(root, '.biu/assets', hashedAssetRel(board)), 'utf8')
+  const asset = await readFile(join(root, '.biu/assets/cas', hashedAssetRel(board)), 'utf8')
   assert.match(asset, /ok/)
   assert.equal(existsSync(join(root, '.page')), false)
   assert.equal(existsSync(join(root, '.biu/assets/page')), false)

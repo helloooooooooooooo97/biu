@@ -47,7 +47,7 @@ import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
 import { buildShareSnapshot } from './share-payload.ts'
-import { FileSystemAssets, collectAssetNames, isAssetFileName, isHashedAssetName, mimeOfAsset } from './assets-store.ts'
+import { FileSystemAssets, collectAssetNames, isAssetFileName, isHashedAssetName, mimeOfAsset, AssetConflictError, parseIfMatch } from './assets-store.ts'
 import { facetsCollection } from './facets-collection.ts'
 import { noticesCollection } from './notices-collection.ts'
 import { NoticesService } from './notices-service.ts'
@@ -1236,7 +1236,7 @@ export class DatabaseService extends Service implements Database {
       const assets = []
       for (const name of [...names].sort()) {
         try {
-          const read = await this.assets.read(name)
+          const read = await this.assets.readAny(name)
           assets.push({ name, etag: read.etag, type: read.type })
         } catch {
           assets.push({ name, missing: true })
@@ -1248,7 +1248,7 @@ export class DatabaseService extends Service implements Database {
     if (command === 'view') {
       if (!names.has(file)) throw new Error(`asset not referenced: ${file}`)
       try {
-        const read = await this.assets.read(file)
+        const read = await this.assets.readAny(file)
         const text =
           read.type.startsWith('text/') || read.type.includes('json') ? read.bytes.toString('utf8') : undefined
         return {
@@ -1284,6 +1284,7 @@ export class DatabaseService extends Service implements Database {
       mime: mimeOfAsset(written.name),
       bytes: written.bytes,
       kind,
+      storage: 'cas',
     })
     if (Array.isArray(args.refs)) {
       const refs = args.refs.flatMap((item) => {
@@ -1298,7 +1299,84 @@ export class DatabaseService extends Service implements Database {
       this.facets.upsertBlockRef(spec.path, record.id, blockId, written.name, source)
     }
     this.broadcastAsset(recPath, written.name, written.etag)
-    return { kind: 'asset' as const, ok: true as const, path: recPath, name: written.name, etag: written.etag }
+    return { kind: 'asset' as const, ok: true as const, path: recPath, name: written.name, etag: written.etag, storage: 'cas' as const }
+  }
+
+  async editDoc(path: string, args: Record<string, unknown> = {}) {
+    const parts = splitPath(path)
+    if (parts.length !== 2) throw new Error(`cannot doc: ${normalizeCollectionPath(path)}`)
+    const spec = this.collection(`/${parts[0]}`)
+    if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
+    const record = await spec.get(parts[1]!)
+    if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    const names = new Set([
+      ...collectAssetNames(record, this.facets.recordBanner(spec.path, record.id)?.html),
+      ...this.facets.listedAttachmentNames(spec.path, record.id),
+    ])
+    const file = String(args.name ?? '')
+      .trim()
+      .replace(/^assets\//, '')
+      .replace(/^.*[/\\]/, '')
+    const from = String(args.from ?? '').trim()
+    const command = String(args.command ?? (args.value != null || from ? 'write' : 'view'))
+    const recPath = `${spec.path}/${record.id}`
+    if (command === 'view' && !file) {
+      const assets = []
+      for (const name of [...names].sort()) {
+        try {
+          const read = await this.assets.readAny(name)
+          assets.push({ name, etag: read.etag, type: read.type, storage: read.storage })
+        } catch {
+          assets.push({ name, missing: true })
+        }
+      }
+      return { kind: 'doc' as const, path: recPath, command: 'view' as const, assets }
+    }
+    if (!isAssetFileName(file)) throw new Error('invalid asset')
+    if (command === 'view') {
+      if (!names.has(file)) throw new Error(`doc not referenced: ${file}`)
+      try {
+        const read = await this.assets.readDoc(file)
+        const text =
+          read.type.startsWith('text/') || read.type.includes('json') ? read.bytes.toString('utf8') : undefined
+        return {
+          kind: 'doc' as const,
+          path: recPath,
+          command: 'view' as const,
+          name: file,
+          etag: read.etag,
+          type: read.type,
+          ...(text != null ? { text } : {}),
+        }
+      } catch {
+        return {
+          kind: 'doc' as const,
+          path: recPath,
+          command: 'view' as const,
+          name: file,
+          missing: true,
+          etag: '',
+        }
+      }
+    }
+    if (command !== 'write') throw new Error(`unknown doc command: ${command}`)
+    const body = from ? await readLocalWriteFile(from) : String(args.value ?? '')
+    if (!from && args.value == null) throw new Error('write needs value or from')
+    const written = await this.assets.writeDoc(file, body, { etag: String(args.etag ?? '') })
+    const kind = String(args.kind ?? '') === 'core' ? 'core' : 'asset'
+    const blockId = String(args.block_id ?? args.blockId ?? '').trim()
+    const source = String(args.source ?? (blockId ? `block:${blockId}` : 'doc')).trim() || 'doc'
+    this.facets.putAttachment({
+      name: written.name,
+      etag: written.etag,
+      mime: mimeOfAsset(written.name),
+      bytes: written.bytes,
+      kind,
+      storage: 'doc',
+    })
+    if (blockId) this.facets.upsertBlockRef(spec.path, record.id, blockId, written.name, source)
+    this.broadcastAsset(recPath, written.name, written.etag)
+    return { kind: 'doc' as const, ok: true as const, path: recPath, name: written.name, etag: written.etag, storage: 'doc' as const }
   }
 
   private broadcastAsset(path: string, name: string, etag: string) {
@@ -1710,12 +1788,11 @@ export function apply(ctx: Context) {
   ctx.tools.register({
     name: 'db_asset',
     description: [
-      '读写一条记录的附件（画板 json、图片、块核心数据），不是正文。正文仍用 db_content。',
-      'path 为 /<表>/<id>。write 时 name 只取扩展名（如 board.json / bgm.mp3）；落盘为 .biu/assets/<2>/<2>/<哈希>.<ext>，返回的 name/etag 即该哈希文件名。引用写成 /api/db/file/<哈希.ext>。',
-      'command=view：不传 name 列出 content_refs + block_refs（及正文里扫到的 URL）；带 name 读该文件。引用了但文件还不存在时返回 missing=true、etag 空串。',
-      'command=write：内容寻址写入，相同字节不重复存。可带 block_id / source（如 block:<id>:bgm）/ kind=core|asset 做插件登记；refs 为该块当前引用的完整列表时宿主做 diff。',
-      '插图：先 write 图片（from=本地路径），再用返回的 name 插入 ![说明](/api/db/file/<name>)。不要把图片 base64 写进 db_content。',
-      '大内容不要塞进 value：先用 bash/python 写到本地文件，再 from=该路径。value 只适合短文本。',
+      '读写一条记录的不可变资源（图片、音频、导入文件）。可变文档（画板 json、块本体）用 db_doc。正文仍用 db_content。',
+      'path 为 /<表>/<id>。write 落盘 .biu/assets/cas/<2>/<2>/<哈希>.<ext>，返回 name=<哈希.ext>。引用写成 /api/db/file/<哈希.ext>。',
+      'command=view：列出已引用附件；带 name 读该文件。missing=true 合法。',
+      'command=write：内容寻址，只增不改。可带 block_id / source / kind=core|asset；refs 为该块当前引用完整列表。',
+      '插图：write from=本地路径，再用返回的 name 插入 ![说明](/api/db/file/<name>)。',
       '写成功只返回 {ok, path, name, etag}。',
     ].join(' '),
     parameters: {
@@ -1733,7 +1810,7 @@ export function apply(ctx: Context) {
           type: 'string',
           description: 'write 时读这个本地文件作为内容，代替 value。相对工作区根，或绝对路径。',
         },
-        etag: { type: 'string', description: '内容寻址后与 name 相同；write 不再做同名覆盖冲突' },
+        etag: { type: 'string', description: '资源路径不用 etag；文档请用 db_doc' },
         block_id: { type: 'string', description: '块级归属，写入 block_refs' },
         source: { type: 'string', description: '引用子键，如 block:<id>:bgm' },
         kind: { type: 'string', description: 'core（永不自动回收）或 asset' },
@@ -1748,6 +1825,38 @@ export function apply(ctx: Context) {
     execute: (args) =>
       withInspectorReveal(ctx, String(args.path), () =>
         db.editAsset(String(args.path), args).then((body) => agentDbCompact.query(body)),
+      ),
+  })
+  ctx.tools.register({
+    name: 'db_doc',
+    description: [
+      '读写一条记录的可变文档（画板场景、视频脚本、htmlframe HTML）。图片等不可变资源用 db_asset。',
+      'path 为 /<表>/<id>。write 落盘 .biu/assets/doc/<逻辑名>，覆盖必须带 etag（上次 view 的内容哈希），对不上返回 etag conflict。引用写成 /api/doc/file/<逻辑名> 或 /api/page/file/<逻辑名>。',
+      'command=view：列出引用或读该文档（文本带 text）和 etag。',
+      'command=write：稳定名覆盖 + If-Match。可带 block_id / source / kind=core|asset。',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        name: { type: 'string', description: '稳定逻辑名，如 画板-ab12cd.json' },
+        command: {
+          type: 'string',
+          enum: ['view', 'write'],
+          description: 'view | write。省略时：有 value 或 from 则 write，否则 view。',
+        },
+        value: { type: 'string' },
+        from: { type: 'string' },
+        etag: { type: 'string', description: '覆盖已有文档时必填，等于上次 view 的 etag' },
+        block_id: { type: 'string' },
+        source: { type: 'string' },
+        kind: { type: 'string' },
+      },
+      required: ['path'],
+    },
+    execute: (args) =>
+      withInspectorReveal(ctx, String(args.path), () =>
+        db.editDoc(String(args.path), args).then((body) => agentDbCompact.query(body)),
       ),
   })
 
@@ -2157,6 +2266,34 @@ export function apply(ctx: Context) {
       ctx.http.broadcast?.(DATABASE_CHANNEL, { ts: Date.now(), asset: { name: written.name, etag: written.etag } })
       route.send(200, { ok: true, ...written })
     } catch (error) {
+      route.send(400, { error: String(error) })
+    }
+  })
+  ctx.http.route('GET', '/api/doc/file/:name', async (route) => {
+    try {
+      const { bytes, type, etag } = await assets.readDoc(route.params.name ?? '')
+      route.res.writeHead(200, {
+        'content-type': type,
+        'cache-control': 'no-store',
+        etag: `"${etag}"`,
+      })
+      route.res.end(bytes)
+    } catch {
+      route.send(404, { error: 'not found' })
+    }
+  })
+  ctx.http.route('PUT', '/api/doc/file/:name', async (route) => {
+    try {
+      const written = await assets.writeDoc(route.params.name ?? '', await route.bytes(), {
+        etag: parseIfMatch(route.req.headers['if-match']),
+      })
+      ctx.http.broadcast?.(DATABASE_CHANNEL, { ts: Date.now(), asset: { name: written.name, etag: written.etag } })
+      route.send(200, { ok: true, ...written })
+    } catch (error) {
+      if (error instanceof AssetConflictError) {
+        route.send(409, { error: 'etag conflict', etag: error.etag })
+        return
+      }
       route.send(400, { error: String(error) })
     }
   })

@@ -75,7 +75,7 @@ async function loadSnapshot(token: string, password = ''): Promise<ShareSnapshot
 
 function rewriteAssetUrls(value: unknown, token: string, password: string): unknown {
   if (typeof value === 'string') {
-    return value.replace(/\/api\/(?:db|page)\/file\//g, `/api/share/${encodeURIComponent(token)}/file/`)
+    return value.replace(/\/api\/(?:db|page|doc)\/file\//g, `/api/share/${encodeURIComponent(token)}/file/`)
   }
   if (Array.isArray(value)) return value.map((item) => rewriteAssetUrls(item, token, password))
   if (value && typeof value === 'object') {

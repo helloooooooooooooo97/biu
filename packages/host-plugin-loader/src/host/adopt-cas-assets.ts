@@ -62,7 +62,7 @@ function collectLegacyFiles(biuDir: string) {
   }
   if (existsSync(cas) && statSync(cas).isDirectory()) {
     for (const name of readdirSync(cas)) {
-      if (name === 'page' || name === '.gitkeep') continue
+      if (name === 'page' || name === 'cas' || name === 'doc' || name === '.gitkeep') continue
       const path = join(cas, name)
       const stat = statSync(path)
       if (stat.isFile()) out.push(path)
@@ -120,6 +120,7 @@ function ensureRefTables(db: import('node:sqlite').DatabaseSync) {
       mime TEXT NOT NULL,
       bytes INTEGER NOT NULL,
       kind TEXT NOT NULL DEFAULT 'asset',
+      storage TEXT NOT NULL DEFAULT 'cas',
       created_at INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS content_refs (
@@ -138,6 +139,14 @@ function ensureRefTables(db: import('node:sqlite').DatabaseSync) {
       PRIMARY KEY (collection, record_id, block_id, name, source)
     );
   `)
+  try {
+    const cols = db.prepare('PRAGMA table_info(attachments)').all() as Array<{ name: string }>
+    if (!cols.some((col) => col.name === 'storage')) {
+      db.exec(`ALTER TABLE attachments ADD COLUMN storage TEXT NOT NULL DEFAULT 'cas'`)
+    }
+  } catch {
+    /* dummy sqlite */
+  }
 }
 
 function hasTable(db: import('node:sqlite').DatabaseSync, name: string) {
@@ -193,7 +202,7 @@ function remapName(db: import('node:sqlite').DatabaseSync, from: string, to: str
 
 function collectNames(text: string) {
   const names = new Set<string>()
-  const re = /(?:(?:\.page\/)?assets\/|\/api\/(?:page|db)\/file\/)([\p{L}\p{N}._-]+)/gu
+  const re = /(?:(?:\.page\/)?assets\/|\/api\/(?:page|db|doc)\/file\/)([\p{L}\p{N}._-]+)/gu
   for (const match of text.matchAll(re)) {
     const name = match[1] ?? ''
     if (name && ASSET_NAME_RE.test(name)) names.add(name)
@@ -311,11 +320,58 @@ function cleanDbLayer(dbDir: string) {
   }
 }
 
-/** Fold leftover page/db asset dirs into `.biu/assets/<ab>/<cd>/<hash>.<ext>`. Do not delete `assets/db` — it is also a CAS prefix. */
+function nestCasShards(assetsDir: string) {
+  const casRoot = join(assetsDir, 'cas')
+  mkdirSync(casRoot, { recursive: true })
+  if (!existsSync(assetsDir)) return
+  for (const name of readdirSync(assetsDir)) {
+    if (name === 'cas' || name === 'doc' || name === 'page') continue
+    if (!isHex2(name)) continue
+    const from = join(assetsDir, name)
+    if (!statSync(from).isDirectory()) continue
+    const to = join(casRoot, name)
+    if (!existsSync(to)) {
+      renameSync(from, to)
+      continue
+    }
+    const leftover: string[] = []
+    gatherTree(from, leftover)
+    for (const file of leftover) {
+      const rel = file.slice(from.length + 1)
+      const dest = join(to, rel)
+      mkdirSync(dirname(dest), { recursive: true })
+      if (!existsSync(dest)) {
+        try {
+          renameSync(file, dest)
+        } catch {
+          copyFileSync(file, dest)
+          unlinkSync(file)
+        }
+      } else unlinkSync(file)
+    }
+    rmEmptyDir(from)
+  }
+}
+
+export function listDocAssetFiles(root: string): Array<{ name: string; path: string; mtimeMs: number }> {
+  const out: Array<{ name: string; path: string; mtimeMs: number }> = []
+  if (!existsSync(root) || !statSync(root).isDirectory()) return out
+  for (const name of readdirSync(root)) {
+    if (name === '.gitkeep') continue
+    const path = join(root, name)
+    if (!statSync(path).isFile()) continue
+    out.push({ name, path, mtimeMs: statSync(path).mtimeMs })
+  }
+  return out
+}
+
+/** Fold leftover page/db trees and root CAS shards into `.biu/assets/cas/<ab>/<cd>/<hash>.<ext>`. */
 export function adoptCasAssets(biuDir: string) {
   if (!existsSync(biuDir)) return
-  const casRoot = join(biuDir, 'assets')
+  const assetsDir = join(biuDir, 'assets')
+  const casRoot = join(assetsDir, 'cas')
   mkdirSync(casRoot, { recursive: true })
+  mkdirSync(join(assetsDir, 'doc'), { recursive: true })
   const map = new Map<string, string>()
   for (const from of collectLegacyFiles(biuDir)) {
     try {
@@ -326,7 +382,8 @@ export function adoptCasAssets(biuDir: string) {
     }
   }
   rewriteSqlite(biuDir, map)
-  rmEmptyDir(join(casRoot, 'page'))
+  rmEmptyDir(join(assetsDir, 'page'))
   rmEmptyDir(join(biuDir, 'page', 'assets'))
-  cleanDbLayer(join(casRoot, 'db'))
+  cleanDbLayer(join(assetsDir, 'db'))
+  nestCasShards(assetsDir)
 }
