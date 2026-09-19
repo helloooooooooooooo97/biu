@@ -1,4 +1,4 @@
-export { isAssetFileName, assetNameFromUrl, assetNamesFromMarkdown, assetNamesFromHtml, collectAssetNames, collectAssetNamesLoose, registerBlockAssets, lookupBlockAssets, assetNamesFromBlock } from './asset-ref.ts'
+export { isAssetFileName, assetNameFromUrl, assetNamesFromMarkdown, assetNamesFromHtml, collectAssetNames, registerBlockAssets, lookupBlockAssets, assetNamesFromBlock } from './asset-ref.ts'
 export type { BlockAssetsDecl } from './asset-ref.ts'
 
 /** 列类型：登记时声明，Core-File System 按类型渲染。string[] 视为 multi-select。 */

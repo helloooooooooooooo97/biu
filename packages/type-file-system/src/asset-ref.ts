@@ -1,7 +1,6 @@
 /** Shared asset URL helpers. No node / host imports. */
 
 const ASSET_FILE_RE = /^[\p{L}\p{N}._-]+$/u
-const LOOSE_ASSET_RE = /(?:(?:\.page\/)?assets\/|\/api\/(?:page|db|doc)\/file\/)([\p{L}\p{N}._-]+)/gu
 
 function baseName(name: string) {
   const normalized = name.replace(/\\/g, '/')
@@ -50,16 +49,6 @@ export function assetNamesFromHtml(html: string): Set<string> {
     if (name) out.add(name)
   }
   return out
-}
-
-/** Old whole-text scan. Kept to document mis-hits; GC live set does not use this. */
-export function collectAssetNamesLoose(text: string): Set<string> {
-  const names = new Set<string>()
-  for (const match of String(text ?? '').matchAll(LOOSE_ASSET_RE)) {
-    const name = baseName(match[1] ?? '')
-    if (isAssetFileName(name)) names.add(name)
-  }
-  return names
 }
 
 export type BlockAssetsDecl = string[] | ((data: Record<string, unknown>) => Iterable<string>)
