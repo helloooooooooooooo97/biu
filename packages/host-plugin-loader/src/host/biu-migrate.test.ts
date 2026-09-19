@@ -1,10 +1,10 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CREATE_CORE_SQL, LATEST_BIU_SCHEMA, tableColumnNames, tableNames } from './biu-schema.ts'
-import { migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
+import { assertBiuMigrationLog, BIU_MIGRATIONS, migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
 import { getSchemaVersion, openSqlite, setSchemaVersion } from './sqlite-open.ts'
 import { readEditorContent, writeEditorContent } from './editor-content.ts'
 import { liveAssetNames } from './gc-assets.ts'
@@ -38,6 +38,47 @@ test('empty database fast path matches upgraded v1 fixture', () => {
   assert.equal(live.has('task.png'), true)
   fast.close()
   staged.close()
+})
+
+test('BIU_MIGRATIONS versions are unique and increasing', () => {
+  assertBiuMigrationLog()
+  assert.equal(BIU_MIGRATIONS.at(-1)?.version, LATEST_BIU_SCHEMA)
+  assert.equal(BIU_MIGRATIONS.at(-1)?.name, 'rebuild.content_refs.v3')
+  assert.throws(() => assertBiuMigrationLog([{ version: 2 }, { version: 2 }]), /重复/)
+  assert.throws(() => assertBiuMigrationLog([{ version: 3 }, { version: 1 }]), /单调递增/)
+})
+
+test('snapshotBefore writes a pre-migration copy', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'biu-snap-'))
+  const sqlitePath = join(dir, 'biu.sqlite')
+  const db = openSqlite(sqlitePath)
+  db.exec(CREATE_CORE_SQL)
+  setSchemaVersion(db, 1)
+  migrateBiu(db, { sqlitePath, dataDir: dir })
+  const backups = readdirSync(join(dir, 'backup'))
+  assert.ok(backups.some((name) => name.startsWith('pre-v')))
+  db.close()
+})
+
+test('snapshotBefore aborts migrate when backup cannot be written', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'biu-snap-fail-'))
+  const sqlitePath = join(dir, 'biu.sqlite')
+  const db = openSqlite(sqlitePath)
+  db.exec(CREATE_CORE_SQL)
+  setSchemaVersion(db, 1)
+  writeFileSync(join(dir, 'backup'), 'not-a-directory')
+  assert.throws(() => migrateBiu(db, { sqlitePath, dataDir: dir }), /快照失败/)
+  assert.equal(getSchemaVersion(db), 1)
+  db.close()
+})
+
+test('snapshotBefore skips memory databases', () => {
+  const db = openSqlite(':memory:')
+  db.exec(CREATE_CORE_SQL)
+  setSchemaVersion(db, 1)
+  migrateBiu(db, { sqlitePath: ':memory:' })
+  assert.equal(getSchemaVersion(db), LATEST_BIU_SCHEMA)
+  db.close()
 })
 
 test('newer schema version refuses to start', () => {

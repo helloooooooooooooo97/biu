@@ -833,7 +833,7 @@ function mapRow(row: Record<string, unknown>): TaskRow {
     priority: asPriority(row.priority),
     difficulty: asDifficulty(row.difficulty),
     dueAt: row.due_at == null ? null : Number(row.due_at),
-    description: String(row.description ?? ''),
+    description: '',
     notes: String(row.notes ?? ''),
     project: typeof row.project === 'string' && row.project.trim() ? row.project.trim() : null,
     tags,

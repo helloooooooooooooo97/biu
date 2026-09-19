@@ -209,19 +209,49 @@ export const BIU_MIGRATIONS: Migration[] = [
     `)
     rebuildContentRefs(db)
   } },
-  { version: 15, module: 'core-file-system', name: 'rebuild.content_refs.g9', up: (db) => rebuildContentRefs(db) },
+  { version: 15, module: 'core-file-system', name: 'rebuild.content_refs.v3', up: (db) => rebuildContentRefs(db) },
 ]
+
+export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {
+  let prev = 0
+  const seen = new Set<number>()
+  for (const row of rows) {
+    if (!Number.isInteger(row.version) || row.version <= 0) {
+      throw new Error(`BIU_MIGRATIONS version 非法: ${row.version}`)
+    }
+    if (seen.has(row.version)) {
+      throw new Error(`BIU_MIGRATIONS 重复 version ${row.version}`)
+    }
+    if (row.version <= prev) {
+      throw new Error(`BIU_MIGRATIONS 必须单调递增，在 v${row.version} 处乱序`)
+    }
+    seen.add(row.version)
+    prev = row.version
+  }
+}
+
+assertBiuMigrationLog()
+
+function skipMigrationSnapshot(path: string | undefined) {
+  if (!path || path === ':memory:') return true
+  if (path.includes('mode=memory')) return true
+  try {
+    return !existsSync(path) || statSync(path).size === 0
+  } catch {
+    return true
+  }
+}
 
 function snapshotBefore(db: DatabaseSync, ctx: MigrateCtx, nextVersion: number) {
   const path = ctx.sqlitePath
-  if (!path || path === ':memory:') return
-  const dir = join(ctx.dataDir ?? dirname(path), 'backup')
+  if (skipMigrationSnapshot(path)) return
+  const dir = join(ctx.dataDir ?? dirname(path!), 'backup')
+  const dest = join(dir, `pre-v${nextVersion}-${Date.now()}.sqlite`)
   try {
     mkdirSync(dir, { recursive: true })
-    const dest = join(dir, `pre-v${nextVersion}-${Date.now()}.sqlite`)
     db.exec(`VACUUM INTO ${quoteSqlitePath(dest)}`)
-  } catch {
-    /* :memory: clones / dummy files */
+  } catch (error) {
+    throw new Error(`migration 前快照失败（v${nextVersion}）: ${error}`)
   }
 }
 

@@ -341,7 +341,6 @@ export class PagesStore {
 type SqlPage = {
   id: string
   title: string
-  notes?: string
   parent_id: string | null
   depends_on_json: string
   emoji: string
@@ -362,7 +361,7 @@ function rowFromSql(row: SqlPage): PageRow {
     id: row.id,
     title: row.title,
     tags: [],
-    notes: row.notes ?? '',
+    notes: '',
     parentId: row.parent_id == null || row.parent_id === '' ? null : String(row.parent_id),
     dependsOn: asStringList(parseJson(row.depends_on_json ?? '[]', [])),
     facet: emptySchemaValue(),
