@@ -5,6 +5,7 @@ import { createRequire } from 'node:module'
 import {
   asPerson,
   asPersonList,
+  isEmptySchemaValue,
   normalizeSchemaPack,
   normalizeSchemaValue,
   type CollectionSchemaPack,
@@ -372,13 +373,17 @@ export class FacetStore {
 
   writeRecordFacet(collection: string, recordId: string, facet: unknown, title: string) {
     const value = normalizeSchemaValue(facet)
-    this.ensure()
-      .prepare(
-        `INSERT INTO facet_record_values (collection, record_id, facet_json)
-         VALUES (?, ?, ?)
-         ON CONFLICT(collection, record_id) DO UPDATE SET facet_json = excluded.facet_json`,
-      )
-      .run(collection, recordId, JSON.stringify(value))
+    const db = this.ensure()
+    if (isEmptySchemaValue(value)) {
+      db.prepare('DELETE FROM facet_record_values WHERE collection = ? AND record_id = ?').run(collection, recordId)
+      this.indexRecord(collection, recordId, title, [])
+      return value
+    }
+    db.prepare(
+      `INSERT INTO facet_record_values (collection, record_id, facet_json)
+       VALUES (?, ?, ?)
+       ON CONFLICT(collection, record_id) DO UPDATE SET facet_json = excluded.facet_json`,
+    ).run(collection, recordId, JSON.stringify(value))
     this.indexRecord(collection, recordId, title, value.tags)
     return value
   }

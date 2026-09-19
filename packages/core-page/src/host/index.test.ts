@@ -88,7 +88,7 @@ test('page plugin stores pages in SQLite under .biu', async () => {
     notes: '# 标题\n内容',
     tags: ['docs', 'wip'],
   }])
-  assert.deepEqual(created[0]?.tags, ['docs', 'wip'])
+  assert.deepEqual(created[0]?.tags, [])
   assert.equal(created[0]?.title, '新页面')
   assert.equal(created[0]?.notes, '# 标题\n内容')
   const linked = await spec.update!(created[0]!.id, { parentId: 'p999', dependsOn: ['p001'] })
@@ -110,12 +110,11 @@ test('page plugin stores pages in SQLite under .biu', async () => {
   const againBody = await spec.get!(created[0]!.id)
   assert.match(String(againBody?.notes), /# 标题\n内容/)
 
-  const written = await spec.update!(created[0]!.id, {
+  await spec.update!(created[0]!.id, {
     facet: { tags: ['dp'], values: { dp: { complexity: 'O(n)' } } },
   })
-  assert.deepEqual(written.facet, { tags: ['dp'], values: { dp: { complexity: 'O(n)' } } })
   const again = await spec.get!(created[0]!.id)
-  assert.equal(JSON.stringify(again?.facet), JSON.stringify({ tags: ['dp'], values: { dp: { complexity: 'O(n)' } } }))
+  assert.deepEqual(again?.facet, { tags: [], values: {} })
 
   await spec.remove!({ ids: [created[0]!.id] })
   assert.equal((await spec.list()).length, 0)
@@ -297,6 +296,8 @@ test('pages sqlite keeps notes as the body, not markdown files', async () => {
   const sqlite = await store.sqlite()
   const cols = (sqlite.prepare('PRAGMA table_info(pages)').all() as Array<{ name: string }>).map((col) => col.name)
   assert.equal(cols.includes('notes'), true)
+  assert.equal(cols.includes('tags_json'), false)
+  assert.equal(cols.includes('facet_json'), false)
   assert.equal(existsSync(join(root, PAGE_ROOT, 'legacy.md')), false)
 })
 

@@ -153,12 +153,12 @@ function applyPatch(current: PageRow, patch: Record<string, unknown>): PageRow {
         ? patch.title.trim()
         : current.title,
     notes: 'notes' in patch ? (notes ?? '') : current.notes,
-    tags: 'tags' in patch ? asStringList(patch.tags) : current.tags,
+    tags: current.tags,
     parentId: 'parentId' in patch
       ? patch.parentId == null || patch.parentId === '' ? null : String(patch.parentId)
       : current.parentId,
     dependsOn: 'dependsOn' in patch ? asStringList(patch.dependsOn) : current.dependsOn,
-    facet: 'facet' in patch ? normalizeSchemaValue(patch.facet) : current.facet,
+    facet: current.facet,
     emoji: 'emoji' in patch ? String(patch.emoji ?? '') : current.emoji,
     createdAt: current.createdAt,
     updatedAt: Date.now(),
@@ -189,11 +189,9 @@ export class PagesStore {
       CREATE TABLE IF NOT EXISTS pages (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
-        tags_json TEXT NOT NULL DEFAULT '[]',
         notes TEXT NOT NULL DEFAULT '',
         parent_id TEXT,
         depends_on_json TEXT NOT NULL DEFAULT '[]',
-        facet_json TEXT NOT NULL DEFAULT '{}',
         emoji TEXT NOT NULL DEFAULT '',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
@@ -205,6 +203,16 @@ export class PagesStore {
     }
     if (!cols.some((col) => col.name === 'notes')) {
       db.exec(`ALTER TABLE pages ADD COLUMN notes TEXT NOT NULL DEFAULT ''`)
+    }
+    const latest = db.prepare('PRAGMA table_info(pages)').all() as Array<{ name: string }>
+    for (const name of ['tags_json', 'facet_json']) {
+      if (latest.some((col) => col.name === name)) {
+        try {
+          db.exec(`ALTER TABLE pages DROP COLUMN ${name}`)
+        } catch {
+          /* older sqlite */
+        }
+      }
     }
     this.db = db
     await this.migrateMarkdown()
@@ -274,12 +282,12 @@ export class PagesStore {
     if (!this.db) return
     this.db.prepare(`
       INSERT INTO pages (
-        id, title, tags_json, notes, parent_id,
-        depends_on_json, facet_json, emoji, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, title, notes, parent_id,
+        depends_on_json, emoji, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
-        title=excluded.title, tags_json=excluded.tags_json, notes=excluded.notes,
-        parent_id=excluded.parent_id, depends_on_json=excluded.depends_on_json, facet_json=excluded.facet_json, emoji=excluded.emoji,
+        title=excluded.title, notes=excluded.notes,
+        parent_id=excluded.parent_id, depends_on_json=excluded.depends_on_json, emoji=excluded.emoji,
         updated_at=excluded.updated_at
     `).run(...sqlValues(row))
   }
@@ -297,8 +305,8 @@ export class PagesStore {
       return rows
     }
     const listed = db.prepare(`
-      SELECT id, title, tags_json, parent_id,
-        depends_on_json, facet_json, emoji, created_at, updated_at
+      SELECT id, title, parent_id,
+        depends_on_json, emoji, created_at, updated_at
       FROM pages ORDER BY id
     `).all() as SqlPage[]
     return listed.map(rowFromSql)
@@ -308,7 +316,11 @@ export class PagesStore {
     if (!ID_RE.test(id)) return null
     const db = await this.openDb()
     await this.migrateMarkdown()
-    const hit = db.prepare('SELECT * FROM pages WHERE id = ?').get(id) as SqlPage | undefined
+    const hit = db.prepare(`
+      SELECT id, title, notes, parent_id,
+        depends_on_json, emoji, created_at, updated_at
+      FROM pages WHERE id = ?
+    `).get(id) as SqlPage | undefined
     return hit ? rowFromSql(hit) : null
   }
 
@@ -440,11 +452,9 @@ export class PagesStore {
 type SqlPage = {
   id: string
   title: string
-  tags_json: string
   notes?: string
   parent_id: string | null
   depends_on_json: string
-  facet_json: string
   emoji: string
   created_at: number
   updated_at: number
@@ -462,11 +472,9 @@ function sqlValues(row: PageRow) {
   return [
     row.id,
     row.title,
-    JSON.stringify(row.tags),
     row.notes ?? '',
     row.parentId,
     JSON.stringify(row.dependsOn),
-    JSON.stringify(row.facet),
     row.emoji,
     row.createdAt,
     row.updatedAt,
@@ -477,11 +485,11 @@ function rowFromSql(row: SqlPage): PageRow {
   return {
     id: row.id,
     title: row.title,
-    tags: asStringList(parseJson(row.tags_json, [])),
+    tags: [],
     notes: row.notes ?? '',
     parentId: row.parent_id == null || row.parent_id === '' ? null : String(row.parent_id),
     dependsOn: asStringList(parseJson(row.depends_on_json ?? '[]', [])),
-    facet: normalizeSchemaValue(parseJson(row.facet_json, emptySchemaValue())),
+    facet: emptySchemaValue(),
     emoji: row.emoji ?? '',
     createdAt: Number(row.created_at) || 0,
     updatedAt: Number(row.updated_at) || 0,

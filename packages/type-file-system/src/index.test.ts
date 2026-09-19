@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { asImageSrc, asImageSrcList, asAttachment, asAttachmentList, asPerson, asPersonList, appendPerson, personKey, actionVisibleToUser, emptySchemaValue, hasCollectionDeleteQuery, isReservedSchemaFieldKey, isReservedSchemaFieldLabel, normalizeSchemaPack, normalizeSchemaValue, recordBuiltinValues, REQUIRED_RECORD_FIELD_KEYS, REQUIRED_RECORD_FIELDS, retagSchemaValue, schemaSearchHaystack, withBuiltinFields } from './index.ts'
+import { asImageSrc, asImageSrcList, asAttachment, asAttachmentList, asPerson, asPersonList, appendPerson, personKey, actionVisibleToUser, emptySchemaValue, isEmptySchemaValue, hasCollectionDeleteQuery, isReservedSchemaFieldKey, isReservedSchemaFieldLabel, normalizeSchemaPack, normalizeSchemaValue, recordBuiltinValues, REQUIRED_RECORD_FIELD_KEYS, REQUIRED_RECORD_FIELDS, retagSchemaValue, schemaSearchHaystack, withBuiltinFields } from './index.ts'
 
 test('asImageSrc keeps http, data:image, and same-origin image paths', () => {
   assert.equal(asImageSrc('https://example.com/a.png'), 'https://example.com/a.png')
@@ -64,6 +64,13 @@ test('retagSchemaValue does not revive bags for a collection that was removed th
   assert.deepEqual(retagSchemaValue(cleared, ['dp']), { tags: ['dp'], values: {} })
   assert.deepEqual(retagSchemaValue({ tags: [], values: leftover.values }, ['dp']), { tags: ['dp'], values: {} })
   assert.deepEqual(retagSchemaValue(leftover, ['dp']), leftover)
+})
+
+test('empty schema values are tags=[] and values={}', () => {
+  assert.equal(isEmptySchemaValue(emptySchemaValue()), true)
+  assert.equal(isEmptySchemaValue({ tags: [], values: { dp: {} } }), true)
+  assert.equal(isEmptySchemaValue({ tags: ['dp'], values: {} }), false)
+  assert.equal(isEmptySchemaValue({ tags: [], values: { dp: { complexity: 'O(n)' } } }), false)
 })
 
 test('reserved schema fields include 合集 / facet by key or label', () => {
