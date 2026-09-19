@@ -1,4 +1,4 @@
-import { DATA_DIR_NAME } from '@biu/host-plugin-loader/data-dir'
+import { DATA_DIR_NAME, upsertAttachmentRow } from '@biu/host-plugin-loader/data-dir'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { createRequire } from 'node:module'
@@ -578,20 +578,7 @@ export class FacetStore {
   }
 
   putAttachment(row: { name: string; etag: string; mime: string; bytes: number; kind?: string; storage?: string }) {
-    const kind = row.kind === 'core' ? 'core' : 'asset'
-    const storage = row.storage === 'doc' ? 'doc' : 'cas'
-    this.ensure()
-      .prepare(
-        `INSERT INTO attachments (name, etag, mime, bytes, kind, storage, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(name) DO UPDATE SET
-           etag = excluded.etag,
-           mime = excluded.mime,
-           bytes = excluded.bytes,
-           storage = excluded.storage,
-           kind = CASE WHEN attachments.kind = 'core' OR excluded.kind = 'core' THEN 'core' ELSE excluded.kind END`,
-      )
-      .run(row.name, row.etag, row.mime, row.bytes, kind, storage, Date.now())
+    upsertAttachmentRow(this.ensure(), row)
   }
 
   replaceContentRefs(collection: string, recordId: string, content: Iterable<string>, banner: Iterable<string> = []) {

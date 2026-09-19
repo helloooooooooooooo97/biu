@@ -124,6 +124,13 @@ test('page plugin stores pages in SQLite under .biu', async () => {
   const store = new PagesStore(ctx.fs.workspace as never, assetsDir)
   const asset = await store.writeAsset('board.json', '{\n  "elements": []\n}\n')
   assert.equal(asset.name, 'board.json')
+  const ledgers = await store.sqlite()
+  const boardRow = ledgers.prepare('SELECT storage, kind FROM attachments WHERE name = ?').get('board.json') as {
+    storage: string
+    kind: string
+  }
+  assert.equal(boardRow.storage, 'doc')
+  assert.equal(boardRow.kind, 'asset')
   const diskAsset = await readFile(join(assetsDir, 'doc', 'board.json'), 'utf8')
   assert.match(diskAsset, /elements/)
   const read = await store.readAsset('board.json')
@@ -163,15 +170,28 @@ test('page-blocks collection updates one fence by page::block id', async () => {
     notes: `:::pageBlock {kind=html plugin=page-html-blocks id=ab12cd34 deck=true}
 <div>旧</div>
 :::
+:::pageBlock {kind=excalidraw plugin=page-excalidraw id=edd9aaaa}
+{"file":"assets/画板-edd9.json","title":"草图"}
+:::
 `,
   }])
   const pageId = created[0]!.id
   const listed = await blocks.list()
-  assert.equal(listed.length, 1)
-  assert.equal(listed[0]?.id, `${pageId}::ab12cd34`)
-  assert.equal(listed[0]?.blockKind, 'html')
-  assert.equal(listed[0]?.pageTitle, '海报')
-  assert.equal(listed[0]?.title, '海报 html')
+  assert.equal(listed.length, 2)
+  const html = listed.find((item) => item.id === `${pageId}::ab12cd34`)
+  assert.ok(html)
+  assert.equal(html.blockKind, 'html')
+  assert.equal(html.pageTitle, '海报')
+  assert.equal(html.title, '海报 html')
+  const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
+  const sqlite = new DatabaseSync(join(root, PAGE_DB))
+  const bref = sqlite.prepare('SELECT name, source FROM block_refs WHERE record_id = ? AND block_id = ?').get(pageId, 'edd9aaaa') as {
+    name: string
+    source: string
+  }
+  assert.equal(bref.name, '画板-edd9.json')
+  assert.equal(bref.source, 'block:edd9aaaa:core')
+  sqlite.close()
   const renamed = await blocks.update!(`${pageId}::ab12cd34`, { title: '刊头' })
   assert.equal(renamed.title, '刊头')
   const updated = await blocks.update!(`${pageId}::ab12cd34`, {

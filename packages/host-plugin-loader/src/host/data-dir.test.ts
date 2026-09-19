@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, mkdtempSync } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, LEGACY_PAGE_ROOT, PAGE_DB, PAGE_ROOT, adoptPackedUserData, dataDir, dataHome, dataPath, migrateDataDir, migrateLegacyPageDir } from './data-dir.ts'
+import { adoptCasAssets } from './adopt-cas-assets.ts'
 import { hashedAssetName, hashedAssetRel } from './asset-cas.ts'
 
 test('migrateDataDir renames .cordis to .biu', () => {
@@ -133,6 +134,49 @@ test('migrateDataDir folds leftover asset layers into CAS and rewrites refs', ()
   assert.match(banner, new RegExp(hashed))
   const ref = again.prepare('SELECT name FROM content_refs WHERE record_id = ?').get('p1') as { name: string }
   assert.equal(ref.name, hashed)
+  const att = again.prepare('SELECT name, storage, kind FROM attachments WHERE name = ?').get(hashed) as {
+    name: string
+    storage: string
+    kind: string
+  }
+  assert.equal(att.name, hashed)
+  assert.equal(att.storage, 'cas')
+  again.close()
+})
+
+test('adoptCasAssets ledgers doc files and block_refs from page_block_index', () => {
+  const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
+  const root = mkdtempSync(join(tmpdir(), 'biu-doc-ledger-'))
+  const biu = join(root, DATA_DIR_NAME)
+  mkdirSync(join(biu, 'assets', 'doc'), { recursive: true })
+  writeFileSync(join(biu, 'assets', 'doc', '画板-edd9.json'), '{"ok":1}')
+  const db = new DatabaseSync(join(biu, 'biu.sqlite'))
+  db.exec(`
+    CREATE TABLE pages (id TEXT PRIMARY KEY, title TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', parent_id TEXT, depends_on_json TEXT NOT NULL DEFAULT '[]', emoji TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE page_block_index (
+      page_id TEXT NOT NULL, block_id TEXT NOT NULL, kind TEXT NOT NULL, plugin TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL, page_title TEXT NOT NULL DEFAULT '', data_json TEXT NOT NULL,
+      page_created_at INTEGER NOT NULL DEFAULT 0, page_updated_at INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (page_id, block_id)
+    );
+  `)
+  db.prepare(
+    `INSERT INTO page_block_index(page_id, block_id, kind, plugin, title, page_title, data_json, page_created_at, page_updated_at)
+     VALUES ('p000', 'edd9aaaa', 'excalidraw', 'page-excalidraw', '草图', '页', ?, 1, 1)`,
+  ).run(JSON.stringify({ assets: ['画板-edd9.json'] }))
+  db.close()
+  adoptCasAssets(biu)
+  const again = new DatabaseSync(join(biu, 'biu.sqlite'))
+  const att = again.prepare('SELECT storage, kind, bytes FROM attachments WHERE name = ?').get('画板-edd9.json') as {
+    storage: string
+    kind: string
+    bytes: number
+  }
+  assert.equal(att.storage, 'doc')
+  assert.equal(att.kind, 'core')
+  assert.ok(att.bytes > 0)
+  const ref = again.prepare('SELECT source FROM block_refs WHERE name = ?').get('画板-edd9.json') as { source: string }
+  assert.equal(ref.source, 'block:edd9aaaa:core')
   again.close()
 })
 

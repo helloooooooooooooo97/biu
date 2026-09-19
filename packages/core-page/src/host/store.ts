@@ -16,6 +16,7 @@ import {
   readDocument,
   writeDocument,
   AssetConflictError,
+  upsertAttachmentRow,
 } from '@biu/host-plugin-loader/data-dir'
 import { splitMarkdown } from './markdown.ts'
 
@@ -337,6 +338,15 @@ export class PagesStore {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/') || !isPageAssetFileName(file)) throw new Error('invalid asset')
     const written = await writeDocument(join(this.assetsDir, 'doc'), file, content, opts)
+    const db = await this.openDb()
+    upsertAttachmentRow(db, {
+      name: written.name,
+      etag: written.etag,
+      mime: mimeOf(written.name),
+      bytes: written.bytes.length,
+      kind: 'asset',
+      storage: 'doc',
+    })
     return { name: written.name, href: fileUrl(written.name), etag: written.etag }
   }
 

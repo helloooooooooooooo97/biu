@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
-import { hashedAssetName, hashedAssetRel, isHashedAssetName } from './asset-cas.ts'
+import { contentAddressHash, hashedAssetName, hashedAssetRel, isHashedAssetName } from './asset-cas.ts'
 
 const HEX2 = /^[0-9a-f]{2}$/i
 const ASSET_NAME_RE = /^[\p{L}\p{N}._-]+$/u
@@ -112,7 +112,7 @@ export function rewriteAssetText(text: string, map: Map<string, string>) {
   return out
 }
 
-function ensureRefTables(db: import('node:sqlite').DatabaseSync) {
+export function ensureRefTables(db: import('node:sqlite').DatabaseSync) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS attachments (
       name TEXT PRIMARY KEY,
@@ -152,6 +152,138 @@ function ensureRefTables(db: import('node:sqlite').DatabaseSync) {
 function hasTable(db: import('node:sqlite').DatabaseSync, name: string) {
   const row = db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`).get(name) as { name?: string } | undefined
   return Boolean(row?.name)
+}
+
+function mimeGuess(name: string) {
+  const ext = name.toLowerCase().slice(name.lastIndexOf('.'))
+  if (ext === '.png') return 'image/png'
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg'
+  if (ext === '.gif') return 'image/gif'
+  if (ext === '.webp') return 'image/webp'
+  if (ext === '.svg') return 'image/svg+xml'
+  if (ext === '.pdf') return 'application/pdf'
+  if (ext === '.json' || ext === '.excalidraw' || ext === '.timeline') return 'application/json; charset=utf-8'
+  if (ext === '.html' || ext === '.htm') return 'text/html; charset=utf-8'
+  if (ext === '.txt' || ext === '.md') return 'text/plain; charset=utf-8'
+  if (ext === '.mp3') return 'audio/mpeg'
+  if (ext === '.mp4') return 'video/mp4'
+  return 'application/octet-stream'
+}
+
+export function upsertAttachmentRow(
+  db: import('node:sqlite').DatabaseSync,
+  row: { name: string; etag: string; mime: string; bytes: number; kind?: string; storage?: string },
+) {
+  ensureRefTables(db)
+  const kind = row.kind === 'core' ? 'core' : 'asset'
+  const storage = row.storage === 'doc' ? 'doc' : 'cas'
+  db.prepare(
+    `INSERT INTO attachments (name, etag, mime, bytes, kind, storage, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(name) DO UPDATE SET
+       etag = excluded.etag,
+       mime = excluded.mime,
+       bytes = excluded.bytes,
+       storage = excluded.storage,
+       kind = CASE WHEN attachments.kind = 'core' OR excluded.kind = 'core' THEN 'core' ELSE excluded.kind END`,
+  ).run(row.name, row.etag, row.mime, row.bytes, kind, storage, Date.now())
+}
+
+function parseIndexAssets(raw: string): string[] {
+  try {
+    const data = JSON.parse(raw) as { assets?: unknown }
+    if (!Array.isArray(data.assets)) return []
+    return data.assets.map((item) => String(item).replace(/^assets\//, '')).filter((name) => ASSET_NAME_RE.test(name))
+  } catch {
+    return []
+  }
+}
+
+function rebuildBlockRefsFromIndex(db: import('node:sqlite').DatabaseSync) {
+  ensureRefTables(db)
+  if (!hasTable(db, 'page_block_index')) return
+  db.prepare(`DELETE FROM block_refs WHERE collection = '/pages'`).run()
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO block_refs (collection, record_id, block_id, name, source) VALUES (?, ?, ?, ?, ?)',
+  )
+  const rows = db.prepare('SELECT page_id, block_id, data_json FROM page_block_index').all() as Array<{
+    page_id: string
+    block_id: string
+    data_json: string
+  }>
+  const core = new Set<string>()
+  for (const row of rows) {
+    for (const name of parseIndexAssets(row.data_json)) {
+      insert.run('/pages', row.page_id, row.block_id, name, `block:${row.block_id}:core`)
+      core.add(name)
+    }
+  }
+  for (const name of core) db.prepare(`UPDATE attachments SET kind = 'core' WHERE name = ?`).run(name)
+}
+
+export function replacePageBlockRefs(
+  db: import('node:sqlite').DatabaseSync,
+  pageId: string,
+  blocks: Array<{ blockId: string; names: Iterable<string> }>,
+) {
+  ensureRefTables(db)
+  db.prepare(`DELETE FROM block_refs WHERE collection = '/pages' AND record_id = ?`).run(pageId)
+  const insert = db.prepare(
+    'INSERT INTO block_refs (collection, record_id, block_id, name, source) VALUES (?, ?, ?, ?, ?)',
+  )
+  const core = new Set<string>()
+  for (const block of blocks) {
+    for (const raw of block.names) {
+      const name = String(raw).replace(/^assets\//, '')
+      if (!ASSET_NAME_RE.test(name)) continue
+      insert.run('/pages', pageId, block.blockId, name, `block:${block.blockId}:core`)
+      core.add(name)
+    }
+  }
+  for (const name of core) db.prepare(`UPDATE attachments SET kind = 'core' WHERE name = ?`).run(name)
+}
+
+function ledgerFromDisk(biuDir: string) {
+  const sqlitePath = join(biuDir, 'biu.sqlite')
+  if (!existsSync(sqlitePath)) return
+  const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
+  let db: import('node:sqlite').DatabaseSync
+  try {
+    db = new DatabaseSync(sqlitePath)
+  } catch {
+    return
+  }
+  try {
+    try {
+      ensureRefTables(db)
+    } catch {
+      return
+    }
+    for (const file of listCasAssetFiles(join(biuDir, 'assets', 'cas'))) {
+      upsertAttachmentRow(db, {
+        name: file.name,
+        etag: file.name,
+        mime: mimeGuess(file.name),
+        bytes: statSync(file.path).size,
+        kind: 'asset',
+        storage: 'cas',
+      })
+    }
+    for (const file of listDocAssetFiles(join(biuDir, 'assets', 'doc'))) {
+      const buf = readFileSync(file.path)
+      upsertAttachmentRow(db, {
+        name: file.name,
+        etag: contentAddressHash(buf),
+        mime: mimeGuess(file.name),
+        bytes: buf.length,
+        kind: 'asset',
+        storage: 'doc',
+      })
+    }
+    rebuildBlockRefsFromIndex(db)
+  } finally {
+    db.close()
+  }
 }
 
 function remapName(db: import('node:sqlite').DatabaseSync, from: string, to: string) {
@@ -386,4 +518,5 @@ export function adoptCasAssets(biuDir: string) {
   rmEmptyDir(join(biuDir, 'page', 'assets'))
   cleanDbLayer(join(assetsDir, 'db'))
   nestCasShards(assetsDir)
+  ledgerFromDisk(biuDir)
 }

@@ -3,6 +3,7 @@ import { recordBuiltinValues } from '@biu/type-file-system'
 import { listPageBlockFences, pageBlockData, pageBlockRecordId, parsePageBlockRecordId, uniquifyPageBlockMarkdown, defaultPageBlockTitle } from '@biu/core-editor/host'
 import type { PagesStore, PageRow } from './store.ts'
 import { collectPageAssetNames } from './store.ts'
+import { replacePageBlockRefs } from '@biu/host-plugin-loader/data-dir'
 
 export const PAGE_BLOCK_HOT_WINDOW_MS = 5 * 60 * 1000
 export const PAGE_BLOCK_HOT_LIMIT = 24
@@ -150,6 +151,7 @@ export class PageBlocksIndex {
       `)
       const seen = new Set<string>()
       const pageTitle = String(row.title ?? '').trim()
+      const blockRefs: Array<{ blockId: string; names: Iterable<string> }> = []
       for (const fence of fences) {
         if (seen.has(fence.id)) continue
         seen.add(fence.id)
@@ -165,10 +167,12 @@ export class PageBlocksIndex {
           row.createdAt,
           row.updatedAt,
         )
+        blockRefs.push({ blockId: fence.id, names: collectPageAssetNames(data) })
       }
       db.prepare(
         'INSERT INTO page_block_cover(page_id, page_updated_at) VALUES(?, ?) ON CONFLICT(page_id) DO UPDATE SET page_updated_at=excluded.page_updated_at',
       ).run(row.id, row.updatedAt)
+      replacePageBlockRefs(db, row.id, blockRefs)
       db.exec('COMMIT')
     } catch (error) {
       db.exec('ROLLBACK')
@@ -180,6 +184,11 @@ export class PageBlocksIndex {
     const db = await this.db()
     db.prepare('DELETE FROM page_block_index WHERE page_id = ?').run(pageId)
     db.prepare('DELETE FROM page_block_cover WHERE page_id = ?').run(pageId)
+    try {
+      db.prepare(`DELETE FROM block_refs WHERE collection = '/pages' AND record_id = ?`).run(pageId)
+    } catch {
+      /* table may not exist yet */
+    }
   }
 
   async sync(now = Date.now()) {

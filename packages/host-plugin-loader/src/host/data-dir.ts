@@ -13,7 +13,7 @@ export {
   AssetConflictError,
   parseIfMatch,
 } from './asset-cas.ts'
-export { adoptCasAssets, listCasAssetFiles, listDocAssetFiles, rewriteAssetText } from './adopt-cas-assets.ts'
+export { adoptCasAssets, listCasAssetFiles, listDocAssetFiles, rewriteAssetText, upsertAttachmentRow, replacePageBlockRefs, ensureRefTables } from './adopt-cas-assets.ts'
 import { adoptTwoSqlite } from './sqlite-two.ts'
 import { adoptCasAssets } from './adopt-cas-assets.ts'
 

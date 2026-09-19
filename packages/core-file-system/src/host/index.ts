@@ -2267,6 +2267,14 @@ export function apply(ctx: Context) {
       const written = isHashedAssetName(name)
         ? await assets.write(name, bytes)
         : await assets.writeDoc(name, bytes, { etag: parseIfMatch(route.req.headers['if-match']) })
+      db.facets.putAttachment({
+        name: written.name,
+        etag: written.etag,
+        mime: mimeOfAsset(written.name),
+        bytes: written.bytes,
+        kind: 'asset',
+        storage: written.storage,
+      })
       ctx.http.broadcast?.(DATABASE_CHANNEL, { ts: Date.now(), asset: { name: written.name, etag: written.etag } })
       route.send(200, { ok: true, ...written })
     } catch (error) {
