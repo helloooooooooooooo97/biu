@@ -6,4 +6,5 @@ export {
   type NoticeKind,
   type NoticeRow,
 } from './notices-store.ts'
-export { NoticesService } from './notices-service.ts'
+export { noticesCollection } from './notices-collection.ts'
+export { NoticesService, name, apply } from './notices-service.ts'

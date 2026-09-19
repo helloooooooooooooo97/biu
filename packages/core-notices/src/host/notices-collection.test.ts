@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { NoticesStore } from '@biu/core-notices'
+import { NoticesStore } from './notices-store.ts'
 import { noticesCollection } from './notices-collection.ts'
 
 test('notices collection exposes an agent blurb and writable read flag', async () => {

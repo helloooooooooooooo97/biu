@@ -6,15 +6,17 @@ import {
   previewGcCasAssets,
   workspaceFromSqlite,
 } from '@biu/host-plugin-loader/data-dir'
-import type { NoticesService } from '@biu/core-notices'
-
 type DatabaseSync = import('node:sqlite').DatabaseSync
+
+export type AssetGcNoticeSink = {
+  push: (input: { kind: 'session'; title: string; body: string; sourceKey: string }) => unknown
+}
 
 export type AssetGcHooks = {
   db: DatabaseSync
   assetsDir: string
   sqlitePath: string
-  notices?: NoticesService
+  notices?: AssetGcNoticeSink
 }
 
 function assetGcContext(hooks: AssetGcHooks) {

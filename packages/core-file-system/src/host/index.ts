@@ -49,8 +49,6 @@ import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { FileSystemAssets, collectAssetNames, assetNamesFromMarkdown, assetNamesFromHtml, isAssetFileName, isHashedAssetName, mimeOfAsset, AssetConflictError, parseIfMatch } from './assets-store.ts'
 import { facetsCollection } from './facets-collection.ts'
-import { noticesCollection } from './notices-collection.ts'
-import { NoticesService } from '@biu/core-notices'
 import { assetGcCollection } from './asset-gc-collection.ts'
 import { runWorkspaceAssetGc } from './asset-gc-run.ts'
 import { ContentTurnService } from './content-turn-service.ts'
@@ -1608,15 +1606,21 @@ export function apply(ctx: Context) {
     path: item.path,
     label: item.label ?? item.id,
   }))))
-  const notices = new NoticesService(ctx).open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'notices.json'))
-  db.register(noticesCollection(notices.store))
   const sqlitePath = dataPath(dataHome(), 'biu.sqlite')
-  const gcHooks = () => ({
-    db: db.facets.ensure(),
-    assetsDir: db.assets.root(),
-    sqlitePath,
-    notices,
-  })
+  const gcHooks = () => {
+    let notices: { push: (input: { kind: 'session'; title: string; body: string; sourceKey: string }) => unknown } | undefined
+    try {
+      notices = ctx.get('notices') as typeof notices
+    } catch {
+      notices = undefined
+    }
+    return {
+      db: db.facets.ensure(),
+      assetsDir: db.assets.root(),
+      sqlitePath,
+      notices,
+    }
+  }
   db.register(assetGcCollection(gcHooks))
   db.recycleAssets = () => {
     if (process.env.VITEST) return
@@ -1631,9 +1635,6 @@ export function apply(ctx: Context) {
     tick.unref()
     return () => clearInterval(tick)
   }, 'core-file-system.asset-gc')
-  ctx.http.route('POST', '/api/db/notices/clear', (route) => {
-    route.send(200, { ok: true, cleared: notices.clear() })
-  })
   const contentTurns = new ContentTurnService(ctx).open(
     process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'content-turns.json'),
   )
