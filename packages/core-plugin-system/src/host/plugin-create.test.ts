@@ -107,6 +107,8 @@ test('sandbox then pack compiles host source into .plugin/<id>/', async () => {
     assert.match(readme, /^# Echo\n/)
     await store.writeReadme('store-echo', '# Echo\n\n自定义介绍\n')
     assert.equal(await store.readReadme('store-echo'), '# Echo\n\n自定义介绍\n')
+    assert.equal(await readFile(join(pluginDir, 'store-echo', 'README.md'), 'utf8'), '# Echo\n\n自定义介绍\n')
+    assert.equal(await readFile(join(dir, '.plugin-dev', 'store-echo', 'README.md'), 'utf8'), '# Echo\n\n自定义介绍\n')
     await store.initSandbox({ id: 'store-empty', name: 'Empty' })
     await assert.rejects(() => store.pack('store-empty'), /host\.ts/)
   } finally {
