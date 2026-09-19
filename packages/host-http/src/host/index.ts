@@ -7,7 +7,7 @@ import { Service, type Context } from 'cordis'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { HUB_CHANGE } from '@biu/type-http'
 import type { Method, RouteContext, RouteHandler } from '@biu/type-http'
-import { isShareApiPath, isSharePublicPath } from '@biu/host-share'
+import { isShareApiPath, isSharePublicPath } from './share-gate.ts'
 
 interface Route {
   method: Method

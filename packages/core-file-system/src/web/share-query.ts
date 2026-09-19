@@ -9,9 +9,8 @@ import {
   sortRecordsBy,
   type FilterGroup,
   type SortRule,
-} from '../../../core-file-system/src/query-logic.ts'
-import { normalizePageSize } from '../../../core-file-system/src/web/saved-view.ts'
-import type { ShareViewHint } from '@biu/host-share/snapshot'
+} from '../query-logic.ts'
+import { normalizePageSize, type SavedView } from './saved-view.ts'
 
 export type ShareQueryState = {
   q: string
@@ -27,10 +26,10 @@ export function shareQueryStorageKey(token: string) {
   return `fsdb.share.query:${token}`
 }
 
-export function shareQueryFromView(view?: ShareViewHint): ShareQueryState {
+export function shareQueryFromView(view?: Partial<SavedView>): ShareQueryState {
   return {
     q: String(view?.query ?? ''),
-    sorts: normalizeSorts(view?.sorts as SortRule[] | undefined, view?.sortField || 'title', view?.sortDir === 'desc' ? 'desc' : 'asc'),
+    sorts: normalizeSorts(view?.sorts, view?.sortField || 'title', view?.sortDir === 'desc' ? 'desc' : 'asc'),
     filterTree: resolveViewFilterTree({
       filters: view?.filters,
       filterTree: view?.filterTree,

@@ -99,7 +99,7 @@ import {
   visibleActions,
   placedActions,
 } from './fsdb-cells.tsx'
-import { ShareButton } from '@biu/host-share/web'
+import { ShareButton } from './share-popover.tsx'
 import { ensureFsdbStyle } from './fsdb-style.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { PageBanner } from './page-banner.tsx'

@@ -1,5 +1,6 @@
 import type { CollectionSchema, DbRecord } from '@biu/type-file-system'
-import { collectAssetNames } from '@biu/type-file-system'
+import { collectAssetNames } from './asset-refs.ts'
+import type { SavedView } from './web/saved-view.ts'
 
 export type ShareKind = 'view' | 'record'
 
@@ -16,21 +17,6 @@ export type ShareRecord = {
   updatedAt: number
 }
 
-export type ShareViewHint = {
-  id?: string
-  name?: string
-  query?: string
-  sorts?: unknown
-  sortField?: string
-  sortDir?: string
-  filters?: Record<string, string>
-  filterTree?: unknown
-  columns?: string[]
-  wrap?: boolean
-  truncate?: boolean
-  pageSize?: number
-}
-
 export type ShareSnapshot = {
   kind: ShareKind
   collection: string
@@ -39,7 +25,7 @@ export type ShareSnapshot = {
   title: string
   collectionLabel: string
   schema: CollectionSchema
-  view?: ShareViewHint
+  view?: Partial<SavedView>
   records: DbRecord[]
   contents: Record<string, unknown>
   assets: string[]

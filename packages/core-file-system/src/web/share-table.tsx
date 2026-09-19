@@ -1,15 +1,15 @@
 import type { CollectionSchema, DbRecord, FieldSpec } from '@biu/type-file-system'
 import type { CollectionChrome } from '@biu/type-file-system/ui'
 import { ensureTagChipStyle } from '@biu/public-ui'
-import type { ShareViewHint } from '@biu/host-share/snapshot'
-import { formatField, pinLabelColumn, contentFieldKey, resolveFieldType, defaultColumnKeys } from '../../../core-file-system/src/web/fields.ts'
-import { DefaultCell, FieldGlyph } from '../../../core-file-system/src/web/fsdb-cells.tsx'
-import { SchemaChips } from '../../../core-file-system/src/web/schema-field.tsx'
-import { loadFacets } from '../../../core-file-system/src/web/facet-catalog.ts'
-import { RecordMark } from '../../../core-file-system/src/web/record-mark.tsx'
-import { crumbRecordLabel } from '../../../core-file-system/src/web/sidebar-preview.ts'
+import { formatField, pinLabelColumn, contentFieldKey, resolveFieldType, defaultColumnKeys } from './fields.ts'
+import { DefaultCell, FieldGlyph } from './fsdb-cells.tsx'
+import { SchemaChips } from './schema-field.tsx'
+import { loadFacets } from './facet-catalog.ts'
+import { RecordMark } from './record-mark.tsx'
+import { crumbRecordLabel } from './sidebar-preview.ts'
+import type { SavedView } from './saved-view.ts'
 
-export function shareTableColumns(schema: CollectionSchema, view?: ShareViewHint, visibleKeys?: string[]) {
+export function shareTableColumns(schema: CollectionSchema, view?: Partial<SavedView>, visibleKeys?: string[]) {
   const body = contentFieldKey(schema)
   const requested = visibleKeys?.length
     ? visibleKeys
@@ -81,7 +81,7 @@ export function ShareListTable({
   queryFields,
 }: {
   schema: CollectionSchema
-  view?: ShareViewHint
+  view?: Partial<SavedView>
   records: DbRecord[]
   collection: string
   chrome?: CollectionChrome

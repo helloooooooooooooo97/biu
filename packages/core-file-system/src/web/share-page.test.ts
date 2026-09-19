@@ -4,7 +4,7 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 
 test('share page uses matching side padding on small screens', () => {
-  const css = readFileSync(resolve(import.meta.dirname, '../../../core-file-system/src/web/fsdb-style.ts'), 'utf8')
+  const css = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
   const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
   assert.match(src, /fsdb-share-list/)
   assert.match(src, /collapseToLeaf/)
@@ -51,7 +51,7 @@ test('share header has a theme toggle for this session', () => {
 
 test('share header merges resources into one download picker', () => {
   const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
-  const css = readFileSync(resolve(import.meta.dirname, '../../../core-file-system/src/web/fsdb-style.ts'), 'utf8')
+  const css = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
   assert.match(src, /data-testid="fsdb-share-download"/)
   assert.match(src, /data-testid="fsdb-share-download-pop"/)
   assert.match(src, /页面 Markdown/)
@@ -65,7 +65,7 @@ test('share header merges resources into one download picker', () => {
 
 test('share corner uses the owner photo when set, else the brand icon', () => {
   const src = readFileSync(resolve(import.meta.dirname, './share-owner-corner.tsx'), 'utf8')
-  const css = readFileSync(resolve(import.meta.dirname, '../../../core-file-system/src/web/fsdb-style.ts'), 'utf8')
+  const css = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
   assert.match(src, /owner\?\.avatar/)
   assert.match(src, /fsdb-share-owner-face/)
   assert.match(src, /BrandMascot/)
