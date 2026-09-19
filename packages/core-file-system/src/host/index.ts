@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import type { IncomingMessage } from 'node:http'
 import { isAbsolute, resolve } from 'node:path'
-import { dataHome, dataPath, readEditorContent, writeEditorContent } from '@biu/host-plugin-loader/data-dir'
+import { dataHome, dataPath, readEditorContent, writeEditorContent, ASSET_GC_INTERVAL_MS } from '@biu/host-plugin-loader/data-dir'
 import { asPublicProfile, readWorkspaceProfile, writeWorkspaceProfile } from './workspace-profile.ts'
 import { Service, type Context } from 'cordis'
 import {
@@ -51,6 +51,8 @@ import { FileSystemAssets, collectAssetNames, assetNamesFromMarkdown, assetNames
 import { facetsCollection } from './facets-collection.ts'
 import { noticesCollection } from './notices-collection.ts'
 import { NoticesService } from './notices-service.ts'
+import { assetGcCollection } from './asset-gc-collection.ts'
+import { runWorkspaceAssetGc } from './asset-gc-run.ts'
 import { ContentTurnService } from './content-turn-service.ts'
 import {
   asContentText,
@@ -543,6 +545,7 @@ export class DatabaseService extends Service implements Database {
   facets = new FacetStore()
   shares = new SharesStore()
   assets = new FileSystemAssets()
+  recycleAssets?: () => void
 
   private bumpQueued = false
 
@@ -1096,6 +1099,7 @@ export class DatabaseService extends Service implements Database {
       }
     }
     this.bump()
+    this.recycleAssets?.()
     return { kind: 'deleted' as const, path: spec.path, ids }
   }
 
@@ -1606,6 +1610,27 @@ export function apply(ctx: Context) {
   }))))
   const notices = new NoticesService(ctx).open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'notices.json'))
   db.register(noticesCollection(notices.store))
+  const sqlitePath = dataPath(dataHome(), 'biu.sqlite')
+  const gcHooks = () => ({
+    db: db.facets.ensure(),
+    assetsDir: db.assets.root(),
+    sqlitePath,
+    notices,
+  })
+  db.register(assetGcCollection(gcHooks))
+  db.recycleAssets = () => {
+    if (process.env.VITEST) return
+    void runWorkspaceAssetGc(gcHooks())
+  }
+  ctx.effect(() => {
+    if (!process.env.VITEST) void runWorkspaceAssetGc(gcHooks())
+    const tick = setInterval(() => {
+      if (process.env.VITEST) return
+      void runWorkspaceAssetGc(gcHooks())
+    }, ASSET_GC_INTERVAL_MS)
+    tick.unref()
+    return () => clearInterval(tick)
+  }, 'core-file-system.asset-gc')
   ctx.http.route('POST', '/api/db/notices/clear', (route) => {
     route.send(200, { ok: true, cleared: notices.clear() })
   })

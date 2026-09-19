@@ -52,7 +52,7 @@ export function assetNamesFromHtml(html: string): Set<string> {
   return out
 }
 
-/** Old whole-text scan. GC maybe-layer only — do not use for live refs. */
+/** Old whole-text scan. Kept to document mis-hits; GC live set does not use this. */
 export function collectAssetNamesLoose(text: string): Set<string> {
   const names = new Set<string>()
   for (const match of String(text ?? '').matchAll(LOOSE_ASSET_RE)) {

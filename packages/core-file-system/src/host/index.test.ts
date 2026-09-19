@@ -838,6 +838,7 @@ test('apply registers db_* tools', async () => {
   assert.equal(paths.includes('/views'), true)
   assert.equal(paths.includes('/facets'), true)
   assert.equal(paths.includes('/notices'), true)
+  assert.equal(paths.includes('/asset-gc'), true)
   const notices = items.find((item) => item.path === '/notices')
   assert.match(String(notices?.view?.blurb ?? ''), /db_list \/notices/)
   const views = items.find((item) => item.path === '/views')

@@ -21,11 +21,13 @@ export { migrateEvents, openAndMigrateEvents, LATEST_EVENTS_SCHEMA } from './eve
 export { writeEditorContent, readEditorContent, rebuildContentRefs, replaceContentRefs } from './editor-content.ts'
 export {
   liveAssetNames,
-  maybeAssetNames,
   collectAssetEvidence,
   gcCasAssets,
+  previewGcCasAssets,
+  listGcCandidates,
   ASSET_GC_GRACE_MS,
   ASSET_GC_CANDIDATE_MS,
+  ASSET_GC_INTERVAL_MS,
   workspaceFromSqlite,
 } from './gc-assets.ts'
 export { copyReferencedEditorAssets } from './pack-editor-assets.ts'

@@ -64,13 +64,6 @@ export function replaceContentRefs(
   for (const name of banner) insert.run(collection, recordId, name, 'banner')
 }
 
-function syncLegacyColumn(db: DatabaseSync, collection: string, recordId: string, body: string) {
-  const legacy = LEGACY_BODY[collection]
-  if (!legacy || !tableNames(db).includes(legacy.table)) return
-  if (!tableColumnNames(db, legacy.table).includes(legacy.column)) return
-  db.prepare(`UPDATE ${legacy.table} SET ${legacy.column} = ? WHERE ${legacy.id} = ?`).run(body, recordId)
-}
-
 export function writeEditorContent(
   db: DatabaseSync,
   collection: string,
@@ -87,7 +80,6 @@ export function writeEditorContent(
        VALUES (?, ?, ?, ?)
        ON CONFLICT(collection, record_id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at`,
     ).run(collection, recordId, text, Date.now())
-    syncLegacyColumn(db, collection, recordId, text)
     replaceContentRefs(db, collection, recordId, names, assetNamesFromHtml(bannerHtml(db, collection, recordId)))
   }
   if (opts?.transaction === false) {

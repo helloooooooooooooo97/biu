@@ -165,7 +165,6 @@ export class PagesStore {
     this.db = db
     await this.migrateMarkdown()
     adoptCasAssets(this.fs.resolve(DATA_DIR_NAME))
-    await this.runGc()
     return db
   }
 
@@ -252,7 +251,6 @@ export class PagesStore {
     if (!current) throw new Error(`unknown page: ${id}`)
     const next = applyPatch(current, patch)
     await this.write(next)
-    await this.gcAssets()
     return (await this.get(id))!
   }
 
@@ -273,7 +271,6 @@ export class PagesStore {
     row.updatedAt = ts
     if (typeof fields.title === 'string' && fields.title.trim()) row.title = fields.title.trim()
     await this.write(row)
-    await this.gcAssets()
     return (await this.get(id))!
   }
 
@@ -287,7 +284,6 @@ export class PagesStore {
     } catch {
       /* leftover markdown */
     }
-    await this.gcAssets()
   }
 
   async writeAsset(name: string, content: string | Buffer | Uint8Array, opts?: { etag?: string }) {
