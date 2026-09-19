@@ -397,6 +397,14 @@ export function emptySchemaValue(): SchemaFieldValue {
   return { tags: [], values: {} }
 }
 
+export function isEmptySchemaValue(value: SchemaFieldValue): boolean {
+  if (value.tags.length) return false
+  for (const bag of Object.values(value.values)) {
+    if (bag && typeof bag === 'object' && !Array.isArray(bag) && Object.keys(bag).length) return false
+  }
+  return true
+}
+
 /** 只保留仍贴着的合集下的值；从页面拿掉合集时元数据一起丢掉。 */
 export function bindSchemaValue(
   tags: string[],

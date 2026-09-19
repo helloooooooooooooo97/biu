@@ -16,6 +16,7 @@ import {
   isFacetFieldType,
   bindSchemaValue,
   emptySchemaValue,
+  isEmptySchemaValue,
   normalizeSchemaValue,
   schemaSearchHaystack,
   withBuiltinFields,
@@ -746,7 +747,6 @@ export class DatabaseService extends Service implements Database {
   private decorateRecord(spec: CollectionSpec, row: DbRecord): DbRecord {
     const withFacet = this.applyFacetOverlay(spec, row)
     const withPeople = this.applyPersonOverlay(spec, withFacet)
-    if (this.collectionCanUpdate(spec)) return withPeople
     return this.applyMetaOverlay(spec, withPeople)
   }
 
@@ -826,13 +826,20 @@ export class DatabaseService extends Service implements Database {
 
   private applyFacetOverlay(spec: CollectionSpec, row: DbRecord): DbRecord {
     if (!schemaFor(spec).fields.facet) return row
-    const overlay = this.facets.recordFacet(spec.path, row.id)
+    let overlay = this.facets.recordFacet(spec.path, row.id)
+    if (!overlay && row.facet != null) {
+      const value = normalizeSchemaValue(row.facet)
+      if (!isEmptySchemaValue(value)) overlay = this.persistRecordFacet(spec, row.id, value, row)
+    }
     if (!overlay) return row
     return { ...row, facet: overlay }
   }
 
   private applyMetaOverlay(spec: CollectionSpec, row: DbRecord): DbRecord {
-    const meta = this.facets.recordMeta(spec.path, row.id)
+    let meta = this.facets.recordMeta(spec.path, row.id)
+    if ((!meta || meta.tags == null) && Array.isArray(row.tags) && row.tags.length) {
+      meta = this.facets.writeRecordMeta(spec.path, row.id, { tags: row.tags.map((item) => String(item)) })
+    }
     if (!meta) return row
     return {
       ...row,
@@ -946,6 +953,17 @@ export class DatabaseService extends Service implements Database {
     await assertSameTableLinks(spec, patch, parts[1])
     let record = Object.keys(patch).length ? await spec.update(parts[1]!, patch) : current
     await this.stampActor(spec.path, record.id)
+    if ('emoji' in patch || 'tags' in patch) {
+      const meta = this.facets.writeRecordMeta(spec.path, record.id, {
+        ...('emoji' in patch ? { emoji: String(patch.emoji ?? '') } : {}),
+        ...('tags' in patch ? { tags: Array.isArray(patch.tags) ? patch.tags.map((item) => String(item)) : [] } : {}),
+      })
+      record = {
+        ...record,
+        ...(meta.emoji !== null ? { emoji: meta.emoji } : {}),
+        ...(meta.tags !== null ? { tags: meta.tags } : {}),
+      }
+    }
     if (schema.fields.facet && 'facet' in patch) {
       record = { ...record, facet: this.persistRecordFacet(spec, record.id, patch.facet, record) }
     }
@@ -993,10 +1011,17 @@ export class DatabaseService extends Service implements Database {
       await this.stampActor(spec.path, record.id)
       const banner = banners[index]
       if (banner !== undefined) this.facets.writeRecordBanner(spec.path, record.id, banner)
-      if (schema.fields.facet) {
-        this.persistRecordFacet(spec, record.id, record.facet, record)
+      const input = records[index] ?? record
+      if ('emoji' in input || 'tags' in input) {
+        this.facets.writeRecordMeta(spec.path, record.id, {
+          ...('emoji' in input ? { emoji: String(input.emoji ?? '') } : {}),
+          ...('tags' in input ? { tags: Array.isArray(input.tags) ? input.tags.map((item) => String(item)) : [] } : {}),
+        })
       }
-      this.indexFacetRecord(spec, record)
+      if (schema.fields.facet) {
+        this.persistRecordFacet(spec, record.id, input.facet ?? record.facet, record)
+      }
+      this.indexFacetRecord(spec, this.decorateRecord(spec, record))
     }
     this.bump()
     const items = created.map((record) => ({
