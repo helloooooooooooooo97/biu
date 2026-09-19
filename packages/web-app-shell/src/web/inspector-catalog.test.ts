@@ -67,6 +67,8 @@ test('plus menu can add another database tab', () => {
   assert.doesNotMatch(css, /is-crumb-open/)
   assert.doesNotMatch(css, /inspector-crumb-toggle/)
   assert.match(css, /\.inspector-add-close/)
+  assert.match(css, /html:not\(\.dark\) \.inspector-add-menu[\s\S]*color:\s*#5f5e5a/)
+  assert.match(css, /html:not\(\.dark\) \.inspector-add-row-main svg[\s\S]*color:\s*#91918e/)
 })
 
 test('inspector header tabs sit on the same vertical center as the main header', () => {
