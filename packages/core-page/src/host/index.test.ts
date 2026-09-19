@@ -104,7 +104,7 @@ test('page plugin stores pages in SQLite under .biu', async () => {
   const emptiedByNull = await spec.update!(created[0]!.id, { notes: null })
   assert.equal(emptiedByNull.notes, '')
   await spec.update!(created[0]!.id, { notes: '# 标题\n内容' })
-  const sqlite = await readFile(join(root, '.biu/pages.sqlite'))
+  const sqlite = await readFile(join(root, '.biu/biu.sqlite'))
   assert.ok(sqlite.byteLength > 0)
   assert.equal(existsSync(join(root, `.biu/page/${created[0]!.id}.md`)), false)
   const againBody = await spec.get!(created[0]!.id)

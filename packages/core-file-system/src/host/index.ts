@@ -1457,12 +1457,12 @@ export const inject = ['tools', 'http']
 
 export function apply(ctx: Context) {
   const db = new DatabaseService(ctx)
-  db.facets.open(dataPath(dataHome(), 'file-system.sqlite'))
+  db.facets.open(dataPath(dataHome(), 'biu.sqlite'))
   const assets = db.assets
   const savedViews = new SavedViewsStore()
-  savedViews.open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'file-system.sqlite'))
+  savedViews.open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'biu.sqlite'))
   const shares = db.shares
-  shares.open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'file-system.sqlite'))
+  shares.open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'biu.sqlite'))
   const facets = db.facets
   db.register(viewsCollection(savedViews, () => db.collectionsList().map((item) => ({
     id: item.id,

@@ -1,11 +1,13 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+export { BIU_SQLITE, EVENTS_SQLITE, adoptTwoSqlite } from './sqlite-two.ts'
+import { adoptTwoSqlite } from './sqlite-two.ts'
 
 export const DATA_DIR_NAME = '.biu'
 export const LEGACY_DATA_DIR_NAME = '.cordis'
 export const LEGACY_PAGE_ROOT = '.page'
 export const PAGE_ROOT = `${DATA_DIR_NAME}/page`
-export const PAGE_DB = `${DATA_DIR_NAME}/pages.sqlite`
+export const PAGE_DB = `${DATA_DIR_NAME}/biu.sqlite`
 /** Leftover page-only folder; new files go under `assets/page`. */
 export const PAGE_ASSETS = `${DATA_DIR_NAME}/page/assets`
 export const ASSETS_ROOT = `${DATA_DIR_NAME}/assets`
@@ -55,7 +57,7 @@ export function migrateLegacyPageDir(fromRoot: string, toRoot = fromRoot) {
       continue
     }
     if (name === 'pages.sqlite' || name.startsWith('pages.sqlite')) {
-      moveIfAbsent(from, join(toRoot, DATA_DIR_NAME, name))
+      moveIfAbsent(from, join(toRoot, DATA_DIR_NAME, name.replace(/^pages\.sqlite/, 'biu.sqlite')))
       continue
     }
     if (name.endsWith('.md')) {
@@ -78,6 +80,7 @@ export function migrateDataDir(parent: string): string {
     }
   }
   migrateLegacyPageDir(parent)
+  adoptTwoSqlite(dest)
   return dest
 }
 
