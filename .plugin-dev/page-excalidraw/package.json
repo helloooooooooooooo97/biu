@@ -1,0 +1,7 @@
+{
+  "name": "page-excalidraw",
+  "private": true,
+  "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1"
+  }
+}

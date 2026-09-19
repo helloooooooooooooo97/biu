@@ -13,6 +13,7 @@ import {
   HOST_ENTRIES,
   persistStoreManifestCreatedAt,
   listingCreatedAt,
+  ensureSandboxPackageJson,
   WEB_ENTRIES,
   type PluginCreateInput,
   type StoreManifestFields,
@@ -275,6 +276,7 @@ export class PluginStoreService extends Service {
     await writeFile(join(dest, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
     if (hostJs) await writeFile(join(dest, 'host.ts'), hostJs.endsWith('\n') ? hostJs : `${hostJs}\n`)
     if (webSrc) await writeFile(join(dest, 'web.tsx'), webSrc.endsWith('\n') ? webSrc : `${webSrc}\n`)
+    await ensureSandboxPackageJson(dest, id)
     await this.ensureReadme(dest, manifest.name, manifest.blurb)
     return { id, sandboxPath: dest }
   }
