@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, posix, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
-import { dataPath } from '@biu/host-plugin-loader/data-dir'
+import { dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
 
 export type SkillRecord = {
   id: string
@@ -40,11 +40,11 @@ const MAX_TOTAL_CHARS = 5_000_000
 const SKIP_DIR = new Set(['node_modules', '.git', '__pycache__'])
 export const LEGACY_MIGRATED = '.biu-migrated'
 
-export function skillRoot(cwd = process.cwd()) {
+export function skillRoot(cwd = dataHome()) {
   return process.env.BIU_SKILL_ROOT || dataPath(cwd, 'skill')
 }
 
-export function skillsDir(cwd = process.cwd()) {
+export function skillsDir(cwd = dataHome()) {
   return process.env.BIU_SKILLS_DIR || dataPath(cwd, 'skills')
 }
 

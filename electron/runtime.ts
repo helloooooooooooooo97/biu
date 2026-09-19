@@ -1,6 +1,6 @@
-import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
 import net from 'node:net'
-import { basename, join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 
 /** 优先使用约定端口；被占用时让系统分配空闲端口。 */
 export function availablePort(preferred: number, host = '127.0.0.1') {
@@ -22,6 +22,41 @@ export function availablePort(preferred: number, host = '127.0.0.1') {
     if (preferred > 0 && error.code === 'EADDRINUSE') return listen(0)
     throw error
   })
+}
+
+function copyMerge(src: string, dest: string) {
+  if (!existsSync(src)) return
+  mkdirSync(dest, { recursive: true })
+  for (const name of readdirSync(src)) {
+    const from = join(src, name)
+    const to = join(dest, name)
+    if (!existsSync(to)) {
+      cpSync(from, to, { recursive: true })
+      continue
+    }
+    const fromStat = statSync(from)
+    const toStat = statSync(to)
+    if (fromStat.isDirectory() && toStat.isDirectory()) copyMerge(from, to)
+  }
+}
+
+/** 把旧包 Resources/biu 里残留的用户数据并进 userData；已有文件优先保留。不搬走安装包里的内置插件。 */
+export function adoptPackedUserData(fromRoot: string, dataRoot: string, workspace: string) {
+  const from = resolve(fromRoot)
+  const dest = resolve(dataRoot)
+  if (from === dest) return dest
+  for (const name of ['.biu', '.cordis', '.page']) {
+    copyMerge(join(from, name), join(dest, name))
+    try {
+      rmSync(join(from, name), { recursive: true, force: true })
+    } catch {
+      /* read-only bundle */
+    }
+  }
+  for (const name of ['.plugin', '.plugin-dev', '.workspace']) {
+    copyMerge(join(from, name), join(workspace, name))
+  }
+  return dest
 }
 
 /** 首次启动复制内置插件源码；已有沙箱属于用户，不覆盖。 */

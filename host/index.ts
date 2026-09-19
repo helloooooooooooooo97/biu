@@ -1,11 +1,13 @@
 import { Context } from 'cordis'
+import { join } from 'node:path'
 import { importConfiguredPackage, readCordisConfig, findRepoRoot } from '@biu/host-plugin-loader'
-import { migrateDataDir } from '@biu/host-plugin-loader/data-dir'
+import { adoptPackedUserData } from '@biu/host-plugin-loader/data-dir'
 import { lanIPv4, printReadyBanner } from './banner.ts'
 import './types.ts'
 
 const rootDir = findRepoRoot()
-migrateDataDir(process.env.BIU_HOME || rootDir)
+const dataRoot = process.env.BIU_HOME || rootDir
+adoptPackedUserData(rootDir, dataRoot, process.env.CORDIS_WORKSPACE || join(dataRoot, 'workspace'))
 
 const ctx = new Context()
 ctx.logger.exporter({

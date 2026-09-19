@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
 import type { DbRecord, SchemaFieldValue } from '@biu/type-file-system'
 import { emptySchemaValue, normalizeSchemaValue } from '@biu/type-file-system'
-import { dataPath, migrateLegacyPageDir, PAGE_ASSETS, PAGE_DB, PAGE_ROOT } from '@biu/host-plugin-loader/data-dir'
+import { dataHome, dataPath, migrateLegacyPageDir, PAGE_ASSETS, PAGE_DB, PAGE_ROOT } from '@biu/host-plugin-loader/data-dir'
 import { dumpMarkdown, splitMarkdown } from './markdown.ts'
 
 export { PAGE_ROOT, PAGE_DB, PAGE_ASSETS } from '@biu/host-plugin-loader/data-dir'
@@ -185,7 +185,7 @@ function applyPatch(current: PageRow, patch: Record<string, unknown>): PageRow {
 export class PagesStore {
   constructor(
     private fs: WorkspaceFs,
-    private assetsDir = dataPath(process.cwd(), 'assets'),
+    private assetsDir = dataPath(dataHome(), 'assets'),
   ) {}
 
   private db: import('node:sqlite').DatabaseSync | null = null

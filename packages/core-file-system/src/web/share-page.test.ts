@@ -37,10 +37,11 @@ test('share header has no 只读 badge', () => {
   assert.match(src, /chromeFor\?\.\(snapshot\.collection\)/)
 })
 
-test('share header has a theme toggle that writes biu.theme', () => {
+test('share header has a theme toggle for this session', () => {
   const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
   assert.match(src, /data-testid="fsdb-share-theme"/)
-  assert.match(src, /SHARE_THEME_KEY = 'biu.theme'/)
+  assert.match(src, /persistShareTheme/)
+  assert.doesNotMatch(src, /localStorage/)
   assert.match(src, /MoonIcon/)
   assert.match(src, /SunIcon/)
   assert.match(src, /夜间模式/)

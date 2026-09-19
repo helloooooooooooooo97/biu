@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, test } from 'vitest'
-import { availablePort, seedPluginSandboxes } from './runtime.ts'
+import { availablePort, adoptPackedUserData, seedPluginSandboxes } from './runtime.ts'
 
 const cleanup: string[] = []
 
@@ -47,4 +47,24 @@ test('built-in plugin sources seed once without dependencies or overwriting user
   await writeFile(join(target, 'demo', 'web.tsx'), 'user edit')
   assert.deepEqual(seedPluginSandboxes(source, target), [])
   assert.equal(await readFile(join(target, 'demo', 'web.tsx'), 'utf8'), 'user edit')
+})
+
+test('adoptPackedUserData inherits leftover pack-host data without overwriting userData', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'biu-adopt-'))
+  cleanup.push(dir)
+  const pack = join(dir, 'pack')
+  const home = join(dir, 'home')
+  const workspace = join(home, 'workspace')
+  await mkdir(join(pack, '.biu'), { recursive: true })
+  await mkdir(join(home, '.biu'), { recursive: true })
+  await mkdir(join(pack, '.plugin-dev', 'demo'), { recursive: true })
+  await writeFile(join(pack, '.biu', 'sessions.sqlite'), 'old')
+  await writeFile(join(pack, '.biu', 'keep.txt'), 'stale')
+  await writeFile(join(home, '.biu', 'keep.txt'), 'keep')
+  await writeFile(join(pack, '.plugin-dev', 'demo', 'manifest.json'), '{}')
+  adoptPackedUserData(pack, home, workspace)
+  assert.equal(await readFile(join(home, '.biu', 'sessions.sqlite'), 'utf8'), 'old')
+  assert.equal(await readFile(join(home, '.biu', 'keep.txt'), 'utf8'), 'keep')
+  assert.equal(await readFile(join(workspace, '.plugin-dev', 'demo', 'manifest.json'), 'utf8'), '{}')
+  assert.equal(await readFile(join(pack, '.plugin-dev', 'demo', 'manifest.json'), 'utf8'), '{}')
 })

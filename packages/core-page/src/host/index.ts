@@ -1,4 +1,4 @@
-import { dataPath, migrateLegacyPageDir } from '@biu/host-plugin-loader/data-dir'
+import { dataHome, dataPath, migrateLegacyPageDir } from '@biu/host-plugin-loader/data-dir'
 import type { Context } from 'cordis'
 import type { CollectionSpec } from '@biu/type-file-system'
 import { DATABASE_CHANNEL, REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
@@ -107,7 +107,7 @@ export function apply(ctx: Context) {
   // 页面落到工作区 `.biu`（与 file-system / sessions 同一数据目录的父目录）。
   // 用 defaultRoot，不随 Session 绑定项目路径漂移。
   const workspaceRoot = ctx.fs.workspace.resolve('.')
-  const root = process.env.VITEST ? workspaceRoot : process.cwd()
+  const root = process.env.VITEST ? workspaceRoot : dataHome()
   if (root !== workspaceRoot) migrateLegacyPageDir(workspaceRoot, root)
   const fs: WorkspaceFs = {
     resolve: (rel) => ctx.fs.resolveIn(root, rel),
