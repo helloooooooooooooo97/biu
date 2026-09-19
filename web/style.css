@@ -5496,7 +5496,7 @@ html:not(.dark) .chat-outline-item.is-active {
   border-radius: 6px;
   padding: 4px 0;
   background: transparent;
-  color: inherit;
+  color: var(--dsw-icon);
   cursor: pointer;
   text-align: left;
 }
@@ -5560,7 +5560,7 @@ html:not(.dark) .chat-outline-item.is-active {
 }
 
 .tool-call-status.is-running {
-  color: var(--dsw-sidebar-fg);
+  color: var(--dsw-icon);
 }
 
 .tool-call-chars {
@@ -6882,4 +6882,20 @@ html.pick-mode .chat-overlay-panel * {
 [data-excalidraw-host] .unlocked-icon {
   width: 1.25rem !important;
   height: 1.25rem !important;
+}
+
+/* 日间：数据改动文件名 / 工具名 / 工具图标固定 #91918e，不被 .chat-reply-body 的 --dsw-label 盖掉 */
+html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink,
+html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink svg,
+html:not(.dark) .tool-call-toggle,
+html:not(.dark) .tool-call-title,
+html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail),
+html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail) svg,
+html:not(.dark) .tool-call-inspect,
+html:not(.dark) .tool-call-inspect:hover,
+html:not(.dark) .tool-call-inspect svg,
+html:not(.dark) .tool-call-status.is-running,
+html:not(.dark) .tool-call-head:hover .tool-call-title,
+html:not(.dark) .tool-call-toggle:hover .tool-call-title {
+  color: #91918e;
 }
