@@ -43,12 +43,11 @@ export function migrateLegacyPageDir(fromRoot: string, toRoot = fromRoot) {
   const src = join(fromRoot, LEGACY_PAGE_ROOT)
   if (!existsSync(src) || !statSync(src).isDirectory()) return
   mkdirSync(join(toRoot, PAGE_ROOT), { recursive: true })
-  mkdirSync(join(toRoot, PAGE_ASSETS), { recursive: true })
   mkdirSync(join(toRoot, DATA_DIR_NAME, 'assets'), { recursive: true })
   for (const name of readdirSync(src)) {
     const from = join(src, name)
     if (name === 'assets' && statSync(from).isDirectory()) {
-      moveIfAbsent(from, join(toRoot, PAGE_ASSETS))
+      moveIfAbsent(from, join(toRoot, DATA_DIR_NAME, 'assets'))
       continue
     }
     if (name === 'pages.sqlite' || name.startsWith('pages.sqlite')) {
