@@ -1481,7 +1481,7 @@ body {
 
 .inspector-tab.is-active {
   background: var(--dsw-hover);
-  color: var(--dsw-icon-active);
+  color: var(--dsw-sidebar-fg-active);
 }
 
 .inspector-tab.is-agent-working {
@@ -5496,7 +5496,7 @@ html:not(.dark) .chat-outline-item.is-active {
   border-radius: 6px;
   padding: 4px 0;
   background: transparent;
-  color: var(--dsw-icon);
+  color: var(--dsw-sidebar-fg);
   cursor: pointer;
   text-align: left;
 }
@@ -5526,7 +5526,7 @@ html:not(.dark) .chat-outline-item.is-active {
   flex-shrink: 0;
   font-size: var(--dsw-chat-ui-font-size);
   font-weight: 600;
-  color: var(--dsw-icon);
+  color: var(--dsw-sidebar-fg);
 }
 
 .tool-call-summary {
@@ -6884,20 +6884,32 @@ html.pick-mode .chat-overlay-panel * {
   height: 1.25rem !important;
 }
 
-/* 日间：数据改动文件名 / 工具名 / 工具图标固定 #91918e，不被 .chat-reply-body 的 --dsw-label 盖掉 */
+/* 日间：数据改动文件名 / 工具图标固定 #91918e；工具名用 #5f5e5a */
 html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink,
 html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink svg,
-html:not(.dark) .tool-call-toggle,
-html:not(.dark) .tool-call-title,
 html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail),
 html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail) svg,
 html:not(.dark) .tool-call-inspect,
 html:not(.dark) .tool-call-inspect:hover,
 html:not(.dark) .tool-call-inspect svg,
-html:not(.dark) .tool-call-status.is-running,
+html:not(.dark) .tool-call-status.is-running {
+  color: #91918e;
+}
+
+html:not(.dark) .tool-call-toggle,
+html:not(.dark) .tool-call-title,
 html:not(.dark) .tool-call-head:hover .tool-call-title,
 html:not(.dark) .tool-call-toggle:hover .tool-call-title {
-  color: #91918e;
+  color: #5f5e5a;
+}
+
+html:not(.dark) .fsdb-crumb-btn,
+html:not(.dark) .fsdb-crumb-btn:hover,
+html:not(.dark) .fsdb-crumb-btn.is-open,
+html:not(.dark) .fsdb-crumb .fsdb-crumb-btn,
+html:not(.dark) .inspector-tab.is-active,
+html:not(.dark) .inspector-tab.is-active .fsdb-crumb-btn {
+  color: #2c2c2b;
 }
 
 html:not(.dark) .chat-reply-details,
