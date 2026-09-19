@@ -6884,9 +6884,7 @@ html.pick-mode .chat-overlay-panel * {
   height: 1.25rem !important;
 }
 
-/* 日间：数据改动文件名 / 工具图标固定 #91918e；工具名用 #5f5e5a */
-html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink,
-html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink svg,
+/* 日间：工具图标固定 #91918e；数据改动/文件名/工具名用 #5f5e5a */
 html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail),
 html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail) svg,
 html:not(.dark) .tool-call-inspect,
@@ -6896,11 +6894,17 @@ html:not(.dark) .tool-call-status.is-running {
   color: #91918e;
 }
 
+html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink,
+html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink svg,
 html:not(.dark) .tool-call-toggle,
 html:not(.dark) .tool-call-title,
 html:not(.dark) .tool-call-head:hover .tool-call-title,
 html:not(.dark) .tool-call-toggle:hover .tool-call-title {
   color: #5f5e5a;
+}
+
+html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink {
+  font-weight: 400;
 }
 
 html:not(.dark) .fsdb-crumb-btn,
