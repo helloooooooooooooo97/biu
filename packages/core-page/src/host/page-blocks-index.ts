@@ -2,6 +2,7 @@ import type { DbRecord } from '@biu/type-file-system'
 import { recordBuiltinValues } from '@biu/type-file-system'
 import { listPageBlockFences, pageBlockData, pageBlockRecordId, parsePageBlockRecordId, uniquifyPageBlockMarkdown, defaultPageBlockTitle } from '@biu/core-editor/host'
 import type { PagesStore, PageRow } from './store.ts'
+import { collectPageAssetNames } from './store.ts'
 
 export const PAGE_BLOCK_HOT_WINDOW_MS = 5 * 60 * 1000
 export const PAGE_BLOCK_HOT_LIMIT = 24
@@ -29,6 +30,22 @@ function blockTitle(pageName: string, kindName: string, data: Record<string, unk
 function pageNameFromRecord(rec: { data?: unknown } | null): string {
   const data = rec?.data && typeof rec.data === 'object' && !Array.isArray(rec.data) ? (rec.data as Record<string, unknown>) : {}
   return String(data.title ?? data.name ?? data.label ?? '').trim()
+}
+
+function slimBlockIndexData(kind: string, plugin: string, data: Record<string, unknown>, blockId: string) {
+  const bodyKeys = new Set(['html', 'script', 'code', 'source', 'body'])
+  const attrs: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(data)) {
+    if (bodyKeys.has(key)) continue
+    attrs[key] = value
+  }
+  return {
+    blockId,
+    kind,
+    plugin,
+    attrs,
+    assets: [...collectPageAssetNames(data)].sort(),
+  }
 }
 
 function toRecord(row: IndexRow): DbRecord {
@@ -144,7 +161,7 @@ export class PageBlocksIndex {
           fence.plugin,
           blockTitle(pageTitle, fence.kind, data),
           pageTitle,
-          JSON.stringify(data),
+          JSON.stringify(slimBlockIndexData(fence.kind, fence.plugin, data, fence.id)),
           row.createdAt,
           row.updatedAt,
         )

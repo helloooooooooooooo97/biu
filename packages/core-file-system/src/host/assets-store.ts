@@ -1,12 +1,21 @@
-import { createHash } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
-import { ASSETS_ROOT, DB_ASSET_LAYER, assetsLayerPath, dataHome } from '@biu/host-plugin-loader/data-dir'
+import {
+  ASSETS_ROOT,
+  DB_ASSET_LAYER,
+  assetsLayerPath,
+  assetsRootPath,
+  contentAddressHash,
+  dataHome,
+  isHashedAssetName,
+  readContentAddressed,
+  writeContentAddressed,
+} from '@biu/host-plugin-loader/data-dir'
 import { collectAssetNames, isAssetFileName } from '../asset-refs.ts'
 
 export { collectAssetNames, isAssetFileName } from '../asset-refs.ts'
+export { isHashedAssetName } from '@biu/host-plugin-loader/data-dir'
 
-export const FILE_SYSTEM_ASSETS = `${ASSETS_ROOT}/${DB_ASSET_LAYER}`
+export const FILE_SYSTEM_ASSETS = ASSETS_ROOT
 export const FILE_SYSTEM_ASSET_PREFIX = '/api/db/file/'
 export const ASSET_CHANGED_EVENT = 'biu:asset-changed'
 
@@ -31,13 +40,12 @@ export function mimeOfAsset(name: string) {
   if (ext === '.webp') return 'image/webp'
   if (ext === '.svg') return 'image/svg+xml'
   if (ext === '.pdf') return 'application/pdf'
-  if (ext === '.json') return 'application/json; charset=utf-8'
+  if (ext === '.json' || ext === '.excalidraw' || ext === '.timeline') return 'application/json; charset=utf-8'
+  if (ext === '.html' || ext === '.htm') return 'text/html; charset=utf-8'
   if (ext === '.txt' || ext === '.md') return 'text/plain; charset=utf-8'
+  if (ext === '.mp3') return 'audio/mpeg'
+  if (ext === '.mp4') return 'video/mp4'
   return 'application/octet-stream'
-}
-
-export function bytesEtag(bytes: Buffer) {
-  return createHash('sha1').update(bytes).digest('hex').slice(0, 16)
 }
 
 export function parseIfMatch(raw: unknown) {
@@ -46,51 +54,30 @@ export function parseIfMatch(raw: unknown) {
 }
 
 export class FileSystemAssets {
-  constructor(private dir = assetsLayerPath(dataHome(), DB_ASSET_LAYER)) {}
+  constructor(private dir = assetsRootPath(dataHome())) {}
 
   root() {
     return this.dir
   }
 
-  async write(name: string, content: string | Buffer | Uint8Array, opts?: { etag?: string }) {
+  async write(name: string, content: string | Buffer | Uint8Array, _opts?: { etag?: string }) {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/') || !isAssetFileName(file)) throw new Error('invalid asset')
-    await mkdir(this.dir, { recursive: true })
-    const next = typeof content === 'string' ? Buffer.from(content) : Buffer.from(content)
-    const expected = parseIfMatch(opts?.etag)
-    let current = ''
-    try {
-      current = bytesEtag(await readFile(join(this.dir, file)))
-    } catch {
-      current = ''
-    }
-    if (current) {
-      if (!expected) throw new AssetConflictError(current)
-      if (expected !== current) throw new AssetConflictError(current)
-    } else if (expected) {
-      throw new AssetConflictError('')
-    }
-    await writeFile(join(this.dir, file), next)
-    return { name: file, href: assetHref(file), etag: bytesEtag(next) }
+    const written = await writeContentAddressed(this.dir, file, content)
+    return { name: written.name, href: assetHref(written.name), etag: written.etag, bytes: written.bytes.length }
   }
 
   async read(name: string, fallbackDirs: string[] = []) {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/')) throw new Error('invalid asset')
-    const dirs = [this.dir, ...fallbackDirs]
-    const parent = dirname(this.dir)
+    const extras = [...fallbackDirs]
     if (basename(this.dir) === DB_ASSET_LAYER || basename(this.dir) === 'page') {
-      if (!dirs.includes(parent)) dirs.push(parent)
+      const parent = dirname(this.dir)
+      if (!extras.includes(parent)) extras.push(parent)
     }
-    let last: unknown
-    for (const dir of dirs) {
-      try {
-        const bytes = await readFile(join(dir, file))
-        return { bytes, type: mimeOfAsset(file), etag: bytesEtag(bytes) }
-      } catch (error) {
-        last = error
-      }
-    }
-    throw last instanceof Error ? last : new Error('not found')
+    extras.push(join(this.dir, DB_ASSET_LAYER), join(this.dir, 'page'))
+    const { bytes } = await readContentAddressed(this.dir, file, extras)
+    const etag = isHashedAssetName(file) ? file : `${contentAddressHash(bytes)}${file.includes('.') ? file.slice(file.lastIndexOf('.')).toLowerCase() : ''}`
+    return { bytes, type: mimeOfAsset(file), etag }
   }
 }
