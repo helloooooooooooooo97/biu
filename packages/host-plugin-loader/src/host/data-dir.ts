@@ -6,7 +6,11 @@ export const LEGACY_DATA_DIR_NAME = '.cordis'
 export const LEGACY_PAGE_ROOT = '.page'
 export const PAGE_ROOT = `${DATA_DIR_NAME}/page`
 export const PAGE_DB = `${DATA_DIR_NAME}/pages.sqlite`
+/** Leftover page-only folder; new files go under `assets/page`. */
 export const PAGE_ASSETS = `${DATA_DIR_NAME}/page/assets`
+export const ASSETS_ROOT = `${DATA_DIR_NAME}/assets`
+export const PAGE_ASSET_LAYER = 'page'
+export const DB_ASSET_LAYER = 'db'
 
 function mergeDir(src: string, dest: string) {
   mkdirSync(dest, { recursive: true })
@@ -43,11 +47,11 @@ export function migrateLegacyPageDir(fromRoot: string, toRoot = fromRoot) {
   const src = join(fromRoot, LEGACY_PAGE_ROOT)
   if (!existsSync(src) || !statSync(src).isDirectory()) return
   mkdirSync(join(toRoot, PAGE_ROOT), { recursive: true })
-  mkdirSync(join(toRoot, DATA_DIR_NAME, 'assets'), { recursive: true })
+  mkdirSync(join(toRoot, DATA_DIR_NAME, 'assets', PAGE_ASSET_LAYER), { recursive: true })
   for (const name of readdirSync(src)) {
     const from = join(src, name)
     if (name === 'assets' && statSync(from).isDirectory()) {
-      moveIfAbsent(from, join(toRoot, DATA_DIR_NAME, 'assets'))
+      moveIfAbsent(from, join(toRoot, DATA_DIR_NAME, 'assets', PAGE_ASSET_LAYER))
       continue
     }
     if (name === 'pages.sqlite' || name.startsWith('pages.sqlite')) {
@@ -88,6 +92,11 @@ export function dataDir(parent = dataHome()): string {
 
 export function dataPath(parent = dataHome(), ...parts: string[]): string {
   return join(dataDir(parent), ...parts)
+}
+
+/** Shared attachment tree: `.biu/assets/page` vs `.biu/assets/db`. */
+export function assetsLayerPath(parent = dataHome(), layer: string): string {
+  return dataPath(parent, 'assets', layer)
 }
 
 function copyMerge(src: string, dest: string) {

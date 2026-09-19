@@ -120,7 +120,7 @@ test('page plugin stores pages in SQLite under .biu', async () => {
   await spec.remove!({ ids: [created[0]!.id] })
   assert.equal((await spec.list()).length, 0)
 
-  const assetsDir = join(root, '.biu/assets')
+  const assetsDir = join(root, '.biu/assets/page')
   const store = new PagesStore(ctx.fs.workspace as never, assetsDir)
   const asset = await store.writeAsset('board.json', '{\n  "elements": []\n}\n')
   assert.equal(asset.name, 'board.json')
@@ -196,7 +196,7 @@ test('clearing the last pageBlock fence drops the index row immediately', async 
   await ctx.plugin(tools)
   const root = await mkdtemp(join(tmpdir(), 'page-block-last-'))
   await ctx.plugin(fsPlugin, { root })
-  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets'))
+  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets/page'))
   const index = new PageBlocksIndex(store, { hotWindowMs: 60_000, hotLimit: 0, warmLimit: 0 })
   const pages = page.pagesCollection(store, index)
   const fence = (id: string) => `:::pageBlock {kind=html plugin=page-html-blocks id=${id}}\n<div>${id}</div>\n:::\n`
@@ -217,7 +217,7 @@ test('reindex rewrites duplicate pageBlock ids instead of crashing', async () =>
   await ctx.plugin(tools)
   const root = await mkdtemp(join(tmpdir(), 'page-block-dup-'))
   await ctx.plugin(fsPlugin, { root })
-  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets'))
+  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets/page'))
   const index = new PageBlocksIndex(store, { hotWindowMs: 60_000, hotLimit: 8, warmLimit: 8 })
   const fence = (id: string, body: string) => `:::pageBlock {kind=html plugin=page-html-blocks id=${id}}\n<div>${body}</div>\n:::\n`
   const created = await store.create({ title: '粘贴崩了', notes: fence('ab12cd34', 'a') + fence('ab12cd34', 'b') })
@@ -238,7 +238,7 @@ test('page-block index scans a hot batch instead of every page', async () => {
   await ctx.plugin(tools)
   const root = await mkdtemp(join(tmpdir(), 'page-block-index-'))
   await ctx.plugin(fsPlugin, { root })
-  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets'))
+  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets/page'))
   const index = new PageBlocksIndex(store, { hotWindowMs: 60_000, hotLimit: 1, warmLimit: 0 })
   const fence = (id: string) => `:::pageBlock {kind=html plugin=page-html-blocks id=${id}}\n<div>${id}</div>\n:::\n`
   await store.create({ title: 'a', notes: fence('aaaaaa11') })
@@ -287,7 +287,7 @@ test('pages sqlite keeps notes as the body, not markdown files', async () => {
     VALUES (?, ?, '[]', ?, NULL, '[]', '{}', '', 1, 2)
   `).run('legacy', '旧页', '只在 sqlite 里的正文\n')
   db.close()
-  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets'))
+  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets/page'))
   const listed = await store.list()
   assert.equal(listed.length, 1)
   assert.equal(listed[0]?.id, 'legacy')
@@ -363,7 +363,7 @@ test('gcAssets deletes unreferenced files after one day', async () => {
   await ctx.plugin(tools)
   const root = await mkdtemp(join(tmpdir(), 'page-gc-'))
   await ctx.plugin(fsPlugin, { root })
-  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets'))
+  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets/page'))
   const a = await store.create({
     title: 'A',
     notes: ':::pageBlock {kind=excalidraw}\n{"file":"assets/excalidraw-keep.json"}\n:::\n',
@@ -391,14 +391,14 @@ test('gcAssets deletes unreferenced files after one day', async () => {
     () => false,
     () => true,
   )
-  const kept = await readFile(join(root, '.biu/assets', 'excalidraw-keep.json'), 'utf8')
+  const kept = await readFile(join(root, '.biu/assets/page', 'excalidraw-keep.json'), 'utf8')
   assert.equal(dropGone, true)
   assert.equal(orphanGone, true)
   assert.match(kept, /ok/)
 
   await store.writeAsset('fresh-orphan.json', '{}')
   await store.gcAssets()
-  const fresh = await readFile(join(root, '.biu/assets', 'fresh-orphan.json'), 'utf8')
+  const fresh = await readFile(join(root, '.biu/assets/page', 'fresh-orphan.json'), 'utf8')
   assert.equal(fresh, '{}')
   assert.equal(a.title, 'A')
 })
@@ -411,11 +411,11 @@ test('PagesStore migrates leftover .page into .biu', async () => {
   await mkdir(join(root, '.page/assets'), { recursive: true })
   await writeFile(join(root, '.page/home.md'), dumpMarkdown({ title: 'Home' }, 'from-legacy\n'), 'utf8')
   await writeFile(join(root, '.page/assets', 'board.json'), '{"ok":1}')
-  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets'))
+  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets/page'))
   const home = await store.get('home')
   assert.equal(home?.notes, 'from-legacy\n')
   assert.equal(existsSync(join(root, PAGE_ROOT, 'home.md')), false)
-  const asset = await readFile(join(root, '.biu/assets', 'board.json'), 'utf8')
+  const asset = await readFile(join(root, '.biu/assets/page', 'board.json'), 'utf8')
   assert.match(asset, /ok/)
   assert.equal(existsSync(join(root, '.page')), false)
 })

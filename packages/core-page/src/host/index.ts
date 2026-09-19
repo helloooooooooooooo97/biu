@@ -1,4 +1,4 @@
-import { dataHome, dataPath, migrateLegacyPageDir } from '@biu/host-plugin-loader/data-dir'
+import { assetsLayerPath, dataHome, migrateLegacyPageDir, PAGE_ASSET_LAYER } from '@biu/host-plugin-loader/data-dir'
 import type { Context } from 'cordis'
 import type { CollectionSpec } from '@biu/type-file-system'
 import { DATABASE_CHANNEL, REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
@@ -20,7 +20,7 @@ export function pagesCollection(store: PagesStore, index: PageBlocksIndex): Coll
       route: '/pages',
       title: '页面',
       inspector: true,
-      blurb: '每页正文在 .biu/pages.sqlite 的 notes 列。正文用 db_content；改标题/标签等用 db_update。合集用 db_update 写 facet：{tags:["facet-2"],values:{导演:"查泽雷"}}。图片不要写 data URL：先 db_asset write name=xxx.png from=本地文件，再 db_content 插入 ![说明](/api/db/file/xxx.png)。附件统一在 .biu/assets。树用 parentId。新建 db_create，删除 db_delete。本表没有 db_action。',
+      blurb: '每页正文在 .biu/pages.sqlite 的 notes 列。正文用 db_content；改标题/标签等用 db_update。合集用 db_update 写 facet：{tags:["facet-2"],values:{导演:"查泽雷"}}。图片不要写 data URL：先 db_asset write name=xxx.png from=本地文件，再 db_content 插入 ![说明](/api/db/file/xxx.png)。附件在 .biu/assets/page（表附件在 .biu/assets/db）。树用 parentId。新建 db_create，删除 db_delete。本表没有 db_action。',
       order: 25,
       icon: 'document',
     },
@@ -115,7 +115,7 @@ export function apply(ctx: Context) {
     write: (rel, content) => ctx.fs.writeIn(root, rel, content),
     list: (rel) => ctx.fs.listIn(root, rel ?? '.'),
   }
-  const store = new PagesStore(fs, dataPath(root, 'assets'))
+  const store = new PagesStore(fs, assetsLayerPath(root, PAGE_ASSET_LAYER))
   const index = new PageBlocksIndex(store)
   ctx.database.register(pagesCollection(store, index))
   ctx.database.register(pageBlocksCollection(store, index))

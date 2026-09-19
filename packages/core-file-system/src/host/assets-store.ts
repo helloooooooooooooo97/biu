@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
-import { DATA_DIR_NAME, dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
+import { basename, dirname, join } from 'node:path'
+import { ASSETS_ROOT, DB_ASSET_LAYER, assetsLayerPath, dataHome } from '@biu/host-plugin-loader/data-dir'
 import { collectAssetNames, isAssetFileName } from '../asset-refs.ts'
 
 export { collectAssetNames, isAssetFileName } from '../asset-refs.ts'
 
-export const FILE_SYSTEM_ASSETS = `${DATA_DIR_NAME}/assets`
+export const FILE_SYSTEM_ASSETS = `${ASSETS_ROOT}/${DB_ASSET_LAYER}`
 export const FILE_SYSTEM_ASSET_PREFIX = '/api/db/file/'
 export const ASSET_CHANGED_EVENT = 'biu:asset-changed'
 
@@ -46,7 +46,7 @@ export function parseIfMatch(raw: unknown) {
 }
 
 export class FileSystemAssets {
-  constructor(private dir = dataPath(dataHome(), 'assets')) {}
+  constructor(private dir = assetsLayerPath(dataHome(), DB_ASSET_LAYER)) {}
 
   root() {
     return this.dir
@@ -78,6 +78,10 @@ export class FileSystemAssets {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/')) throw new Error('invalid asset')
     const dirs = [this.dir, ...fallbackDirs]
+    const parent = dirname(this.dir)
+    if (basename(this.dir) === DB_ASSET_LAYER || basename(this.dir) === 'page') {
+      if (!dirs.includes(parent)) dirs.push(parent)
+    }
     let last: unknown
     for (const dir of dirs) {
       try {
