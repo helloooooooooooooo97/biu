@@ -622,7 +622,8 @@ async function startHost() {
       BIU_PORT_FALLBACK: '1',
       HTTP_HOST: process.env.HTTP_HOST || '127.0.0.1',
       SHARE_PORT: String(sharePort),
-      SHARE_HOST: process.env.SHARE_HOST || '127.0.0.1',
+      // 分享链接使用局域网 IP；只监听 loopback 会让其他设备收到 ERR_CONNECTION_REFUSED。
+      SHARE_HOST: process.env.SHARE_HOST || '0.0.0.0',
       BIU_HOME: home,
       CORDIS_WORKSPACE: workspace,
       BIU_PLUGIN_DIR: pluginDir,
