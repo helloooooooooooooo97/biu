@@ -169,7 +169,7 @@ test('page-blocks collection updates one fence by page::block id', async () => {
   const created = await pages.create!([{
     title: '海报',
     notes: `:::pageBlock {kind=html plugin=page-html-blocks id=ab12cd34 deck=true}
-<div>旧</div>
+<div>旧</div><img src="/api/db/file/hero.png">
 :::
 :::pageBlock {kind=excalidraw plugin=page-excalidraw id=edd9aaaa}
 {"file":"assets/画板-edd9.json","title":"草图"}
@@ -192,6 +192,10 @@ test('page-blocks collection updates one fence by page::block id', async () => {
   }
   assert.equal(bref.name, '画板-edd9.json')
   assert.equal(bref.source, 'block:edd9aaaa:core')
+  const htmlRef = sqlite
+    .prepare('SELECT name FROM block_refs WHERE record_id = ? AND block_id = ?')
+    .get(pageId, 'ab12cd34') as { name: string }
+  assert.equal(htmlRef.name, 'hero.png')
   sqlite.close()
   const renamed = await blocks.update!(`/pages::${pageId}::ab12cd34`, { title: '刊头' })
   assert.equal(renamed.title, '刊头')
@@ -407,7 +411,7 @@ test('markdown and declared block fields pick asset pointers', () => {
   assert.equal(ASSET_GC_GRACE_MS, 24 * 60 * 60 * 1000)
 })
 
-test('gcAssets deletes unreferenced doc files after one day', async () => {
+test('gcAssets keeps unreferenced files until the candidate window ends', async () => {
   const ctx = new Context()
   await ctx.plugin(tools)
   const root = await mkdtemp(join(tmpdir(), 'page-gc-'))
@@ -429,25 +433,26 @@ test('gcAssets deletes unreferenced doc files after one day', async () => {
   await utimes(join(root, '.biu/assets/name', 'orphan.json'), stale, stale)
   const b = (await store.list()).find((row) => row.title === 'B')!
   await store.update(b.id, { notes: 'gone\n' })
-  await store.gcAssets({ now: Date.now() })
+  const now = Date.now()
+  await store.gcAssets({ now })
 
-  const dropGone = await readFile(join(root, '.biu/assets/name', 'drop.json'), 'utf8').then(
-    () => false,
-    () => true,
-  )
-  const orphanGone = await readFile(join(root, '.biu/assets/name', 'orphan.json'), 'utf8').then(
-    () => false,
-    () => true,
-  )
-  const kept = await readFile(join(root, '.biu/assets/name', 'keep.json'), 'utf8')
-  assert.equal(dropGone, true)
-  assert.equal(orphanGone, true)
-  assert.match(kept, /ok/)
+  const stillThere = async (name: string) =>
+    readFile(join(root, '.biu/assets/name', name), 'utf8').then(
+      () => true,
+      () => false,
+    )
+  assert.equal(await stillThere('drop.json'), true)
+  assert.equal(await stillThere('orphan.json'), true)
+  assert.match(await readFile(join(root, '.biu/assets/name', 'keep.json'), 'utf8'), /ok/)
+
+  await store.gcAssets({ now: now + 31 * 24 * 60 * 60 * 1000 })
+  assert.equal(await stillThere('drop.json'), false)
+  assert.equal(await stillThere('orphan.json'), false)
+  assert.match(await readFile(join(root, '.biu/assets/name', 'keep.json'), 'utf8'), /ok/)
 
   await store.writeAsset('fresh-orphan.json', '{}')
-  await store.gcAssets()
-  const fresh = await readFile(join(root, '.biu/assets/name', 'fresh-orphan.json'), 'utf8')
-  assert.equal(fresh, '{}')
+  await store.gcAssets({ now: Date.now() })
+  assert.equal(await stillThere('fresh-orphan.json'), true)
   assert.equal(a.title, 'A')
 })
 

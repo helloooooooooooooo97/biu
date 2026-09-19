@@ -209,6 +209,7 @@ export const BIU_MIGRATIONS: Migration[] = [
     `)
     rebuildContentRefs(db)
   } },
+  { version: 15, module: 'core-file-system', name: 'rebuild.content_refs.g9', up: (db) => rebuildContentRefs(db) },
 ]
 
 function snapshotBefore(db: DatabaseSync, ctx: MigrateCtx, nextVersion: number) {

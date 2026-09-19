@@ -133,7 +133,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 14
+export const LATEST_BIU_SCHEMA = 15
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (

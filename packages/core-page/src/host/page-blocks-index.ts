@@ -1,7 +1,7 @@
 import type { DbRecord } from '@biu/type-file-system'
 import { recordBuiltinValues } from '@biu/type-file-system'
 import { listPageBlockFences, pageBlockData, pageBlockRecordId, parsePageBlockRecordId, uniquifyPageBlockMarkdown, defaultPageBlockTitle } from '@biu/core-editor/host'
-import { assetNamesFromBlock } from '@biu/type-file-system'
+import { assetNamesFromBlock, assetNamesFromHtml, collectAssetNames } from '@biu/type-file-system'
 import { readEditorContent, replacePageBlockRefs, writeEditorContent } from '@biu/host-plugin-loader/data-dir'
 import type { PagesStore, PageRow } from './store.ts'
 
@@ -28,6 +28,16 @@ type IndexRow = {
 function blockTitle(pageName: string, kindName: string, data: Record<string, unknown>) {
   if (typeof data.title === 'string' && data.title.trim()) return data.title.trim()
   return defaultPageBlockTitle(pageName, kindName)
+}
+
+function assetNamesFromFence(kind: string, plugin: string, data: Record<string, unknown>, body: string) {
+  const names = new Set(assetNamesFromBlock(kind, plugin, data))
+  if (kind === 'html' || kind === 'htmlframe') {
+    for (const name of assetNamesFromHtml(body)) names.add(name)
+  } else if (kind === 'excalidraw' || kind === 'video') {
+    for (const name of collectAssetNames(body)) names.add(name)
+  }
+  return names
 }
 
 function slimBlockIndexData(kind: string, plugin: string, data: Record<string, unknown>, blockId: string) {
@@ -195,7 +205,10 @@ export class PageBlocksIndex {
           createdAt,
           updatedAt,
         )
-        blockRefs.push({ blockId: fence.id, names: assetNamesFromBlock(fence.kind, fence.plugin, data) })
+        blockRefs.push({
+          blockId: fence.id,
+          names: assetNamesFromFence(fence.kind, fence.plugin, data, fence.body),
+        })
       }
       db.prepare(
         `INSERT INTO page_block_cover(collection, page_id, page_updated_at) VALUES(?, ?, ?)

@@ -79,10 +79,6 @@ export function lookupBlockAssets(kind: string, plugin: string) {
   return blockAssets.get(blockKey(kind, plugin))
 }
 
-function htmlFieldAssets(data: Record<string, unknown>) {
-  return assetNamesFromHtml(String(data.html ?? ''))
-}
-
 function videoFieldAssets(data: Record<string, unknown>) {
   const out = new Set<string>()
   const push = (raw: unknown) => {
@@ -111,8 +107,6 @@ function ensureDefaultBlockAssets() {
   if (defaultsReady) return
   defaultsReady = true
   registerBlockAssets('excalidraw', 'page-excalidraw', ['file'])
-  registerBlockAssets('html', 'page-html-blocks', htmlFieldAssets)
-  registerBlockAssets('htmlframe', 'page-html-blocks', htmlFieldAssets)
   registerBlockAssets('video', 'page-video', videoFieldAssets)
   registerBlockAssets('algorithm', 'page-algorithm', [])
   registerBlockAssets('terminal', 'page-terminal', [])
