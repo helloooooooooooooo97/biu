@@ -4,13 +4,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "分享：对外地址、LAN 网关、快照类型、资源扫描、插件源码打包",
+  "description": "分享：协议层 + 来宾页 / 工作台分享按钮",
   "exports": {
     ".": "./src/host/index.ts",
     "./snapshot": "./src/share-snapshot.ts",
-    "./resources": "./src/share-resources.ts"
+    "./resources": "./src/share-resources.ts",
+    "./web": "./src/web/index.ts"
   },
   "dependencies": {
+    "@biu/public-mascot": "0.1.0",
+    "@biu/public-ui": "0.1.0",
     "@biu/type-file-system": "0.1.0"
+  },
+  "peerDependencies": {
+    "react": "^19.1.1",
+    "react-router-dom": "^7.18.2"
   }
 }

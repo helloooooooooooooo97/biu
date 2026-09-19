@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowPathIcon, CheckIcon, LinkIcon, ShareIcon } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
-import { readJson } from './db-client.ts'
+import { readJson } from '../../../core-file-system/src/web/db-client.ts'
 import { mintSharePin, shareClipboardText, type ShareResourceStats } from '@biu/host-share/resources'
 
 export type ShareKind = 'view' | 'record'

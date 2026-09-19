@@ -9,8 +9,8 @@ import {
   sortRecordsBy,
   type FilterGroup,
   type SortRule,
-} from '../query-logic.ts'
-import { normalizePageSize } from './saved-view.ts'
+} from '../../../core-file-system/src/query-logic.ts'
+import { normalizePageSize } from '../../../core-file-system/src/web/saved-view.ts'
 import type { ShareViewHint } from '@biu/host-share/snapshot'
 
 export type ShareQueryState = {

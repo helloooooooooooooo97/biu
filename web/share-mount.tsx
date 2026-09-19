@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { parseSharePath } from '@biu/host-share/snapshot'
-import { ShareRoot } from '../packages/core-file-system/src/web/share-page.tsx'
+import { ShareRoot } from '@biu/host-share/web'
 import { applyStoredTheme } from '@biu/web-app-shell/theme'
 import { applyPagePrefs } from '../packages/core-file-system/src/web/page-width.ts'
 import { bootShareRuntime, loadSharePagePlugins } from './share-plugins.ts'
