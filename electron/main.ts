@@ -13,7 +13,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { availablePort, seedPluginSandboxes } from './runtime.js'
+import { availablePort, adoptPackedUserData, seedPluginSandboxes } from './runtime.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const electronRoot = join(__dirname, '..')
@@ -488,7 +488,9 @@ html.biu-electron .app-shell {
   position: relative;
 }
 html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-sidebar-collapsed > main > .app-stage-pane.is-active > .chat-view-header,
-html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden > main > .app-stage-pane.is-active > .chat-view-header {
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-sidebar-collapsed > main > .app-stage-pane.is-active .fsdb-right > .chat-view-header,
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden > main > .app-stage-pane.is-active > .chat-view-header,
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden > main > .app-stage-pane.is-active .fsdb-right > .chat-view-header {
   padding-left: 76px;
   box-sizing: border-box;
 }
@@ -608,6 +610,7 @@ async function startHost() {
   const workspace = process.env.CORDIS_WORKSPACE || join(home, 'workspace')
   const pluginDir = process.env.BIU_PLUGIN_DIR || join(workspace, '.plugin')
   const pluginDevDir = process.env.BIU_PLUGIN_DEV_DIR || join(workspace, '.plugin-dev')
+  adoptPackedUserData(repoRoot, home, workspace)
   seedPluginSandboxes(join(repoRoot, '.plugin-dev'), pluginDevDir)
   const child = spawn(process.execPath, [entry], {
     cwd: repoRoot,

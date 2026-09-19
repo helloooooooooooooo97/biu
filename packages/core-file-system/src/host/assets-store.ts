@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { DATA_DIR_NAME, dataPath } from '@biu/host-plugin-loader/data-dir'
+import { DATA_DIR_NAME, dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
 import { collectAssetNames, isAssetFileName } from '../asset-refs.ts'
 
 export { collectAssetNames, isAssetFileName } from '../asset-refs.ts'
@@ -46,7 +46,7 @@ export function parseIfMatch(raw: unknown) {
 }
 
 export class FileSystemAssets {
-  constructor(private dir = dataPath(process.cwd(), 'assets')) {}
+  constructor(private dir = dataPath(dataHome(), 'assets')) {}
 
   root() {
     return this.dir

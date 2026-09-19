@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import type { Duplex } from 'node:stream'
@@ -87,6 +87,27 @@ function defaultPublicDir() {
   const dist = join(process.cwd(), 'dist')
   if (existsSync(join(dist, 'index.html'))) return dist
   return join(process.cwd(), 'public')
+}
+
+function documentTheme(): 'light' | 'dark' {
+  try {
+    const file = process.env.BIU_PROFILE || join(process.env.BIU_HOME || process.cwd(), '.biu', 'profile.json')
+    const raw = JSON.parse(readFileSync(file, 'utf8')) as { theme?: unknown }
+    if (raw.theme === 'dark' || raw.theme === 'light') return raw.theme
+  } catch {
+    /* default light */
+  }
+  return 'light'
+}
+
+export function paintDocumentTheme(html: string, theme = documentTheme()) {
+  return html
+    .replace(/\bclass="(?:light|dark)"/, `class="${theme}"`)
+    .replace(/content="(?:light|dark)"/, `content="${theme}"`)
+}
+
+function asHtml(data: Buffer) {
+  return Buffer.from(paintDocumentTheme(data.toString('utf8')))
 }
 
 function resolveListenConfig(config?: HttpListenConfig) {
@@ -342,7 +363,7 @@ export class HttpService extends Service {
         const html = buf
           .toString('utf8')
           .replace(/<script\b[^>]*\bsrc=["']\/@vite\/client["'][^>]*><\/script>\s*/gi, '')
-        buf = Buffer.from(html)
+        buf = asHtml(Buffer.from(html))
       }
       res.writeHead(upstream.status, {
         'content-type': type,
@@ -358,8 +379,13 @@ export class HttpService extends Service {
   private async serveStatic(pathname: string, res: ServerResponse, shareOnly = false) {
     const relative = (pathname === '/' ? '/index.html' : pathname).replace(/\.\./g, '')
     try {
-      const data = await readFile(join(this.config.publicDir, relative))
-      res.writeHead(200, { 'content-type': MIME[extname(relative)] ?? 'application/octet-stream' })
+      let data = await readFile(join(this.config.publicDir, relative))
+      const type = MIME[extname(relative)] ?? 'application/octet-stream'
+      if (type.includes('text/html')) data = asHtml(data)
+      res.writeHead(200, {
+        'content-type': type,
+        ...(type.includes('text/html') ? { 'cache-control': 'no-store' } : {}),
+      })
       res.end(data)
     } catch {
       if (pathname.startsWith('/api/')) {
@@ -373,8 +399,8 @@ export class HttpService extends Service {
       }
       // SPA fallback：前端 History 路由（/s/:id… 或 /share/:token）回落到 index.html
       try {
-        const data = await readFile(join(this.config.publicDir, 'index.html'))
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+        const data = asHtml(await readFile(join(this.config.publicDir, 'index.html')))
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
         res.end(data)
       } catch {
         res.writeHead(404).end('not found')

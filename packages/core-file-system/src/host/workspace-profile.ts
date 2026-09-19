@@ -1,16 +1,23 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { dataPath } from '@biu/host-plugin-loader/data-dir'
+import { dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
+
+export type ThemeMode = 'light' | 'dark'
 
 export type WorkspaceProfile = {
   name: string
   avatar: string
+  theme: ThemeMode
 }
 
-const EMPTY: WorkspaceProfile = { name: '', avatar: '' }
+const EMPTY: WorkspaceProfile = { name: '', avatar: '', theme: 'light' }
+
+function parseTheme(value: unknown): ThemeMode {
+  return value === 'dark' ? 'dark' : 'light'
+}
 
 export function workspaceProfilePath() {
-  return process.env.BIU_PROFILE || dataPath(process.cwd(), 'profile.json')
+  return process.env.BIU_PROFILE || dataPath(dataHome(), 'profile.json')
 }
 
 export function readWorkspaceProfile(): WorkspaceProfile {
@@ -19,6 +26,7 @@ export function readWorkspaceProfile(): WorkspaceProfile {
     return {
       name: String(raw.name ?? '').trim().slice(0, 40),
       avatar: String(raw.avatar ?? '').trim(),
+      theme: parseTheme(raw.theme),
     }
   } catch {
     return { ...EMPTY }
@@ -30,6 +38,7 @@ export function writeWorkspaceProfile(next: Partial<WorkspaceProfile>): Workspac
   const saved: WorkspaceProfile = {
     name: String(next.name ?? current.name).trim().slice(0, 40),
     avatar: String(next.avatar ?? current.avatar).trim(),
+    theme: parseTheme(next.theme ?? current.theme),
   }
   if (saved.avatar && !saved.avatar.startsWith('data:image/')) saved.avatar = ''
   if (saved.avatar.length > 240_000) throw new Error('avatar too large')
@@ -47,6 +56,7 @@ export function asPublicProfile(profile = readWorkspaceProfile()) {
   return {
     name: profile.name,
     avatar: profile.avatar,
+    theme: profile.theme,
     displayName: profile.name || '用户',
   }
 }

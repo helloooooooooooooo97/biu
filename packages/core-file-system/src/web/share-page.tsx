@@ -37,24 +37,11 @@ function passwordKey(token: string) {
   return `fsdb.share.pw:${token}`
 }
 
-const SHARE_THEME_KEY = 'biu.theme'
-
 function readShareTheme(): 'light' | 'dark' {
-  try {
-    const stored = localStorage.getItem(SHARE_THEME_KEY)
-    if (stored === 'dark' || stored === 'light') return stored
-  } catch {
-    /* ignore */
-  }
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
 }
 
 function persistShareTheme(mode: 'light' | 'dark') {
-  try {
-    localStorage.setItem(SHARE_THEME_KEY, mode)
-  } catch {
-    /* ignore */
-  }
   const root = document.documentElement
   root.classList.toggle('dark', mode === 'dark')
   root.classList.toggle('light', mode === 'light')

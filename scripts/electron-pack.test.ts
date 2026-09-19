@@ -87,6 +87,7 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(main, /'ipc'/)
   assert.match(main, /await win\.loadURL\(hostUrl\)/)
   assert.match(main, /seedPluginSandboxes/)
+  assert.match(main, /adoptPackedUserData/)
   assert.match(main, /BIU_PLUGIN_DEV_DIR: pluginDevDir/)
   assert.match(main, /BIU_PLUGIN_DIR: pluginDir/)
   assert.doesNotMatch(main, /await win\.loadFile/)
@@ -94,6 +95,7 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
 
   const host = await readFile(resolve(root, 'host/index.ts'), 'utf8')
   assert.match(host, /BIU_HOME/)
+  assert.match(host, /adoptPackedUserData/)
   assert.match(host, /process\.send\?\.\(\{ type: 'biu:host-ready', port \}\)/)
 
   const docs = await readFile(resolve(root, 'docs/desktop-install.md'), 'utf8')

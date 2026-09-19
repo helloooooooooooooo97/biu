@@ -46,6 +46,7 @@ import { FolderGlyph } from '@biu/web-session-view/folder-glyph'
 import { OverlayChatWindow } from './overlay-window.tsx'
 import { ShellSettingsAbout, ShellSettingsAccount, ShellSettingsAppearance, ShellSettingsShortcuts, ShellSettingsUpdate } from './shell-chrome.tsx'
 import { hydrateWorkspaceProfile } from '@biu/public-ui'
+import { hydrateTheme } from './theme.ts'
 import { ShellSearchPanel, isGlobalSearchHotkey } from './shell-search.tsx'
 import { useSlotEntries } from '@biu/web-slots'
 import type { SlotsService } from '@biu/web-slots'
@@ -347,6 +348,7 @@ function Shell(props: SlotProps) {
   const openSettings = useCallback(() => setSettingsOpen(true), [])
   useEffect(() => {
     void hydrateWorkspaceProfile()
+    void hydrateTheme()
   }, [])
   useEffect(() => {
     if (!settingsOpen) return

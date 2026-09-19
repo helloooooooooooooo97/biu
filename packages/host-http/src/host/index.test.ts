@@ -153,3 +153,9 @@ test('host prefers dist after vite build unless BIU_PUBLIC_DIR is set', () => {
   assert.match(src, /BIU_PUBLIC_DIR/)
   assert.match(src, /existsSync\(join\(dist, 'index.html'\)\)/)
 })
+
+test('index html is painted with the profile theme', () => {
+  const src = readFileSync(join(import.meta.dirname, 'index.ts'), 'utf8')
+  assert.match(src, /paintDocumentTheme/)
+  assert.match(src, /profile\.json/)
+})
