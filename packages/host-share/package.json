@@ -1,0 +1,11 @@
+{
+  "name": "@biu/host-share",
+  "license": "Apache-2.0",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "分享网络地址与插件源码打包，不是 File System 数据模型",
+  "exports": {
+    ".": "./src/host/index.ts"
+  }
+}

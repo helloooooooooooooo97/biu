@@ -1,0 +1,17 @@
+{
+  "name": "@biu/core-notices",
+  "license": "Apache-2.0",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "通知收件箱：JSON 持久化与 Cordis 服务，不走 biu.sqlite",
+  "exports": {
+    ".": "./src/host/index.ts"
+  },
+  "peerDependencies": {
+    "cordis": "4.0.0-rc.8"
+  },
+  "dependencies": {
+    "@biu/type-file-system": "0.1.0"
+  }
+}

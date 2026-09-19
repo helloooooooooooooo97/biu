@@ -6,7 +6,7 @@ import {
   previewGcCasAssets,
   workspaceFromSqlite,
 } from '@biu/host-plugin-loader/data-dir'
-import type { NoticesService } from './notices-service.ts'
+import type { NoticesService } from '@biu/core-notices'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 

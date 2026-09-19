@@ -1,6 +1,6 @@
 import type { CollectionSpec, DbRecord } from '@biu/type-file-system'
 import { REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
-import { noticeToRecord, type NoticesStore } from './notices-store.ts'
+import { noticeToRecord, type NoticesStore } from '@biu/core-notices'
 
 export function noticesCollection(store: NoticesStore): CollectionSpec {
   const asRecord = (id: string): DbRecord | null => {
