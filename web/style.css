@@ -6903,10 +6903,6 @@ html:not(.dark) .tool-call-toggle:hover .tool-call-title {
   color: #5f5e5a;
 }
 
-html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink {
-  font-weight: 400;
-}
-
 html:not(.dark) .fsdb-crumb-btn,
 html:not(.dark) .fsdb-crumb-btn:hover,
 html:not(.dark) .fsdb-crumb-btn.is-open,

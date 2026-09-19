@@ -251,7 +251,7 @@ export const ContentEditsTable = memo(function ContentEditsTable({
       data-testid="content-edits-table"
     >
       <div className="flex items-center justify-between gap-2 border-b border-(--dsw-border) px-3 py-2">
-        <div className="content-edits-ink flex min-w-0 items-center gap-1.5 text-[12px] font-normal">
+        <div className="content-edits-ink flex min-w-0 items-center gap-1.5 text-[12px] font-semibold">
           <CircleStackIcon className="size-3.5 shrink-0" aria-hidden />
           数据改动
         </div>
@@ -277,7 +277,7 @@ export const ContentEditsTable = memo(function ContentEditsTable({
                 </button>
                 <button
                   type="button"
-                  className="content-edits-ink min-w-0 flex-1 truncate text-left text-[12px] font-normal hover:underline"
+                  className="content-edits-ink min-w-0 flex-1 truncate text-left text-[12px] font-semibold hover:underline"
                   title={file.path}
                   onClick={() => revealContentEdit(file.path, file.jump_line, { sessionId, turn })}
                 >
