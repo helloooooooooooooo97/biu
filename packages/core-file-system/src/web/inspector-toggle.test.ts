@@ -741,9 +741,10 @@ test('pager keeps the current page when filter objects are only recreated', () =
   assert.doesNotMatch(inspector, /lockedFiltersFromSearch\?\.\(search\) \?\? \{\}/)
 })
 
-test('missing sort field falls back to title, not updatedAt', () => {
+test('missing sort field falls back to updatedAt, then title', () => {
+  assert.match(browser, /sortFields.find\(\(item\) => item.key === 'updatedAt'\)/)
   assert.match(browser, /sortFields.find\(\(item\) => item.key === 'title'\)/)
-  assert.doesNotMatch(browser, /item.kind === 'datetime' \? 'desc'/)
+  assert.match(browser, /fallback.key === 'updatedAt' \? 'desc' : 'asc'/)
   assert.match(browser, /<SortQueryMenu/)
   assert.match(browser, /<FilterQueryMenu/)
   assert.match(browser, /QUERY_NEST_IGNORE/)

@@ -4,6 +4,17 @@ import { normalizeSavedView, type SavedView } from './web/saved-view.ts'
 
 const ALL_PREFIX = 'builtin-all:'
 
+export const BUILTIN_VIEW_SORT_FIELD = 'updatedAt'
+export const BUILTIN_VIEW_SORT_DIR = 'desc' as const
+
+function builtinViewLayout() {
+  return {
+    sortField: BUILTIN_VIEW_SORT_FIELD,
+    sortDir: BUILTIN_VIEW_SORT_DIR,
+    tree: false as const,
+  }
+}
+
 export type TableRef = {
   path: string
   label?: string
@@ -83,12 +94,10 @@ export function builtinAllView(table: TableRef): SavedView {
     id: builtinAllViewId(path),
     name: `全部${collectionNoun({ ...table, path })}`,
     mode: 'table',
-    sortField: 'title',
-    sortDir: 'asc',
+    ...builtinViewLayout(),
     filters: {},
     columns: [],
     groupBy: '',
-    tree: true,
     wrap: false,
     truncate: true,
     query: '',
@@ -111,12 +120,10 @@ export function builtinCatalogViews(tables: CollectionInfo[]): SavedView[] {
         id: builtinCatalogViewId(path),
         name: table.view?.title ?? table.label ?? path.replace(/^\//, ''),
         mode: 'table',
-        sortField: 'title',
-        sortDir: 'asc',
+        ...builtinViewLayout(),
         filters: { tablePath: path },
         columns: [],
         groupBy: '',
-        tree: true,
         wrap: false,
         truncate: true,
         query: '',
@@ -164,12 +171,10 @@ export function builtinBlockKindView(block: BlockKindRef): SavedView {
     id: builtinBlockKindViewId(kind),
     name: String(block.label ?? '').trim() || kind,
     mode: 'table',
-    sortField: 'title',
-    sortDir: 'asc',
+    ...builtinViewLayout(),
     filters: { blockKind: kind },
     columns: [],
     groupBy: '',
-    tree: true,
     wrap: false,
     truncate: true,
     query: '',
@@ -225,12 +230,10 @@ export function builtinTagView(tag: TagRef): SavedView {
     id: builtinTagViewId(id),
     name: tag.label || id,
     mode: 'table',
-    sortField: 'title',
-    sortDir: 'asc',
+    ...builtinViewLayout(),
     filters: { tag: id },
     columns: ['title', 'table'],
     groupBy: '',
-    tree: true,
     wrap: false,
     truncate: true,
     query: '',
@@ -261,12 +264,10 @@ export function stubBuiltinCatalogView(id: string): SavedView | null {
     id: builtinCatalogViewId(path),
     name: path.replace(/^\//, '') || 'views',
     mode: 'table',
-    sortField: 'title',
-    sortDir: 'asc',
+    ...builtinViewLayout(),
     filters: { tablePath: path },
     columns: [],
     groupBy: '',
-    tree: true,
     wrap: false,
     truncate: true,
     query: '',

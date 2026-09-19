@@ -1171,10 +1171,13 @@ export function CollectionBrowser({
 
   useEffect(() => {
     if (!schema || sortFields.some((item) => item.key === sortField)) return
-    const fallback = sortFields.find((item) => item.key === 'title') ?? sortFields[0]
+    const fallback =
+      sortFields.find((item) => item.key === 'updatedAt') ??
+      sortFields.find((item) => item.key === 'title') ??
+      sortFields[0]
     if (fallback) {
       setSortField(fallback.key)
-      setSortDir('asc')
+      setSortDir(fallback.key === 'updatedAt' ? 'desc' : 'asc')
     }
   }, [schema, sortField, sortFields])
 
@@ -1323,12 +1326,16 @@ export function CollectionBrowser({
     window.dispatchEvent(new Event('fsdb:crumb-labels'))
   }, [activeViewId, collectionPath, items, routeViewId, schema?.labelField, selected])
   const filterActive = countFilterRules(filterTree) > 0
-  const sortCustom = isCustomSorts(sorts, schema?.labelField ?? 'title')
+  const activeView = views.find((view) => view.id === activeViewId)
+  const sortCustom = isCustomSorts(
+    sorts,
+    activeView?.builtin ? 'updatedAt' : (schema?.labelField ?? 'title'),
+    activeView?.builtin ? 'desc' : 'asc',
+  )
   const queryFields = useMemo(
     () => collectQueryFields(sorts, filterTree, schema?.labelField ?? 'title'),
     [filterTree, schema?.labelField, sorts],
   )
-  const activeView = views.find((view) => view.id === activeViewId)
   const [viewBanner, setViewBanner] = useState<unknown>(null)
   useEffect(() => {
     if (sheet || !activeViewId || isReadOnlyViewId(activeViewId)) {
