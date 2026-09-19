@@ -337,11 +337,11 @@ Page       声明「什么环境」  它自己的属性
 
 组合也因此不会爆炸：**组件是有限的原子，页面是无限的配方。**
 
-页面正文是真实文件，所以这层容器是透明的：
+页面正文在 SQLite 里，附件统一进 `.biu/assets`：
 
 ```
-.biu/page/<id>.md     ← YAML 头 + Markdown
-.biu/pages.sqlite     ← 只做列表索引，不存正文
+.biu/pages.sqlite     ← 标题、正文 notes、树与合集
+.biu/assets/          ← 图片、画板 JSON 等附件（全库共用）
 ```
 
 Markdown 里可以携带**块**——一段围栏，渲染成活组件：
@@ -437,7 +437,7 @@ db_update /tasks/build {tags:["获奖"], values:{name:"季度最佳",year:2022}}
 因为这层抽象**没有把数据锁在接口后面**。
 
 ```
-/pages/abc    →  .biu/page/abc.md           真能被编辑器打开
+/pages/abc    →  .biu/pages.sqlite            notes 列
 /skills/bento →  .biu/skill/bento/DESIGN.md 真能被 cat 出来
 ```
 
@@ -445,7 +445,7 @@ db_update /tasks/build {tags:["获奖"], values:{name:"季度最佳",year:2022}}
 
 这也明确了「一切皆文件」的含义：它不是对底层存储的字面描述，因为底层仍然是异构的；它表达的是一项**特性**——数据既可通过统一接口访问，也可直接在磁盘上查看。
 
-页面正文存放在 `.biu/page/<id>.md`，旁边的 `.biu/pages.sqlite` 只负责列表与检索；表记录则保存在 File System 的存储中。每项能力可以选择适合自己的底层存储，但都按照同一份接口契约暴露在同一棵树上。
+页面正文存放在 `.biu/pages.sqlite`，附件统一在 `.biu/assets`；表记录则保存在 File System 的存储中。每项能力可以选择适合自己的底层存储，但都按照同一份接口契约暴露在同一棵树上。
 
 **透明还带来一件事：可溯源。** 一条 append-only 的事件流记录所有动作，所有界面都是它的投影。事件流是权威日志——投影可以替换，日志不能丢。因为你能同时看到「状态」和「状态如何形成」，出现问题时便可以沿着日志追溯。
 

@@ -1,11 +1,11 @@
-import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
-import { basename, dirname, join } from 'node:path'
+import { basename, join } from 'node:path'
 import { createRequire } from 'node:module'
 import type { DbRecord, SchemaFieldValue } from '@biu/type-file-system'
 import { emptySchemaValue, normalizeSchemaValue } from '@biu/type-file-system'
 import { dataHome, dataPath, migrateLegacyPageDir, PAGE_ASSETS, PAGE_DB, PAGE_ROOT } from '@biu/host-plugin-loader/data-dir'
-import { dumpMarkdown, splitMarkdown } from './markdown.ts'
+import { splitMarkdown } from './markdown.ts'
 
 export { PAGE_ROOT, PAGE_DB, PAGE_ASSETS } from '@biu/host-plugin-loader/data-dir'
 /** 正文不再引用后，附件再留一天，避免撤销/未落盘指针误删。 */
@@ -109,23 +109,6 @@ function pageRel(id: string) {
   return `${PAGE_ROOT}/${id}.md`
 }
 
-function matterFrom(row: PageRow): Record<string, unknown> {
-  return {
-    title: row.title,
-    tags: row.tags,
-    parentId: row.parentId,
-    dependsOn: row.dependsOn,
-    facet: row.facet,
-    emoji: row.emoji,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  }
-}
-
-function toMarkdown(row: PageRow) {
-  return dumpMarkdown(matterFrom(row), row.notes ?? '')
-}
-
 function rowFromFile(id: string, raw: string): PageRow {
   const { matter, body } = splitMarkdown(raw)
   const now = Date.now()
@@ -192,8 +175,6 @@ export class PagesStore {
 
   private async ensureDirs() {
     migrateLegacyPageDir(this.fs.resolve('.'))
-    await mkdir(dirname(this.fs.resolve(`${PAGE_ROOT}/x.md`)), { recursive: true })
-    await mkdir(this.fs.resolve(PAGE_ASSETS), { recursive: true })
     await mkdir(this.assetsDir, { recursive: true })
   }
 
@@ -209,6 +190,7 @@ export class PagesStore {
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
         tags_json TEXT NOT NULL DEFAULT '[]',
+        notes TEXT NOT NULL DEFAULT '',
         parent_id TEXT,
         depends_on_json TEXT NOT NULL DEFAULT '[]',
         facet_json TEXT NOT NULL DEFAULT '{}',
@@ -221,8 +203,13 @@ export class PagesStore {
     if (!cols.some((col) => col.name === 'depends_on_json')) {
       db.exec(`ALTER TABLE pages ADD COLUMN depends_on_json TEXT NOT NULL DEFAULT '[]'`)
     }
+    if (!cols.some((col) => col.name === 'notes')) {
+      db.exec(`ALTER TABLE pages ADD COLUMN notes TEXT NOT NULL DEFAULT ''`)
+    }
     this.db = db
-    await this.flushSqliteNotesThenDrop()
+    await this.migrateMarkdown()
+    await this.gcLegacyPageAssets()
+    await this.adoptPageAssets()
     return db
   }
 
@@ -238,69 +225,60 @@ export class PagesStore {
     } catch {
       names = []
     }
-    const existing = new Set(
-      (this.db.prepare('SELECT id FROM pages').all() as Array<{ id: string }>).map((row) => row.id),
-    )
-    const mdIds = new Set<string>()
     for (const name of names) {
       if (!name.endsWith('.md')) continue
       const id = name.slice(0, -3)
-      mdIds.add(id)
-      if (!ID_RE.test(id) || existing.has(id)) continue
+      if (!ID_RE.test(id)) continue
       try {
         const row = rowFromFile(id, await this.fs.read(pageRel(id)))
-        this.upsert(row)
-        existing.add(id)
+        const hit = this.db.prepare('SELECT notes FROM pages WHERE id = ?').get(id) as { notes?: string } | undefined
+        if (!hit) this.upsert(row)
+        else if (!String(hit.notes ?? '').trim() && row.notes) this.upsert(row)
+        await unlink(this.fs.resolve(pageRel(id)))
       } catch {
         /* skip unreadable */
       }
     }
-    await this.backfillMarkdown(mdIds)
   }
 
-  /** 旧库 `pages.notes` 先落盘再删列。sqlite 只留列表字段。 */
-  private async flushSqliteNotesThenDrop() {
-    if (!this.db) return
-    const cols = this.db.prepare('PRAGMA table_info(pages)').all() as Array<{ name: string }>
-    if (!cols.some((col) => col.name === 'notes')) return
+  private async adoptPageAssets() {
     let names: string[] = []
     try {
-      names = await this.fs.list(PAGE_ROOT)
+      names = await this.fs.list(PAGE_ASSETS)
     } catch {
-      names = []
+      return
     }
-    const mdIds = new Set(names.filter((name) => name.endsWith('.md')).map((name) => name.slice(0, -3)))
-    const rows = this.db.prepare('SELECT * FROM pages').all() as SqlPage[]
-    for (const sql of rows) {
-      if (mdIds.has(sql.id)) continue
-      await this.persistMarkdown(rowFromSql(sql))
+    await mkdir(this.assetsDir, { recursive: true })
+    for (const name of names) {
+      if (name === '.gitkeep' || !isPageAssetFileName(name)) continue
+      const from = this.fs.resolve(`${PAGE_ASSETS}/${name}`)
+      const to = join(this.assetsDir, name)
+      try {
+        await stat(to)
+      } catch {
+        try {
+          await copyFile(from, to)
+        } catch {
+          continue
+        }
+      }
+      try {
+        await unlink(from)
+      } catch {
+        /* already gone */
+      }
     }
-    this.db.exec('ALTER TABLE pages DROP COLUMN notes')
-  }
-
-  /** sqlite 里已有、磁盘还没有 `.biu/page/<id>.md` 的页，用列表字段写回 Markdown（正文为空）。 */
-  private async backfillMarkdown(mdIds: Set<string>) {
-    if (!this.db) return
-    const rows = this.db.prepare('SELECT * FROM pages').all() as SqlPage[]
-    for (const sql of rows) {
-      if (mdIds.has(sql.id)) continue
-      await this.persistMarkdown(rowFromSql(sql))
-    }
-  }
-
-  private async persistMarkdown(row: PageRow) {
-    await this.fs.write(pageRel(row.id), toMarkdown(row))
   }
 
   private upsert(row: PageRow) {
     if (!this.db) return
     this.db.prepare(`
       INSERT INTO pages (
-        id, title, tags_json, parent_id,
+        id, title, tags_json, notes, parent_id,
         depends_on_json, facet_json, emoji, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
-        title=excluded.title, tags_json=excluded.tags_json,
+        title=excluded.title, tags_json=excluded.tags_json, notes=excluded.notes,
         parent_id=excluded.parent_id, depends_on_json=excluded.depends_on_json, facet_json=excluded.facet_json, emoji=excluded.emoji,
         updated_at=excluded.updated_at
     `).run(...sqlValues(row))
@@ -314,7 +292,7 @@ export class PagesStore {
       for (const id of ids) {
         if (!ID_RE.test(id)) continue
         const row = await this.get(id)
-        if (row) rows.push(row)
+        if (row) rows.push({ ...row, notes: '' })
       }
       return rows
     }
@@ -330,17 +308,8 @@ export class PagesStore {
     if (!ID_RE.test(id)) return null
     const db = await this.openDb()
     await this.migrateMarkdown()
-    try {
-      const row = rowFromFile(id, await this.fs.read(pageRel(id)))
-      this.upsert(row)
-      return row
-    } catch {
-      const hit = db.prepare('SELECT * FROM pages WHERE id = ?').get(id) as SqlPage | undefined
-      if (!hit) return null
-      const row = rowFromSql(hit)
-      await this.persistMarkdown(row)
-      return row
-    }
+    const hit = db.prepare('SELECT * FROM pages WHERE id = ?').get(id) as SqlPage | undefined
+    return hit ? rowFromSql(hit) : null
   }
 
   async update(id: string, patch: Record<string, unknown>): Promise<PageRow> {
@@ -381,7 +350,7 @@ export class PagesStore {
     try {
       await unlink(this.fs.resolve(pageRel(id)))
     } catch {
-      /* markdown already gone */
+      /* leftover markdown */
     }
     await this.gcAssets()
   }
@@ -420,30 +389,20 @@ export class PagesStore {
     }
   }
 
-  async gcAssets(opts?: { graceMs?: number; now?: number }) {
+  private async gcLegacyPageAssets(opts?: { graceMs?: number; now?: number }) {
+    if (!this.db) return
     const graceMs = opts?.graceMs ?? ASSET_GC_GRACE_MS
     const now = opts?.now ?? Date.now()
+    const live = new Set<string>()
+    const bodies = this.db.prepare('SELECT notes FROM pages').all() as Array<{ notes?: string }>
+    for (const row of bodies) {
+      for (const asset of collectPageAssetNames(row.notes ?? '')) live.add(asset)
+    }
     let names: string[] = []
     try {
       names = await this.fs.list(PAGE_ASSETS)
     } catch {
       return
-    }
-    await this.openDb()
-    const live = new Set<string>()
-    let pages: string[] = []
-    try {
-      pages = await this.fs.list(PAGE_ROOT)
-    } catch {
-      pages = []
-    }
-    for (const name of pages) {
-      if (!name.endsWith('.md')) continue
-      try {
-        for (const asset of collectPageAssetNames(await this.fs.read(`${PAGE_ROOT}/${name}`))) live.add(asset)
-      } catch {
-        /* skip unreadable */
-      }
     }
     for (const name of names) {
       if (name === '.gitkeep' || live.has(name) || !isPageAssetFileName(name)) continue
@@ -458,10 +417,15 @@ export class PagesStore {
     }
   }
 
+  async gcAssets(opts?: { graceMs?: number; now?: number }) {
+    await this.openDb()
+    await this.gcLegacyPageAssets(opts)
+    await this.adoptPageAssets()
+  }
+
   private async write(row: PageRow) {
     await this.openDb()
     this.upsert(row)
-    await this.persistMarkdown(row)
   }
 }
 
@@ -491,6 +455,7 @@ function sqlValues(row: PageRow) {
     row.id,
     row.title,
     JSON.stringify(row.tags),
+    row.notes ?? '',
     row.parentId,
     JSON.stringify(row.dependsOn),
     JSON.stringify(row.facet),

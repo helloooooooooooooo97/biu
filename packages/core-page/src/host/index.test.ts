@@ -106,10 +106,9 @@ test('page plugin stores pages in SQLite under .biu', async () => {
   await spec.update!(created[0]!.id, { notes: '# 标题\n内容' })
   const sqlite = await readFile(join(root, '.biu/pages.sqlite'))
   assert.ok(sqlite.byteLength > 0)
-  const mdFile = await readFile(join(root, `.biu/page/${created[0]!.id}.md`), 'utf8')
-  assert.match(mdFile, /^---\n/)
-  assert.match(mdFile, /title: 新页面/)
-  assert.match(mdFile, /# 标题\n内容/)
+  assert.equal(existsSync(join(root, `.biu/page/${created[0]!.id}.md`)), false)
+  const againBody = await spec.get!(created[0]!.id)
+  assert.match(String(againBody?.notes), /# 标题\n内容/)
 
   const written = await spec.update!(created[0]!.id, {
     facet: { tags: ['dp'], values: { dp: { complexity: 'O(n)' } } },
@@ -184,10 +183,10 @@ test('page-blocks collection updates one fence by page::block id', async () => {
   assert.equal(clobbered.title, '刊头')
   assert.match(String(updated.data), /新/)
   assert.match(String(updated.data), /"deck":false/)
-  const md = await readFile(join(root, `.biu/page/${pageId}.md`), 'utf8')
-  assert.match(md, /id=ab12cd34 title="刊头" deck=false/)
-  assert.match(md, /<div>新<\/div>/)
-  assert.match(md, /刊头/)
+  const row = await pages.get!(pageId)
+  assert.match(String(row?.notes), /id=ab12cd34 title="刊头" deck=false/)
+  assert.match(String(row?.notes), /<div>新<\/div>/)
+  assert.match(String(row?.notes), /刊头/)
   assert.equal(blocks.create, undefined)
   assert.equal(blocks.remove, undefined)
 })
@@ -228,8 +227,8 @@ test('reindex rewrites duplicate pageBlock ids instead of crashing', async () =>
   const ids = listed.map((row) => String(row.blockId)).sort()
   assert.equal(new Set(ids).size, 2)
   assert.equal(ids.includes('ab12cd34'), true)
-  const md = await readFile(join(root, `.biu/page/${created.id}.md`), 'utf8')
-  const fences = md.match(/id=([a-z0-9]+)/gi) ?? []
+  const notes = String((await store.get(created.id))?.notes ?? '')
+  const fences = notes.match(/id=([a-z0-9]+)/gi) ?? []
   assert.equal(fences.length, 2)
   assert.notEqual(fences[0], fences[1])
 })
@@ -261,7 +260,7 @@ test('page-block index scans a hot batch instead of every page', async () => {
 })
 
 
-test('pages sqlite drops leftover notes column after flushing to markdown', async () => {
+test('pages sqlite keeps notes as the body, not markdown files', async () => {
   const ctx = new Context()
   await ctx.plugin(tools)
   const root = await mkdtemp(join(tmpdir(), 'page-drop-notes-'))
@@ -297,7 +296,8 @@ test('pages sqlite drops leftover notes column after flushing to markdown', asyn
   assert.equal(loaded?.notes, '只在 sqlite 里的正文\n')
   const sqlite = await store.sqlite()
   const cols = (sqlite.prepare('PRAGMA table_info(pages)').all() as Array<{ name: string }>).map((col) => col.name)
-  assert.equal(cols.includes('notes'), false)
+  assert.equal(cols.includes('notes'), true)
+  assert.equal(existsSync(join(root, PAGE_ROOT, 'legacy.md')), false)
 })
 
 test('PagesStore reads existing markdown files from .biu/page', async () => {
@@ -333,14 +333,14 @@ test('PagesStore reads existing markdown files from .biu/page', async () => {
   assert.equal(reads, afterListReads)
   const home = await store.get('home')
   assert.equal(home?.notes, 'hello\n')
-  assert.equal(reads, afterListReads + 1)
+  assert.equal(reads, afterListReads)
   await writeFile(join(root, PAGE_ROOT, 'other.md'), dumpMarkdown({ title: 'Other' }, ''), 'utf8')
   const onlyHome = await store.list(['home'])
   assert.equal(onlyHome.length, 1)
   assert.equal(onlyHome[0]?.id, 'home')
   const all = await store.list()
   assert.equal(all.map((row) => row.id).sort().join(','), 'home,other')
-  assert.equal(reads, afterListReads + 3)
+  assert.equal(existsSync(join(root, PAGE_ROOT, 'home.md')), false)
 })
 
 test('collectPageAssetNames picks page asset pointers', () => {
@@ -391,7 +391,7 @@ test('gcAssets deletes unreferenced files after one day', async () => {
     () => false,
     () => true,
   )
-  const kept = await readFile(join(root, PAGE_ASSETS, 'excalidraw-keep.json'), 'utf8')
+  const kept = await readFile(join(root, '.biu/assets', 'excalidraw-keep.json'), 'utf8')
   assert.equal(dropGone, true)
   assert.equal(orphanGone, true)
   assert.match(kept, /ok/)
@@ -414,9 +414,8 @@ test('PagesStore migrates leftover .page into .biu', async () => {
   const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets'))
   const home = await store.get('home')
   assert.equal(home?.notes, 'from-legacy\n')
-  const md = await readFile(join(root, PAGE_ROOT, 'home.md'), 'utf8')
-  assert.match(md, /from-legacy/)
-  const asset = await readFile(join(root, PAGE_ASSETS, 'board.json'), 'utf8')
+  assert.equal(existsSync(join(root, PAGE_ROOT, 'home.md')), false)
+  const asset = await readFile(join(root, '.biu/assets', 'board.json'), 'utf8')
   assert.match(asset, /ok/)
   assert.equal(existsSync(join(root, '.page')), false)
 })

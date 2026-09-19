@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Core-Page：正文在工作区 .biu/page/<id>.md，列表索引 .biu/pages.sqlite，图片和附件走仓库 .biu/assets",
+  "description": "Core-Page：正文在 .biu/pages.sqlite，附件统一 .biu/assets",
   "exports": {
     "./host": "./src/host/index.ts",
     "./web": "./src/web/index.ts"
