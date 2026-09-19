@@ -3138,7 +3138,7 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
   min-width: 0;
 }
 
-/* 顶部「收藏/项目/标签」：字号 12px，行高与会话行一致（头像 20 + 上下 4） */
+/* 顶部「收藏/项目」与数据页「分享/用户数据/系统数据」同一套：12px 粗体；行高与会话行一致 */
 .sidebar-section-head {
   display: flex;
   align-items: center;
@@ -3146,6 +3146,20 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
   margin: 0 0 1px;
   padding: 0 8px;
   border-radius: 6px;
+  color: var(--dsw-sidebar-fg);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sidebar-section-head button {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sidebar-section-head .sidebar-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: normal;
 }
 
 .sidebar-section-head:hover {
@@ -3163,8 +3177,8 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
   margin: 0;
   padding: 0;
   border-radius: 6px;
-  color: var(--dsw-icon-active);
-  font-size: 14px;
+  color: var(--dsw-icon);
+  font-size: 12px;
   font-weight: 500;
   line-height: 0;
   opacity: 0;
@@ -3183,7 +3197,7 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
 
 .sidebar-chat-count-num {
   display: block;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -3193,8 +3207,9 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
 .sidebar-section-head .sidebar-chat-count,
 .sidebar-group-head .sidebar-chat-count,
 .chat-session-row .sidebar-chat-count {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
+  color: var(--dsw-icon);
 }
 
 /* 顶层板块右侧分组切换：两个 24×24 按钮，图标 16×16；默认塌陷，悬浮展开 */
@@ -3227,7 +3242,7 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-icon-active);
+  color: var(--dsw-icon);
   cursor: pointer;
   line-height: 0;
 }
@@ -3240,12 +3255,12 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
 
 .sidebar-view-switch-btn:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-icon-active);
+  color: var(--dsw-icon);
 }
 
 .sidebar-view-switch-btn.is-on {
   background: var(--dsw-hover);
-  color: var(--dsw-icon-active);
+  color: var(--dsw-icon);
 }
 
 .sidebar-mascot {

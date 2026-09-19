@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { dataPath } from '@biu/host-plugin-loader/data-dir'
+import { dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
 
 export type McpTransportKind = 'stdio' | 'http' | 'sse'
 
@@ -27,7 +27,7 @@ export type McpServerConfig = {
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
 
-export function mcpConfigPath(cwd = process.cwd()) {
+export function mcpConfigPath(cwd = dataHome()) {
   return process.env.BIU_MCP_CONFIG || dataPath(cwd, 'mcp.json')
 }
 

@@ -1,0 +1,75 @@
+name: desktop-release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  pack:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: mac
+          - os: windows-latest
+            name: win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Pack desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            ulimit -n 65536
+          fi
+          npm run electron:pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: biu-${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            release/*.dmg
+            release/*.exe
+            release/*.zip
+            release/*.yml
+            release/*.blockmap
+          compression-level: 0
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.dmg
+            release/*.exe
+            release/*.zip
+            release/*.yml
+            release/*.blockmap
+          generate_release_notes: true
+          body: |
+            ## macOS（ad-hoc）
+
+            拖进「应用程序」后若提示已损坏，终端执行一行：
+
+            ```bash
+            xattr -dr com.apple.quarantine /Applications/Biu.app
+            ```
+
+            Apple 芯片：`*-mac-arm64.dmg`。Intel：`*-mac-x64.dmg`。也可右键 → 打开。
+
+            Windows：SmartScreen → 更多信息 → 仍要运行。
+
+            `docs/desktop-install.md`

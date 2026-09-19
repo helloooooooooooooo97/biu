@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -23,6 +24,51 @@ async function freePort() {
     server.on('error', reject)
   })
 }
+
+test('port zero reports the actual bound port', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'cordis-http-dynamic-'))
+  const publicDir = join(base, 'public')
+  await mkdir(publicDir, { recursive: true })
+  await writeFile(join(publicDir, 'index.html'), '<html>dynamic</html>')
+  const ctx = new Context()
+  const ready = new Promise<number>((resolve) => ctx.on('http/ready', ({ port }) => resolve(port)))
+  const fiber = await ctx.plugin(http, { port: 0, host: '127.0.0.1', publicDir, sharePort: 0 })
+  try {
+    const port = await ready
+    assert.ok(port > 0)
+    const response = await fetch(`http://127.0.0.1:${port}/`)
+    assert.equal(response.status, 200)
+    assert.match(await response.text(), /dynamic/)
+  } finally {
+    await fiber.dispose()
+  }
+})
+
+test('occupied requested port falls back when enabled', async () => {
+  const blocker = createServer()
+  await new Promise<void>((resolve, reject) => {
+    blocker.once('error', reject)
+    blocker.listen(0, '127.0.0.1', () => resolve())
+  })
+  const address = blocker.address()
+  assert.ok(address && typeof address !== 'string')
+  const ctx = new Context()
+  const ready = new Promise<number>((resolve) => ctx.on('http/ready', ({ port }) => resolve(port)))
+  const fiber = await ctx.plugin(http, {
+    port: address.port,
+    host: '127.0.0.1',
+    fallbackPort: true,
+    sharePort: 0,
+  })
+  try {
+    const port = await ready
+    assert.notEqual(port, address.port)
+    assert.ok(port > 0)
+  } finally {
+    await fiber.dispose()
+    await new Promise<void>((resolve, reject) => blocker.close((error) => (error ? reject(error) : resolve())))
+  }
+})
 
 test('extra ws path does not abort the hub /ws handshake', async () => {
   const base = await mkdtemp(join(tmpdir(), 'cordis-http-ws-'))
@@ -100,4 +146,16 @@ test('share listener serves /api/share but not the workstation APIs', async () =
   } finally {
     await fiber.dispose()
   }
+})
+
+test('host prefers dist after vite build unless BIU_PUBLIC_DIR is set', () => {
+  const src = readFileSync(join(import.meta.dirname, 'index.ts'), 'utf8')
+  assert.match(src, /BIU_PUBLIC_DIR/)
+  assert.match(src, /existsSync\(join\(dist, 'index.html'\)\)/)
+})
+
+test('index html is painted with the profile theme', () => {
+  const src = readFileSync(join(import.meta.dirname, 'index.ts'), 'utf8')
+  assert.match(src, /paintDocumentTheme/)
+  assert.match(src, /profile\.json/)
 })

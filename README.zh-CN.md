@@ -604,6 +604,14 @@ Biu 里它可以**落下来**：变成一页、一个块、一个技能、一张
 
 需要 Node.js 20+ 和 npm。`main` 与开发分支 `hmr-dev` 当前对齐。
 
+macOS / Windows 安装包在 [GitHub Releases](https://github.com/helloooooooooooooo97/biu/releases)。macOS 为 ad-hoc 签名：拖进「应用程序」后若提示已损坏，终端执行一行即可：
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Biu.app
+```
+
+说明见 [docs/desktop-install.md](docs/desktop-install.md)。
+
 ```bash
 git clone https://github.com/helloooooooooooooo97/biu.git
 cd biu
@@ -708,6 +716,7 @@ biu
 ├── NOTICE.md                  # Apache NOTICE：版权、Grok Bot、第三方依赖
 ├── docs/
 │   ├── plugin-packages.md     # 包前缀与入口约定
+│   ├── desktop-install.md     # 未签名 macOS / Windows 安装包
 │   └── demo/                  # README 截图：file-system / component / context
 ├── scripts/
 │   └── link-cordis-plugins.mjs

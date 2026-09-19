@@ -8,10 +8,12 @@ import type { CatalogEntry } from '@biu/host-hub'
 import {
   buildStoreManifest,
   bundleStoreEntry,
+  copyPluginRuntimeDependencies,
   findEntry,
   HOST_ENTRIES,
   persistStoreManifestCreatedAt,
   listingCreatedAt,
+  ensureSandboxPackageJson,
   WEB_ENTRIES,
   type PluginCreateInput,
   type StoreManifestFields,
@@ -128,7 +130,10 @@ function importHostModule(code: string) {
 async function importHostFile(hostFile: string) {
   try {
     return await import(`${pathToFileURL(hostFile).href}?t=${Date.now()}`)
-  } catch {
+  } catch (error) {
+    // data: URL 没有文件目录，无法解析插件自带的原生 node_modules。
+    // 原生插件应保留原始 file:// 错误，避免回退后错误地查找宿主依赖。
+    if (existsSync(join(dirname(hostFile), 'node_modules'))) throw error
     return importHostModule(await readFile(hostFile, 'utf8'))
   }
 }
@@ -271,6 +276,7 @@ export class PluginStoreService extends Service {
     await writeFile(join(dest, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
     if (hostJs) await writeFile(join(dest, 'host.ts'), hostJs.endsWith('\n') ? hostJs : `${hostJs}\n`)
     if (webSrc) await writeFile(join(dest, 'web.tsx'), webSrc.endsWith('\n') ? webSrc : `${webSrc}\n`)
+    await ensureSandboxPackageJson(dest, id)
     await this.ensureReadme(dest, manifest.name, manifest.blurb)
     return { id, sandboxPath: dest }
   }
@@ -299,6 +305,7 @@ export class PluginStoreService extends Service {
     else if (existsSync(join(dest, 'host.js'))) await rm(join(dest, 'host.js'))
     if (webEntry) await writeFile(join(dest, 'web.js'), await bundleStoreEntry(webEntry, 'web'))
     else if (existsSync(join(dest, 'web.js'))) await rm(join(dest, 'web.js'))
+    copyPluginRuntimeDependencies(sandbox, dest)
     const sandboxReadme = join(sandbox, README_FILE)
     if (existsSync(sandboxReadme)) await writeFile(join(dest, README_FILE), await readFile(sandboxReadme))
     else await this.ensureReadme(dest, manifest.name, manifest.blurb)

@@ -1,4 +1,4 @@
-import { dataPath } from '@biu/host-plugin-loader/data-dir'
+import { dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
 import { Service, type Context } from 'cordis'
 import {
   type SessionRecord,
@@ -94,7 +94,7 @@ export async function apply(
 ) {
   const envDriver = process.env.CORDIS_SESSION_STORE as SessionStoreDriver | undefined
   const driver = config.driver ?? (envDriver === 'memory' || envDriver === 'sqlite' ? envDriver : 'sqlite')
-  const sqlitePath = config.path ?? dataPath(process.cwd(), 'sessions.sqlite')
+  const sqlitePath = config.path ?? dataPath(dataHome(), 'sessions.sqlite')
 
   let inner: SessionStore
   if (driver === 'memory') {

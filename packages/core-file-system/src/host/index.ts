@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import type { IncomingMessage } from 'node:http'
 import { isAbsolute, resolve } from 'node:path'
-import { dataPath } from '@biu/host-plugin-loader/data-dir'
+import { dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
 import { asPublicProfile, readWorkspaceProfile, writeWorkspaceProfile } from './workspace-profile.ts'
 import { Service, type Context } from 'cordis'
 import {
@@ -1432,12 +1432,12 @@ export const inject = ['tools', 'http']
 
 export function apply(ctx: Context) {
   const db = new DatabaseService(ctx)
-  db.facets.open(dataPath(process.cwd(), 'file-system.sqlite'))
+  db.facets.open(dataPath(dataHome(), 'file-system.sqlite'))
   const assets = db.assets
   const savedViews = new SavedViewsStore()
-  savedViews.open(process.env.VITEST ? ':memory:' : dataPath(process.cwd(), 'file-system.sqlite'))
+  savedViews.open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'file-system.sqlite'))
   const shares = db.shares
-  shares.open(process.env.VITEST ? ':memory:' : dataPath(process.cwd(), 'file-system.sqlite'))
+  shares.open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'file-system.sqlite'))
   const facets = db.facets
   db.register(viewsCollection(savedViews, () => db.collectionsList().map((item) => ({
     id: item.id,
@@ -1451,13 +1451,13 @@ export function apply(ctx: Context) {
     path: item.path,
     label: item.label ?? item.id,
   }))))
-  const notices = new NoticesService(ctx).open(process.env.VITEST ? ':memory:' : dataPath(process.cwd(), 'notices.json'))
+  const notices = new NoticesService(ctx).open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'notices.json'))
   db.register(noticesCollection(notices.store))
   ctx.http.route('POST', '/api/db/notices/clear', (route) => {
     route.send(200, { ok: true, cleared: notices.clear() })
   })
   const contentTurns = new ContentTurnService(ctx).open(
-    process.env.VITEST ? ':memory:' : dataPath(process.cwd(), 'content-turns.json'),
+    process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'content-turns.json'),
   )
   ctx.http.route('GET', '/api/content-turns/file', (route) => {
     const session = String(route.query.get('session') ?? '').trim()
@@ -1694,10 +1694,11 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('POST', '/api/profile', async (route) => {
     try {
-      const body = (await route.json()) as { name?: unknown; avatar?: unknown }
+      const body = (await route.json()) as { name?: unknown; avatar?: unknown; theme?: unknown }
       route.send(200, asPublicProfile(writeWorkspaceProfile({
         name: typeof body.name === 'string' ? body.name : undefined,
         avatar: typeof body.avatar === 'string' ? body.avatar : undefined,
+        theme: body.theme === 'dark' || body.theme === 'light' ? body.theme : undefined,
       })))
     } catch (error) {
       route.send(400, { error: String(error) })

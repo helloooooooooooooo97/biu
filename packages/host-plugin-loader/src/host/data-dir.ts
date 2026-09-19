@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 
 export const DATA_DIR_NAME = '.biu'
 export const LEGACY_DATA_DIR_NAME = '.cordis'
@@ -78,10 +78,59 @@ export function migrateDataDir(parent: string): string {
   return dest
 }
 
-export function dataDir(parent = process.cwd()): string {
+/** Packaged Electron sets BIU_HOME to userData so replacing the .app does not wipe notes. */
+export function dataHome(): string {
+  return process.env.BIU_HOME || process.cwd()
+}
+
+export function dataDir(parent = dataHome()): string {
   return migrateDataDir(parent)
 }
 
-export function dataPath(parent = process.cwd(), ...parts: string[]): string {
+export function dataPath(parent = dataHome(), ...parts: string[]): string {
   return join(dataDir(parent), ...parts)
+}
+
+function copyMerge(src: string, dest: string) {
+  if (!existsSync(src)) return
+  mkdirSync(dest, { recursive: true })
+  for (const name of readdirSync(src)) {
+    const from = join(src, name)
+    const to = join(dest, name)
+    if (!existsSync(to)) {
+      cpSync(from, to, { recursive: true })
+      continue
+    }
+    const fromStat = statSync(from)
+    const toStat = statSync(to)
+    if (fromStat.isDirectory() && toStat.isDirectory()) copyMerge(from, to)
+  }
+}
+
+/**
+ * Copy leftover pack-host / cwd data into the durable home.
+ * Destination already-present files win. Plugin trees are copied, never renamed out of the app bundle.
+ */
+export function adoptPackedUserData(fromRoot: string, dataRoot = dataHome(), workspace = join(dataRoot, 'workspace')) {
+  const from = resolve(fromRoot)
+  const dest = resolve(dataRoot)
+  migrateDataDir(from)
+  migrateDataDir(dest)
+  if (from === dest) {
+    migrateLegacyPageDir(from, dest)
+    return dest
+  }
+  copyMerge(join(from, DATA_DIR_NAME), join(dest, DATA_DIR_NAME))
+  migrateLegacyPageDir(from, dest)
+  for (const name of ['.plugin', '.plugin-dev', '.workspace']) {
+    copyMerge(join(from, name), join(workspace, name))
+  }
+  for (const name of [DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, LEGACY_PAGE_ROOT]) {
+    try {
+      rmSync(join(from, name), { recursive: true, force: true })
+    } catch {
+      /* signed / read-only pack-host */
+    }
+  }
+  return dest
 }
