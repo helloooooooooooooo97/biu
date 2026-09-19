@@ -3,8 +3,6 @@ type DatabaseSync = import('node:sqlite').DatabaseSync
 import { assetNamesFromHtml, assetNamesFromMarkdown } from '../../../type-file-system/src/asset-ref.ts'
 import { tableColumnNames, tableNames } from './biu-schema.ts'
 
-export const EDITOR_COLLECTIONS = ['/pages', '/tasks', '/facets', '/skills', '/plugins'] as const
-
 const LEGACY_BODY: Record<string, { table: string; id: string; column: string }> = {
   '/pages': { table: 'pages', id: 'id', column: 'notes' },
   '/tasks': { table: 'tasks', id: 'id', column: 'description' },

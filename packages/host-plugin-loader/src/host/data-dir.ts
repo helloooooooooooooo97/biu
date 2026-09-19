@@ -21,7 +21,6 @@ export { migrateEvents, openAndMigrateEvents, LATEST_EVENTS_SCHEMA } from './eve
 export { writeEditorContent, readEditorContent, rebuildContentRefs, replaceContentRefs } from './editor-content.ts'
 export {
   liveAssetNames,
-  collectAssetEvidence,
   gcCasAssets,
   previewGcCasAssets,
   listGcCandidates,

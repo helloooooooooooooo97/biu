@@ -63,7 +63,7 @@ export function registerBlockAssets(kind: string, plugin: string, assets: BlockA
   blockAssets.set(blockKey(kind, plugin), assets)
 }
 
-export function lookupBlockAssets(kind: string, plugin: string) {
+function lookupBlockAssets(kind: string, plugin: string) {
   ensureDefaultBlockAssets()
   return blockAssets.get(blockKey(kind, plugin))
 }
@@ -97,10 +97,6 @@ function ensureDefaultBlockAssets() {
   defaultsReady = true
   registerBlockAssets('excalidraw', 'page-excalidraw', ['file'])
   registerBlockAssets('video', 'page-video', videoFieldAssets)
-  registerBlockAssets('algorithm', 'page-algorithm', [])
-  registerBlockAssets('terminal', 'page-terminal', [])
-  registerBlockAssets('browser', 'page-browser', [])
-  registerBlockAssets('code-run', 'page-code-runner', [])
 }
 
 export function assetNamesFromBlock(kind: string, plugin: string, data: unknown): Set<string> {
