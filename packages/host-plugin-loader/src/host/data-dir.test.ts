@@ -127,9 +127,9 @@ test('migrateDataDir folds leftover asset layers into CAS and rewrites refs', ()
   assert.equal(existsSync(join(biu, 'assets', 'page')), false)
   assert.equal(existsSync(join(biu, 'page', 'assets')), false)
   const again = new DatabaseSync(join(biu, 'biu.sqlite'))
-  const notes = (again.prepare('SELECT notes FROM pages WHERE id = ?').get('p1') as { notes: string }).notes
-  assert.match(notes, new RegExp(`/api/db/file/${hashed}`))
-  assert.equal(notes.includes('hero.png'), false)
+  const body = (again.prepare('SELECT body FROM editor_content WHERE record_id = ?').get('p1') as { body: string }).body
+  assert.match(body, new RegExp(`/api/db/file/${hashed}`))
+  assert.equal(body.includes('hero.png'), false)
   const banner = (again.prepare('SELECT html FROM record_banners WHERE record_id = ?').get('p1') as { html: string }).html
   assert.match(banner, new RegExp(hashed))
   const ref = again.prepare('SELECT name FROM content_refs WHERE record_id = ?').get('p1') as { name: string }

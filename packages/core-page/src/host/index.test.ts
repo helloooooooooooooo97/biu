@@ -11,7 +11,7 @@ import * as tools from '@biu/host-tools'
 import * as fsPlugin from '@biu/host-fs'
 import * as page from './index.ts'
 import { dumpMarkdown, splitMarkdown } from './markdown.ts'
-import { hashedAssetName, hashedAssetRel } from '@biu/host-plugin-loader/data-dir'
+import { hashedAssetName, hashedAssetRel, writeEditorContent } from '@biu/host-plugin-loader/data-dir'
 import { ASSET_GC_GRACE_MS, PAGE_DB, PAGE_ROOT, PageAssetConflictError, PagesStore, collectPageAssetNames } from './store.ts'
 import { PageBlocksIndex } from './page-blocks-index.ts'
 
@@ -178,7 +178,7 @@ test('page-blocks collection updates one fence by page::block id', async () => {
   const pageId = created[0]!.id
   const listed = await blocks.list()
   assert.equal(listed.length, 2)
-  const html = listed.find((item) => item.id === `${pageId}::ab12cd34`)
+  const html = listed.find((item) => item.id === `/pages::${pageId}::ab12cd34`)
   assert.ok(html)
   assert.equal(html.blockKind, 'html')
   assert.equal(html.pageTitle, '海报')
@@ -192,13 +192,13 @@ test('page-blocks collection updates one fence by page::block id', async () => {
   assert.equal(bref.name, '画板-edd9.json')
   assert.equal(bref.source, 'block:edd9aaaa:core')
   sqlite.close()
-  const renamed = await blocks.update!(`${pageId}::ab12cd34`, { title: '刊头' })
+  const renamed = await blocks.update!(`/pages::${pageId}::ab12cd34`, { title: '刊头' })
   assert.equal(renamed.title, '刊头')
-  const updated = await blocks.update!(`${pageId}::ab12cd34`, {
+  const updated = await blocks.update!(`/pages::${pageId}::ab12cd34`, {
     data: { html: '<div>新</div>', deck: false },
   })
   assert.equal(updated.title, '刊头')
-  const clobbered = await blocks.update!(`${pageId}::ab12cd34`, {
+  const clobbered = await blocks.update!(`/pages::${pageId}::ab12cd34`, {
     data: { html: '<div>新</div>', title: '旧名', deck: false },
   })
   assert.equal(clobbered.title, '刊头')
@@ -282,6 +282,28 @@ test('page-block index scans a hot batch instead of every page', async () => {
   assert.ok((await index.lastRunAt()) > 0)
 })
 
+test('page-block index keeps non-page editor bodies', async () => {
+  const ctx = new Context()
+  await ctx.plugin(tools)
+  const root = await mkdtemp(join(tmpdir(), 'page-block-tasks-'))
+  await ctx.plugin(fsPlugin, { root })
+  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets/page'))
+  const index = new PageBlocksIndex(store, { hotWindowMs: 60_000, hotLimit: 8, warmLimit: 8 })
+  const db = await store.sqlite()
+  writeEditorContent(
+    db,
+    '/tasks',
+    't1',
+    ':::pageBlock {kind=html plugin=page-html-blocks id=taskblk1}\n<div>task</div>\n:::\n',
+  )
+  await index.sync()
+  const listed = await index.list()
+  assert.equal(listed.some((row) => row.id === '/tasks::t1::taskblk1'), true)
+  await store.create({ title: 'page', notes: 'no blocks\n' })
+  await index.sync()
+  assert.equal((await index.list()).some((row) => row.id === '/tasks::t1::taskblk1'), true)
+})
+
 
 test('pages sqlite keeps notes as the body, not markdown files', async () => {
   const ctx = new Context()
@@ -319,7 +341,7 @@ test('pages sqlite keeps notes as the body, not markdown files', async () => {
   assert.equal(loaded?.notes, '只在 sqlite 里的正文\n')
   const sqlite = await store.sqlite()
   const cols = (sqlite.prepare('PRAGMA table_info(pages)').all() as Array<{ name: string }>).map((col) => col.name)
-  assert.equal(cols.includes('notes'), true)
+  assert.equal(cols.includes('notes'), false)
   assert.equal(cols.includes('tags_json'), false)
   assert.equal(cols.includes('facet_json'), false)
   assert.equal(existsSync(join(root, PAGE_ROOT, 'legacy.md')), false)

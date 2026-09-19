@@ -5,7 +5,7 @@ export type TableSpec = { columns: string[]; indexes: string[] }
 /** Current biu.sqlite shape including editor_content. Stores must not CREATE TABLE themselves. */
 export const BIU_TABLES: Record<string, TableSpec> = {
   pages: {
-    columns: ['id', 'title', 'notes', 'parent_id', 'depends_on_json', 'emoji', 'created_at', 'updated_at'],
+    columns: ['id', 'title', 'parent_id', 'depends_on_json', 'emoji', 'created_at', 'updated_at'],
     indexes: [],
   },
   tasks: {
@@ -24,7 +24,6 @@ export const BIU_TABLES: Record<string, TableSpec> = {
       'creator_json',
       'assignee_json',
       'assigned_at',
-      'description',
       'reports_json',
       'start_at',
       'project',
@@ -42,7 +41,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     indexes: ['tasks_status_sort'],
   },
   facets: {
-    columns: ['id', 'label', 'fields_json', 'notes', 'created_at', 'updated_at'],
+    columns: ['id', 'label', 'fields_json', 'created_at', 'updated_at'],
     indexes: ['facets_label'],
   },
   facet_stamps: {
@@ -107,6 +106,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
   page_block_index: {
     columns: [
+      'collection',
       'page_id',
       'block_id',
       'kind',
@@ -120,7 +120,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     indexes: ['page_block_index_page'],
   },
   page_block_cover: {
-    columns: ['page_id', 'page_updated_at'],
+    columns: ['collection', 'page_id', 'page_updated_at'],
     indexes: [],
   },
   page_block_index_meta: {
@@ -129,7 +129,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 11
+export const LATEST_BIU_SCHEMA = 13
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -315,8 +315,100 @@ CREATE INDEX IF NOT EXISTS editor_content_record ON editor_content(collection, r
 
 export const CREATE_LATEST_SQL = `${CREATE_CORE_SQL}\n${CREATE_EDITOR_SQL}`
 
+function hasTable(db: DatabaseSync, name: string) {
+  return tableNames(db).includes(name)
+}
+
+export function dropSqliteColumn(db: DatabaseSync, table: string, name: string) {
+  if (!hasTable(db, table)) return
+  if (!tableColumnNames(db, table).includes(name)) return
+  db.exec(`ALTER TABLE ${table} DROP COLUMN ${name}`)
+}
+
+/** Recreate page-block tables with collection in the primary key. Idempotent. */
+export function rebuildPageBlockCollectionKeys(db: DatabaseSync) {
+  if (!hasTable(db, 'page_block_index')) {
+    db.exec(`
+      CREATE TABLE page_block_index (
+        collection TEXT NOT NULL,
+        page_id TEXT NOT NULL,
+        block_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        plugin TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL,
+        page_title TEXT NOT NULL DEFAULT '',
+        data_json TEXT NOT NULL,
+        page_created_at INTEGER NOT NULL DEFAULT 0,
+        page_updated_at INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (collection, page_id, block_id)
+      );
+      CREATE INDEX IF NOT EXISTS page_block_index_page ON page_block_index(collection, page_id);
+    `)
+  } else if (!tableColumnNames(db, 'page_block_index').includes('collection')) {
+    db.exec('DROP INDEX IF EXISTS page_block_index_page')
+    db.exec(`
+      CREATE TABLE page_block_index_new (
+        collection TEXT NOT NULL,
+        page_id TEXT NOT NULL,
+        block_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        plugin TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL,
+        page_title TEXT NOT NULL DEFAULT '',
+        data_json TEXT NOT NULL,
+        page_created_at INTEGER NOT NULL DEFAULT 0,
+        page_updated_at INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (collection, page_id, block_id)
+      );
+      INSERT INTO page_block_index_new (
+        collection, page_id, block_id, kind, plugin, title, page_title, data_json, page_created_at, page_updated_at
+      )
+      SELECT '/pages', page_id, block_id, kind, plugin, title, page_title, data_json, page_created_at, page_updated_at
+      FROM page_block_index;
+      DROP TABLE page_block_index;
+      ALTER TABLE page_block_index_new RENAME TO page_block_index;
+      CREATE INDEX IF NOT EXISTS page_block_index_page ON page_block_index(collection, page_id);
+    `)
+  }
+  if (!hasTable(db, 'page_block_cover')) {
+    db.exec(`
+      CREATE TABLE page_block_cover (
+        collection TEXT NOT NULL,
+        page_id TEXT NOT NULL,
+        page_updated_at INTEGER NOT NULL,
+        PRIMARY KEY (collection, page_id)
+      );
+    `)
+  } else if (!tableColumnNames(db, 'page_block_cover').includes('collection')) {
+    db.exec(`
+      CREATE TABLE page_block_cover_new (
+        collection TEXT NOT NULL,
+        page_id TEXT NOT NULL,
+        page_updated_at INTEGER NOT NULL,
+        PRIMARY KEY (collection, page_id)
+      );
+      INSERT INTO page_block_cover_new (collection, page_id, page_updated_at)
+      SELECT '/pages', page_id, page_updated_at FROM page_block_cover;
+      DROP TABLE page_block_cover;
+      ALTER TABLE page_block_cover_new RENAME TO page_block_cover;
+    `)
+  }
+}
+
+export function dropLegacyEditorColumns(db: DatabaseSync) {
+  dropSqliteColumn(db, 'pages', 'notes')
+  dropSqliteColumn(db, 'tasks', 'description')
+  dropSqliteColumn(db, 'facets', 'notes')
+}
+
+export function applyLatestSchemaPatches(db: DatabaseSync) {
+  rebuildPageBlockCollectionKeys(db)
+  dropLegacyEditorColumns(db)
+}
+
 export function createLatestSchema(db: DatabaseSync) {
   db.exec(CREATE_LATEST_SQL)
+  applyLatestSchemaPatches(db)
 }
 
 export function tableNames(db: DatabaseSync) {
@@ -341,7 +433,7 @@ export function indexNames(db: DatabaseSync) {
 
 /** Shared tables used by assets. Prefer migrateBiu(); kept for adopt paths that only need refs. */
 export function ensureBiuAssetSchema(db: DatabaseSync) {
-  createLatestSchema(db)
+  db.exec(CREATE_LATEST_SQL)
   try {
     const cols = tableColumnNames(db, 'attachments')
     if (!cols.includes('storage')) {

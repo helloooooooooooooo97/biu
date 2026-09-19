@@ -28,8 +28,8 @@ export function isPageBlockId(raw: unknown) {
   return typeof raw === 'string' && /^[a-z0-9]{6,32}$/i.test(raw.trim())
 }
 
-export function pageBlockRecordId(pageId: string, blockId: string) {
-  return `${pageId}::${blockId}`
+export function pageBlockRecordId(collection: string, pageId: string, blockId: string) {
+  return `${collection}::${pageId}::${blockId}`
 }
 
 /** 未手写 title 时：页面名 + 组件类型名。块 id 有单独一列，不拼进标题。 */
@@ -41,13 +41,20 @@ export function defaultPageBlockTitle(pageName: string, kindName: string) {
 }
 
 export function parsePageBlockRecordId(id: string) {
-  const raw = String(id ?? '')
-  const at = raw.indexOf('::')
-  if (at <= 0) return null
-  const pageId = raw.slice(0, at).trim()
-  const blockId = raw.slice(at + 2).trim()
-  if (!pageId || !blockId) return null
-  return { pageId, blockId }
+  const raw = String(id ?? '').trim()
+  if (!raw) return null
+  const parts = raw.split('::')
+  if (parts.length === 3) {
+    const [collection, pageId, blockId] = parts.map((part) => part.trim())
+    if (!collection || !pageId || !blockId) return null
+    return { collection, pageId, blockId }
+  }
+  if (parts.length === 2) {
+    const [pageId, blockId] = parts.map((part) => part.trim())
+    if (!pageId || !blockId) return null
+    return { collection: '/pages', pageId, blockId }
+  }
+  return null
 }
 
 export function listPageBlockFences(markdown: string): PageBlockFence[] {

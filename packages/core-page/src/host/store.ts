@@ -205,9 +205,9 @@ export class PagesStore {
       if (!ID_RE.test(id)) continue
       try {
         const row = rowFromFile(id, await this.fs.read(pageRel(id)))
-        const hit = this.db.prepare('SELECT notes FROM pages WHERE id = ?').get(id) as { notes?: string } | undefined
+        const hit = this.db.prepare('SELECT id FROM pages WHERE id = ?').get(id) as { id?: string } | undefined
         if (!hit) this.upsert(row)
-        else if (!String(hit.notes ?? '').trim() && row.notes) this.upsert(row)
+        else if (!readEditorContent(this.db, '/pages', id).trim() && row.notes) this.upsert(row)
         await unlink(this.fs.resolve(pageRel(id)))
       } catch {
         /* skip unreadable */
@@ -219,14 +219,14 @@ export class PagesStore {
     if (!this.db) return
     this.db.prepare(`
       INSERT INTO pages (
-        id, title, notes, parent_id,
+        id, title, parent_id,
         depends_on_json, emoji, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
-        title=excluded.title, notes=excluded.notes,
+        title=excluded.title,
         parent_id=excluded.parent_id, depends_on_json=excluded.depends_on_json, emoji=excluded.emoji,
         updated_at=excluded.updated_at
-    `).run(...sqlValues(row))
+    `).run(row.id, row.title, row.parentId, JSON.stringify(row.dependsOn), row.emoji, row.createdAt, row.updatedAt)
     writeEditorContent(this.db, '/pages', row.id, row.notes, { transaction: false })
   }
 
@@ -255,13 +255,13 @@ export class PagesStore {
     const db = await this.openDb()
     await this.migrateMarkdown()
     const hit = db.prepare(`
-      SELECT id, title, notes, parent_id,
+      SELECT id, title, parent_id,
         depends_on_json, emoji, created_at, updated_at
       FROM pages WHERE id = ?
     `).get(id) as SqlPage | undefined
     if (!hit) return null
     const row = rowFromSql(hit)
-    row.notes = readEditorContent(db, '/pages', id) || row.notes
+    row.notes = readEditorContent(db, '/pages', id)
     return row
   }
 
@@ -376,19 +376,6 @@ function parseJson<T>(raw: string, fallback: T): T {
   } catch {
     return fallback
   }
-}
-
-function sqlValues(row: PageRow) {
-  return [
-    row.id,
-    row.title,
-    row.notes ?? '',
-    row.parentId,
-    JSON.stringify(row.dependsOn),
-    row.emoji,
-    row.createdAt,
-    row.updatedAt,
-  ]
 }
 
 function rowFromSql(row: SqlPage): PageRow {

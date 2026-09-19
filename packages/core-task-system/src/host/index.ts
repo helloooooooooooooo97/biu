@@ -1073,10 +1073,10 @@ export class TasksService extends Service {
     }
     if (filter.q?.trim()) {
       clauses.push(
-        '(title LIKE ? OR description LIKE ? OR IFNULL(c.body, \'\') LIKE ? OR notes LIKE ? OR assignee LIKE ? OR creator_json LIKE ? OR assignee_json LIKE ?)',
+        '(title LIKE ? OR IFNULL(c.body, \'\') LIKE ? OR notes LIKE ? OR assignee LIKE ? OR creator_json LIKE ? OR assignee_json LIKE ?)',
       )
       const like = `%${filter.q.trim()}%`
-      params.push(like, like, like, like, like, like, like)
+      params.push(like, like, like, like, like, like)
     }
     if (filter.creatorSessionId?.trim()) {
       clauses.push('creator_json LIKE ?')
@@ -1104,7 +1104,7 @@ export class TasksService extends Service {
 
   private withEditorDescription(row: TaskRow): TaskRow {
     const body = readEditorContent(this.db, '/tasks', row.id)
-    return body ? { ...row, description: body } : row
+    return { ...row, description: body }
   }
 
   create(input: TaskCreateInput & { creator: TaskActor; assignee?: TaskActor | null; assignedAt?: number | null }): TaskRow {
@@ -1154,11 +1154,11 @@ export class TasksService extends Service {
     this.db
       .prepare(
         `INSERT INTO tasks (
-          id, title, status, priority, difficulty, assignee, due_at, description, notes, sort,
+          id, title, status, priority, difficulty, assignee, due_at, notes, sort,
           created_at, updated_at, creator_json, assignee_json, assigned_at,
           project, tags_json, parent_id, depends_on, depth, trigger_json,
           report_interval_sec, facet_json, emoji
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -1168,7 +1168,6 @@ export class TasksService extends Service {
         difficulty,
         assigneeLabel,
         dueAt,
-        description,
         notes,
         sort,
         ts,
@@ -1290,7 +1289,7 @@ export class TasksService extends Service {
     this.db
       .prepare(
         `UPDATE tasks SET
-          title = ?, status = ?, priority = ?, difficulty = ?, assignee = ?, due_at = ?, description = ?, notes = ?, sort = ?,
+          title = ?, status = ?, priority = ?, difficulty = ?, assignee = ?, due_at = ?, notes = ?, sort = ?,
           updated_at = ?, creator_json = ?, assignee_json = ?, assigned_at = ?, project = ?, tags_json = ?,
           parent_id = ?, depends_on = ?, depth = ?, trigger_json = ?,
           report_interval_sec = ?, last_report_prompt_at = ?, report_prompt_count = ?, facet_json = ?, emoji = ?
@@ -1303,7 +1302,6 @@ export class TasksService extends Service {
         difficulty,
         assignee?.name ?? '',
         dueAt,
-        description,
         notes,
         sort,
         ts,

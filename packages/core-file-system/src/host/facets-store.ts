@@ -70,7 +70,7 @@ function packFromRow(row: TagRow): CollectionSchemaPack | null {
   return normalizeSchemaPack({ id: row.id, label: row.label, fields })
 }
 
-function entryFromRow(row: TagRow): FacetEntry | null {
+function entryFromRow(db: DatabaseSync, row: TagRow): FacetEntry | null {
   const pack = packFromRow(row)
   if (!pack) return null
   const updated = Number(row.updated_at) || 0
@@ -79,13 +79,13 @@ function entryFromRow(row: TagRow): FacetEntry | null {
   const updatedAt = updated > 0 ? updated : createdAt
   return {
     pack,
-    notes: typeof row.notes === 'string' ? row.notes : '',
+    notes: readEditorContent(db, '/facets', row.id),
     createdAt,
     updatedAt,
   }
 }
 
-const FACET_ROW_SQL = 'id, label, fields_json, notes, created_at, updated_at'
+const FACET_ROW_SQL = 'id, label, fields_json, created_at, updated_at'
 
 /** 分面目录由 File System 用 SQLite 管：目录 + 跨表倒排，查询不扫全表。 */
 export class FacetStore {
@@ -94,18 +94,10 @@ export class FacetStore {
   open(path = ':memory:') {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
     this.db = openAndMigrateBiu(path)
-    this.ensureNotesColumn()
     this.ensureCreatedAtColumn()
     this.ensurePersonMetaColumns()
     this.ensureBannerTable()
     return this
-  }
-
-  private ensureNotesColumn() {
-    const db = this.db!
-    const cols = db.prepare('PRAGMA table_info(facets)').all() as Array<{ name: string }>
-    if (cols.some((col) => col.name === 'notes')) return
-    db.exec(`ALTER TABLE facets ADD COLUMN notes TEXT NOT NULL DEFAULT ''`)
   }
 
   private ensureCreatedAtColumn() {
@@ -152,24 +144,21 @@ export class FacetStore {
   notes(id: string) {
     const want = String(id ?? '').trim()
     if (!want) return ''
-    const row = this.ensure().prepare('SELECT notes FROM facets WHERE id = ?').get(want) as { notes?: string } | undefined
-    const legacy = typeof row?.notes === 'string' ? row.notes : ''
-    return readEditorContent(this.ensure(), '/facets', want) || legacy
+    return readEditorContent(this.ensure(), '/facets', want)
   }
 
   private savePack(pack: CollectionSchemaPack, notes: string) {
     const now = Date.now()
     const db = this.ensure()
     db.prepare(
-        `INSERT INTO facets (id, label, fields_json, created_at, updated_at, notes)
-         VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO facets (id, label, fields_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            label = excluded.label,
            fields_json = excluded.fields_json,
-           updated_at = excluded.updated_at,
-           notes = excluded.notes`,
+           updated_at = excluded.updated_at`,
       )
-      .run(pack.id, pack.label, JSON.stringify(pack.fields), now, now, notes)
+      .run(pack.id, pack.label, JSON.stringify(pack.fields), now, now)
     writeEditorContent(db, '/facets', pack.id, notes, { transaction: false })
   }
 
@@ -196,7 +185,7 @@ export class FacetStore {
             .all(q, q) as TagRow[])
         : (db.prepare(`SELECT ${FACET_ROW_SQL} FROM facets ORDER BY label`).all() as TagRow[])
     )
-    return rows.map((row) => entryFromRow(row)).filter((item): item is FacetEntry => Boolean(item))
+    return rows.map((row) => entryFromRow(db, row)).filter((item): item is FacetEntry => Boolean(item))
   }
 
   get(idOrLabel: string): CollectionSchemaPack | null {
@@ -209,7 +198,7 @@ export class FacetStore {
     const row = this.ensure()
       .prepare(`SELECT ${FACET_ROW_SQL} FROM facets WHERE id = ? OR label = ? LIMIT 1`)
       .get(want, want) as TagRow | undefined
-    return row ? entryFromRow(row) : null
+    return row ? entryFromRow(this.ensure(), row) : null
   }
 
   replace(tags: unknown[]): CollectionSchemaPack[] {

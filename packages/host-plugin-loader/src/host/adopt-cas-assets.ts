@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { contentAddressHash, hashedAssetName, hashedAssetRel, isHashedAssetName } from './asset-cas.ts'
-import { ensureBiuAssetSchema } from './biu-schema.ts'
+import { ensureBiuAssetSchema, tableColumnNames } from './biu-schema.ts'
 import { openSqlite } from './sqlite-open.ts'
 import { rebuildContentRefs } from './editor-content.ts'
 
@@ -171,19 +171,23 @@ function parseIndexAssets(raw: string): string[] {
 function rebuildBlockRefsFromIndex(db: import('node:sqlite').DatabaseSync) {
   ensureRefTables(db)
   if (!hasTable(db, 'page_block_index')) return
-  db.prepare(`DELETE FROM block_refs WHERE collection = '/pages'`).run()
+  db.prepare('DELETE FROM block_refs').run()
   const insert = db.prepare(
     'INSERT OR IGNORE INTO block_refs (collection, record_id, block_id, name, source) VALUES (?, ?, ?, ?, ?)',
   )
-  const rows = db.prepare('SELECT page_id, block_id, data_json FROM page_block_index').all() as Array<{
-    page_id: string
-    block_id: string
-    data_json: string
-  }>
+  const hasCollection = tableColumnNames(db, 'page_block_index').includes('collection')
+  const rows = db
+    .prepare(
+      hasCollection
+        ? 'SELECT collection, page_id, block_id, data_json FROM page_block_index'
+        : 'SELECT page_id, block_id, data_json FROM page_block_index',
+    )
+    .all() as Array<{ collection?: string; page_id: string; block_id: string; data_json: string }>
   const core = new Set<string>()
   for (const row of rows) {
+    const collection = row.collection || '/pages'
     for (const name of parseIndexAssets(row.data_json)) {
-      insert.run('/pages', row.page_id, row.block_id, name, `block:${row.block_id}:core`)
+      insert.run(collection, row.page_id, row.block_id, name, `block:${row.block_id}:core`)
       core.add(name)
     }
   }
@@ -192,11 +196,12 @@ function rebuildBlockRefsFromIndex(db: import('node:sqlite').DatabaseSync) {
 
 export function replacePageBlockRefs(
   db: import('node:sqlite').DatabaseSync,
+  collection: string,
   pageId: string,
   blocks: Array<{ blockId: string; names: Iterable<string> }>,
 ) {
   ensureRefTables(db)
-  db.prepare(`DELETE FROM block_refs WHERE collection = '/pages' AND record_id = ?`).run(pageId)
+  db.prepare(`DELETE FROM block_refs WHERE collection = ? AND record_id = ?`).run(collection, pageId)
   const insert = db.prepare(
     'INSERT INTO block_refs (collection, record_id, block_id, name, source) VALUES (?, ?, ?, ?, ?)',
   )
@@ -205,7 +210,7 @@ export function replacePageBlockRefs(
     for (const raw of block.names) {
       const name = String(raw).replace(/^assets\//, '')
       if (!ASSET_NAME_RE.test(name)) continue
-      insert.run('/pages', pageId, block.blockId, name, `block:${block.blockId}:core`)
+      insert.run(collection, pageId, block.blockId, name, `block:${block.blockId}:core`)
       core.add(name)
     }
   }
@@ -333,7 +338,7 @@ function rewriteSqlite(biuDir: string, map: Map<string, string>) {
           if (next !== (row.body ?? '')) update.run(next, row.collection, row.record_id)
         }
       }
-      if (hasTable(db, 'pages')) {
+      if (hasTable(db, 'pages') && tableColumnNames(db, 'pages').includes('notes')) {
         const rows = db.prepare('SELECT id, notes FROM pages').all() as Array<{ id: string; notes?: string }>
         const update = db.prepare('UPDATE pages SET notes = ? WHERE id = ?')
         for (const row of rows) {

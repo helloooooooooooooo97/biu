@@ -8,7 +8,7 @@ import {
   quoteSqlitePath,
   setSchemaVersion,
 } from './sqlite-open.ts'
-import { BIU_TABLES, CREATE_CORE_SQL, LATEST_BIU_SCHEMA, createLatestSchema, indexNames, tableColumnNames, tableNames } from './biu-schema.ts'
+import { BIU_TABLES, CREATE_CORE_SQL, LATEST_BIU_SCHEMA, createLatestSchema, dropLegacyEditorColumns, indexNames, rebuildPageBlockCollectionKeys, tableColumnNames, tableNames } from './biu-schema.ts'
 import { copyLegacyBodies, rebuildContentRefs } from './editor-content.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
@@ -139,6 +139,31 @@ function pluginReadmes(ctx: MigrateCtx): Array<{ id: string; body: string }> {
   return out
 }
 
+function rewritePageBlockMentions(db: DatabaseSync) {
+  if (!hasTable(db, 'editor_content') || !hasTable(db, 'page_block_index')) return
+  if (!tableColumnNames(db, 'page_block_index').includes('collection')) return
+  const rows = db.prepare('SELECT DISTINCT collection, page_id, block_id FROM page_block_index').all() as Array<{
+    collection: string
+    page_id: string
+    block_id: string
+  }>
+  const bodies = db.prepare('SELECT collection, record_id, body FROM editor_content').all() as Array<{
+    collection: string
+    record_id: string
+    body?: string
+  }>
+  const update = db.prepare('UPDATE editor_content SET body = ? WHERE collection = ? AND record_id = ?')
+  for (const row of bodies) {
+    let next = String(row.body ?? '')
+    for (const block of rows) {
+      const from = `/page-blocks/${block.page_id}::${block.block_id}`
+      const to = `/page-blocks/${block.collection}::${block.page_id}::${block.block_id}`
+      if (from !== to) next = next.split(from).join(to)
+    }
+    if (next !== (row.body ?? '')) update.run(next, row.collection, row.record_id)
+  }
+}
+
 export const BIU_MIGRATIONS: Migration[] = [
   { version: 1, module: 'core', name: 'baseline', up: (db) => baseline(db) },
   { version: 2, module: 'tasks', name: 'drop.task_views', up: (db) => db.exec('DROP TABLE IF EXISTS task_views') },
@@ -169,6 +194,11 @@ export const BIU_MIGRATIONS: Migration[] = [
   { version: 9, module: 'host-skills', name: 'copy.skills.files', up: (db, ctx) => upsertBodies(db, '/skills', skillBodies(ctx)) },
   { version: 10, module: 'core-plugin-system', name: 'copy.plugins.readme', up: (db, ctx) => upsertBodies(db, '/plugins', pluginReadmes(ctx)) },
   { version: 11, module: 'core-file-system', name: 'rebuild.content_refs', up: (db) => rebuildContentRefs(db) },
+  { version: 12, module: 'core-page', name: 'page.block.collection', up: (db) => {
+    rebuildPageBlockCollectionKeys(db)
+    rewritePageBlockMentions(db)
+  } },
+  { version: 13, module: 'core', name: 'drop.legacy.editor.columns', up: (db) => dropLegacyEditorColumns(db) },
 ]
 
 function snapshotBefore(db: DatabaseSync, ctx: MigrateCtx, nextVersion: number) {

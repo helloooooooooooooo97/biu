@@ -19,6 +19,8 @@ export { ensureBiuAssetSchema, LATEST_BIU_SCHEMA, createLatestSchema } from './b
 export { migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
 export { writeEditorContent, readEditorContent, rebuildContentRefs } from './editor-content.ts'
 export { liveAssetNames, gcCasAssets, ASSET_GC_GRACE_MS, workspaceFromSqlite } from './gc-assets.ts'
+export { copyReferencedEditorAssets } from './pack-editor-assets.ts'
+export { collectAssetNamesFromText } from './collect-asset-names.ts'
 import { adoptTwoSqlite } from './sqlite-two.ts'
 import { adoptCasAssets } from './adopt-cas-assets.ts'
 import { openAndMigrateBiu } from './biu-migrate.ts'
