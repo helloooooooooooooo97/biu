@@ -15,6 +15,12 @@ test('hydrating page-blocks prefers the route view over local 全部', () => {
   )
 })
 
+test('data sidebar hides the share section when nothing is shared', () => {
+  const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
+  assert.match(sidebar, /\{shareCount \? \(/)
+  assert.doesNotMatch(sidebar, /还没有分享/)
+})
+
 test('data sidebar brand sits left with a collapse control on the right', () => {
   const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
   assert.match(sidebar, /app-side-bar-head-brand/)
