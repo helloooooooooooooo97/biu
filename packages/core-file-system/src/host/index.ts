@@ -2285,6 +2285,26 @@ export function apply(ctx: Context) {
       route.send(400, { error: String(error) })
     }
   }
+  const putHashFile: Parameters<typeof ctx.http.route>[2] = async (route) => {
+    try {
+      const name = route.params.name ?? ''
+      const bytes = await route.bytes()
+      const written = await assets.write(name, bytes)
+      db.facets.putAttachment({
+        name: written.name,
+        etag: written.etag,
+        mime: mimeOfAsset(written.name),
+        bytes: written.bytes,
+        kind: 'asset',
+        storage: written.storage,
+      })
+      ctx.http.broadcast?.(DATABASE_CHANNEL, { ts: Date.now(), asset: { name: written.name, etag: written.etag } })
+      route.send(200, { ok: true, ...written })
+    } catch (error) {
+      route.send(400, { error: String(error) })
+    }
+  }
+  ctx.http.route('PUT', '/api/db/file/hash/:name', putHashFile)
   ctx.http.route('GET', '/api/db/file/:name', serveDbFile)
   ctx.http.route('PUT', '/api/db/file/:name', putDbFile)
   ctx.http.route('GET', '/api/doc/file/:name', serveDbFile)
