@@ -314,17 +314,7 @@ export class PluginStoreService extends Service {
     else if (existsSync(join(dest, 'web.js'))) await rm(join(dest, 'web.js'))
     copyPluginRuntimeDependencies(sandbox, dest)
     const workspace = dirname(this.sandboxDir)
-    const sqlitePath = join(workspace, DATA_DIR_NAME, 'biu.sqlite')
-    mkdirSync(dirname(sqlitePath), { recursive: true })
-    const db = openAndMigrateBiu(sqlitePath)
-    let readme = ''
-    try {
-      readme = readEditorContent(db, '/plugins', id)
-    } finally {
-      db.close()
-    }
-    const sandboxReadme = join(sandbox, README_FILE)
-    if (!readme.trim() && existsSync(sandboxReadme)) readme = await readFile(sandboxReadme, 'utf8')
+    let readme = await this.readReadme(id)
     if (!readme.trim()) readme = `# ${manifest.name}\n\n${manifest.blurb.trim()}\n`
     const packed = copyReferencedEditorAssets({
       body: readme,
@@ -463,18 +453,11 @@ export class PluginStoreService extends Service {
     await writeFile(path, body)
   }
 
-  async readReadme(id: string) {
-    const workspace = dirname(this.sandboxDir)
-    const sqlitePath = join(workspace, DATA_DIR_NAME, 'biu.sqlite')
-    if (existsSync(sqlitePath)) {
-      const db = openAndMigrateBiu(sqlitePath)
-      try {
-        const body = readEditorContent(db, '/plugins', id)
-        if (body) return body
-      } finally {
-        db.close()
-      }
-    }
+  private warnReadme(error: unknown) {
+    this.ctx.logger('core-plugin-system').warn(error)
+  }
+
+  private async readDiskReadme(id: string) {
     const dir = this.readmeDir(id)
     if (!dir) return ''
     const path = join(dir, README_FILE)
@@ -482,9 +465,34 @@ export class PluginStoreService extends Service {
     return readFile(path, 'utf8')
   }
 
+  async readReadme(id: string) {
+    const workspace = dirname(this.sandboxDir)
+    const sqlitePath = join(workspace, DATA_DIR_NAME, 'biu.sqlite')
+    if (existsSync(sqlitePath)) {
+      try {
+        const db = openAndMigrateBiu(sqlitePath)
+        try {
+          const body = readEditorContent(db, '/plugins', id)
+          if (body) return body
+          const text = await this.readDiskReadme(id)
+          if (!text) return ''
+          try {
+            writeEditorContent(db, '/plugins', id, text)
+          } catch (error) {
+            this.warnReadme(error)
+          }
+          return text
+        } finally {
+          db.close()
+        }
+      } catch (error) {
+        this.warnReadme(error)
+      }
+    }
+    return this.readDiskReadme(id)
+  }
+
   async writeReadme(id: string, markdown: string) {
-    const dir = this.readmeDir(id)
-    if (!dir) throw new Error(`unknown plugin: ${id}`)
     const text = String(markdown ?? '')
     const workspace = dirname(this.sandboxDir)
     mkdirSync(join(workspace, DATA_DIR_NAME), { recursive: true })
@@ -494,10 +502,13 @@ export class PluginStoreService extends Service {
     } finally {
       db.close()
     }
-    try {
-      await writeFile(join(dir, README_FILE), text)
-    } catch (error) {
-      this.ctx.logger('core-plugin-system').warn(error)
+    for (const dir of [this.sandboxPath(id), this.pluginPath(id)]) {
+      if (!existsSync(join(dir, 'manifest.json'))) continue
+      try {
+        await writeFile(join(dir, README_FILE), text)
+      } catch (error) {
+        this.warnReadme(error)
+      }
     }
     this.invalidateList()
   }
