@@ -267,6 +267,7 @@ export function applyContextBudget(messages: LlmMessage[], budgetTokens: number,
 
 export class SessionsService extends Service {
   private cache = new Map<string, SessionRecord>()
+  private defaultSessionPromise: Promise<string> | null = null
 
   constructor(ctx: Context) {
     super(ctx, 'sessions')
@@ -327,6 +328,23 @@ export class SessionsService extends Service {
     }
     await this.persist(record)
     return record
+  }
+
+  /** 会话列表为空时补一条；并发刷新共用同一次创建，避免首屏产生多个默认会话。 */
+  async ensureDefaultSession() {
+    if (!this.defaultSessionPromise) {
+      this.defaultSessionPromise = (async () => {
+        const existing = await this.ctx.sessionStore.list()
+        if (existing[0]) return existing[0]
+        return (await this.create()).id
+      })()
+    }
+    const pending = this.defaultSessionPromise
+    try {
+      return await pending
+    } finally {
+      if (this.defaultSessionPromise === pending) this.defaultSessionPromise = null
+    }
   }
 
   /** 同步读缓存（Agent 工具解析会话项目根时用）。 */
