@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { configureSqlite, openSqlite, quoteSqlitePath } from '@biu/host-plugin-loader/data-dir'
+import { configureSqlite, openAndMigrateBiu, quoteSqlitePath } from '@biu/host-plugin-loader/data-dir'
 import {
   SESSION_FORMAT_VERSION,
   type SessionEvent,
@@ -73,7 +73,7 @@ export class SqliteSessionStore implements SessionStore {
 
   /** 懒打开，便于 apply() 里先 mkdir 再 init。 */
   open() {
-    this.sessions = openSqlite(this.path)
+    this.sessions = openAndMigrateBiu(this.path)
     this.sessions.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,

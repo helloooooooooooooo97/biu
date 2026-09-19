@@ -148,6 +148,7 @@ export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
     schema: {
       labelField: 'title',
       contentField: 'events',
+      contentBackend: 'computed',
       columns: ['title', 'pinned', 'tags', 'eventCount', 'project', 'updatedAt'],
       fields: {
         ...REQUIRED_RECORD_FIELDS,

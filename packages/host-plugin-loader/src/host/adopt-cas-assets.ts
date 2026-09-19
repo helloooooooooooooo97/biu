@@ -3,6 +3,7 @@ import { basename, dirname, join } from 'node:path'
 import { contentAddressHash, hashedAssetName, hashedAssetRel, isHashedAssetName } from './asset-cas.ts'
 import { ensureBiuAssetSchema } from './biu-schema.ts'
 import { openSqlite } from './sqlite-open.ts'
+import { rebuildContentRefs } from './editor-content.ts'
 
 const HEX2 = /^[0-9a-f]{2}$/i
 const ASSET_NAME_RE = /^[\p{L}\p{N}._-]+$/u
@@ -256,8 +257,7 @@ function ledgerFromDisk(biuDir: string) {
 function remapName(db: import('node:sqlite').DatabaseSync, from: string, to: string) {
   if (from === to) return
   const hit = db.prepare('SELECT name FROM attachments WHERE name = ?').get(to) as { name?: string } | undefined
-  if (hit) db.prepare('DELETE FROM attachments WHERE name = ?').run(from)
-  else db.prepare('UPDATE attachments SET name = ?, etag = ? WHERE name = ?').run(to, to, from)
+  if (!hit) db.prepare('UPDATE attachments SET name = ?, etag = ? WHERE name = ?').run(to, to, from)
 
   const content = db.prepare('SELECT collection, record_id, source FROM content_refs WHERE name = ?').all(from) as Array<{
     collection: string
@@ -299,57 +299,8 @@ function remapName(db: import('node:sqlite').DatabaseSync, from: string, to: str
   }
 }
 
-function collectNames(text: string) {
-  const names = new Set<string>()
-  const re = /(?:(?:\.page\/)?assets\/|\/api\/(?:page|db|doc)\/file\/)([\p{L}\p{N}._-]+)/gu
-  for (const match of text.matchAll(re)) {
-    const name = match[1] ?? ''
-    if (name && ASSET_NAME_RE.test(name)) names.add(name)
-  }
-  return names
-}
-
 function rescanContentRefs(db: import('node:sqlite').DatabaseSync) {
-  if (!hasTable(db, 'content_refs')) return
-  const grouped = new Map<string, { content: Set<string>; banner: Set<string> }>()
-  const bucket = (collection: string, recordId: string) => {
-    const key = `${collection}\0${recordId}`
-    let hit = grouped.get(key)
-    if (!hit) {
-      hit = { content: new Set(), banner: new Set() }
-      grouped.set(key, hit)
-    }
-    return hit
-  }
-  if (hasTable(db, 'pages')) {
-    const rows = db.prepare('SELECT id, notes FROM pages').all() as Array<{ id: string; notes?: string }>
-    for (const row of rows) {
-      const names = collectNames(row.notes ?? '')
-      const bucketed = bucket('/pages', row.id)
-      for (const name of names) bucketed.content.add(name)
-    }
-  }
-  if (hasTable(db, 'record_banners')) {
-    const rows = db.prepare('SELECT collection, record_id, html FROM record_banners').all() as Array<{
-      collection: string
-      record_id: string
-      html?: string
-    }>
-    for (const row of rows) {
-      const names = collectNames(row.html ?? '')
-      const bucketed = bucket(row.collection, row.record_id)
-      for (const name of names) bucketed.banner.add(name)
-    }
-  }
-  const insert = db.prepare('INSERT OR IGNORE INTO content_refs (collection, record_id, name, source) VALUES (?, ?, ?, ?)')
-  for (const [key, sets] of grouped) {
-    const at = key.indexOf('\0')
-    const collection = key.slice(0, at)
-    const recordId = key.slice(at + 1)
-    db.prepare('DELETE FROM content_refs WHERE collection = ? AND record_id = ?').run(collection, recordId)
-    for (const name of sets.content) insert.run(collection, recordId, name, 'content')
-    for (const name of sets.banner) insert.run(collection, recordId, name, 'banner')
-  }
+  rebuildContentRefs(db)
 }
 
 function rewriteSqlite(biuDir: string, map: Map<string, string>) {
@@ -370,6 +321,18 @@ function rewriteSqlite(biuDir: string, map: Map<string, string>) {
     db.exec('BEGIN IMMEDIATE')
     try {
       for (const [from, to] of map) remapName(db, from, to)
+      if (hasTable(db, 'editor_content')) {
+        const rows = db.prepare('SELECT collection, record_id, body FROM editor_content').all() as Array<{
+          collection: string
+          record_id: string
+          body?: string
+        }>
+        const update = db.prepare('UPDATE editor_content SET body = ? WHERE collection = ? AND record_id = ?')
+        for (const row of rows) {
+          const next = rewriteAssetText(row.body ?? '', map)
+          if (next !== (row.body ?? '')) update.run(next, row.collection, row.record_id)
+        }
+      }
       if (hasTable(db, 'pages')) {
         const rows = db.prepare('SELECT id, notes FROM pages').all() as Array<{ id: string; notes?: string }>
         const update = db.prepare('UPDATE pages SET notes = ? WHERE id = ?')

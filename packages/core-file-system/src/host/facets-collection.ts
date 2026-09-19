@@ -118,6 +118,7 @@ export function facetsCollection(
     schema: {
       labelField: 'title',
       contentField: 'notes',
+      contentBackend: 'editorContent',
       columns: ['title', 'fieldCount', 'stampCount'],
       fields: {
         ...REQUIRED_RECORD_FIELDS,

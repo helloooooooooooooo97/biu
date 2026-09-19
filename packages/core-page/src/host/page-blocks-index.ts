@@ -89,36 +89,7 @@ export class PageBlocksIndex {
   }
 
   private async db() {
-    const sqlite = await this.store.sqlite()
-    sqlite.exec(`
-      CREATE TABLE IF NOT EXISTS page_block_index (
-        page_id TEXT NOT NULL,
-        block_id TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        plugin TEXT NOT NULL DEFAULT '',
-        title TEXT NOT NULL,
-        page_title TEXT NOT NULL DEFAULT '',
-        data_json TEXT NOT NULL,
-        page_created_at INTEGER NOT NULL DEFAULT 0,
-        page_updated_at INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (page_id, block_id)
-      );
-      CREATE INDEX IF NOT EXISTS page_block_index_page ON page_block_index(page_id);
-      CREATE TABLE IF NOT EXISTS page_block_cover (
-        page_id TEXT PRIMARY KEY,
-        page_updated_at INTEGER NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS page_block_index_meta (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-    `)
-    try {
-      sqlite.exec('ALTER TABLE page_block_index ADD COLUMN page_title TEXT NOT NULL DEFAULT ""')
-    } catch {
-      /* 列已在 */
-    }
-    return sqlite
+    return this.store.sqlite()
   }
 
   lastRunAt() {

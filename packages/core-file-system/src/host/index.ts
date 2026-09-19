@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import type { IncomingMessage } from 'node:http'
 import { isAbsolute, resolve } from 'node:path'
-import { dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
+import { dataHome, dataPath, readEditorContent, writeEditorContent } from '@biu/host-plugin-loader/data-dir'
 import { asPublicProfile, readWorkspaceProfile, writeWorkspaceProfile } from './workspace-profile.ts'
 import { Service, type Context } from 'cordis'
 import {
@@ -162,6 +162,10 @@ function collectionCaps(spec: CollectionSpec) {
     spec.actions?.length ? 'action' : null,
     'content',
   ].filter(Boolean)
+}
+
+function isEditorContentSpec(spec: CollectionSpec) {
+  return schemaFor(spec).contentBackend === 'editorContent'
 }
 
 function contentKey(spec: CollectionSpec) {
@@ -1123,11 +1127,14 @@ export class DatabaseService extends Service implements Database {
     if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    const value = isEditorContentSpec(spec)
+      ? readEditorContent(this.facets.ensure(), spec.path, record.id)
+      : (record[field] ?? null)
     return {
       kind: 'content' as const,
       path: `${spec.path}/${record.id}`,
       field,
-      value: record[field] ?? null,
+      value,
     }
   }
 
@@ -1140,6 +1147,9 @@ export class DatabaseService extends Service implements Database {
     const schema = schemaFor(spec)
     const field = schema.contentField ?? 'content'
     if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
+    if (isEditorContentSpec(spec)) {
+      writeEditorContent(this.facets.ensure(), spec.path, parts[1]!, String(value ?? ''))
+    }
     const patch = this.collectionCanUpdate(spec)
       ? pickWritablePatch(schema, { [field]: value })
       : { [field]: value }

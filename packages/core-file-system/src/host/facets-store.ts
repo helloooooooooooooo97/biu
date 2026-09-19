@@ -1,4 +1,4 @@
-import { DATA_DIR_NAME, ensureBiuAssetSchema, openSqlite, upsertAttachmentRow } from '@biu/host-plugin-loader/data-dir'
+import { DATA_DIR_NAME, openAndMigrateBiu, upsertAttachmentRow, writeEditorContent, readEditorContent } from '@biu/host-plugin-loader/data-dir'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import {
@@ -93,46 +93,10 @@ export class FacetStore {
 
   open(path = ':memory:') {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
-    this.db = openSqlite(path)
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS facets (
-        id TEXT PRIMARY KEY,
-        label TEXT NOT NULL,
-        fields_json TEXT NOT NULL DEFAULT '[]',
-        notes TEXT NOT NULL DEFAULT '',
-        created_at INTEGER NOT NULL DEFAULT 0,
-        updated_at INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS facets_label ON facets(label);
-      CREATE TABLE IF NOT EXISTS facet_stamps (
-        facet_id TEXT NOT NULL,
-        collection TEXT NOT NULL,
-        record_id TEXT NOT NULL,
-        title TEXT NOT NULL DEFAULT '',
-        PRIMARY KEY (facet_id, collection, record_id)
-      );
-      CREATE INDEX IF NOT EXISTS facet_stamps_facet ON facet_stamps(facet_id);
-      CREATE INDEX IF NOT EXISTS facet_stamps_record ON facet_stamps(collection, record_id);
-      CREATE TABLE IF NOT EXISTS facet_record_values (
-        collection TEXT NOT NULL,
-        record_id TEXT NOT NULL,
-        facet_json TEXT NOT NULL,
-        PRIMARY KEY (collection, record_id)
-      );
-      CREATE TABLE IF NOT EXISTS record_meta (
-        collection TEXT NOT NULL,
-        record_id TEXT NOT NULL,
-        emoji TEXT,
-        tags_json TEXT,
-        created_by_json TEXT,
-        updated_by_json TEXT,
-        PRIMARY KEY (collection, record_id)
-      );
-    `)
+    this.db = openAndMigrateBiu(path)
     this.ensureNotesColumn()
     this.ensureCreatedAtColumn()
     this.ensurePersonMetaColumns()
-    ensureBiuAssetSchema(this.db)
     this.ensureBannerTable()
     return this
   }
@@ -189,13 +153,14 @@ export class FacetStore {
     const want = String(id ?? '').trim()
     if (!want) return ''
     const row = this.ensure().prepare('SELECT notes FROM facets WHERE id = ?').get(want) as { notes?: string } | undefined
-    return typeof row?.notes === 'string' ? row.notes : ''
+    const legacy = typeof row?.notes === 'string' ? row.notes : ''
+    return readEditorContent(this.ensure(), '/facets', want) || legacy
   }
 
   private savePack(pack: CollectionSchemaPack, notes: string) {
     const now = Date.now()
-    this.ensure()
-      .prepare(
+    const db = this.ensure()
+    db.prepare(
         `INSERT INTO facets (id, label, fields_json, created_at, updated_at, notes)
          VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
@@ -205,9 +170,10 @@ export class FacetStore {
            notes = excluded.notes`,
       )
       .run(pack.id, pack.label, JSON.stringify(pack.fields), now, now, notes)
+    writeEditorContent(db, '/facets', pack.id, notes, { transaction: false })
   }
 
-  private ensure() {
+  ensure() {
     if (!this.db) this.open(':memory:')
     return this.db!
   }

@@ -11,9 +11,11 @@ test('openSqlite sets WAL and busy_timeout', () => {
   const db = openSqlite(join(dir, 'biu.sqlite'))
   const journal = db.prepare('PRAGMA journal_mode').get() as { journal_mode?: string }
   const timeout = db.prepare('PRAGMA busy_timeout').get() as { timeout?: number; busy_timeout?: number }
+  const auto = db.prepare('PRAGMA wal_autocheckpoint').get() as { wal_autocheckpoint?: number }
   db.close()
   assert.equal(String(journal.journal_mode ?? '').toLowerCase(), 'wal')
   assert.equal(Number(timeout.timeout ?? timeout.busy_timeout), SQLITE_BUSY_TIMEOUT_MS)
+  assert.equal(Number(auto.wal_autocheckpoint), 256)
 })
 
 test('ensureBiuAssetSchema creates attachments and banner tables once', () => {

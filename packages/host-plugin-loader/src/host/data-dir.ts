@@ -14,10 +14,14 @@ export {
   parseIfMatch,
 } from './asset-cas.ts'
 export { adoptCasAssets, listCasAssetFiles, listDocAssetFiles, rewriteAssetText, upsertAttachmentRow, replacePageBlockRefs, ensureRefTables } from './adopt-cas-assets.ts'
-export { openSqlite, configureSqlite, quoteSqlitePath, SQLITE_BUSY_TIMEOUT_MS } from './sqlite-open.ts'
-export { ensureBiuAssetSchema } from './biu-schema.ts'
+export { openSqlite, configureSqlite, quoteSqlitePath, SQLITE_BUSY_TIMEOUT_MS, SQLITE_WAL_AUTOCHECKPOINT, getSchemaVersion, setSchemaVersion } from './sqlite-open.ts'
+export { ensureBiuAssetSchema, LATEST_BIU_SCHEMA, createLatestSchema } from './biu-schema.ts'
+export { migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
+export { writeEditorContent, readEditorContent, rebuildContentRefs } from './editor-content.ts'
+export { liveAssetNames, gcCasAssets, ASSET_GC_GRACE_MS, workspaceFromSqlite } from './gc-assets.ts'
 import { adoptTwoSqlite } from './sqlite-two.ts'
 import { adoptCasAssets } from './adopt-cas-assets.ts'
+import { openAndMigrateBiu } from './biu-migrate.ts'
 
 export const DATA_DIR_NAME = '.biu'
 export const LEGACY_DATA_DIR_NAME = '.cordis'
@@ -95,6 +99,13 @@ export function migrateDataDir(parent: string): string {
   migrateLegacyPageDir(parent)
   adoptTwoSqlite(dest)
   adoptCasAssets(dest)
+  try {
+    const db = openAndMigrateBiu(join(dest, 'biu.sqlite'), { dataDir: dest, workspace: parent })
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+    db.close()
+  } catch {
+    /* dummy sqlite from tests */
+  }
   return dest
 }
 

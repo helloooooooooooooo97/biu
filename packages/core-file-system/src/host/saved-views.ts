@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { openSqlite } from '@biu/host-plugin-loader/data-dir'
+import { openAndMigrateBiu } from '@biu/host-plugin-loader/data-dir'
 import type { CollectionInfo, CollectionSpec, DbRecord } from '@biu/type-file-system'
 import { normalizeSchemaValue, recordBuiltinValues, REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
 import { builtinAllView, isReadOnlyViewId } from '../catalog-views.ts'
@@ -32,16 +32,7 @@ export class SavedViewsStore {
 
   open(path = ':memory:') {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
-    this.db = openSqlite(path, { foreignKeys: false })
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS saved_views (
-        collection TEXT NOT NULL,
-        view_id TEXT NOT NULL,
-        payload_json TEXT NOT NULL,
-        updated_at INTEGER NOT NULL,
-        PRIMARY KEY (collection, view_id)
-      );
-    `)
+    this.db = openAndMigrateBiu(path, { foreignKeys: false })
     this.hydrate()
     return this
   }

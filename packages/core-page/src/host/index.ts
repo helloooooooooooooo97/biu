@@ -27,6 +27,7 @@ export function pagesCollection(store: PagesStore, index: PageBlocksIndex): Coll
     schema: {
       labelField: 'title',
       contentField: 'notes',
+      contentBackend: 'editorContent',
       parentField: 'parentId',
         columns: ['title', 'tags', 'createdBy', 'updatedBy'],
       fields: {

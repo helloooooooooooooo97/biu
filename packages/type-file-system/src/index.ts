@@ -573,6 +573,8 @@ export type CollectionSchema = {
   labelField?: string
   /** 记录正文：真正存的文件内容。默认 `content`。结构由登记方自定。 */
   contentField?: string
+  /** 正文后端：sqlite 旁表 / 文件 / 只读投影。 */
+  contentBackend?: 'editorContent' | 'file' | 'computed'
   /** 必须包含图标、创建/更新时间、分面、父级、依赖、创建人/编辑人；登记方自己持久化。 */
   fields: CollectionFields
   /** 表格默认可见列（须为 fields 的键）。不写则列出全部列表列。详情仍显示全部字段。 */

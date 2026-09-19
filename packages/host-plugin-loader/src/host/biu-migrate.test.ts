@@ -1,0 +1,61 @@
+import { test } from 'vitest'
+import assert from 'node:assert/strict'
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { CREATE_CORE_SQL, LATEST_BIU_SCHEMA, tableColumnNames, tableNames } from './biu-schema.ts'
+import { migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
+import { getSchemaVersion, openSqlite, setSchemaVersion } from './sqlite-open.ts'
+import { readEditorContent } from './editor-content.ts'
+import { liveAssetNames } from './gc-assets.ts'
+
+test('empty database fast path matches upgraded v1 fixture', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'biu-mig-'))
+  const fast = openAndMigrateBiu(join(dir, 'fast.sqlite'))
+  const staged = openSqlite(join(dir, 'staged.sqlite'))
+  staged.exec(CREATE_CORE_SQL)
+  staged.exec(`INSERT INTO pages (id, title, notes, parent_id, depends_on_json, emoji, created_at, updated_at)
+    VALUES ('p1', 'Home', '![x](/api/db/file/keep.png)', null, '[]', '', 1, 1)`)
+  staged.exec(`INSERT INTO tasks (id, title, created_at, updated_at, description)
+    VALUES ('t1', 'Do', 1, 1, '![y](/api/db/file/task.png)')`)
+  setSchemaVersion(staged, 1)
+  migrateBiu(staged)
+  assert.equal(getSchemaVersion(fast), LATEST_BIU_SCHEMA)
+  assert.equal(getSchemaVersion(staged), LATEST_BIU_SCHEMA)
+  const names = (db: typeof fast) => tableNames(db).filter((name) => name !== 'sqlite_sequence').sort()
+  assert.deepEqual(names(fast), names(staged))
+  assert.deepEqual(tableColumnNames(fast, 'editor_content').sort(), tableColumnNames(staged, 'editor_content').sort())
+  assert.match(readEditorContent(staged, '/pages', 'p1'), /keep\.png/)
+  assert.match(readEditorContent(staged, '/tasks', 't1'), /task\.png/)
+  const live = liveAssetNames(staged)
+  assert.equal(live.has('keep.png'), true)
+  assert.equal(live.has('task.png'), true)
+  fast.close()
+  staged.close()
+})
+
+test('newer schema version refuses to start', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'biu-new-'))
+  const db = openSqlite(join(dir, 'biu.sqlite'))
+  db.exec('CREATE TABLE x (id TEXT)')
+  setSchemaVersion(db, LATEST_BIU_SCHEMA + 5)
+  assert.throws(() => migrateBiu(db), /比代码/)
+  db.close()
+})
+
+test('skill markdown bodies are copied into editor_content', () => {
+  const root = mkdtempSync(join(tmpdir(), 'biu-skill-mig-'))
+  const dataDir = join(root, '.biu')
+  mkdirSync(join(dataDir, 'skill'), { recursive: true })
+  writeFileSync(
+    join(dataDir, 'skill', 'demo.md'),
+    '---\nname: Demo\n---\n\n![s](/api/db/file/skill.png)\n',
+  )
+  const db = openSqlite(join(dataDir, 'biu.sqlite'))
+  db.exec(CREATE_CORE_SQL)
+  setSchemaVersion(db, 1)
+  migrateBiu(db, { dataDir, workspace: root, sqlitePath: join(dataDir, 'biu.sqlite') })
+  assert.match(readEditorContent(db, '/skills', 'demo'), /skill\.png/)
+  assert.equal(liveAssetNames(db, { dataDir, workspace: root }).has('skill.png'), true)
+  db.close()
+})

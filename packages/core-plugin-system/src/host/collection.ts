@@ -124,6 +124,7 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
     schema: {
       labelField: 'title',
       contentField: 'readme',
+      contentBackend: 'editorContent',
       columns: [
         'title',
         'blurb',

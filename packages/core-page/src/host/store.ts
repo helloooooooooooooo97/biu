@@ -7,24 +7,25 @@ import {
   adoptCasAssets,
   assetsRootPath,
   dataHome,
-  ensureBiuAssetSchema,
-  listCasAssetFiles,
-  listDocAssetFiles,
   migrateLegacyPageDir,
-  openSqlite,
+  openAndMigrateBiu,
   PAGE_DB,
   PAGE_ROOT,
   readDocument,
   writeDocument,
   AssetConflictError,
   upsertAttachmentRow,
+  writeEditorContent,
+  readEditorContent,
+  gcCasAssets,
+  ASSET_GC_GRACE_MS as SHARED_ASSET_GC_GRACE_MS,
+  workspaceFromSqlite,
 } from '@biu/host-plugin-loader/data-dir'
 import { splitMarkdown } from './markdown.ts'
 
 export { PAGE_ROOT, PAGE_DB, PAGE_ASSETS } from '@biu/host-plugin-loader/data-dir'
 export { AssetConflictError as PageAssetConflictError } from '@biu/host-plugin-loader/data-dir'
-/** 正文不再引用后，附件再留一天，避免撤销/未落盘指针误删。 */
-export const ASSET_GC_GRACE_MS = 24 * 60 * 60 * 1000
+export const ASSET_GC_GRACE_MS = SHARED_ASSET_GC_GRACE_MS
 
 const ID_RE = /^[A-Za-z0-9._-]+$/
 const ASSET_FILE_RE = /^[\p{L}\p{N}._-]+$/u
@@ -178,41 +179,11 @@ export class PagesStore {
   private async openDb() {
     await this.ensureDirs()
     if (this.db) return this.db
-    const db = openSqlite(this.fs.resolve(PAGE_DB), { foreignKeys: false })
-    ensureBiuAssetSchema(db)
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS pages (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        notes TEXT NOT NULL DEFAULT '',
-        parent_id TEXT,
-        depends_on_json TEXT NOT NULL DEFAULT '[]',
-        emoji TEXT NOT NULL DEFAULT '',
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      )
-    `)
-    const cols = db.prepare('PRAGMA table_info(pages)').all() as Array<{ name: string }>
-    if (!cols.some((col) => col.name === 'depends_on_json')) {
-      db.exec(`ALTER TABLE pages ADD COLUMN depends_on_json TEXT NOT NULL DEFAULT '[]'`)
-    }
-    if (!cols.some((col) => col.name === 'notes')) {
-      db.exec(`ALTER TABLE pages ADD COLUMN notes TEXT NOT NULL DEFAULT ''`)
-    }
-    const latest = db.prepare('PRAGMA table_info(pages)').all() as Array<{ name: string }>
-    for (const name of ['tags_json', 'facet_json']) {
-      if (latest.some((col) => col.name === name)) {
-        try {
-          db.exec(`ALTER TABLE pages DROP COLUMN ${name}`)
-        } catch {
-          /* older sqlite */
-        }
-      }
-    }
+    const db = openAndMigrateBiu(this.fs.resolve(PAGE_DB), { foreignKeys: false })
     this.db = db
     await this.migrateMarkdown()
     adoptCasAssets(this.fs.resolve(DATA_DIR_NAME))
-    await this.gcCasAssets()
+    await this.runGc()
     return db
   }
 
@@ -256,6 +227,7 @@ export class PagesStore {
         parent_id=excluded.parent_id, depends_on_json=excluded.depends_on_json, emoji=excluded.emoji,
         updated_at=excluded.updated_at
     `).run(...sqlValues(row))
+    writeEditorContent(this.db, '/pages', row.id, row.notes, { transaction: false })
   }
 
   async list(ids?: string[]): Promise<PageRow[]> {
@@ -287,7 +259,10 @@ export class PagesStore {
         depends_on_json, emoji, created_at, updated_at
       FROM pages WHERE id = ?
     `).get(id) as SqlPage | undefined
-    return hit ? rowFromSql(hit) : null
+    if (!hit) return null
+    const row = rowFromSql(hit)
+    row.notes = readEditorContent(db, '/pages', id) || row.notes
+    return row
   }
 
   async update(id: string, patch: Record<string, unknown>): Promise<PageRow> {
@@ -360,71 +335,22 @@ export class PagesStore {
     }
   }
 
-  private liveAssetNames() {
-    const live = new Set<string>()
-    if (!this.db) return live
-    const bodies = this.db.prepare('SELECT notes FROM pages').all() as Array<{ notes?: string }>
-    for (const row of bodies) {
-      for (const asset of collectPageAssetNames(row.notes ?? '')) live.add(asset)
-    }
-    const tables = this.db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all() as Array<{ name: string }>
-    const names = new Set(tables.map((row) => row.name))
-    if (names.has('record_banners')) {
-      const banners = this.db.prepare('SELECT html FROM record_banners').all() as Array<{ html?: string }>
-      for (const row of banners) {
-        for (const asset of collectPageAssetNames(row.html ?? '')) live.add(asset)
-      }
-    }
-    if (names.has('content_refs')) {
-      for (const row of this.db.prepare('SELECT name FROM content_refs').all() as Array<{ name: string }>) live.add(row.name)
-    }
-    if (names.has('block_refs')) {
-      for (const row of this.db.prepare('SELECT name FROM block_refs').all() as Array<{ name: string }>) live.add(row.name)
-    }
-    if (names.has('attachments')) {
-      for (const row of this.db.prepare(`SELECT name FROM attachments WHERE kind = 'core'`).all() as Array<{ name: string }>) {
-        live.add(row.name)
-      }
-    }
-    return live
-  }
-
-  private async gcCasAssets(opts?: { graceMs?: number; now?: number }) {
+  private async runGc(opts?: { graceMs?: number; now?: number }) {
     if (!this.db) return
-    const graceMs = opts?.graceMs ?? ASSET_GC_GRACE_MS
-    const now = opts?.now ?? Date.now()
-    const live = this.liveAssetNames()
-    const core = new Set<string>()
-    const tables = this.db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all() as Array<{ name: string }>
-    if (tables.some((row) => row.name === 'attachments')) {
-      for (const row of this.db.prepare(`SELECT name FROM attachments WHERE kind = 'core'`).all() as Array<{ name: string }>) {
-        core.add(row.name)
-      }
-    }
-    for (const file of listCasAssetFiles(join(this.assetsDir, 'hash'))) {
-      if (live.has(file.name) || core.has(file.name)) continue
-      if (now - file.mtimeMs < graceMs) continue
-      try {
-        await unlink(file.path)
-      } catch {
-        /* gone */
-      }
-    }
-    for (const file of listDocAssetFiles(join(this.assetsDir, 'name'))) {
-      if (live.has(file.name) || core.has(file.name)) continue
-      if (now - file.mtimeMs < graceMs) continue
-      try {
-        await unlink(file.path)
-      } catch {
-        /* gone */
-      }
-    }
+    const sqlitePath = this.fs.resolve(PAGE_DB)
+    await gcCasAssets({
+      db: this.db,
+      assetsDir: this.assetsDir,
+      ...workspaceFromSqlite(sqlitePath),
+      graceMs: opts?.graceMs,
+      now: opts?.now,
+    })
   }
 
   async gcAssets(opts?: { graceMs?: number; now?: number }) {
     await this.openDb()
     adoptCasAssets(this.fs.resolve(DATA_DIR_NAME))
-    await this.gcCasAssets(opts)
+    await this.runGc(opts)
   }
 
   private async write(row: PageRow) {

@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { openSqlite } from '@biu/host-plugin-loader/data-dir'
+import { openAndMigrateBiu } from '@biu/host-plugin-loader/data-dir'
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { normalizeCollectionPath } from '../paths.ts'
 import type { ShareKind, ShareRecord } from '../share-snapshot.ts'
@@ -55,23 +55,7 @@ export class SharesStore {
 
   open(path = ':memory:') {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
-    this.db = openSqlite(path, { foreignKeys: false })
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS shares (
-        token TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,
-        collection TEXT NOT NULL,
-        view_id TEXT NOT NULL DEFAULT '',
-        record_id TEXT NOT NULL DEFAULT '',
-        password_salt TEXT NOT NULL DEFAULT '',
-        password_hash TEXT NOT NULL DEFAULT '',
-        share_plugins INTEGER NOT NULL DEFAULT 0,
-        allow_copy INTEGER NOT NULL DEFAULT 1,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-      CREATE UNIQUE INDEX IF NOT EXISTS shares_target ON shares(kind, collection, view_id, record_id);
-    `)
+    this.db = openAndMigrateBiu(path, { foreignKeys: false })
     this.ensureFlagColumns()
     return this
   }
