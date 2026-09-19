@@ -96,6 +96,10 @@ describe('ContentEditsTable', () => {
     const title = screen.getByText('数据改动')
     expect(title.className).toMatch(/content-edits-ink/)
     expect(title.className).toMatch(/font-semibold/)
+    expect(title.querySelector('svg')?.className.baseVal ?? title.querySelector('svg')?.getAttribute('class')).toMatch(
+      /content-edits-icon/,
+    )
+    expect(screen.getByLabelText(/查看 首页 的 diff/).className).toMatch(/content-edits-icon/)
     expect(screen.getByText('首页').className).toMatch(/content-edits-ink/)
     expect(screen.getByText('首页').className).toMatch(/font-semibold/)
     expect(screen.queryByLabelText('撤销 首页')).toBeNull()

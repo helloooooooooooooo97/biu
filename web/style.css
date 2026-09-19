@@ -6890,12 +6890,13 @@ html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail) svg,
 html:not(.dark) .tool-call-inspect,
 html:not(.dark) .tool-call-inspect:hover,
 html:not(.dark) .tool-call-inspect svg,
-html:not(.dark) .tool-call-status.is-running {
+html:not(.dark) .tool-call-status.is-running,
+html:not(.dark) [data-testid="content-edits-table"] .content-edits-icon,
+html:not(.dark) [data-testid="content-edits-table"] .content-edits-icon svg {
   color: #91918e;
 }
 
 html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink,
-html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink svg,
 html:not(.dark) .tool-call-toggle,
 html:not(.dark) .tool-call-title,
 html:not(.dark) .tool-call-head:hover .tool-call-title,
