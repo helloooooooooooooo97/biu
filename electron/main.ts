@@ -488,7 +488,9 @@ html.biu-electron .app-shell {
   position: relative;
 }
 html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-sidebar-collapsed > main > .app-stage-pane.is-active > .chat-view-header,
-html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden > main > .app-stage-pane.is-active > .chat-view-header {
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-sidebar-collapsed > main > .app-stage-pane.is-active .fsdb-right > .chat-view-header,
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden > main > .app-stage-pane.is-active > .chat-view-header,
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden > main > .app-stage-pane.is-active .fsdb-right > .chat-view-header {
   padding-left: 76px;
   box-sizing: border-box;
 }

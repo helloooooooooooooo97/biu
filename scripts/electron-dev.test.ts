@@ -23,6 +23,7 @@ test('electron scripts compile ts and reuse busy ports', async () => {
   assert.match(main, /biu-electron-fullscreen/)
   assert.match(main, /classList\.toggle\('biu-electron-fullscreen'/)
   assert.match(main, /:not\(\.biu-electron-fullscreen\)[^{]+\.chat-view-header \{\s*padding-left: 76px/)
+  assert.match(main, /\.fsdb-right > \.chat-view-header/)
   assert.doesNotMatch(main, /\.is-sidebar-collapsed > main \{\s*padding-left: 76px/)
   assert.match(main, /-webkit-app-region: drag/)
   assert.match(main, /chat-view-header/)
