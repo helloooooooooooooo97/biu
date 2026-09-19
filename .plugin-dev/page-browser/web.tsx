@@ -438,6 +438,7 @@ export function apply(ctx: {
     blockTypeLabel: '浏览器',
     hint: '输入链接就能访问的网页卡片；禁嵌站点点跳转会进右侧栏真浏览器',
     aliases: ['browser', 'web', '浏览器', '网页', '网址', 'url', '链接'],
+    assets: [],
     defaults: () => ({ url: 'https://example.com', height: 420 }),
     View: BrowserCard,
   })

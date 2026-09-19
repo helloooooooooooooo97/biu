@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { configureSqlite, openAndMigrateBiu, quoteSqlitePath } from '@biu/host-plugin-loader/data-dir'
+import { configureSqlite, migrateEvents, openAndMigrateBiu, quoteSqlitePath } from '@biu/host-plugin-loader/data-dir'
 import {
   SESSION_FORMAT_VERSION,
   type SessionEvent,
@@ -88,6 +88,12 @@ export class SqliteSessionStore implements SessionStore {
     if (this.splitEvents) {
       this.sessions.exec(`ATTACH DATABASE ${quoteSqlitePath(this.eventsPath!)} AS eventsdb`)
       configureSqlite(this.sessions, { schema: 'eventsdb' })
+      migrateEvents(this.sessions, { schema: 'eventsdb' })
+      try {
+        this.sessions.exec('PRAGMA eventsdb.wal_checkpoint(TRUNCATE)')
+      } catch {
+        /* concurrent */
+      }
     }
     this.sessions.exec(`
       CREATE TABLE IF NOT EXISTS ${this.eventsTable()} (

@@ -345,6 +345,8 @@ Page bodies live in SQLite; attachments share one tree with two layers:
 .biu/assets/          ← attachments
 ```
 
+Back up those sqlite files with `VACUUM INTO '/path/to/backup.sqlite'` (a single file, no WAL). Do not `cp` a live `.sqlite` while WAL exists. Facet stamp tables (`facet_stamps`, `facet_record_values`) are reserved for the 合集 overlay and may be empty until that overlay is used.
+
 Markdown can carry **blocks** — a fenced section that renders as a live component:
 
 ```md

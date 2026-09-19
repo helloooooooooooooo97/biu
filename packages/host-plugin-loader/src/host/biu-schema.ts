@@ -127,9 +127,13 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     columns: ['key', 'value'],
     indexes: [],
   },
+  gc_candidates: {
+    columns: ['name', 'first_seen', 'last_seen'],
+    indexes: [],
+  },
 }
 
-export const LATEST_BIU_SCHEMA = 13
+export const LATEST_BIU_SCHEMA = 14
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -299,6 +303,11 @@ CREATE TABLE IF NOT EXISTS page_block_cover (
 CREATE TABLE IF NOT EXISTS page_block_index_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS gc_candidates (
+  name TEXT PRIMARY KEY,
+  first_seen INTEGER NOT NULL,
+  last_seen INTEGER NOT NULL
 );
 `
 

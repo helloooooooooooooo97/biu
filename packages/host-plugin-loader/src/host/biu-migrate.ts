@@ -199,6 +199,16 @@ export const BIU_MIGRATIONS: Migration[] = [
     rewritePageBlockMentions(db)
   } },
   { version: 13, module: 'core', name: 'drop.legacy.editor.columns', up: (db) => dropLegacyEditorColumns(db) },
+  { version: 14, module: 'core-file-system', name: 'rebuild.content_refs.v2', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS gc_candidates (
+        name TEXT PRIMARY KEY,
+        first_seen INTEGER NOT NULL,
+        last_seen INTEGER NOT NULL
+      );
+    `)
+    rebuildContentRefs(db)
+  } },
 ]
 
 function snapshotBefore(db: DatabaseSync, ctx: MigrateCtx, nextVersion: number) {
@@ -240,6 +250,7 @@ export function migrateBiu(db: DatabaseSync, ctx: MigrateCtx = {}, target = LATE
   if (isEmptyDatabase(db) && from === 0) {
     createLatestSchema(db)
     setSchemaVersion(db, target)
+    vacuumIfNeeded(db, ctx, from, target)
     return
   }
   for (const migration of BIU_MIGRATIONS) {
@@ -259,10 +270,22 @@ export function migrateBiu(db: DatabaseSync, ctx: MigrateCtx = {}, target = LATE
       throw new Error(`migration v${migration.version} (${migration.module}/${migration.name}) 失败: ${error}`)
     }
   }
+  vacuumIfNeeded(db, ctx, from, target)
 }
 
-export function openAndMigrateBiu(path: string, opts?: { foreignKeys?: boolean } & MigrateCtx) {
-  const db = openSqlite(path, opts)
+function vacuumIfNeeded(db: DatabaseSync, ctx: MigrateCtx, from: number, target: number) {
+  if (from >= target) return
+  const path = ctx.sqlitePath
+  if (!path || path === ':memory:') return
+  try {
+    db.exec('VACUUM')
+  } catch {
+    /* other connections may hold the file */
+  }
+}
+
+export function openAndMigrateBiu(path: string, opts?: { foreignKeys?: boolean; checkpointOnOpen?: boolean } & MigrateCtx) {
+  const db = openSqlite(path, { ...opts, checkpointOnOpen: opts?.checkpointOnOpen !== false })
   const dataDir = opts?.dataDir ?? (path !== ':memory:' && basename(path) === 'biu.sqlite' ? dirname(path) : undefined)
   const workspace = opts?.workspace ?? (dataDir ? dirname(dataDir) : undefined)
   migrateBiu(db, { sqlitePath: path, dataDir, workspace })

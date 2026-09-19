@@ -1,7 +1,7 @@
 import { mkdir, unlink } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { DbRecord, SchemaFieldValue } from '@biu/type-file-system'
-import { emptySchemaValue, normalizeSchemaValue } from '@biu/type-file-system'
+import { emptySchemaValue, isAssetFileName, normalizeSchemaValue } from '@biu/type-file-system'
 import {
   DATA_DIR_NAME,
   adoptCasAssets,
@@ -28,27 +28,9 @@ export { AssetConflictError as PageAssetConflictError } from '@biu/host-plugin-l
 export const ASSET_GC_GRACE_MS = SHARED_ASSET_GC_GRACE_MS
 
 const ID_RE = /^[A-Za-z0-9._-]+$/
-const ASSET_FILE_RE = /^[\p{L}\p{N}._-]+$/u
-const ASSET_REF_RE = /(?:(?:\.page\/)?assets\/|\/api\/(?:page|db|doc)\/file\/)([\p{L}\p{N}._-]+)/gu
 
 export function isPageAssetFileName(name: string) {
-  return Boolean(name) && name === basename(name) && name !== '.gitkeep' && ASSET_FILE_RE.test(name)
-}
-
-export function collectPageAssetNames(...chunks: unknown[]): Set<string> {
-  const names = new Set<string>()
-  const eat = (text: string) => {
-    for (const match of text.matchAll(ASSET_REF_RE)) {
-      const name = basename(match[1] ?? '')
-      if (isPageAssetFileName(name)) names.add(name)
-    }
-  }
-  for (const chunk of chunks) {
-    if (chunk == null) continue
-    if (typeof chunk === 'string') eat(chunk)
-    else eat(JSON.stringify(chunk))
-  }
-  return names
+  return isAssetFileName(name)
 }
 
 export type PageRow = DbRecord & {

@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { hashedAssetRel, isHashedAssetName } from './asset-cas.ts'
-import { collectAssetNamesFromText } from './collect-asset-names.ts'
+import { assetNamesFromMarkdown } from '../../../type-file-system/src/asset-ref.ts'
 
 function rewritePackedName(body: string, name: string, dest: string) {
   const patterns = [
@@ -27,7 +27,7 @@ function resolveAssetPath(assetsDir: string, name: string) {
 
 /** Copy referenced CAS files into a plugin pack and rewrite URLs to pack-relative assets/. */
 export function copyReferencedEditorAssets(opts: { body: string; assetsDir: string; destDir: string }) {
-  const names = [...collectAssetNamesFromText(opts.body)]
+  const names = [...assetNamesFromMarkdown(opts.body)]
   const assetsDest = join(opts.destDir, 'assets')
   mkdirSync(assetsDest, { recursive: true })
   let next = opts.body

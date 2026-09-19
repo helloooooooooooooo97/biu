@@ -45,6 +45,7 @@ export { adoptCasAssets, listCasAssetFiles, listDocAssetFiles } from './adopt-ca
 export { openSqlite, configureSqlite, quoteSqlitePath, SQLITE_BUSY_TIMEOUT_MS, SQLITE_WAL_AUTOCHECKPOINT } from './sqlite-open.ts'
 export { ensureBiuAssetSchema, LATEST_BIU_SCHEMA, createLatestSchema } from './biu-schema.ts'
 export { migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
+export { migrateEvents, openAndMigrateEvents, LATEST_EVENTS_SCHEMA } from './events-migrate.ts'
 
 export function pluginWebSpecifier(item: CordisPluginEntry): string | undefined {
   return item.web

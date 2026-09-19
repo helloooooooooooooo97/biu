@@ -1,6 +1,6 @@
 type DatabaseSync = import('node:sqlite').DatabaseSync
 
-import { collectAssetNamesFromText } from './collect-asset-names.ts'
+import { assetNamesFromHtml, assetNamesFromMarkdown } from '../../../type-file-system/src/asset-ref.ts'
 import { tableColumnNames, tableNames } from './biu-schema.ts'
 
 export const EDITOR_COLLECTIONS = ['/pages', '/tasks', '/facets', '/skills', '/plugins'] as const
@@ -58,7 +58,7 @@ export function writeEditorContent(
   opts?: { transaction?: boolean },
 ) {
   const text = String(body ?? '')
-  const names = collectAssetNamesFromText(text)
+  const names = assetNamesFromMarkdown(text)
   const run = () => {
     if (!hasEditorContent(db)) throw new Error('editor_content missing')
     db.prepare(
@@ -116,7 +116,7 @@ export function rebuildContentRefs(db: DatabaseSync) {
       body?: string
     }>
     for (const row of rows) {
-      for (const name of collectAssetNamesFromText(row.body ?? '')) {
+      for (const name of assetNamesFromMarkdown(row.body ?? '')) {
         insert.run(row.collection, row.record_id, name, 'content')
       }
     }
@@ -128,7 +128,7 @@ export function rebuildContentRefs(db: DatabaseSync) {
       html?: string
     }>
     for (const row of rows) {
-      for (const name of collectAssetNamesFromText(row.html ?? '')) {
+      for (const name of assetNamesFromHtml(row.html ?? '')) {
         insert.run(row.collection, row.record_id, name, 'banner')
       }
     }

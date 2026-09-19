@@ -11,7 +11,7 @@ import {
 } from '@biu/host-plugin-loader/data-dir'
 import { collectAssetNames, isAssetFileName } from '../asset-refs.ts'
 
-export { collectAssetNames, isAssetFileName } from '../asset-refs.ts'
+export { collectAssetNames, isAssetFileName, assetNamesFromMarkdown, assetNamesFromHtml } from '../asset-refs.ts'
 export { isHashedAssetName, AssetConflictError, parseIfMatch } from '@biu/host-plugin-loader/data-dir'
 
 export const FILE_SYSTEM_ASSETS = ASSETS_ROOT

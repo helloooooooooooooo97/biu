@@ -6,7 +6,7 @@ import { PagesStore, PageAssetConflictError, type WorkspaceFs } from './store.ts
 import { pageBlocksCollection } from './page-blocks-collection.ts'
 import { PAGE_BLOCK_TICK_MS, PageBlocksIndex } from './page-blocks-index.ts'
 
-export { PAGE_ROOT, PAGE_ASSETS, ASSET_GC_GRACE_MS, collectPageAssetNames, PagesStore } from './store.ts'
+export { PAGE_ROOT, PAGE_ASSETS, ASSET_GC_GRACE_MS, PagesStore } from './store.ts'
 export { pageBlocksCollection } from './page-blocks-collection.ts'
 export { PageBlocksIndex, PAGE_BLOCK_TICK_MS } from './page-blocks-index.ts'
 

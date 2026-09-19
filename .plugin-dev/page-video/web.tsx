@@ -1827,6 +1827,23 @@ export function apply(ctx: {
     blockTypeLabel: '视频',
     hint: '标签时间轴，全屏编辑脚本',
     aliases: ['video', 'timeline', 'remotion', 'openscreen', '影片'],
+    assets: (data: Record<string, unknown>) => {
+      const out: string[] = []
+      const push = (raw: unknown) => {
+        if (typeof raw !== 'string') return
+        out.push(raw)
+        for (const match of raw.matchAll(/\bsrc=(?:["']?)([^"'\s>]+)/gi)) out.push(match[1] ?? '')
+      }
+      push(data.bgm)
+      push(data.file)
+      push(data.script)
+      if (Array.isArray(data.tracks)) {
+        for (const track of data.tracks) {
+          if (track && typeof track === 'object') push((track as { src?: unknown }).src)
+        }
+      }
+      return out
+    },
     defaults: { script: SAMPLE_SCRIPT },
     View: Editor,
   })

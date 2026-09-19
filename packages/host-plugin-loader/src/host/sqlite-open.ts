@@ -19,10 +19,17 @@ export function configureSqlite(db: DatabaseSync, opts?: { foreignKeys?: boolean
   if (opts?.foreignKeys !== false) db.exec('PRAGMA foreign_keys = ON')
 }
 
-export function openSqlite(path: string, opts?: { foreignKeys?: boolean }) {
+export function openSqlite(path: string, opts?: { foreignKeys?: boolean; checkpointOnOpen?: boolean }) {
   const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
   const db = new DatabaseSync(path)
   configureSqlite(db, opts)
+  if (opts?.checkpointOnOpen) {
+    try {
+      db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+    } catch {
+      /* concurrent writers */
+    }
+  }
   return db
 }
 

@@ -1,9 +1,9 @@
 import type { DbRecord } from '@biu/type-file-system'
 import { recordBuiltinValues } from '@biu/type-file-system'
 import { listPageBlockFences, pageBlockData, pageBlockRecordId, parsePageBlockRecordId, uniquifyPageBlockMarkdown, defaultPageBlockTitle } from '@biu/core-editor/host'
+import { assetNamesFromBlock } from '@biu/type-file-system'
 import { readEditorContent, replacePageBlockRefs, writeEditorContent } from '@biu/host-plugin-loader/data-dir'
 import type { PagesStore, PageRow } from './store.ts'
-import { collectPageAssetNames } from './store.ts'
 
 export const PAGE_BLOCK_HOT_WINDOW_MS = 5 * 60 * 1000
 export const PAGE_BLOCK_HOT_LIMIT = 24
@@ -42,7 +42,7 @@ function slimBlockIndexData(kind: string, plugin: string, data: Record<string, u
     kind,
     plugin,
     attrs,
-    assets: [...collectPageAssetNames(data)].sort(),
+    assets: [...assetNamesFromBlock(kind, plugin, data)].sort(),
   }
 }
 
@@ -160,10 +160,6 @@ export class PageBlocksIndex {
     if (unique.changed) {
       body = unique.markdown
       writeEditorContent(db, collection, recordId, body, { transaction: false })
-      if (collection === '/pages') {
-        const page = await this.store.get(recordId)
-        if (page && page.notes !== body) await this.store.update(recordId, { notes: body })
-      }
     }
     const stamp = db
       .prepare('SELECT updated_at FROM editor_content WHERE collection = ? AND record_id = ?')
@@ -199,7 +195,7 @@ export class PageBlocksIndex {
           createdAt,
           updatedAt,
         )
-        blockRefs.push({ blockId: fence.id, names: collectPageAssetNames(data) })
+        blockRefs.push({ blockId: fence.id, names: assetNamesFromBlock(fence.kind, fence.plugin, data) })
       }
       db.prepare(
         `INSERT INTO page_block_cover(collection, page_id, page_updated_at) VALUES(?, ?, ?)

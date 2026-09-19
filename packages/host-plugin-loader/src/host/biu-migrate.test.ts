@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { CREATE_CORE_SQL, LATEST_BIU_SCHEMA, tableColumnNames, tableNames } from './biu-schema.ts'
 import { migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
 import { getSchemaVersion, openSqlite, setSchemaVersion } from './sqlite-open.ts'
-import { readEditorContent } from './editor-content.ts'
+import { readEditorContent, writeEditorContent } from './editor-content.ts'
 import { liveAssetNames } from './gc-assets.ts'
 
 test('empty database fast path matches upgraded v1 fixture', () => {
@@ -29,6 +29,7 @@ test('empty database fast path matches upgraded v1 fixture', () => {
   assert.equal(tableColumnNames(fast, 'tasks').includes('description'), false)
   assert.equal(tableColumnNames(fast, 'facets').includes('notes'), false)
   assert.equal(tableColumnNames(fast, 'page_block_index').includes('collection'), true)
+  assert.equal(tableColumnNames(fast, 'gc_candidates').includes('name'), true)
   assert.deepEqual(tableColumnNames(fast, 'page_block_index').sort(), tableColumnNames(staged, 'page_block_index').sort())
   assert.match(readEditorContent(staged, '/pages', 'p1'), /keep\.png/)
   assert.match(readEditorContent(staged, '/tasks', 't1'), /task\.png/)
@@ -62,5 +63,23 @@ test('skill markdown bodies are copied into editor_content', () => {
   migrateBiu(db, { dataDir, workspace: root, sqlitePath: join(dataDir, 'biu.sqlite') })
   assert.match(readEditorContent(db, '/skills', 'demo'), /skill\.png/)
   assert.equal(liveAssetNames(db, { dataDir, workspace: root }).has('skill.png'), true)
+  db.close()
+})
+
+test('content_refs keep markdown links and drop prose mentions', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'biu-refs-'))
+  const db = openAndMigrateBiu(join(dir, 'biu.sqlite'))
+  writeEditorContent(
+    db,
+    '/plugins',
+    'page-excalidraw',
+    '落在 .biu/assets/page，页面正文；assets/画板-edd9.json 只是提及。\n![ok](/api/db/file/keep.png)\n',
+  )
+  const names = (
+    db.prepare('SELECT name FROM content_refs WHERE collection = ?').all('/plugins') as Array<{ name: string }>
+  ).map((row) => row.name)
+  assert.deepEqual(names.sort(), ['keep.png'])
+  assert.equal(liveAssetNames(db).has('keep.png'), true)
+  assert.equal(liveAssetNames(db).has('page'), false)
   db.close()
 })

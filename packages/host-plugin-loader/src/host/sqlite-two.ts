@@ -1,6 +1,7 @@
 import { existsSync, rmSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import { openSqlite, quoteSqlitePath } from './sqlite-open.ts'
+import { migrateEvents } from './events-migrate.ts'
 
 const DATA_DIR_NAME = '.biu'
 
@@ -105,8 +106,9 @@ export function adoptTwoSqlite(dataDirPath: string) {
     biuDb.close()
   }
 
-  const eventsDb = openSqlite(events, { foreignKeys: false })
+  const eventsDb = openSqlite(events, { foreignKeys: false, checkpointOnOpen: true })
   try {
+    migrateEvents(eventsDb)
     if (copyTables(eventsDb, sessions, events, { only: ['events'] })) {
       if (!copied.includes(sessions)) copied.push(sessions)
     }

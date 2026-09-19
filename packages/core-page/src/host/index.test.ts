@@ -12,7 +12,8 @@ import * as fsPlugin from '@biu/host-fs'
 import * as page from './index.ts'
 import { dumpMarkdown, splitMarkdown } from './markdown.ts'
 import { hashedAssetName, hashedAssetRel, writeEditorContent } from '@biu/host-plugin-loader/data-dir'
-import { ASSET_GC_GRACE_MS, PAGE_DB, PAGE_ROOT, PageAssetConflictError, PagesStore, collectPageAssetNames } from './store.ts'
+import { assetNamesFromBlock, collectAssetNames } from '@biu/type-file-system'
+import { ASSET_GC_GRACE_MS, PAGE_DB, PAGE_ROOT, PageAssetConflictError, PagesStore } from './store.ts'
 import { PageBlocksIndex } from './page-blocks-index.ts'
 
 test('markdown frontmatter roundtrips YAML properties and body', () => {
@@ -390,20 +391,19 @@ test('PagesStore reads existing markdown files from .biu/page', async () => {
   assert.equal(existsSync(join(root, PAGE_ROOT, 'home.md')), false)
 })
 
-test('collectPageAssetNames picks page asset pointers', () => {
-  const names = collectPageAssetNames(
-    'cover: assets/hero.png\n',
-    ':::pageBlock {kind=excalidraw}\n{"file":"assets/excalidraw-aa.json"}\n:::\n',
+test('markdown and declared block fields pick asset pointers', () => {
+  const names = collectAssetNames(
+    '![cover](/api/db/file/hero.png)\n',
     { href: '/api/page/file/pack.zip' },
     { href: '/api/db/file/shared.bin' },
     { href: '/api/doc/file/note.json' },
   )
   assert.equal(names.has('hero.png'), true)
-  assert.equal(names.has('excalidraw-aa.json'), true)
   assert.equal(names.has('pack.zip'), true)
   assert.equal(names.has('shared.bin'), true)
   assert.equal(names.has('note.json'), true)
-  assert.equal(collectPageAssetNames('assets/画板-ab.json').has('画板-ab.json'), true)
+  assert.equal(collectAssetNames('see .biu/assets/page').has('page'), false)
+  assert.equal(assetNamesFromBlock('excalidraw', 'page-excalidraw', { file: 'assets/excalidraw-aa.json' }).has('excalidraw-aa.json'), true)
   assert.equal(ASSET_GC_GRACE_MS, 24 * 60 * 60 * 1000)
 })
 

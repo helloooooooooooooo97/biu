@@ -47,7 +47,7 @@ import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
 import { buildShareSnapshot } from './share-payload.ts'
-import { FileSystemAssets, collectAssetNames, isAssetFileName, isHashedAssetName, mimeOfAsset, AssetConflictError, parseIfMatch } from './assets-store.ts'
+import { FileSystemAssets, collectAssetNames, assetNamesFromMarkdown, assetNamesFromHtml, isAssetFileName, isHashedAssetName, mimeOfAsset, AssetConflictError, parseIfMatch } from './assets-store.ts'
 import { facetsCollection } from './facets-collection.ts'
 import { noticesCollection } from './notices-collection.ts'
 import { NoticesService } from './notices-service.ts'
@@ -766,7 +766,12 @@ export class DatabaseService extends Service implements Database {
     const schema = schemaFor(spec)
     const field = schema.contentField ?? 'content'
     const banner = this.facets.recordBanner(spec.path, record.id)
-    this.facets.replaceContentRefs(spec.path, record.id, collectAssetNames(record[field]), collectAssetNames(banner?.html))
+    this.facets.replaceContentRefs(
+      spec.path,
+      record.id,
+      assetNamesFromMarkdown(String(record[field] ?? '')),
+      assetNamesFromHtml(String(banner?.html ?? '')),
+    )
   }
 
   private applyPersonOverlay(spec: CollectionSpec, row: DbRecord): DbRecord {
