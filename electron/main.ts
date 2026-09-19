@@ -464,7 +464,7 @@ async function createWindow() {
 /** 窗口模式给红绿灯让位；全屏没有红绿灯，不保留左侧空白。 */
 const ELECTRON_CHROME_CSS = `
 html.biu-electron:not(.biu-electron-fullscreen) .app-side-bar-head-brand {
-  padding-left: 76px !important;
+  padding-left: 86px !important;
 }
 html.biu-electron:not(.biu-electron-fullscreen) .sidebar-flyout-host.is-collapsed.is-flyout-open .app-side-bar-head-brand,
 html.biu-electron:not(.biu-electron-fullscreen) .sidebar-flyout-host.is-collapsed:hover .app-side-bar-head-brand {
@@ -491,7 +491,7 @@ html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-sidebar-collapsed 
 html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-sidebar-collapsed > main > .app-stage-pane.is-active .fsdb-right > .chat-view-header,
 html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden > main > .app-stage-pane.is-active > .chat-view-header,
 html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden > main > .app-stage-pane.is-active .fsdb-right > .chat-view-header {
-  padding-left: 76px;
+  padding-left: 86px;
   box-sizing: border-box;
 }
 html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-sidebar-collapsed::before,
@@ -501,7 +501,7 @@ html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden::befor
   left: 0;
   top: 0;
   z-index: 90;
-  width: 76px;
+  width: 86px;
   height: 44px;
   -webkit-app-region: drag;
 }
