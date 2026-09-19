@@ -152,7 +152,6 @@ export class PageBlocksIndex {
 
   async reindexPage(page: PageRow) {
     await this.reindexRecord('/pages', page.id, {
-      body: page.notes,
       title: page.title,
       createdAt: page.createdAt,
       updatedAt: page.updatedAt,

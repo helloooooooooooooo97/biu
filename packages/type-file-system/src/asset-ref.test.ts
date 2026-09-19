@@ -6,7 +6,6 @@ import {
   assetNamesFromHtml,
   assetNamesFromMarkdown,
   collectAssetNames,
-  collectAssetNamesLoose,
 } from './asset-ref.ts'
 
 test('markdown extracts links and html tags, not prose mentions', () => {
@@ -23,8 +22,6 @@ test('markdown extracts links and html tags, not prose mentions', () => {
   assert.equal(names.has('pic.webp'), true)
   assert.equal(names.has('page'), false)
   assert.equal(names.has('画板-edd9.json'), false)
-  assert.equal(collectAssetNamesLoose(md).has('page'), true)
-  assert.equal(collectAssetNamesLoose(md).has('画板-edd9.json'), true)
 })
 
 test('assetNameFromUrl only accepts known prefixes', () => {

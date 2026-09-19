@@ -2,7 +2,9 @@ type DatabaseSync = import('node:sqlite').DatabaseSync
 
 export type TableSpec = { columns: string[]; indexes: string[] }
 
-/** Current biu.sqlite shape including editor_content. Stores must not CREATE TABLE themselves. */
+/** Current biu.sqlite shape including editor_content. Stores must not CREATE TABLE themselves.
+ *  tasks / facets / facet_stamps / facet_record_values / shares / banner_gallery stay in schema
+ *  even when a workspace has 0 rows — they are product tables, not leftovers. */
 export const BIU_TABLES: Record<string, TableSpec> = {
   pages: {
     columns: ['id', 'title', 'parent_id', 'depends_on_json', 'emoji', 'created_at', 'updated_at'],
