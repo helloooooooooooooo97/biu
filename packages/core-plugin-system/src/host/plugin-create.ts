@@ -271,6 +271,17 @@ function storeBundlePlugins(kind: 'host' | 'web'): EsbuildPlugin[] {
   return plugins
 }
 
+export function sandboxPackageJson(id: string) {
+  return `${JSON.stringify({ name: id, private: true, dependencies: {} }, null, 2)}\n`
+}
+
+/** 每个沙箱都有 package.json，即便暂时没有 npm 依赖。已有文件不覆盖。 */
+export async function ensureSandboxPackageJson(dest: string, id: string) {
+  const pkgFile = join(dest, 'package.json')
+  if (existsSync(pkgFile)) return
+  await writeFile(pkgFile, sandboxPackageJson(id))
+}
+
 /** 沙箱自己的 npm 依赖：pack 时装进 .plugin-dev/<id>/node_modules，再打进 bundle。不走宿主 package.json。 */
 export function ensureSandboxNpm(sandbox: string) {
   const pkgFile = join(sandbox, 'package.json')
@@ -447,7 +458,7 @@ export async function readSandboxManifest(dir: string) {
 }
 
 const CONTRACT = [
-  '契约：id 与 export const name 相同。可以 import npm；依赖写在沙箱 package.json，pack 会在沙箱 npm install 再打进 host.js/web.js，不要写进宿主 package.json。不要 import react / react-dom / @biu/*：Web 用宿主 globalThis.React、ReactDOM 与 ReactJSXRuntime；宿主服务用 inject。安装路径只有 sandbox + pack：db_action /plugins/<id> action=sandbox 建 .plugin-dev/<id>/，写完再用 action=pack。不要直写 .plugin。不要改 packages/ 或 cordis.plugins.json。',
+  '契约：id 与 export const name 相同。每个沙箱都有自己的 package.json（没有第三方依赖也写一份，dependencies 可以为空）。可以 import npm；依赖写在这份 package.json，pack 会在沙箱 npm install 再打进 host.js/web.js，不要写进宿主 package.json。不要 import react / react-dom / @biu/*：Web 用宿主 globalThis.React、ReactDOM 与 ReactJSXRuntime；宿主服务用 inject。安装路径只有 sandbox + pack：db_action /plugins/<id> action=sandbox 建 .plugin-dev/<id>/，写完再用 action=pack。不要直写 .plugin。不要改 packages/ 或 cordis.plugins.json。',
   '有窗口的 Web：ctx.slots.place("plugin-store-extras", Comp, { key, props: () => ({ Icon }) })。Icon 可选。运行窗口会给 extras 套操纵栏（关/缩；resizable 才有全屏），key 尽量用插件 id。',
   '无头插件：manifest 写 headless: true。有 web 也不要 shell，不要 place plugin-store-extras，不要操纵栏。只在 apply 里登记服务（如 pageEditor、databaseUi）。pageEditor.registerBlock 必须带 plugin（与本插件 id / export const name 相同），并用 blockType 声明块类型：basic 进斜杠「基础模块」，其它值（如 excalidraw、algorithm）各自成组，不要混进基础。写入文档后编辑器按这个 id 引导启用，不要让编辑器猜插件。页面块插件的 README（介绍）必须含「示例写法」和完整 :::pageBlock 围栏（含 kind、plugin、体），让 agent 读 /plugins/<id> 介绍就知道语法。集合自定义整页模式用 databaseUi.registerView(path, { id, label, plugin, View })。只换每一行的样子用 databaseUi.registerRowView(path 或 "*", { id, label, plugin, Row })，plugin 填本插件 id，宿主会打 data-biu-plugin，选取内部元素也能改这个插件。外壳和可见列由 File System 绑；Row 收到 record、fields、onOpen。',
   '有窗口的 web 必须在 manifest / 本动作 shell 参数里写 width 与 height。无头插件不要写 shell。',
@@ -456,7 +467,7 @@ const CONTRACT = [
 
 export const PLUGIN_SANDBOX_DESCRIPTION = [
   '这是安装插件的第一步，不是新建代理。用户说「再开一个 agent」请 db_create /sessions。',
-  '开沙箱：只建/更新 .plugin-dev/<id>/（manifest.json，可选起点 host.ts / web.tsx），不进已安装目录。',
+  '开沙箱：只建/更新 .plugin-dev/<id>/（manifest.json、package.json，可选起点 host.ts / web.tsx），不进已安装目录。',
   '然后用 bash / 文件工具在沙箱里写代码、相对 import。调完必须 db_action action=pack 才会打进 .plugin/<id>/。',
   '卸载删 .plugin/<id>/，沙箱还在。',
   CONTRACT,
@@ -465,7 +476,7 @@ export const PLUGIN_SANDBOX_DESCRIPTION = [
 export const PLUGIN_PACK_DESCRIPTION = [
   '把 .plugin-dev/<id>/ 沙箱打包进 .plugin/<id>/（manifest.json + bundle 后的 host.js / web.js）。',
   '入口：host.ts|tsx|js 与 web.tsx|ts|js，至少要有一个。有窗口的 web 必须已写 shell.width/height；无头插件写 headless: true 即可。已打开的插件会重新挂上。',
-  'npm 依赖写在沙箱 package.json，pack 会在该目录 install，打进 bundle；不要把插件依赖加到宿主 package.json。',
+  '每个沙箱都有 package.json。npm 依赖写在里面，pack 会在该目录 install，打进 bundle；没有第三方包时 dependencies 为空对象。不要把插件依赖加到宿主 package.json。',
 ].join(' ')
 
 export function createArgs(args: Record<string, unknown>): PluginCreateInput {

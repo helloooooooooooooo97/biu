@@ -246,6 +246,14 @@ test('initSandbox writes source; pack bundles into .plugin/<id>/', async () => {
       hostJs: `export const name = 'store-echo'\nexport function apply(ctx: { ok: boolean }) { return ctx.ok }`,
     })
     assert.equal(result.sandboxPath, join(sandboxDir, 'store-echo'))
+    const sandboxPkg = JSON.parse(await readFile(join(sandboxDir, 'store-echo', 'package.json'), 'utf8')) as {
+      name: string
+      private: boolean
+      dependencies: Record<string, string>
+    }
+    assert.equal(sandboxPkg.name, 'store-echo')
+    assert.equal(sandboxPkg.private, true)
+    assert.deepEqual(sandboxPkg.dependencies, {})
     const sandboxReadme = await readFile(join(sandboxDir, 'store-echo', 'README.md'), 'utf8')
     assert.match(sandboxReadme, /回声/)
     const packed = await store.pack('store-echo')
@@ -321,7 +329,7 @@ test('sandbox/pack live on the plugins collection, not as tools', () => {
   assert.equal(sandbox?.allowMissing, true)
   assert.match(JSON.stringify(sandbox?.parameters), /listing\.shell/)
   assert.match(String(pack?.parameters?.description ?? ''), /host\.ts/)
-  assert.match(String(pack?.parameters?.description ?? ''), /沙箱 package.json/)
+  assert.match(String(pack?.parameters?.description ?? ''), /每个沙箱都有 package.json/)
 })
 
 test('pack web jsx uses globalThis.React instead of bundling npm react', async () => {
@@ -525,6 +533,7 @@ test('plugin-dev sandboxes declare every third-party import in package.json', as
   const sandboxes = (await readdir(root, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
+    .filter((id) => existsSync(join(root, id, 'manifest.json')))
   assert.ok(sandboxes.length >= 8)
 
   for (const id of sandboxes) {
@@ -563,16 +572,10 @@ test('plugin-dev sandboxes declare every third-party import in package.json', as
     }
 
     const pkgFile = join(dir, 'package.json')
-    if (!needed.size) {
-      if (existsSync(pkgFile)) {
-        const pkg = JSON.parse(await readFile(pkgFile, 'utf8')) as { dependencies?: Record<string, string> }
-        assert.ok(pkg.dependencies && Object.keys(pkg.dependencies).length, `${id} has package.json but no runtime deps`)
-      }
-      continue
-    }
-
-    assert.ok(existsSync(pkgFile), `${id} imports ${[...needed].join(', ')} but has no package.json`)
-    const pkg = JSON.parse(await readFile(pkgFile, 'utf8')) as { dependencies?: Record<string, string> }
+    assert.ok(existsSync(pkgFile), `${id} must have package.json`)
+    const pkg = JSON.parse(await readFile(pkgFile, 'utf8')) as { name?: string; private?: boolean; dependencies?: Record<string, string> }
+    assert.equal(pkg.name, id)
+    assert.equal(pkg.private, true)
     const declared = new Set(Object.keys(pkg.dependencies ?? {}))
     const missing = [...needed].filter((name) => !declared.has(name))
     assert.deepEqual(missing, [], `${id} missing package.json deps: ${missing.join(', ')}`)
