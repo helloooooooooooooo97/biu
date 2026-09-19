@@ -1284,7 +1284,7 @@ export class DatabaseService extends Service implements Database {
       mime: mimeOfAsset(written.name),
       bytes: written.bytes,
       kind,
-      storage: 'cas',
+      storage: 'hash',
     })
     if (Array.isArray(args.refs)) {
       const refs = args.refs.flatMap((item) => {
@@ -1299,7 +1299,7 @@ export class DatabaseService extends Service implements Database {
       this.facets.upsertBlockRef(spec.path, record.id, blockId, written.name, source)
     }
     this.broadcastAsset(recPath, written.name, written.etag)
-    return { kind: 'asset' as const, ok: true as const, path: recPath, name: written.name, etag: written.etag, storage: 'cas' as const }
+    return { kind: 'asset' as const, ok: true as const, path: recPath, name: written.name, etag: written.etag, storage: 'hash' as const }
   }
 
   async editDoc(path: string, args: Record<string, unknown> = {}) {
@@ -1372,11 +1372,11 @@ export class DatabaseService extends Service implements Database {
       mime: mimeOfAsset(written.name),
       bytes: written.bytes,
       kind,
-      storage: 'doc',
+      storage: 'name',
     })
     if (blockId) this.facets.upsertBlockRef(spec.path, record.id, blockId, written.name, source)
     this.broadcastAsset(recPath, written.name, written.etag)
-    return { kind: 'doc' as const, ok: true as const, path: recPath, name: written.name, etag: written.etag, storage: 'doc' as const }
+    return { kind: 'doc' as const, ok: true as const, path: recPath, name: written.name, etag: written.etag, storage: 'name' as const }
   }
 
   private broadcastAsset(path: string, name: string, etag: string) {
@@ -1789,7 +1789,7 @@ export function apply(ctx: Context) {
     name: 'db_asset',
     description: [
       '读写一条记录的不可变资源（图片、音频、导入文件）。可变文档（画板 json、块本体）用 db_doc。正文仍用 db_content。',
-      'path 为 /<表>/<id>。write 落盘 .biu/assets/cas/<2>/<2>/<哈希>.<ext>，返回 name=<哈希.ext>。引用写成 /api/db/file/<哈希.ext>。',
+      'path 为 /<表>/<id>。write 落盘 .biu/assets/hash/<2>/<2>/<哈希>.<ext>，返回 name=<哈希.ext>。引用写成 /api/db/file/<哈希.ext>。',
       'command=view：列出已引用附件；带 name 读该文件。missing=true 合法。',
       'command=write：内容寻址，只增不改。可带 block_id / source / kind=core|asset；refs 为该块当前引用完整列表。',
       '插图：write from=本地路径，再用返回的 name 插入 ![说明](/api/db/file/<name>)。',
@@ -1831,7 +1831,7 @@ export function apply(ctx: Context) {
     name: 'db_doc',
     description: [
       '读写一条记录的可变文档（画板场景、视频脚本、htmlframe HTML）。图片等不可变资源用 db_asset。',
-      'path 为 /<表>/<id>。write 落盘 .biu/assets/doc/<逻辑名>，覆盖必须带 etag（上次 view 的内容哈希），对不上返回 etag conflict。引用写成 /api/db/file/<逻辑名>（按名字寻址；哈希名则是 CAS）。画板也可走 /api/page/file/<逻辑名>。',
+      'path 为 /<表>/<id>。write 落盘 .biu/assets/name/<逻辑名>，覆盖必须带 etag（上次 view 的内容哈希），对不上返回 etag conflict。引用写成 /api/db/file/<逻辑名>（按名字寻址；哈希名则是不可变文件）。画板也可走 /api/page/file/<逻辑名>。',
       'command=view：列出引用或读该文档（文本带 text）和 etag。',
       'command=write：稳定名覆盖 + If-Match。可带 block_id / source / kind=core|asset。',
     ].join(' '),

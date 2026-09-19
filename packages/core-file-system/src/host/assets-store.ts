@@ -46,39 +46,39 @@ export class FileSystemAssets {
   }
 
   casRoot() {
-    return join(this.dir, 'cas')
+    return join(this.dir, 'hash')
   }
 
   docRoot() {
-    return join(this.dir, 'doc')
+    return join(this.dir, 'name')
   }
 
   async write(name: string, content: string | Buffer | Uint8Array) {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/') || !isAssetFileName(file)) throw new Error('invalid asset')
     const written = await writeContentAddressed(this.casRoot(), file, content)
-    return { name: written.name, href: assetHref(written.name), etag: written.etag, bytes: written.bytes.length, storage: 'cas' as const }
+    return { name: written.name, href: assetHref(written.name), etag: written.etag, bytes: written.bytes.length, storage: 'hash' as const }
   }
 
   async writeDoc(name: string, content: string | Buffer | Uint8Array, opts?: { etag?: string }) {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/') || !isAssetFileName(file)) throw new Error('invalid asset')
     const written = await writeDocument(this.docRoot(), file, content, opts)
-    return { name: written.name, href: assetHref(written.name), etag: written.etag, bytes: written.bytes.length, storage: 'doc' as const }
+    return { name: written.name, href: assetHref(written.name), etag: written.etag, bytes: written.bytes.length, storage: 'name' as const }
   }
 
   async read(name: string) {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/')) throw new Error('invalid asset')
     const { bytes } = await readContentAddressed(this.casRoot(), file)
-    return { bytes, type: mimeOfAsset(file), etag: file, storage: 'cas' as const }
+    return { bytes, type: mimeOfAsset(file), etag: file, storage: 'hash' as const }
   }
 
   async readDoc(name: string) {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/')) throw new Error('invalid asset')
     const { bytes, etag } = await readDocument(this.docRoot(), file)
-    return { bytes, type: mimeOfAsset(file), etag, storage: 'doc' as const }
+    return { bytes, type: mimeOfAsset(file), etag, storage: 'name' as const }
   }
 
   async readAny(name: string) {

@@ -337,7 +337,7 @@ export class PagesStore {
   async writeAsset(name: string, content: string | Buffer | Uint8Array, opts?: { etag?: string }) {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/') || !isPageAssetFileName(file)) throw new Error('invalid asset')
-    const written = await writeDocument(join(this.assetsDir, 'doc'), file, content, opts)
+    const written = await writeDocument(join(this.assetsDir, 'name'), file, content, opts)
     const db = await this.openDb()
     upsertAttachmentRow(db, {
       name: written.name,
@@ -345,7 +345,7 @@ export class PagesStore {
       mime: mimeOf(written.name),
       bytes: written.bytes.length,
       kind: 'asset',
-      storage: 'doc',
+      storage: 'name',
     })
     return { name: written.name, href: fileUrl(written.name), etag: written.etag }
   }
@@ -354,7 +354,7 @@ export class PagesStore {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/')) throw new Error('invalid asset')
     try {
-      const { bytes, etag } = await readDocument(join(this.assetsDir, 'doc'), file)
+      const { bytes, etag } = await readDocument(join(this.assetsDir, 'name'), file)
       return { bytes, type: mimeOf(file), etag }
     } catch {
       throw new Error('not found')
@@ -402,7 +402,7 @@ export class PagesStore {
         core.add(row.name)
       }
     }
-    for (const file of listCasAssetFiles(join(this.assetsDir, 'cas'))) {
+    for (const file of listCasAssetFiles(join(this.assetsDir, 'hash'))) {
       if (live.has(file.name) || core.has(file.name)) continue
       if (now - file.mtimeMs < graceMs) continue
       try {
@@ -411,7 +411,7 @@ export class PagesStore {
         /* gone */
       }
     }
-    for (const file of listDocAssetFiles(join(this.assetsDir, 'doc'))) {
+    for (const file of listDocAssetFiles(join(this.assetsDir, 'name'))) {
       if (live.has(file.name) || core.has(file.name)) continue
       if (now - file.mtimeMs < graceMs) continue
       try {

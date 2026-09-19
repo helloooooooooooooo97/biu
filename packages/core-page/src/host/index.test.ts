@@ -129,9 +129,9 @@ test('page plugin stores pages in SQLite under .biu', async () => {
     storage: string
     kind: string
   }
-  assert.equal(boardRow.storage, 'doc')
+  assert.equal(boardRow.storage, 'name')
   assert.equal(boardRow.kind, 'asset')
-  const diskAsset = await readFile(join(assetsDir, 'doc', 'board.json'), 'utf8')
+  const diskAsset = await readFile(join(assetsDir, 'name', 'board.json'), 'utf8')
   assert.match(diskAsset, /elements/)
   const read = await store.readAsset('board.json')
   assert.equal(read.type, 'application/json; charset=utf-8')
@@ -403,28 +403,28 @@ test('gcAssets deletes unreferenced doc files after one day', async () => {
     notes: '![drop](/api/db/file/drop.json)\n',
   })
   const stale = Date.now() / 1000 - 2 * 24 * 60 * 60
-  await utimes(join(root, '.biu/assets/doc', 'drop.json'), stale, stale)
-  await utimes(join(root, '.biu/assets/doc', 'orphan.json'), stale, stale)
+  await utimes(join(root, '.biu/assets/name', 'drop.json'), stale, stale)
+  await utimes(join(root, '.biu/assets/name', 'orphan.json'), stale, stale)
   const b = (await store.list()).find((row) => row.title === 'B')!
   await store.update(b.id, { notes: 'gone\n' })
   await store.gcAssets({ now: Date.now() })
 
-  const dropGone = await readFile(join(root, '.biu/assets/doc', 'drop.json'), 'utf8').then(
+  const dropGone = await readFile(join(root, '.biu/assets/name', 'drop.json'), 'utf8').then(
     () => false,
     () => true,
   )
-  const orphanGone = await readFile(join(root, '.biu/assets/doc', 'orphan.json'), 'utf8').then(
+  const orphanGone = await readFile(join(root, '.biu/assets/name', 'orphan.json'), 'utf8').then(
     () => false,
     () => true,
   )
-  const kept = await readFile(join(root, '.biu/assets/doc', 'keep.json'), 'utf8')
+  const kept = await readFile(join(root, '.biu/assets/name', 'keep.json'), 'utf8')
   assert.equal(dropGone, true)
   assert.equal(orphanGone, true)
   assert.match(kept, /ok/)
 
   await store.writeAsset('fresh-orphan.json', '{}')
   await store.gcAssets()
-  const fresh = await readFile(join(root, '.biu/assets/doc', 'fresh-orphan.json'), 'utf8')
+  const fresh = await readFile(join(root, '.biu/assets/name', 'fresh-orphan.json'), 'utf8')
   assert.equal(fresh, '{}')
   assert.equal(a.title, 'A')
 })
@@ -442,7 +442,7 @@ test('PagesStore migrates leftover .page into .biu', async () => {
   assert.equal(home?.notes, 'from-legacy\n')
   assert.equal(existsSync(join(root, PAGE_ROOT, 'home.md')), false)
   const board = hashedAssetName(Buffer.from('{"ok":1}'), 'board.json')
-  const asset = await readFile(join(root, '.biu/assets/cas', hashedAssetRel(board)), 'utf8')
+  const asset = await readFile(join(root, '.biu/assets/hash', hashedAssetRel(board)), 'utf8')
   assert.match(asset, /ok/)
   assert.equal(existsSync(join(root, '.page')), false)
   assert.equal(existsSync(join(root, '.biu/assets/page')), false)

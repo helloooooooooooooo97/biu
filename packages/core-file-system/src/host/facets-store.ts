@@ -168,7 +168,7 @@ export class FacetStore {
         mime TEXT NOT NULL,
         bytes INTEGER NOT NULL,
         kind TEXT NOT NULL DEFAULT 'asset',
-        storage TEXT NOT NULL DEFAULT 'cas',
+        storage TEXT NOT NULL DEFAULT 'hash',
         created_at INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS content_refs (
@@ -193,10 +193,16 @@ export class FacetStore {
     const cols = this.db!.prepare('PRAGMA table_info(attachments)').all() as Array<{ name: string }>
     if (!cols.some((col) => col.name === 'storage')) {
       try {
-        this.db!.exec(`ALTER TABLE attachments ADD COLUMN storage TEXT NOT NULL DEFAULT 'cas'`)
+        this.db!.exec(`ALTER TABLE attachments ADD COLUMN storage TEXT NOT NULL DEFAULT 'hash'`)
       } catch {
         /* ignore */
       }
+    }
+    try {
+      this.db!.exec(`UPDATE attachments SET storage = 'hash' WHERE storage IN ('cas', '')`)
+      this.db!.exec(`UPDATE attachments SET storage = 'name' WHERE storage = 'doc'`)
+    } catch {
+      /* ignore */
     }
   }
 

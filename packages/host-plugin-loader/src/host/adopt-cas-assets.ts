@@ -62,7 +62,7 @@ function collectLegacyFiles(biuDir: string) {
   }
   if (existsSync(cas) && statSync(cas).isDirectory()) {
     for (const name of readdirSync(cas)) {
-      if (name === 'page' || name === 'cas' || name === 'doc' || name === '.gitkeep') continue
+      if (name === 'page' || name === 'cas' || name === 'doc' || name === 'hash' || name === 'name' || name === '.gitkeep') continue
       const path = join(cas, name)
       const stat = statSync(path)
       if (stat.isFile()) out.push(path)
@@ -120,7 +120,7 @@ export function ensureRefTables(db: import('node:sqlite').DatabaseSync) {
       mime TEXT NOT NULL,
       bytes INTEGER NOT NULL,
       kind TEXT NOT NULL DEFAULT 'asset',
-      storage TEXT NOT NULL DEFAULT 'cas',
+      storage TEXT NOT NULL DEFAULT 'hash',
       created_at INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS content_refs (
@@ -142,7 +142,13 @@ export function ensureRefTables(db: import('node:sqlite').DatabaseSync) {
   try {
     const cols = db.prepare('PRAGMA table_info(attachments)').all() as Array<{ name: string }>
     if (!cols.some((col) => col.name === 'storage')) {
-      db.exec(`ALTER TABLE attachments ADD COLUMN storage TEXT NOT NULL DEFAULT 'cas'`)
+      db.exec(`ALTER TABLE attachments ADD COLUMN storage TEXT NOT NULL DEFAULT 'hash'`)
+    }
+    try {
+      db.exec(`UPDATE attachments SET storage = 'hash' WHERE storage IN ('cas', '')`)
+      db.exec(`UPDATE attachments SET storage = 'name' WHERE storage = 'doc'`)
+    } catch {
+      /* dummy sqlite */
     }
   } catch {
     /* dummy sqlite */
@@ -176,7 +182,7 @@ export function upsertAttachmentRow(
 ) {
   ensureRefTables(db)
   const kind = row.kind === 'core' ? 'core' : 'asset'
-  const storage = row.storage === 'doc' ? 'doc' : 'cas'
+  const storage = row.storage === 'name' || row.storage === 'doc' ? 'name' : 'hash'
   db.prepare(
     `INSERT INTO attachments (name, etag, mime, bytes, kind, storage, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -259,17 +265,17 @@ function ledgerFromDisk(biuDir: string) {
     } catch {
       return
     }
-    for (const file of listCasAssetFiles(join(biuDir, 'assets', 'cas'))) {
+    for (const file of listCasAssetFiles(join(biuDir, 'assets', 'hash'))) {
       upsertAttachmentRow(db, {
         name: file.name,
         etag: file.name,
         mime: mimeGuess(file.name),
         bytes: statSync(file.path).size,
         kind: 'asset',
-        storage: 'cas',
+        storage: 'hash',
       })
     }
-    for (const file of listDocAssetFiles(join(biuDir, 'assets', 'doc'))) {
+    for (const file of listDocAssetFiles(join(biuDir, 'assets', 'name'))) {
       const buf = readFileSync(file.path)
       upsertAttachmentRow(db, {
         name: file.name,
@@ -277,7 +283,7 @@ function ledgerFromDisk(biuDir: string) {
         mime: mimeGuess(file.name),
         bytes: buf.length,
         kind: 'asset',
-        storage: 'doc',
+        storage: 'name',
       })
     }
     rebuildBlockRefsFromIndex(db)
@@ -452,36 +458,46 @@ function cleanDbLayer(dbDir: string) {
   }
 }
 
+function takeTree(from: string, to: string) {
+  if (!existsSync(from) || from === to) return
+  mkdirSync(dirname(to), { recursive: true })
+  if (!existsSync(to)) {
+    renameSync(from, to)
+    return
+  }
+  const leftover: string[] = []
+  gatherTree(from, leftover)
+  for (const file of leftover) {
+    const rel = file.slice(from.length + 1)
+    const dest = join(to, rel)
+    mkdirSync(dirname(dest), { recursive: true })
+    if (!existsSync(dest)) {
+      try {
+        renameSync(file, dest)
+      } catch {
+        copyFileSync(file, dest)
+        unlinkSync(file)
+      }
+    } else unlinkSync(file)
+  }
+  rmEmptyDir(from)
+}
+
 function nestCasShards(assetsDir: string) {
-  const casRoot = join(assetsDir, 'cas')
-  mkdirSync(casRoot, { recursive: true })
+  const hashRoot = join(assetsDir, 'hash')
+  mkdirSync(hashRoot, { recursive: true })
   if (!existsSync(assetsDir)) return
   for (const name of readdirSync(assetsDir)) {
-    if (name === 'cas' || name === 'doc' || name === 'page') continue
+    if (name === 'cas' || name === 'doc' || name === 'hash' || name === 'name' || name === 'page') continue
     if (!isHex2(name)) continue
     const from = join(assetsDir, name)
     if (!statSync(from).isDirectory()) continue
-    const to = join(casRoot, name)
+    const to = join(hashRoot, name)
     if (!existsSync(to)) {
       renameSync(from, to)
       continue
     }
-    const leftover: string[] = []
-    gatherTree(from, leftover)
-    for (const file of leftover) {
-      const rel = file.slice(from.length + 1)
-      const dest = join(to, rel)
-      mkdirSync(dirname(dest), { recursive: true })
-      if (!existsSync(dest)) {
-        try {
-          renameSync(file, dest)
-        } catch {
-          copyFileSync(file, dest)
-          unlinkSync(file)
-        }
-      } else unlinkSync(file)
-    }
-    rmEmptyDir(from)
+    takeTree(from, to)
   }
 }
 
@@ -497,17 +513,20 @@ export function listDocAssetFiles(root: string): Array<{ name: string; path: str
   return out
 }
 
-/** Fold leftover page/db trees and root CAS shards into `.biu/assets/cas/<ab>/<cd>/<hash>.<ext>`. */
+/** Fold leftover trees into `.biu/assets/hash/<ab>/<cd>/<hash>.<ext>` and `.biu/assets/name/<逻辑名>`. */
 export function adoptCasAssets(biuDir: string) {
   if (!existsSync(biuDir)) return
   const assetsDir = join(biuDir, 'assets')
-  const casRoot = join(assetsDir, 'cas')
-  mkdirSync(casRoot, { recursive: true })
-  mkdirSync(join(assetsDir, 'doc'), { recursive: true })
+  mkdirSync(assetsDir, { recursive: true })
+  takeTree(join(assetsDir, 'cas'), join(assetsDir, 'hash'))
+  takeTree(join(assetsDir, 'doc'), join(assetsDir, 'name'))
+  const hashRoot = join(assetsDir, 'hash')
+  mkdirSync(hashRoot, { recursive: true })
+  mkdirSync(join(assetsDir, 'name'), { recursive: true })
   const map = new Map<string, string>()
   for (const from of collectLegacyFiles(biuDir)) {
     try {
-      const { logical, name } = moveToCas(casRoot, from)
+      const { logical, name } = moveToCas(hashRoot, from)
       if (ASSET_NAME_RE.test(logical)) map.set(logical, name)
     } catch {
       /* skip unreadable */

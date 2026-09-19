@@ -28,7 +28,7 @@ test('migrateDataDir merges leftover .cordis into existing .biu', () => {
   migrateDataDir(root)
   assert.equal(readFileSync(join(root, DATA_DIR_NAME, 'keep.txt'), 'utf8'), 'keep')
   const pic = hashedAssetName(Buffer.from('img'), 'pic.png')
-  assert.equal(readFileSync(join(root, DATA_DIR_NAME, 'assets', 'cas', hashedAssetRel(pic)), 'utf8'), 'img')
+  assert.equal(readFileSync(join(root, DATA_DIR_NAME, 'assets', 'hash', hashedAssetRel(pic)), 'utf8'), 'img')
   assert.equal(existsSync(join(root, DATA_DIR_NAME, 'assets', 'pic.png')), false)
   assert.equal(existsSync(join(root, LEGACY_DATA_DIR_NAME)), false)
 })
@@ -51,7 +51,7 @@ test('migrateDataDir moves leftover .page into .biu', () => {
   assert.equal(readFileSync(join(root, PAGE_ROOT, 'home.md'), 'utf8'), 'hello')
   assert.equal(readFileSync(join(root, PAGE_DB), 'utf8'), 'db')
   const board = hashedAssetName(Buffer.from('{}'), 'board.json')
-  assert.equal(readFileSync(join(root, DATA_DIR_NAME, 'assets', 'cas', hashedAssetRel(board)), 'utf8'), '{}')
+  assert.equal(readFileSync(join(root, DATA_DIR_NAME, 'assets', 'hash', hashedAssetRel(board)), 'utf8'), '{}')
   assert.equal(existsSync(join(root, DATA_DIR_NAME, 'assets', 'page')), false)
   assert.equal(existsSync(join(root, DATA_DIR_NAME, 'page', 'assets')), false)
   assert.equal(existsSync(join(root, LEGACY_PAGE_ROOT)), false)
@@ -123,7 +123,7 @@ test('migrateDataDir folds leftover asset layers into CAS and rewrites refs', ()
   db.close()
   migrateDataDir(root)
   const hashed = hashedAssetName(Buffer.from('hero'), 'hero.png')
-  assert.equal(readFileSync(join(biu, 'assets', 'cas', hashedAssetRel(hashed)), 'utf8'), 'hero')
+  assert.equal(readFileSync(join(biu, 'assets', 'hash', hashedAssetRel(hashed)), 'utf8'), 'hero')
   assert.equal(existsSync(join(biu, 'assets', 'page')), false)
   assert.equal(existsSync(join(biu, 'page', 'assets')), false)
   const again = new DatabaseSync(join(biu, 'biu.sqlite'))
@@ -140,7 +140,7 @@ test('migrateDataDir folds leftover asset layers into CAS and rewrites refs', ()
     kind: string
   }
   assert.equal(att.name, hashed)
-  assert.equal(att.storage, 'cas')
+  assert.equal(att.storage, 'hash')
   again.close()
 })
 
@@ -172,7 +172,9 @@ test('adoptCasAssets ledgers doc files and block_refs from page_block_index', ()
     kind: string
     bytes: number
   }
-  assert.equal(att.storage, 'doc')
+  assert.equal(att.storage, 'name')
+  assert.equal(existsSync(join(biu, 'assets', 'doc')), false)
+  assert.equal(existsSync(join(biu, 'assets', 'name', '画板-edd9.json')), true)
   assert.equal(att.kind, 'core')
   assert.ok(att.bytes > 0)
   const ref = again.prepare('SELECT source FROM block_refs WHERE name = ?').get('画板-edd9.json') as { source: string }
