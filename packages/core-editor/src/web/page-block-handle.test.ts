@@ -176,4 +176,8 @@ test('block handle menu puts an icon before each action', async () => {
   assert.match(src, /<TrashIcon[\s\S]*删除/)
   assert.match(css, /\.page-block-handle-menu button\{[^}]*display:\s*flex/)
   assert.match(css, /\.page-block-handle-menu button\{[^}]*gap:\s*8px/)
+  assert.match(css, /\.page-block-handle-menu button\{[^}]*color:var\(--dsw-sidebar-fg\)/)
+  assert.match(css, /\.page-block-handle-menu button svg\{[^}]*color:var\(--dsw-icon\)/)
+  assert.match(css, /html:not\(\.dark\) \.page-block-handle-menu button[\s\S]*color:#5f5e5a/)
+  assert.match(css, /html:not\(\.dark\) \.page-block-handle-menu button svg[\s\S]*color:#91918e/)
 })

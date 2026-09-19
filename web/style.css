@@ -6928,3 +6928,82 @@ html:not(.dark) .chat-reply-details .chat-md pre code,
 html:not(.dark) .chat-reply-details .chat-md a {
   color: #5f5e5a;
 }
+
+/* 日间浮窗：icon #91918e，文字 #5f5e5a（block 菜单 / slash / 右上角+ / 表格工具栏） */
+html:not(.dark) .page-block-handle-menu button,
+html:not(.dark) .page-block-handle-menu button:hover,
+html:not(.dark) .page-slash-item,
+html:not(.dark) .page-slash-item:hover,
+html:not(.dark) .page-slash-item.is-active,
+html:not(.dark) .page-slash-label,
+html:not(.dark) .page-bubble button:not(.is-on),
+html:not(.dark) .page-bubble-letter,
+html:not(.dark) .inspector-add-menu,
+html:not(.dark) .inspector-add-owner,
+html:not(.dark) .inspector-add-row,
+html:not(.dark) .inspector-add-row-main,
+html:not(.dark) .inspector-add-row.is-active .inspector-add-row-main,
+html:not(.dark) .inspector-add-menu .inspector-catalog-item,
+html:not(.dark) .inspector-add-menu .inspector-catalog-item:hover,
+html:not(.dark) .inspector-add-menu .inspector-catalog-item.is-active,
+html:not(.dark) .tasks-viewdd-menu,
+html:not(.dark) .tasks-viewdd-head,
+html:not(.dark) .tasks-viewdd-item-main,
+html:not(.dark) .tasks-viewdd-item.is-active .tasks-viewdd-item-main,
+html:not(.dark) .tasks-viewdd-saveas,
+html:not(.dark) .tasks-viewdd-empty,
+html:not(.dark) .tasks-sort-menu,
+html:not(.dark) .tasks-sort-head,
+html:not(.dark) .tasks-sort-item,
+html:not(.dark) .tasks-sort-item.is-active,
+html:not(.dark) .tasks-filter-menu,
+html:not(.dark) .fsdb-query-menu,
+html:not(.dark) .fsdb-query-menu .tasks-sort-head,
+html:not(.dark) .fsdb-col-menu,
+html:not(.dark) .fsdb-checkrow,
+html:not(.dark) .fsdb-checkrow:hover,
+html:not(.dark) .fsdb-checkrow.is-on,
+html:not(.dark) .fsdb-filter-row,
+html:not(.dark) .tasks-filter-menu-label {
+  color: #5f5e5a;
+}
+
+html:not(.dark) .page-block-handle-menu button svg,
+html:not(.dark) .page-slash-icon,
+html:not(.dark) .page-slash-icon svg,
+html:not(.dark) .page-slash .pick-kind-icon,
+html:not(.dark) .page-bubble button:not(.is-on) svg,
+html:not(.dark) .page-bubble-chat-icon,
+html:not(.dark) .inspector-add-row-main svg,
+html:not(.dark) .inspector-add-close,
+html:not(.dark) .inspector-add-close svg,
+html:not(.dark) .inspector-add-menu .inspector-catalog-item svg,
+html:not(.dark) .inspector-add-menu .inspector-catalog-item:hover svg,
+html:not(.dark) .tasks-viewdd-act,
+html:not(.dark) .tasks-viewdd-act svg,
+html:not(.dark) .tasks-viewdd-act:hover,
+html:not(.dark) .tasks-viewdd-act:hover svg,
+html:not(.dark) .tasks-viewdd-saveas svg,
+html:not(.dark) .tasks-sort-item svg,
+html:not(.dark) .tasks-sort-item:hover svg,
+html:not(.dark) .tasks-sort-item.is-active svg,
+html:not(.dark) .fsdb-query-menu svg,
+html:not(.dark) .fsdb-query-grip,
+html:not(.dark) .fsdb-checkrow-icon,
+html:not(.dark) .fsdb-checkrow-icon svg,
+html:not(.dark) .fsdb-checkrow.is-on .fsdb-checkrow-icon,
+html:not(.dark) .fsdb-checkrow:hover .fsdb-checkrow-icon,
+html:not(.dark) .fsdb-checkrow.is-on .fsdb-checkrow-icon svg,
+html:not(.dark) .fsdb-checkrow:hover .fsdb-checkrow-icon svg,
+html:not(.dark) .fsdb-checkrow > svg,
+html:not(.dark) .fsdb-checkrow.is-on > svg,
+html:not(.dark) .fsdb-checkrow:hover > svg {
+  color: #91918e;
+}
+
+html:not(.dark) .inspector-add-menu .inspector-add-check,
+html:not(.dark) .inspector-add-menu .inspector-add-check svg,
+html:not(.dark) .tasks-viewdd-menu .tasks-viewdd-check,
+html:not(.dark) .tasks-viewdd-menu .tasks-viewdd-check svg {
+  color: var(--dsw-business);
+}

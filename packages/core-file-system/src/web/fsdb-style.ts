@@ -786,6 +786,47 @@ html.share .fsdb-detail-float-nav,html.share .heading-outline-host:not(.is-sheet
 .fsdb-page .tasks-viewtab.is-active svg,.fsdb-page .tasks-viewdd-btn.is-active svg{color:var(--dsw-icon-active)!important}
 .fsdb-page .tasks-table thead .tasks-th svg,.fsdb-page .tasks-table thead .fsdb-field-bool-glyph{color:var(--dsw-icon)!important;fill:currentColor;opacity:1}
 .fsdb-page .tasks-table thead .tasks-th.is-on svg,.fsdb-page .tasks-table thead .tasks-th.is-on .fsdb-field-bool-glyph{color:var(--dsw-icon-active)!important}
+html:not(.dark) .tasks-viewdd-menu,
+html:not(.dark) .tasks-viewdd-head,
+html:not(.dark) .tasks-viewdd-item-main,
+html:not(.dark) .tasks-viewdd-item.is-active .tasks-viewdd-item-main,
+html:not(.dark) .tasks-viewdd-saveas,
+html:not(.dark) .tasks-viewdd-empty,
+html:not(.dark) .tasks-sort-menu,
+html:not(.dark) .tasks-sort-head,
+html:not(.dark) .tasks-sort-item,
+html:not(.dark) .tasks-sort-item.is-active,
+html:not(.dark) .tasks-filter-menu,
+html:not(.dark) .fsdb-query-menu,
+html:not(.dark) .fsdb-col-menu,
+html:not(.dark) .fsdb-checkrow,
+html:not(.dark) .fsdb-checkrow:hover,
+html:not(.dark) .fsdb-checkrow.is-on,
+html:not(.dark) .fsdb-filter-row,
+html:not(.dark) .tasks-filter-menu-label,
+html:not(.dark) .fsdb-cellselect-menu{color:#5f5e5a}
+html:not(.dark) .tasks-viewdd-act,
+html:not(.dark) .tasks-viewdd-act svg,
+html:not(.dark) .tasks-viewdd-act:hover,
+html:not(.dark) .tasks-viewdd-act:hover svg,
+html:not(.dark) .tasks-viewdd-saveas svg,
+html:not(.dark) .tasks-sort-item svg,
+html:not(.dark) .tasks-sort-item:hover svg,
+html:not(.dark) .tasks-sort-item.is-active svg,
+html:not(.dark) .fsdb-query-menu svg,
+html:not(.dark) .fsdb-query-grip,
+html:not(.dark) .fsdb-checkrow-icon,
+html:not(.dark) .fsdb-checkrow-icon svg,
+html:not(.dark) .fsdb-checkrow.is-on .fsdb-checkrow-icon,
+html:not(.dark) .fsdb-checkrow:hover .fsdb-checkrow-icon,
+html:not(.dark) .fsdb-checkrow.is-on .fsdb-checkrow-icon svg,
+html:not(.dark) .fsdb-checkrow:hover .fsdb-checkrow-icon svg,
+html:not(.dark) .fsdb-checkrow>svg,
+html:not(.dark) .fsdb-checkrow.is-on>svg,
+html:not(.dark) .fsdb-checkrow:hover>svg,
+html:not(.dark) .fsdb-cellselect-menu svg{color:#91918e}
+html:not(.dark) .tasks-viewdd-menu .tasks-viewdd-check,
+html:not(.dark) .tasks-viewdd-menu .tasks-viewdd-check svg{color:var(--dsw-business)}
 `
 
 export function ensureFsdbStyle() {
