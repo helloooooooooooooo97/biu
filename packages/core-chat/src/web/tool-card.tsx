@@ -31,7 +31,7 @@ function DiffBlock({ lines, path }: { lines: DiffLine[]; path?: string }) {
     <div className="overflow-hidden rounded-[10px] bg-(--dsw-sidebar)">
       {path ? (
         <div className="flex items-center justify-between gap-2 px-3 py-1.5">
-          <span className="min-w-0 truncate font-mono text-(length:--dsw-chat-ui-font-size) text-(--dsw-label-2)">{path}</span>
+          <span className="min-w-0 truncate font-mono text-(length:--dsw-chat-ui-font-size) text-(--dsw-icon)">{path}</span>
           <span className="shrink-0 font-mono text-(length:--dsw-chat-ui-font-size) tabular-nums text-(--dsw-label-3)">
             {stats.removed ? <span className="text-(--dsw-danger)">−{stats.removed}</span> : null}
             {stats.removed && stats.added ? ' ' : null}
