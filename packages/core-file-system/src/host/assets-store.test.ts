@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { hashedAssetRel } from '@biu/host-plugin-loader/data-dir'
@@ -25,15 +25,5 @@ test('shared assets are content-addressed and reject path escape', async () => {
   const changed = await store.write('shot.png', 'next')
   assert.notEqual(changed.name, written.name)
   assert.deepEqual([...collectAssetNames({ file: 'assets/画板-ab12.json' })], ['画板-ab12.json'])
-})
-
-test('new writes land in hashed shards and still read leftover files at the assets root', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'fs-assets-layer-'))
-  await writeFile(join(root, 'old.png'), 'old')
-  const store = new FileSystemAssets(root)
-  const written = await store.write('shot.png', 'new')
-  assert.match(written.name, /^[a-f0-9]{64}\.png$/)
-  assert.equal(await readFile(join(root, hashedAssetRel(written.name)), 'utf8'), 'new')
-  const legacy = await store.read('old.png')
-  assert.equal(legacy.bytes.toString(), 'old')
+  await assert.rejects(() => store.read('old.png'), /not found/)
 })

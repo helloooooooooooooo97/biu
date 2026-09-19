@@ -1,16 +1,18 @@
-import { copyFile, mkdir, stat, unlink } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { mkdir, unlink } from 'node:fs/promises'
+import { basename } from 'node:path'
 import { createRequire } from 'node:module'
 import type { DbRecord, SchemaFieldValue } from '@biu/type-file-system'
 import { emptySchemaValue, normalizeSchemaValue } from '@biu/type-file-system'
 import {
+  DATA_DIR_NAME,
+  adoptCasAssets,
   assetsRootPath,
   dataHome,
+  isHashedAssetName,
+  listCasAssetFiles,
   migrateLegacyPageDir,
-  PAGE_ASSETS,
   PAGE_DB,
   PAGE_ROOT,
-  isHashedAssetName,
   readContentAddressed,
   writeContentAddressed,
 } from '@biu/host-plugin-loader/data-dir'
@@ -23,19 +25,6 @@ export const ASSET_GC_GRACE_MS = 24 * 60 * 60 * 1000
 const ID_RE = /^[A-Za-z0-9._-]+$/
 const ASSET_FILE_RE = /^[\p{L}\p{N}._-]+$/u
 const ASSET_REF_RE = /(?:(?:\.page\/)?assets\/|\/api\/(?:page|db)\/file\/)([\p{L}\p{N}._-]+)/gu
-
-function bytesEtag(bytes: Buffer, name: string) {
-  return isHashedAssetName(name) ? basename(name) : name
-}
-
-export class PageAssetConflictError extends Error {
-  readonly etag: string
-  constructor(etag: string) {
-    super('etag conflict')
-    this.name = 'PageAssetConflictError'
-    this.etag = etag
-  }
-}
 
 export function isPageAssetFileName(name: string) {
   return Boolean(name) && name === basename(name) && name !== '.gitkeep' && ASSET_FILE_RE.test(name)
@@ -220,8 +209,8 @@ export class PagesStore {
     }
     this.db = db
     await this.migrateMarkdown()
-    await this.gcLegacyPageAssets()
-    await this.adoptPageAssets()
+    adoptCasAssets(this.fs.resolve(DATA_DIR_NAME))
+    await this.gcCasAssets()
     return db
   }
 
@@ -249,35 +238,6 @@ export class PagesStore {
         await unlink(this.fs.resolve(pageRel(id)))
       } catch {
         /* skip unreadable */
-      }
-    }
-  }
-
-  private async adoptPageAssets() {
-    let names: string[] = []
-    try {
-      names = await this.fs.list(PAGE_ASSETS)
-    } catch {
-      return
-    }
-    await mkdir(this.assetsDir, { recursive: true })
-    for (const name of names) {
-      if (name === '.gitkeep' || !isPageAssetFileName(name)) continue
-      const from = this.fs.resolve(`${PAGE_ASSETS}/${name}`)
-      const to = join(this.assetsDir, name)
-      try {
-        await stat(to)
-      } catch {
-        try {
-          await copyFile(from, to)
-        } catch {
-          continue
-        }
-      }
-      try {
-        await unlink(from)
-      } catch {
-        /* already gone */
       }
     }
   }
@@ -381,47 +341,63 @@ export class PagesStore {
   async readAsset(name: string): Promise<{ bytes: Buffer; type: string; etag: string }> {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/')) throw new Error('invalid asset')
-    const fallbacks = [join(this.assetsDir, 'page'), join(this.assetsDir, 'db'), this.fs.resolve(PAGE_ASSETS)]
     try {
-      const { bytes } = await readContentAddressed(this.assetsDir, file, fallbacks)
-      return { bytes, type: mimeOf(file), etag: bytesEtag(bytes, file) }
+      const { bytes } = await readContentAddressed(this.assetsDir, file)
+      return { bytes, type: mimeOf(file), etag: isHashedAssetName(file) ? file : file }
     } catch {
       throw new Error('not found')
     }
   }
 
-  private async gcLegacyPageAssets(opts?: { graceMs?: number; now?: number }) {
-    if (!this.db) return
-    const graceMs = opts?.graceMs ?? ASSET_GC_GRACE_MS
-    const now = opts?.now ?? Date.now()
+  private liveAssetNames() {
     const live = new Set<string>()
+    if (!this.db) return live
     const bodies = this.db.prepare('SELECT notes FROM pages').all() as Array<{ notes?: string }>
     for (const row of bodies) {
       for (const asset of collectPageAssetNames(row.notes ?? '')) live.add(asset)
     }
-    let names: string[] = []
-    try {
-      names = await this.fs.list(PAGE_ASSETS)
-    } catch {
-      return
+    const tables = this.db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all() as Array<{ name: string }>
+    const names = new Set(tables.map((row) => row.name))
+    if (names.has('record_banners')) {
+      const banners = this.db.prepare('SELECT html FROM record_banners').all() as Array<{ html?: string }>
+      for (const row of banners) {
+        for (const asset of collectPageAssetNames(row.html ?? '')) live.add(asset)
+      }
     }
-    for (const name of names) {
-      if (name === '.gitkeep' || live.has(name) || !isPageAssetFileName(name)) continue
-      const full = this.fs.resolve(`${PAGE_ASSETS}/${name}`)
+    if (names.has('content_refs')) {
+      for (const row of this.db.prepare('SELECT name FROM content_refs').all() as Array<{ name: string }>) live.add(row.name)
+    }
+    if (names.has('block_refs')) {
+      for (const row of this.db.prepare('SELECT name FROM block_refs').all() as Array<{ name: string }>) live.add(row.name)
+    }
+    if (names.has('attachments')) {
+      for (const row of this.db.prepare(`SELECT name FROM attachments WHERE kind = 'core'`).all() as Array<{ name: string }>) {
+        live.add(row.name)
+      }
+    }
+    return live
+  }
+
+  private async gcCasAssets(opts?: { graceMs?: number; now?: number }) {
+    if (!this.db) return
+    const graceMs = opts?.graceMs ?? ASSET_GC_GRACE_MS
+    const now = opts?.now ?? Date.now()
+    const live = this.liveAssetNames()
+    for (const file of listCasAssetFiles(this.assetsDir)) {
+      if (live.has(file.name)) continue
+      if (now - file.mtimeMs < graceMs) continue
       try {
-        const info = await stat(full)
-        if (now - info.mtimeMs < graceMs) continue
-        await unlink(full)
+        await unlink(file.path)
       } catch {
-        // gone or unreadable
+        /* gone */
       }
     }
   }
 
   async gcAssets(opts?: { graceMs?: number; now?: number }) {
     await this.openDb()
-    await this.gcLegacyPageAssets(opts)
-    await this.adoptPageAssets()
+    adoptCasAssets(this.fs.resolve(DATA_DIR_NAME))
+    await this.gcCasAssets(opts)
   }
 
   private async write(row: PageRow) {

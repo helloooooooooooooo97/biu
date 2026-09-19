@@ -47,7 +47,7 @@ import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
 import { buildShareSnapshot } from './share-payload.ts'
-import { AssetConflictError, FileSystemAssets, collectAssetNames, isAssetFileName, isHashedAssetName, mimeOfAsset, parseIfMatch } from './assets-store.ts'
+import { FileSystemAssets, collectAssetNames, isAssetFileName, isHashedAssetName, mimeOfAsset } from './assets-store.ts'
 import { facetsCollection } from './facets-collection.ts'
 import { noticesCollection } from './notices-collection.ts'
 import { NoticesService } from './notices-service.ts'
@@ -2153,16 +2153,10 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('PUT', '/api/db/file/:name', async (route) => {
     try {
-      const written = await assets.write(route.params.name ?? '', await route.bytes(), {
-        etag: parseIfMatch(route.req.headers['if-match']),
-      })
+      const written = await assets.write(route.params.name ?? '', await route.bytes())
       ctx.http.broadcast?.(DATABASE_CHANNEL, { ts: Date.now(), asset: { name: written.name, etag: written.etag } })
       route.send(200, { ok: true, ...written })
     } catch (error) {
-      if (error instanceof AssetConflictError) {
-        route.send(409, { error: 'etag conflict', etag: error.etag })
-        return
-      }
       route.send(400, { error: String(error) })
     }
   })

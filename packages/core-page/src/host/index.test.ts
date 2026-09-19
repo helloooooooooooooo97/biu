@@ -11,8 +11,8 @@ import * as tools from '@biu/host-tools'
 import * as fsPlugin from '@biu/host-fs'
 import * as page from './index.ts'
 import { dumpMarkdown, splitMarkdown } from './markdown.ts'
-import { hashedAssetRel } from '@biu/host-plugin-loader/data-dir'
-import { ASSET_GC_GRACE_MS, PAGE_ASSETS, PAGE_DB, PAGE_ROOT, PagesStore, collectPageAssetNames } from './store.ts'
+import { hashedAssetName, hashedAssetRel } from '@biu/host-plugin-loader/data-dir'
+import { ASSET_GC_GRACE_MS, PAGE_DB, PAGE_ROOT, PagesStore, collectPageAssetNames } from './store.ts'
 import { PageBlocksIndex } from './page-blocks-index.ts'
 
 test('markdown frontmatter roundtrips YAML properties and body', () => {
@@ -363,47 +363,46 @@ test('collectPageAssetNames picks page asset pointers', () => {
   assert.equal(ASSET_GC_GRACE_MS, 24 * 60 * 60 * 1000)
 })
 
-test('gcAssets deletes unreferenced files after one day', async () => {
+test('gcAssets deletes unreferenced CAS files after one day', async () => {
   const ctx = new Context()
   await ctx.plugin(tools)
   const root = await mkdtemp(join(tmpdir(), 'page-gc-'))
   await ctx.plugin(fsPlugin, { root })
-  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets/page'))
+  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets'))
+  const keep = await store.writeAsset('keep.json', '{"ok":1}')
+  const drop = await store.writeAsset('drop.json', '{"ok":2}')
+  const orphan = await store.writeAsset('orphan.json', '{"ok":3}')
   const a = await store.create({
     title: 'A',
-    notes: ':::pageBlock {kind=excalidraw}\n{"file":"assets/excalidraw-keep.json"}\n:::\n',
+    notes: `![keep](/api/db/file/${keep.name})\n`,
   })
-  const b = await store.create({
+  await store.create({
     title: 'B',
-    notes: ':::pageBlock {kind=excalidraw}\n{"file":"assets/excalidraw-drop.json"}\n:::\n',
+    notes: `![drop](/api/db/file/${drop.name})\n`,
   })
-  await mkdir(join(root, PAGE_ASSETS), { recursive: true })
-  await writeFile(join(root, PAGE_ASSETS, 'excalidraw-keep.json'), '{"ok":1}')
-  await writeFile(join(root, PAGE_ASSETS, 'excalidraw-drop.json'), '{"ok":2}')
-  await writeFile(join(root, PAGE_ASSETS, 'orphan.json'), '{"ok":3}')
   const stale = Date.now() / 1000 - 2 * 24 * 60 * 60
-  await utimes(join(root, PAGE_ASSETS, 'excalidraw-drop.json'), stale, stale)
-  await utimes(join(root, PAGE_ASSETS, 'orphan.json'), stale, stale)
-
+  await utimes(join(root, '.biu/assets', hashedAssetRel(drop.name)), stale, stale)
+  await utimes(join(root, '.biu/assets', hashedAssetRel(orphan.name)), stale, stale)
+  const b = (await store.list()).find((row) => row.title === 'B')!
   await store.update(b.id, { notes: 'gone\n' })
   await store.gcAssets({ now: Date.now() })
 
-  const dropGone = await readFile(join(root, PAGE_ASSETS, 'excalidraw-drop.json'), 'utf8').then(
+  const dropGone = await readFile(join(root, '.biu/assets', hashedAssetRel(drop.name)), 'utf8').then(
     () => false,
     () => true,
   )
-  const orphanGone = await readFile(join(root, PAGE_ASSETS, 'orphan.json'), 'utf8').then(
+  const orphanGone = await readFile(join(root, '.biu/assets', hashedAssetRel(orphan.name)), 'utf8').then(
     () => false,
     () => true,
   )
-  const kept = await readFile(join(root, '.biu/assets/page', 'excalidraw-keep.json'), 'utf8')
+  const kept = await readFile(join(root, '.biu/assets', hashedAssetRel(keep.name)), 'utf8')
   assert.equal(dropGone, true)
   assert.equal(orphanGone, true)
   assert.match(kept, /ok/)
 
   const hashed = await store.writeAsset('fresh-orphan.json', '{}')
   await store.gcAssets()
-  const fresh = await readFile(join(root, '.biu/assets/page', hashedAssetRel(hashed.name)), 'utf8')
+  const fresh = await readFile(join(root, '.biu/assets', hashedAssetRel(hashed.name)), 'utf8')
   assert.equal(fresh, '{}')
   assert.equal(a.title, 'A')
 })
@@ -416,11 +415,13 @@ test('PagesStore migrates leftover .page into .biu', async () => {
   await mkdir(join(root, '.page/assets'), { recursive: true })
   await writeFile(join(root, '.page/home.md'), dumpMarkdown({ title: 'Home' }, 'from-legacy\n'), 'utf8')
   await writeFile(join(root, '.page/assets', 'board.json'), '{"ok":1}')
-  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets/page'))
+  const store = new PagesStore(ctx.fs.workspace as never, join(root, '.biu/assets'))
   const home = await store.get('home')
   assert.equal(home?.notes, 'from-legacy\n')
   assert.equal(existsSync(join(root, PAGE_ROOT, 'home.md')), false)
-  const asset = await readFile(join(root, '.biu/assets/page', 'board.json'), 'utf8')
+  const board = hashedAssetName(Buffer.from('{"ok":1}'), 'board.json')
+  const asset = await readFile(join(root, '.biu/assets', hashedAssetRel(board)), 'utf8')
   assert.match(asset, /ok/)
   assert.equal(existsSync(join(root, '.page')), false)
+  assert.equal(existsSync(join(root, '.biu/assets/page')), false)
 })

@@ -1,10 +1,11 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
-import { mkdtempSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { mkdirSync, writeFileSync, readFileSync, existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, LEGACY_PAGE_ROOT, PAGE_DB, PAGE_ROOT, adoptPackedUserData, dataDir, dataHome, dataPath, migrateDataDir, migrateLegacyPageDir } from './data-dir.ts'
+import { hashedAssetName, hashedAssetRel } from './asset-cas.ts'
 
 test('migrateDataDir renames .cordis to .biu', () => {
   const root = mkdtempSync(join(tmpdir(), 'biu-dir-'))
@@ -25,7 +26,9 @@ test('migrateDataDir merges leftover .cordis into existing .biu', () => {
   writeFileSync(join(root, LEGACY_DATA_DIR_NAME, 'keep.txt'), 'stale')
   migrateDataDir(root)
   assert.equal(readFileSync(join(root, DATA_DIR_NAME, 'keep.txt'), 'utf8'), 'keep')
-  assert.equal(readFileSync(join(root, DATA_DIR_NAME, 'assets', 'pic.png'), 'utf8'), 'img')
+  const pic = hashedAssetName(Buffer.from('img'), 'pic.png')
+  assert.equal(readFileSync(join(root, DATA_DIR_NAME, 'assets', hashedAssetRel(pic)), 'utf8'), 'img')
+  assert.equal(existsSync(join(root, DATA_DIR_NAME, 'assets', 'pic.png')), false)
   assert.equal(existsSync(join(root, LEGACY_DATA_DIR_NAME)), false)
 })
 
@@ -46,7 +49,10 @@ test('migrateDataDir moves leftover .page into .biu', () => {
   migrateDataDir(root)
   assert.equal(readFileSync(join(root, PAGE_ROOT, 'home.md'), 'utf8'), 'hello')
   assert.equal(readFileSync(join(root, PAGE_DB), 'utf8'), 'db')
-  assert.equal(readFileSync(join(root, DATA_DIR_NAME, 'assets', 'page', 'board.json'), 'utf8'), '{}')
+  const board = hashedAssetName(Buffer.from('{}'), 'board.json')
+  assert.equal(readFileSync(join(root, DATA_DIR_NAME, 'assets', hashedAssetRel(board)), 'utf8'), '{}')
+  assert.equal(existsSync(join(root, DATA_DIR_NAME, 'assets', 'page')), false)
+  assert.equal(existsSync(join(root, DATA_DIR_NAME, 'page', 'assets')), false)
   assert.equal(existsSync(join(root, LEGACY_PAGE_ROOT)), false)
 })
 
@@ -91,3 +97,42 @@ test('adoptPackedUserData moves pack-host leftovers into userData and keeps dest
   assert.equal(existsSync(join(pack, '.plugin-dev', 'demo', 'manifest.json')), true)
   assert.equal(existsSync(join(pack, DATA_DIR_NAME)), false)
 })
+
+test('migrateDataDir folds leftover asset layers into CAS and rewrites refs', () => {
+  const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
+  const root = mkdtempSync(join(tmpdir(), 'biu-cas-'))
+  const biu = join(root, DATA_DIR_NAME)
+  mkdirSync(join(biu, 'assets', 'page'), { recursive: true })
+  mkdirSync(join(biu, 'assets', 'db'), { recursive: true })
+  mkdirSync(join(biu, 'page', 'assets'), { recursive: true })
+  writeFileSync(join(biu, 'assets', 'page', 'hero.png'), 'hero')
+  writeFileSync(join(biu, 'assets', 'db', 'board.json'), '{}')
+  writeFileSync(join(biu, 'page', 'assets', 'hero.png'), 'hero')
+  const db = new DatabaseSync(join(biu, 'biu.sqlite'))
+  db.exec(`
+    CREATE TABLE pages (id TEXT PRIMARY KEY, title TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', parent_id TEXT, depends_on_json TEXT NOT NULL DEFAULT '[]', emoji TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE attachments (name TEXT PRIMARY KEY, etag TEXT NOT NULL, mime TEXT NOT NULL, bytes INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'asset', created_at INTEGER NOT NULL);
+    CREATE TABLE content_refs (collection TEXT NOT NULL, record_id TEXT NOT NULL, name TEXT NOT NULL, source TEXT NOT NULL, PRIMARY KEY (collection, record_id, name, source));
+    CREATE TABLE record_banners (collection TEXT NOT NULL, record_id TEXT NOT NULL, kind TEXT NOT NULL, html TEXT NOT NULL);
+  `)
+  db.prepare(`INSERT INTO pages (id, title, notes, created_at, updated_at) VALUES ('p1', '页', ?, 1, 1)`).run('![x](/api/db/file/hero.png)\n')
+  db.prepare(`INSERT INTO attachments (name, etag, mime, bytes, kind, created_at) VALUES ('hero.png', 'hero.png', 'image/png', 4, 'asset', 1)`).run()
+  db.prepare(`INSERT INTO content_refs (collection, record_id, name, source) VALUES ('/pages', 'p1', 'hero.png', 'content')`).run()
+  db.prepare(`INSERT INTO record_banners (collection, record_id, kind, html) VALUES ('/pages', 'p1', 'html', '<img src="/api/page/file/hero.png">')`).run()
+  db.close()
+  migrateDataDir(root)
+  const hashed = hashedAssetName(Buffer.from('hero'), 'hero.png')
+  assert.equal(readFileSync(join(biu, 'assets', hashedAssetRel(hashed)), 'utf8'), 'hero')
+  assert.equal(existsSync(join(biu, 'assets', 'page')), false)
+  assert.equal(existsSync(join(biu, 'page', 'assets')), false)
+  const again = new DatabaseSync(join(biu, 'biu.sqlite'))
+  const notes = (again.prepare('SELECT notes FROM pages WHERE id = ?').get('p1') as { notes: string }).notes
+  assert.match(notes, new RegExp(`/api/db/file/${hashed}`))
+  assert.equal(notes.includes('hero.png'), false)
+  const banner = (again.prepare('SELECT html FROM record_banners WHERE record_id = ?').get('p1') as { html: string }).html
+  assert.match(banner, new RegExp(hashed))
+  const ref = again.prepare('SELECT name FROM content_refs WHERE record_id = ?').get('p1') as { name: string }
+  assert.equal(ref.name, hashed)
+  again.close()
+})
+
