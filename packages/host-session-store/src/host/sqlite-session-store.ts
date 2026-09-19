@@ -98,8 +98,12 @@ export class SqliteSessionStore implements SessionStore {
         event_json TEXT NOT NULL,
         PRIMARY KEY (session_id, seq)
       );
-      CREATE INDEX IF NOT EXISTS ${this.splitEvents ? 'eventsdb.' : ''}events_session_seq ON ${this.eventsTable()}(session_id, seq);
     `)
+    this.sessions.exec(
+      this.splitEvents
+        ? 'CREATE INDEX IF NOT EXISTS eventsdb.events_session_seq ON events(session_id, seq)'
+        : 'CREATE INDEX IF NOT EXISTS events_session_seq ON events(session_id, seq)',
+    )
     try {
       this.sessions.exec('ALTER TABLE sessions ADD COLUMN mascot_json TEXT')
     } catch {
