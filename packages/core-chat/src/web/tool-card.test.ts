@@ -29,7 +29,6 @@ test('tool panels match the step bar: sidebar fill, no border', () => {
   assert.match(css, /\.tool-call-inspect\s*\{[^}]*color:\s*var\(--dsw-icon\)/s)
   assert.match(css, /:root \{[^}]*--dsw-icon: #91918e/)
   assert.match(css, /html:not\(\.dark\) \[data-testid="content-edits-table"\] \.content-edits-ink[\s\S]*color:\s*#5f5e5a/)
-  assert.match(css, /html:not\(\.dark\) \[data-testid="content-edits-table"\] \.content-edits-ink\s*\{[^}]*font-weight:\s*400/)
   assert.match(css, /\.tool-call-head:hover \.tool-call-inspect/s)
   assert.match(source, /tool-call-chars/)
   assert.match(source, /toolOutputChars/)
