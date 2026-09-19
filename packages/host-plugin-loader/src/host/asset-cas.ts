@@ -47,32 +47,9 @@ export async function writeContentAddressed(root: string, hint: string, content:
   return { name, etag: name, bytes, rel, path: dest }
 }
 
-export async function readContentAddressed(root: string, name: string, fallbackDirs: string[] = []) {
+export async function readContentAddressed(root: string, name: string) {
   const file = basename(name.replace(/\\/g, '/'))
-  if (!file || file !== name.replace(/\\/g, '/')) throw new Error('invalid asset')
-  const tries: string[] = []
-  try {
-    tries.push(join(root, hashedAssetRel(file)))
-  } catch {
-    /* logical names skip the CAS shard */
-  }
-  tries.push(join(root, file))
-  for (const dir of fallbackDirs) {
-    try {
-      tries.push(join(dir, hashedAssetRel(file)))
-    } catch {
-      /* skip */
-    }
-    tries.push(join(dir, file))
-  }
-  let last: unknown
-  for (const path of tries) {
-    try {
-      const bytes = await readFile(path)
-      return { bytes, path }
-    } catch (error) {
-      last = error
-    }
-  }
-  throw last instanceof Error ? last : new Error('not found')
+  if (!file || file !== name.replace(/\\/g, '/') || !isHashedAssetName(file)) throw new Error('not found')
+  const bytes = await readFile(join(root, hashedAssetRel(file)))
+  return { bytes, path: join(root, hashedAssetRel(file)) }
 }

@@ -9,7 +9,9 @@ export {
   writeContentAddressed,
   readContentAddressed,
 } from './asset-cas.ts'
+export { adoptCasAssets, listCasAssetFiles, rewriteAssetText } from './adopt-cas-assets.ts'
 import { adoptTwoSqlite } from './sqlite-two.ts'
+import { adoptCasAssets } from './adopt-cas-assets.ts'
 
 export const DATA_DIR_NAME = '.biu'
 export const LEGACY_DATA_DIR_NAME = '.cordis'
@@ -19,10 +21,6 @@ export const PAGE_DB = `${DATA_DIR_NAME}/biu.sqlite`
 /** Leftover page-only folder; new files go under `.biu/assets`. */
 export const PAGE_ASSETS = `${DATA_DIR_NAME}/page/assets`
 export const ASSETS_ROOT = `${DATA_DIR_NAME}/assets`
-export const PAGE_ASSET_LAYER = 'page'
-export const DB_ASSET_LAYER = 'db'
-
-/** Unique attachment root: `.biu/assets/<ab>/<cd>/<hash>.<ext>`. Layer folders are leftover reads. */
 
 function mergeDir(src: string, dest: string) {
   mkdirSync(dest, { recursive: true })
@@ -59,11 +57,10 @@ export function migrateLegacyPageDir(fromRoot: string, toRoot = fromRoot) {
   const src = join(fromRoot, LEGACY_PAGE_ROOT)
   if (!existsSync(src) || !statSync(src).isDirectory()) return
   mkdirSync(join(toRoot, PAGE_ROOT), { recursive: true })
-  mkdirSync(join(toRoot, DATA_DIR_NAME, 'assets', PAGE_ASSET_LAYER), { recursive: true })
   for (const name of readdirSync(src)) {
     const from = join(src, name)
     if (name === 'assets' && statSync(from).isDirectory()) {
-      moveIfAbsent(from, join(toRoot, DATA_DIR_NAME, 'assets', PAGE_ASSET_LAYER))
+      moveIfAbsent(from, join(toRoot, PAGE_ASSETS))
       continue
     }
     if (name === 'pages.sqlite' || name.startsWith('pages.sqlite')) {
@@ -91,6 +88,7 @@ export function migrateDataDir(parent: string): string {
   }
   migrateLegacyPageDir(parent)
   adoptTwoSqlite(dest)
+  adoptCasAssets(dest)
   return dest
 }
 
@@ -105,11 +103,6 @@ export function dataDir(parent = dataHome()): string {
 
 export function dataPath(parent = dataHome(), ...parts: string[]): string {
   return join(dataDir(parent), ...parts)
-}
-
-/** Leftover `.biu/assets/page` or `.biu/assets/db` for reading old files. */
-export function assetsLayerPath(parent = dataHome(), layer: string): string {
-  return dataPath(parent, 'assets', layer)
 }
 
 export function assetsRootPath(parent = dataHome()): string {
