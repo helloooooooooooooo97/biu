@@ -1,10 +1,19 @@
-import { copyFile, mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
-import { createHash } from 'node:crypto'
+import { copyFile, mkdir, stat, unlink } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { createRequire } from 'node:module'
 import type { DbRecord, SchemaFieldValue } from '@biu/type-file-system'
 import { emptySchemaValue, normalizeSchemaValue } from '@biu/type-file-system'
-import { assetsLayerPath, dataHome, migrateLegacyPageDir, PAGE_ASSETS, PAGE_DB, PAGE_ROOT, PAGE_ASSET_LAYER } from '@biu/host-plugin-loader/data-dir'
+import {
+  assetsRootPath,
+  dataHome,
+  migrateLegacyPageDir,
+  PAGE_ASSETS,
+  PAGE_DB,
+  PAGE_ROOT,
+  isHashedAssetName,
+  readContentAddressed,
+  writeContentAddressed,
+} from '@biu/host-plugin-loader/data-dir'
 import { splitMarkdown } from './markdown.ts'
 
 export { PAGE_ROOT, PAGE_DB, PAGE_ASSETS } from '@biu/host-plugin-loader/data-dir'
@@ -15,8 +24,8 @@ const ID_RE = /^[A-Za-z0-9._-]+$/
 const ASSET_FILE_RE = /^[\p{L}\p{N}._-]+$/u
 const ASSET_REF_RE = /(?:(?:\.page\/)?assets\/|\/api\/(?:page|db)\/file\/)([\p{L}\p{N}._-]+)/gu
 
-function bytesEtag(bytes: Buffer) {
-  return createHash('sha1').update(bytes).digest('hex').slice(0, 16)
+function bytesEtag(bytes: Buffer, name: string) {
+  return isHashedAssetName(name) ? basename(name) : name
 }
 
 export class PageAssetConflictError extends Error {
@@ -26,11 +35,6 @@ export class PageAssetConflictError extends Error {
     this.name = 'PageAssetConflictError'
     this.etag = etag
   }
-}
-
-function parseIfMatch(raw: unknown) {
-  const text = String(raw ?? '').trim().replace(/^W\//, '').replaceAll('"', '')
-  return text && text !== '*' ? text : ''
 }
 
 export function isPageAssetFileName(name: string) {
@@ -101,7 +105,7 @@ function asNotes(value: unknown): string | undefined {
 }
 
 export function fileUrl(name: string) {
-  return `/api/page/file/${encodeURIComponent(name)}`
+  return `/api/db/file/${encodeURIComponent(name)}`
 }
 
 function pageRel(id: string) {
@@ -168,7 +172,7 @@ function applyPatch(current: PageRow, patch: Record<string, unknown>): PageRow {
 export class PagesStore {
   constructor(
     private fs: WorkspaceFs,
-    private assetsDir = assetsLayerPath(dataHome(), PAGE_ASSET_LAYER),
+    private assetsDir = assetsRootPath(dataHome()),
   ) {}
 
   private db: import('node:sqlite').DatabaseSync | null = null
@@ -367,44 +371,21 @@ export class PagesStore {
     await this.gcAssets()
   }
 
-  async writeAsset(name: string, content: string | Buffer | Uint8Array, opts?: { etag?: string }) {
+  async writeAsset(name: string, content: string | Buffer | Uint8Array, _opts?: { etag?: string }) {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/') || !isPageAssetFileName(file)) throw new Error('invalid asset')
-    await mkdir(this.assetsDir, { recursive: true })
-    const bytes = typeof content === 'string' ? Buffer.from(content) : Buffer.from(content)
-    const expected = parseIfMatch(opts?.etag)
-    let current = ''
-    try {
-      current = bytesEtag(await readFile(join(this.assetsDir, file)))
-    } catch {
-      current = ''
-    }
-    if (current) {
-      if (!expected) throw new PageAssetConflictError(current)
-      if (expected !== current) throw new PageAssetConflictError(current)
-    } else if (expected) {
-      throw new PageAssetConflictError('')
-    }
-    await writeFile(join(this.assetsDir, file), bytes)
-    return { name: file, href: fileUrl(file), etag: bytesEtag(bytes) }
+    const written = await writeContentAddressed(this.assetsDir, file, content)
+    return { name: written.name, href: fileUrl(written.name), etag: written.etag }
   }
 
   async readAsset(name: string): Promise<{ bytes: Buffer; type: string; etag: string }> {
     const file = basename(name)
     if (!file || file !== name.replace(/\\/g, '/')) throw new Error('invalid asset')
+    const fallbacks = [join(this.assetsDir, 'page'), join(this.assetsDir, 'db'), this.fs.resolve(PAGE_ASSETS)]
     try {
-      const bytes = await readFile(join(this.assetsDir, file))
-      return { bytes, type: mimeOf(file), etag: bytesEtag(bytes) }
+      const { bytes } = await readContentAddressed(this.assetsDir, file, fallbacks)
+      return { bytes, type: mimeOf(file), etag: bytesEtag(bytes, file) }
     } catch {
-      const fallbacks = [join(this.assetsDir, '..'), this.fs.resolve(PAGE_ASSETS)]
-      for (const dir of fallbacks) {
-        try {
-          const bytes = await readFile(join(dir, file))
-          return { bytes, type: mimeOf(file), etag: bytesEtag(bytes) }
-        } catch {
-          /* try next */
-        }
-      }
       throw new Error('not found')
     }
   }

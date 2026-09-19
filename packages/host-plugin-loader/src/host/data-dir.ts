@@ -1,6 +1,14 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 export { BIU_SQLITE, EVENTS_SQLITE, adoptTwoSqlite } from './sqlite-two.ts'
+export {
+  contentAddressHash,
+  hashedAssetName,
+  hashedAssetRel,
+  isHashedAssetName,
+  writeContentAddressed,
+  readContentAddressed,
+} from './asset-cas.ts'
 import { adoptTwoSqlite } from './sqlite-two.ts'
 
 export const DATA_DIR_NAME = '.biu'
@@ -8,11 +16,13 @@ export const LEGACY_DATA_DIR_NAME = '.cordis'
 export const LEGACY_PAGE_ROOT = '.page'
 export const PAGE_ROOT = `${DATA_DIR_NAME}/page`
 export const PAGE_DB = `${DATA_DIR_NAME}/biu.sqlite`
-/** Leftover page-only folder; new files go under `assets/page`. */
+/** Leftover page-only folder; new files go under `.biu/assets`. */
 export const PAGE_ASSETS = `${DATA_DIR_NAME}/page/assets`
 export const ASSETS_ROOT = `${DATA_DIR_NAME}/assets`
 export const PAGE_ASSET_LAYER = 'page'
 export const DB_ASSET_LAYER = 'db'
+
+/** Unique attachment root: `.biu/assets/<ab>/<cd>/<hash>.<ext>`. Layer folders are leftover reads. */
 
 function mergeDir(src: string, dest: string) {
   mkdirSync(dest, { recursive: true })
@@ -97,9 +107,13 @@ export function dataPath(parent = dataHome(), ...parts: string[]): string {
   return join(dataDir(parent), ...parts)
 }
 
-/** Shared attachment tree: `.biu/assets/page` vs `.biu/assets/db`. */
+/** Leftover `.biu/assets/page` or `.biu/assets/db` for reading old files. */
 export function assetsLayerPath(parent = dataHome(), layer: string): string {
   return dataPath(parent, 'assets', layer)
+}
+
+export function assetsRootPath(parent = dataHome()): string {
+  return dataPath(parent, 'assets')
 }
 
 function copyMerge(src: string, dest: string) {

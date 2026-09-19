@@ -118,6 +118,16 @@ test('sqlite stores html banner in its own table without wrapping json', () => {
   assert.deepEqual(store.recordBanner('/pages', 'home'), { kind: 'html', html: '<div>custom-cover</div>' })
 })
 
+test('attachments and refs live next to record_meta', () => {
+  const store = new FacetStore()
+  store.putAttachment({ name: 'ab'.repeat(32) + '.png', etag: 'ab'.repeat(32) + '.png', mime: 'image/png', bytes: 4, kind: 'asset' })
+  store.replaceContentRefs('/pages', 'p1', ['hero.png'], ['cover.png'])
+  store.replaceBlockRefs('/pages', 'p1', 'e4945888', [{ name: 'ab'.repeat(32) + '.html', source: 'block:e4945888:core' }])
+  assert.deepEqual(store.listedAttachmentNames('/pages', 'p1'), ['ab'.repeat(32) + '.html', 'cover.png', 'hero.png'].sort())
+  store.removeRecord('/pages', 'p1')
+  assert.deepEqual(store.listedAttachmentNames('/pages', 'p1'), [])
+})
+
 test('preset banners are not copied into the custom gallery', async () => {
   const { BANNER_PRESETS } = await import('../banner-presets.ts')
   const store = new FacetStore()

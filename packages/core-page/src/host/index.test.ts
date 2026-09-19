@@ -11,7 +11,8 @@ import * as tools from '@biu/host-tools'
 import * as fsPlugin from '@biu/host-fs'
 import * as page from './index.ts'
 import { dumpMarkdown, splitMarkdown } from './markdown.ts'
-import { ASSET_GC_GRACE_MS, PAGE_ASSETS, PAGE_DB, PAGE_ROOT, PageAssetConflictError, PagesStore, collectPageAssetNames } from './store.ts'
+import { hashedAssetRel } from '@biu/host-plugin-loader/data-dir'
+import { ASSET_GC_GRACE_MS, PAGE_ASSETS, PAGE_DB, PAGE_ROOT, PagesStore, collectPageAssetNames } from './store.ts'
 import { PageBlocksIndex } from './page-blocks-index.ts'
 
 test('markdown frontmatter roundtrips YAML properties and body', () => {
@@ -119,23 +120,24 @@ test('page plugin stores pages in SQLite under .biu', async () => {
   await spec.remove!({ ids: [created[0]!.id] })
   assert.equal((await spec.list()).length, 0)
 
-  const assetsDir = join(root, '.biu/assets/page')
+  const assetsDir = join(root, '.biu/assets')
   const store = new PagesStore(ctx.fs.workspace as never, assetsDir)
   const asset = await store.writeAsset('board.json', '{\n  "elements": []\n}\n')
-  assert.equal(asset.name, 'board.json')
-  const diskAsset = await readFile(join(assetsDir, 'board.json'), 'utf8')
+  assert.match(asset.name, /^[a-f0-9]{64}\.json$/)
+  const diskAsset = await readFile(join(assetsDir, hashedAssetRel(asset.name)), 'utf8')
   assert.match(diskAsset, /elements/)
-  const read = await store.readAsset('board.json')
+  const read = await store.readAsset(asset.name)
   assert.equal(read.type, 'application/json; charset=utf-8')
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-  await store.writeAsset('shot.png', png)
-  const shot = await store.readAsset('shot.png')
+  const shotWritten = await store.writeAsset('shot.png', png)
+  const shot = await store.readAsset(shotWritten.name)
   assert.equal(shot.type, 'image/png')
   assert.deepEqual([...shot.bytes], [...png])
   await assert.rejects(() => store.writeAsset('../secret.json', '{}'), /invalid asset/)
-  await assert.rejects(() => store.writeAsset('board.json', '{}'), (error) => error instanceof PageAssetConflictError)
-  const overwritten = await store.writeAsset('board.json', '{}', { etag: asset.etag })
-  assert.equal(overwritten.etag.length, 16)
+  const same = await store.writeAsset('board.json', '{\n  "elements": []\n}\n')
+  assert.equal(same.name, asset.name)
+  const overwritten = await store.writeAsset('board.json', '{}')
+  assert.notEqual(overwritten.name, asset.name)
 })
 
 test('page-blocks collection updates one fence by page::block id', async () => {
@@ -180,8 +182,10 @@ test('page-blocks collection updates one fence by page::block id', async () => {
     data: { html: '<div>新</div>', title: '旧名', deck: false },
   })
   assert.equal(clobbered.title, '刊头')
-  assert.match(String(updated.data), /新/)
-  assert.match(String(updated.data), /"deck":false/)
+  const indexed = JSON.parse(String(updated.data)) as { attrs?: { deck?: boolean }; assets?: string[] }
+  assert.equal(indexed.attrs?.deck, false)
+  assert.ok(Array.isArray(indexed.assets))
+  assert.equal(String(updated.data).includes('<div>新</div>'), false)
   const row = await pages.get!(pageId)
   assert.match(String(row?.notes), /id=ab12cd34 title="刊头" deck=false/)
   assert.match(String(row?.notes), /<div>新<\/div>/)
@@ -397,9 +401,9 @@ test('gcAssets deletes unreferenced files after one day', async () => {
   assert.equal(orphanGone, true)
   assert.match(kept, /ok/)
 
-  await store.writeAsset('fresh-orphan.json', '{}')
+  const hashed = await store.writeAsset('fresh-orphan.json', '{}')
   await store.gcAssets()
-  const fresh = await readFile(join(root, '.biu/assets/page', 'fresh-orphan.json'), 'utf8')
+  const fresh = await readFile(join(root, '.biu/assets/page', hashedAssetRel(hashed.name)), 'utf8')
   assert.equal(fresh, '{}')
   assert.equal(a.title, 'A')
 })

@@ -47,7 +47,7 @@ import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
 import { buildShareSnapshot } from './share-payload.ts'
-import { AssetConflictError, FileSystemAssets, collectAssetNames, isAssetFileName, parseIfMatch } from './assets-store.ts'
+import { AssetConflictError, FileSystemAssets, collectAssetNames, isAssetFileName, isHashedAssetName, mimeOfAsset, parseIfMatch } from './assets-store.ts'
 import { facetsCollection } from './facets-collection.ts'
 import { noticesCollection } from './notices-collection.ts'
 import { NoticesService } from './notices-service.ts'
@@ -758,6 +758,13 @@ export class DatabaseService extends Service implements Database {
     return next
   }
 
+  private refreshContentRefs(spec: CollectionSpec, record: DbRecord) {
+    const schema = schemaFor(spec)
+    const field = schema.contentField ?? 'content'
+    const banner = this.facets.recordBanner(spec.path, record.id)
+    this.facets.replaceContentRefs(spec.path, record.id, collectAssetNames(record[field]), collectAssetNames(banner?.html))
+  }
+
   private applyPersonOverlay(spec: CollectionSpec, row: DbRecord): DbRecord {
     const meta = this.facets.recordMeta(spec.path, row.id)
     if (!meta) return row
@@ -930,6 +937,7 @@ export class DatabaseService extends Service implements Database {
         this.facets.writeRecordBanner(spec.path, current.id, bannerPatch.value)
         next = this.withBanner(spec, next)
       }
+      this.refreshContentRefs(spec, next)
       await this.stampActor(spec.path, current.id)
       this.bump()
       const beforeRow = this.decorateRecord(spec, current)
@@ -971,6 +979,7 @@ export class DatabaseService extends Service implements Database {
       this.facets.writeRecordBanner(spec.path, record.id, bannerPatch.value)
     }
     this.indexFacetRecord(spec, this.decorateRecord(spec, record))
+    this.refreshContentRefs(spec, this.withBanner(spec, record))
     this.bump()
     const beforeSnap: Record<string, unknown> = {}
     const afterSnap: Record<string, unknown> = {}
@@ -1022,6 +1031,7 @@ export class DatabaseService extends Service implements Database {
         this.persistRecordFacet(spec, record.id, input.facet ?? record.facet, record)
       }
       this.indexFacetRecord(spec, this.decorateRecord(spec, record))
+      this.refreshContentRefs(spec, this.withBanner(spec, record))
     }
     this.bump()
     const items = created.map((record) => ({
@@ -1135,6 +1145,7 @@ export class DatabaseService extends Service implements Database {
       : { [field]: value }
     const record = await spec.update(parts[1]!, patch)
     await this.stampActor(spec.path, record.id)
+    this.refreshContentRefs(spec, this.withBanner(spec, record))
     this.bump()
     return {
       kind: 'content' as const,
@@ -1210,7 +1221,10 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    const names = collectAssetNames(record)
+    const names = new Set([
+      ...collectAssetNames(record, this.facets.recordBanner(spec.path, record.id)?.html),
+      ...this.facets.listedAttachmentNames(spec.path, record.id),
+    ])
     const file = String(args.name ?? '')
       .trim()
       .replace(/^assets\//, '')
@@ -1260,7 +1274,29 @@ export class DatabaseService extends Service implements Database {
     if (command !== 'write') throw new Error(`unknown asset command: ${command}`)
     const body = from ? await readLocalWriteFile(from) : String(args.value ?? '')
     if (!from && args.value == null) throw new Error('write needs value or from')
-    const written = await this.assets.write(file, body, { etag: String(args.etag ?? '') })
+    const written = await this.assets.write(file, body)
+    const kind = String(args.kind ?? '') === 'core' ? 'core' : 'asset'
+    const blockId = String(args.block_id ?? args.blockId ?? '').trim()
+    const source = String(args.source ?? (blockId ? `block:${blockId}` : 'asset')).trim() || 'asset'
+    this.facets.putAttachment({
+      name: written.name,
+      etag: written.etag,
+      mime: mimeOfAsset(written.name),
+      bytes: written.bytes,
+      kind,
+    })
+    if (Array.isArray(args.refs)) {
+      const refs = args.refs.flatMap((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+        const rec = item as Record<string, unknown>
+        const name = String(rec.name ?? '').trim()
+        if (!isAssetFileName(name)) return []
+        return [{ name, source: String(rec.source ?? source) }]
+      })
+      if (blockId) this.facets.replaceBlockRefs(spec.path, record.id, blockId, refs.length ? refs : [{ name: written.name, source }])
+    } else if (blockId) {
+      this.facets.upsertBlockRef(spec.path, record.id, blockId, written.name, source)
+    }
     this.broadcastAsset(recPath, written.name, written.etag)
     return { kind: 'asset' as const, ok: true as const, path: recPath, name: written.name, etag: written.etag }
   }
@@ -1636,7 +1672,7 @@ export function apply(ctx: Context) {
       'command=insert：在 insert_line 之后插入 new_str（0 插到第一行前）。',
       'command=find_replace：批量替换。默认等价 str_replace（old_str 必须唯一）；all=true 替换所有匹配（可用 count 限制次数），regex=true 时 old_str 按正则解释。返回 replaced 为实际替换次数。',
       'command=write：整篇覆盖。正文用 value 内联，或用 from=<本地文件路径>（工作区或 /tmp）从文件导入，二者互斥、不可同时给。写成功只返回 {ok, path}，不含全文。str_replace / find_replace / replace_lines / insert 成功额外返回 start_line、end_line（改后正文的 1-based 行）。编辑器会标出该段改动，不抢输入焦点、不自动跳转；跳转只在用户主动点目录或查找时发生。',
-      '页面插图：不要把 data URL / base64 写进正文。先把图片文件落到工作区（下载或生成），再用 db_asset command=write name=<文件名> from=<本地路径> 入库（新文件不要带 etag），然后 insert/str_replace 写入一行 Markdown：![说明](/api/db/file/<文件名>)。也可以先写这一行再 write 附件。',
+      '页面插图：不要把 data URL / base64 写进正文。先把图片文件落到工作区（下载或生成），再用 db_asset command=write name=<逻辑名.ext> from=<本地路径> 入库（内容寻址，返回 name=<哈希.ext>），然后 insert/str_replace 写入一行 Markdown：![说明](/api/db/file/<哈希.ext>)。也可以先写这一行再 write 附件。',
     ].join(' '),
     parameters: {
       type: 'object',
@@ -1674,13 +1710,13 @@ export function apply(ctx: Context) {
   ctx.tools.register({
     name: 'db_asset',
     description: [
-      '读写一条记录的附件（画板 json、图片、文件），不是正文。正文仍用 db_content。',
-      'path 为 /<表>/<id>，name 为附件文件名（正文里写成 assets/xxx、/api/db/file/xxx 或 /api/page/file/xxx）。',
-      'command=view：不传 name 列出本条已引用的附件及 etag；带 name 读该文件（文本/json 带 text）和 etag。引用了但文件还不存在时返回 missing=true、etag 空串。',
-      'command=write：写入该文件。新文件不要带 etag（可先不出现在正文里）；覆盖已有文件必须带 etag（等于上次 view 的 etag），对不上返回 etag conflict。',
-      '插图：先 write 图片（from=本地路径），再 db_content 插入 ![说明](/api/db/file/<name>)。不要把图片 base64 写进 db_content。',
-      '大内容不要塞进 value：先用 bash/python 写到本地文件，再 from=该路径（工作区相对或绝对，如 /tmp/hero.png）。value 只适合短文本。',
-      '写成功只返回 {ok, path, name, etag}。前端开着的编辑器按 etag 重载，过期 PUT 会 409。',
+      '读写一条记录的附件（画板 json、图片、块核心数据），不是正文。正文仍用 db_content。',
+      'path 为 /<表>/<id>。write 时 name 只取扩展名（如 board.json / bgm.mp3）；落盘为 .biu/assets/<2>/<2>/<哈希>.<ext>，返回的 name/etag 即该哈希文件名。引用写成 /api/db/file/<哈希.ext>。',
+      'command=view：不传 name 列出 content_refs + block_refs（及正文里扫到的 URL）；带 name 读该文件。引用了但文件还不存在时返回 missing=true、etag 空串。',
+      'command=write：内容寻址写入，相同字节不重复存。可带 block_id / source（如 block:<id>:bgm）/ kind=core|asset 做插件登记；refs 为该块当前引用的完整列表时宿主做 diff。',
+      '插图：先 write 图片（from=本地路径），再用返回的 name 插入 ![说明](/api/db/file/<name>)。不要把图片 base64 写进 db_content。',
+      '大内容不要塞进 value：先用 bash/python 写到本地文件，再 from=该路径。value 只适合短文本。',
+      '写成功只返回 {ok, path, name, etag}。',
     ].join(' '),
     parameters: {
       type: 'object',
@@ -1697,7 +1733,15 @@ export function apply(ctx: Context) {
           type: 'string',
           description: 'write 时读这个本地文件作为内容，代替 value。相对工作区根，或绝对路径。',
         },
-        etag: { type: 'string', description: 'write 必填，等于上次 view 的 etag' },
+        etag: { type: 'string', description: '内容寻址后与 name 相同；write 不再做同名覆盖冲突' },
+        block_id: { type: 'string', description: '块级归属，写入 block_refs' },
+        source: { type: 'string', description: '引用子键，如 block:<id>:bgm' },
+        kind: { type: 'string', description: 'core（永不自动回收）或 asset' },
+        refs: {
+          type: 'array',
+          items: { type: 'object' },
+          description: '该 block_id 当前引用的完整列表 [{name, source}]，宿主 diff 后写 block_refs',
+        },
       },
       required: ['path'],
     },
@@ -2095,10 +2139,11 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('GET', '/api/db/file/:name', async (route) => {
     try {
-      const { bytes, type, etag } = await assets.read(route.params.name ?? '')
+      const name = route.params.name ?? ''
+      const { bytes, type, etag } = await assets.read(name)
       route.res.writeHead(200, {
         'content-type': type,
-        'cache-control': 'no-store',
+        'cache-control': isHashedAssetName(name) ? 'public, max-age=31536000, immutable' : 'no-store',
         etag: `"${etag}"`,
       })
       route.res.end(bytes)

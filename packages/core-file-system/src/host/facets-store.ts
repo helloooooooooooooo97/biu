@@ -156,7 +156,39 @@ export class FacetStore {
     this.ensurePersonMetaColumns()
     this.ensureBannerTable()
     this.ensureBannerGallery()
+    this.ensureAttachmentTables()
     return this
+  }
+
+  private ensureAttachmentTables() {
+    this.db!.exec(`
+      CREATE TABLE IF NOT EXISTS attachments (
+        name TEXT PRIMARY KEY,
+        etag TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        bytes INTEGER NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'asset',
+        created_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS content_refs (
+        collection TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        source TEXT NOT NULL,
+        PRIMARY KEY (collection, record_id, name, source)
+      );
+      CREATE TABLE IF NOT EXISTS block_refs (
+        collection TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        block_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        source TEXT NOT NULL,
+        PRIMARY KEY (collection, record_id, block_id, name, source)
+      );
+      CREATE INDEX IF NOT EXISTS content_refs_record ON content_refs(collection, record_id);
+      CREATE INDEX IF NOT EXISTS block_refs_record ON block_refs(collection, record_id);
+      CREATE INDEX IF NOT EXISTS block_refs_block ON block_refs(collection, record_id, block_id);
+    `)
   }
 
   private ensureNotesColumn() {
@@ -532,6 +564,101 @@ export class FacetStore {
     db.prepare('DELETE FROM facet_record_values WHERE collection = ? AND record_id = ?').run(collection, recordId)
     db.prepare('DELETE FROM record_meta WHERE collection = ? AND record_id = ?').run(collection, recordId)
     db.prepare('DELETE FROM record_banners WHERE collection = ? AND record_id = ?').run(collection, recordId)
+    db.prepare('DELETE FROM content_refs WHERE collection = ? AND record_id = ?').run(collection, recordId)
+    db.prepare('DELETE FROM block_refs WHERE collection = ? AND record_id = ?').run(collection, recordId)
+  }
+
+  putAttachment(row: { name: string; etag: string; mime: string; bytes: number; kind?: string }) {
+    const kind = row.kind === 'core' ? 'core' : 'asset'
+    this.ensure()
+      .prepare(
+        `INSERT INTO attachments (name, etag, mime, bytes, kind, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(name) DO UPDATE SET
+           etag = excluded.etag,
+           mime = excluded.mime,
+           bytes = excluded.bytes,
+           kind = CASE WHEN attachments.kind = 'core' OR excluded.kind = 'core' THEN 'core' ELSE excluded.kind END`,
+      )
+      .run(row.name, row.etag, row.mime, row.bytes, kind, Date.now())
+  }
+
+  replaceContentRefs(collection: string, recordId: string, content: Iterable<string>, banner: Iterable<string> = []) {
+    const db = this.ensure()
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      db.prepare('DELETE FROM content_refs WHERE collection = ? AND record_id = ?').run(collection, recordId)
+      const insert = db.prepare(
+        'INSERT OR IGNORE INTO content_refs (collection, record_id, name, source) VALUES (?, ?, ?, ?)',
+      )
+      for (const name of content) insert.run(collection, recordId, name, 'content')
+      for (const name of banner) insert.run(collection, recordId, name, 'banner')
+      db.exec('COMMIT')
+    } catch (error) {
+      db.exec('ROLLBACK')
+      throw error
+    }
+  }
+
+  upsertBlockRef(collection: string, recordId: string, blockId: string, name: string, source: string) {
+    this.ensure()
+      .prepare(
+        `INSERT INTO block_refs (collection, record_id, block_id, name, source)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(collection, record_id, block_id, name, source) DO NOTHING`,
+      )
+      .run(collection, recordId, blockId, name, source)
+  }
+
+  replaceBlockRefs(
+    collection: string,
+    recordId: string,
+    blockId: string,
+    refs: Array<{ name: string; source: string }>,
+  ) {
+    const db = this.ensure()
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      db.prepare('DELETE FROM block_refs WHERE collection = ? AND record_id = ? AND block_id = ?').run(
+        collection,
+        recordId,
+        blockId,
+      )
+      const insert = db.prepare(
+        'INSERT INTO block_refs (collection, record_id, block_id, name, source) VALUES (?, ?, ?, ?, ?)',
+      )
+      for (const ref of refs) insert.run(collection, recordId, blockId, ref.name, ref.source)
+      db.exec('COMMIT')
+    } catch (error) {
+      db.exec('ROLLBACK')
+      throw error
+    }
+  }
+
+  dropBlockRefs(collection: string, recordId: string, blockId?: string) {
+    if (blockId) {
+      this.ensure()
+        .prepare('DELETE FROM block_refs WHERE collection = ? AND record_id = ? AND block_id = ?')
+        .run(collection, recordId, blockId)
+      return
+    }
+    this.ensure().prepare('DELETE FROM block_refs WHERE collection = ? AND record_id = ?').run(collection, recordId)
+  }
+
+  listedAttachmentNames(collection: string, recordId: string): string[] {
+    const db = this.ensure()
+    const names = new Set<string>()
+    for (const row of db
+      .prepare('SELECT name FROM content_refs WHERE collection = ? AND record_id = ?')
+      .all(collection, recordId) as Array<{ name: string }>) {
+      names.add(row.name)
+    }
+    for (const row of db
+      .prepare('SELECT name FROM block_refs WHERE collection = ? AND record_id = ?')
+      .all(collection, recordId) as Array<{ name: string }>) {
+      names.add(row.name)
+    }
+    return [...names].sort()
   }
 
   stampedIds(collection: string, tagIdOrLabel: string): Set<string> {
