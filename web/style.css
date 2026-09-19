@@ -5277,7 +5277,7 @@ html:not(.dark) .chat-outline-item.is-active {
 .chat-reply-details .tool-call,
 .chat-reply-details .tool-call-head,
 .chat-reply-details .tool-call-toggle {
-  color: var(--dsw-label-2);
+  color: var(--dsw-icon);
 }
 
 .chat-reply-details .tool-call-head:hover::before,
@@ -5511,7 +5511,7 @@ html:not(.dark) .chat-outline-item.is-active {
   height: 14px;
   flex-shrink: 0;
   place-items: center;
-  color: var(--dsw-sidebar-fg);
+  color: var(--dsw-icon);
 }
 
 .tool-call-chevron.is-ok {
@@ -5526,7 +5526,7 @@ html:not(.dark) .chat-outline-item.is-active {
   flex-shrink: 0;
   font-size: var(--dsw-chat-ui-font-size);
   font-weight: 600;
-  color: var(--dsw-label);
+  color: var(--dsw-icon);
 }
 
 .tool-call-summary {
@@ -5548,7 +5548,7 @@ html:not(.dark) .chat-outline-item.is-active {
   height: 14px;
   border: 0;
   background: transparent;
-  color: var(--dsw-sidebar-fg);
+  color: var(--dsw-icon);
 }
 
 .tool-call-status.is-ok {
@@ -5582,7 +5582,7 @@ html:not(.dark) .chat-outline-item.is-active {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-sidebar-fg);
+  color: var(--dsw-icon);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -5596,7 +5596,7 @@ html:not(.dark) .chat-outline-item.is-active {
 
 .tool-call-inspect:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-sidebar-fg-active);
+  color: var(--dsw-icon);
 }
 
 .chat-reply-actions {

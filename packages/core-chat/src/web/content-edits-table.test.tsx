@@ -93,8 +93,9 @@ describe('ContentEditsTable', () => {
     ]
     render(<ChatNodeList nodes={nodes} sessionId="sess-1" onInspect={() => undefined} onFork={() => undefined} />)
     expect(screen.getByTestId('content-edits-table')).toBeTruthy()
-    expect(screen.getByText('数据改动')).toBeTruthy()
-    expect(screen.getByText('首页')).toBeTruthy()
+    const title = screen.getByText('数据改动')
+    expect(title.className).toMatch(/text-\(--dsw-icon\)/)
+    expect(screen.getByText('首页').className).toMatch(/text-\(--dsw-icon\)/)
     expect(screen.queryByLabelText('撤销 首页')).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
   })
