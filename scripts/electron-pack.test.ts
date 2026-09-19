@@ -83,6 +83,7 @@ test('desktop pack publishes dmg/exe via GitHub Release and ad-hoc macOS signing
   assert.match(main, /host', 'index\.mjs/)
   assert.match(main, /PORT: String\(requestedPort\)/)
   assert.match(main, /BIU_PORT_FALLBACK: '1'/)
+  assert.match(main, /SHARE_HOST: process\.env\.SHARE_HOST \|\| '0\.0\.0\.0'/)
   assert.match(main, /waitForHostReady\(child\)/)
   assert.match(main, /'ipc'/)
   assert.match(main, /await win\.loadURL\(hostUrl\)/)
