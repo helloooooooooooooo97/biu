@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { createRequire } from 'node:module'
+import { openSqlite } from '@biu/host-plugin-loader/data-dir'
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { normalizeCollectionPath } from '../paths.ts'
 import type { ShareKind, ShareRecord } from '../share-snapshot.ts'
@@ -8,8 +8,6 @@ import type { ShareKind, ShareRecord } from '../share-snapshot.ts'
 export type { ShareKind, ShareRecord } from '../share-snapshot.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
-
-const require = createRequire(import.meta.url)
 
 type ShareRow = {
   token: string
@@ -57,10 +55,7 @@ export class SharesStore {
 
   open(path = ':memory:') {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite')
-    this.db = new DatabaseSync(path)
-    this.db.exec('PRAGMA journal_mode = WAL')
-    this.db.exec('PRAGMA synchronous = NORMAL')
+    this.db = openSqlite(path, { foreignKeys: false })
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS shares (
         token TEXT PRIMARY KEY,

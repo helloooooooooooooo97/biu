@@ -1,7 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
-import { createRequire } from 'node:module'
+import { dataHome, dataPath, openSqlite } from '@biu/host-plugin-loader/data-dir'
 import { Service, type Context } from 'cordis'
 import { currentSessionId } from '@biu/host-sessions/scope'
 import { emptySchemaValue, normalizeSchemaValue, type SchemaFieldValue } from '@biu/type-file-system'
@@ -10,8 +9,6 @@ import { tasksCollection } from './collection.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 type SQLInputValue = import('node:sqlite').SQLInputValue
-
-const require = createRequire(import.meta.url)
 
 export type TaskStatus = 'todo' | 'doing' | 'done' | 'failed'
 export type TaskPriority = 'low' | 'med' | 'high'
@@ -1054,10 +1051,7 @@ export class TasksService extends Service {
 
   open() {
     mkdirSync(dirname(this.dbPath), { recursive: true })
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite')
-    this.db = new DatabaseSync(this.dbPath)
-    this.db.exec('PRAGMA journal_mode = WAL')
-    this.db.exec('PRAGMA synchronous = NORMAL')
+    this.db = openSqlite(this.dbPath, { foreignKeys: false })
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS tasks (
         id TEXT PRIMARY KEY,

@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { createRequire } from 'node:module'
+import { configureSqlite, openSqlite, quoteSqlitePath } from '@biu/host-plugin-loader/data-dir'
 import {
   SESSION_FORMAT_VERSION,
   type SessionEvent,
@@ -17,8 +17,6 @@ import {
 import { isSessionMascot, parseSessionMascot } from '@biu/host-sessions/mascot'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
-
-const require = createRequire(import.meta.url)
 
 type SessionRow = {
   id: string
@@ -62,7 +60,6 @@ function parseConfig(raw: string | null): SessionConfig | undefined {
 /** SQLite session store：事件分行增量写入，避免整包 JSON 反复落盘。 */
 export class SqliteSessionStore implements SessionStore {
   private sessions!: DatabaseSync
-  private events!: DatabaseSync
   private splitEvents = false
 
   constructor(
@@ -70,13 +67,13 @@ export class SqliteSessionStore implements SessionStore {
     private eventsPath?: string,
   ) {}
 
+  private eventsTable() {
+    return this.splitEvents ? 'eventsdb.events' : 'events'
+  }
+
   /** 懒打开，便于 apply() 里先 mkdir 再 init。 */
   open() {
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite')
-    this.sessions = new DatabaseSync(this.path)
-    this.sessions.exec('PRAGMA journal_mode = WAL')
-    this.sessions.exec('PRAGMA synchronous = NORMAL')
-    this.sessions.exec('PRAGMA foreign_keys = ON')
+    this.sessions = openSqlite(this.path)
     this.sessions.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
@@ -88,13 +85,12 @@ export class SqliteSessionStore implements SessionStore {
       );
     `)
     this.splitEvents = Boolean(this.eventsPath && this.eventsPath !== this.path)
-    this.events = this.splitEvents ? new DatabaseSync(this.eventsPath!) : this.sessions
     if (this.splitEvents) {
-      this.events.exec('PRAGMA journal_mode = WAL')
-      this.events.exec('PRAGMA synchronous = NORMAL')
+      this.sessions.exec(`ATTACH DATABASE ${quoteSqlitePath(this.eventsPath!)} AS eventsdb`)
+      configureSqlite(this.sessions, { schema: 'eventsdb' })
     }
-    this.events.exec(`
-      CREATE TABLE IF NOT EXISTS events (
+    this.sessions.exec(`
+      CREATE TABLE IF NOT EXISTS ${this.eventsTable()} (
         session_id TEXT NOT NULL${this.splitEvents ? '' : ' REFERENCES sessions(id) ON DELETE CASCADE'},
         seq INTEGER NOT NULL,
         ts INTEGER NOT NULL,
@@ -102,7 +98,7 @@ export class SqliteSessionStore implements SessionStore {
         event_json TEXT NOT NULL,
         PRIMARY KEY (session_id, seq)
       );
-      CREATE INDEX IF NOT EXISTS events_session_seq ON events(session_id, seq);
+      CREATE INDEX IF NOT EXISTS ${this.splitEvents ? 'eventsdb.' : ''}events_session_seq ON ${this.eventsTable()}(session_id, seq);
     `)
     try {
       this.sessions.exec('ALTER TABLE sessions ADD COLUMN mascot_json TEXT')
@@ -132,8 +128,8 @@ export class SqliteSessionStore implements SessionStore {
     if (row.version !== SESSION_FORMAT_VERSION) {
       throw new Error(`unsupported session version ${row.version}`)
     }
-    const eventRows = this.events
-      .prepare('SELECT event_json FROM events WHERE session_id = ? ORDER BY seq ASC')
+    const eventRows = this.sessions
+      .prepare(`SELECT event_json FROM ${this.eventsTable()} WHERE session_id = ? ORDER BY seq ASC`)
       .all(id) as Array<{ event_json: string }>
     const events = eventRows.map((item) => JSON.parse(item.event_json) as SessionEvent)
     const project = parseProject(row.project_json)
@@ -159,9 +155,10 @@ export class SqliteSessionStore implements SessionStore {
     const mascotJson = record.mascot ? JSON.stringify(record.mascot) : null
     const configJson = record.config ? JSON.stringify(record.config) : null
     const eventCount = record.events.length
+    const eventsTable = this.eventsTable()
 
-    const insertEvent = this.events.prepare(
-      'INSERT INTO events (session_id, seq, ts, type, event_json) VALUES (?, ?, ?, ?, ?)',
+    const insertEvent = this.sessions.prepare(
+      `INSERT INTO ${eventsTable} (session_id, seq, ts, type, event_json) VALUES (?, ?, ?, ?, ?)`,
     )
     const upsertSession = this.sessions.prepare(`
       INSERT INTO sessions (id, version, project_json, mascot_json, config_json, event_count, title, updated_at)
@@ -182,7 +179,7 @@ export class SqliteSessionStore implements SessionStore {
     const storedCount = existing?.event_count ?? 0
 
     const replaceAll = () => {
-      this.events.prepare('DELETE FROM events WHERE session_id = ?').run(record.id)
+      this.sessions.prepare(`DELETE FROM ${eventsTable} WHERE session_id = ?`).run(record.id)
       for (const event of record.events) {
         insertEvent.run(record.id, event.seq, event.ts, event.type, JSON.stringify(event))
       }
@@ -196,7 +193,6 @@ export class SqliteSessionStore implements SessionStore {
     }
 
     this.sessions.exec('BEGIN IMMEDIATE')
-    if (this.splitEvents) this.events.exec('BEGIN IMMEDIATE')
     try {
       upsertSession.run(
         record.id,
@@ -214,14 +210,14 @@ export class SqliteSessionStore implements SessionStore {
       } else if (eventCount < storedCount) {
         replaceAll()
       } else if (eventCount === storedCount) {
-        const last = this.events
-          .prepare('SELECT seq FROM events WHERE session_id = ? ORDER BY seq DESC LIMIT 1')
+        const last = this.sessions
+          .prepare(`SELECT seq FROM ${eventsTable} WHERE session_id = ? ORDER BY seq DESC LIMIT 1`)
           .get(record.id) as { seq: number } | undefined
         const expected = record.events.at(-1)?.seq
         if (last && expected != null && last.seq !== expected) replaceAll()
       } else {
-        const last = this.events
-          .prepare('SELECT seq FROM events WHERE session_id = ? ORDER BY seq DESC LIMIT 1')
+        const last = this.sessions
+          .prepare(`SELECT seq FROM ${eventsTable} WHERE session_id = ? ORDER BY seq DESC LIMIT 1`)
           .get(record.id) as { seq: number } | undefined
         const prev = record.events[storedCount - 1]
         if (!last || !prev || last.seq !== prev.seq) {
@@ -230,14 +226,8 @@ export class SqliteSessionStore implements SessionStore {
           appendTail(storedCount)
         }
       }
-      if (this.splitEvents) this.events.exec('COMMIT')
       this.sessions.exec('COMMIT')
     } catch (error) {
-      try {
-        if (this.splitEvents) this.events.exec('ROLLBACK')
-      } catch {
-        /* ignore */
-      }
       try {
         this.sessions.exec('ROLLBACK')
       } catch {
@@ -259,8 +249,8 @@ export class SqliteSessionStore implements SessionStore {
       )
       .all() as SessionRow[]
     const firstBySession = new Map<string, number>()
-    const mins = this.events
-      .prepare('SELECT session_id, MIN(ts) AS first_event_at FROM events GROUP BY session_id')
+    const mins = this.sessions
+      .prepare(`SELECT session_id, MIN(ts) AS first_event_at FROM ${this.eventsTable()} GROUP BY session_id`)
       .all() as Array<{ session_id: string; first_event_at: number }>
     for (const row of mins) firstBySession.set(row.session_id, Number(row.first_event_at) || 0)
     return rows.map((row) => {
@@ -294,13 +284,30 @@ export class SqliteSessionStore implements SessionStore {
   }
 
   async delete(id: string): Promise<boolean> {
-    this.events.prepare('DELETE FROM events WHERE session_id = ?').run(id)
-    const result = this.sessions.prepare('DELETE FROM sessions WHERE id = ?').run(id)
-    return Number(result.changes) > 0
+    this.sessions.exec('BEGIN IMMEDIATE')
+    try {
+      this.sessions.prepare(`DELETE FROM ${this.eventsTable()} WHERE session_id = ?`).run(id)
+      const result = this.sessions.prepare('DELETE FROM sessions WHERE id = ?').run(id)
+      this.sessions.exec('COMMIT')
+      return Number(result.changes) > 0
+    } catch (error) {
+      try {
+        this.sessions.exec('ROLLBACK')
+      } catch {
+        /* ignore */
+      }
+      throw error
+    }
   }
 
   close() {
-    if (this.splitEvents) this.events.close()
+    if (this.splitEvents) {
+      try {
+        this.sessions.exec('DETACH DATABASE eventsdb')
+      } catch {
+        /* already closed */
+      }
+    }
     this.sessions.close()
   }
 }

@@ -1,6 +1,6 @@
 import { existsSync, rmSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
-import { createRequire } from 'node:module'
+import { openSqlite, quoteSqlitePath } from './sqlite-open.ts'
 
 const DATA_DIR_NAME = '.biu'
 
@@ -13,15 +13,10 @@ export const LEGACY_FILE_SYSTEM_SQLITE = `${DATA_DIR_NAME}/file-system.sqlite`
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 
-function quotePath(path: string) {
-  return `'${path.replaceAll("'", "''")}'`
-}
-
 function checkpoint(path: string) {
   if (!existsSync(path)) return
   try {
-    const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
-    const db = new DatabaseSync(path)
+    const db = openSqlite(path, { foreignKeys: false })
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
     db.close()
   } catch {
@@ -44,7 +39,7 @@ function copyTables(dest: DatabaseSync, srcFile: string, destFile: string, opts:
   if (resolve(srcFile) === resolve(destFile)) return false
   checkpoint(srcFile)
   try {
-    dest.exec(`ATTACH DATABASE ${quotePath(srcFile)} AS legacy`)
+    dest.exec(`ATTACH DATABASE ${quoteSqlitePath(srcFile)} AS legacy`)
   } catch {
     return false
   }
@@ -90,7 +85,6 @@ function copyTables(dest: DatabaseSync, srcFile: string, destFile: string, opts:
 
 /** Merge leftover per-module sqlite files into biu.sqlite + events.sqlite. */
 export function adoptTwoSqlite(dataDirPath: string) {
-  const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
   const biu = join(dataDirPath, basename(BIU_SQLITE))
   const events = join(dataDirPath, basename(EVENTS_SQLITE))
   const pages = join(dataDirPath, basename(LEGACY_PAGE_SQLITE))
@@ -100,9 +94,7 @@ export function adoptTwoSqlite(dataDirPath: string) {
   if (![pages, tasks, sessions, fileSystem].some((file) => existsSync(file))) return
 
   const copied: string[] = []
-  const biuDb = new DatabaseSync(biu)
-  biuDb.exec('PRAGMA journal_mode = WAL')
-  biuDb.exec('PRAGMA synchronous = NORMAL')
+  const biuDb = openSqlite(biu, { foreignKeys: false })
   try {
     for (const file of [pages, tasks, fileSystem]) {
       if (copyTables(biuDb, file, biu)) copied.push(file)
@@ -113,9 +105,7 @@ export function adoptTwoSqlite(dataDirPath: string) {
     biuDb.close()
   }
 
-  const eventsDb = new DatabaseSync(events)
-  eventsDb.exec('PRAGMA journal_mode = WAL')
-  eventsDb.exec('PRAGMA synchronous = NORMAL')
+  const eventsDb = openSqlite(events, { foreignKeys: false })
   try {
     if (copyTables(eventsDb, sessions, events, { only: ['events'] })) {
       if (!copied.includes(sessions)) copied.push(sessions)

@@ -1,6 +1,5 @@
 import { mkdir, unlink } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { createRequire } from 'node:module'
 import type { DbRecord, SchemaFieldValue } from '@biu/type-file-system'
 import { emptySchemaValue, normalizeSchemaValue } from '@biu/type-file-system'
 import {
@@ -8,9 +7,11 @@ import {
   adoptCasAssets,
   assetsRootPath,
   dataHome,
+  ensureBiuAssetSchema,
   listCasAssetFiles,
   listDocAssetFiles,
   migrateLegacyPageDir,
+  openSqlite,
   PAGE_DB,
   PAGE_ROOT,
   readDocument,
@@ -177,10 +178,8 @@ export class PagesStore {
   private async openDb() {
     await this.ensureDirs()
     if (this.db) return this.db
-    const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
-    const db = new DatabaseSync(this.fs.resolve(PAGE_DB))
-    db.exec('PRAGMA journal_mode = WAL')
-    db.exec('PRAGMA synchronous = NORMAL')
+    const db = openSqlite(this.fs.resolve(PAGE_DB), { foreignKeys: false })
+    ensureBiuAssetSchema(db)
     db.exec(`
       CREATE TABLE IF NOT EXISTS pages (
         id TEXT PRIMARY KEY,

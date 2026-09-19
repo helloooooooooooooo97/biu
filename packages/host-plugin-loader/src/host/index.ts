@@ -42,7 +42,8 @@ export {
   parseIfMatch,
 } from './asset-cas.ts'
 export { adoptCasAssets, listCasAssetFiles, listDocAssetFiles } from './adopt-cas-assets.ts'
-export { BIU_SQLITE, EVENTS_SQLITE, LEGACY_PAGE_SQLITE, LEGACY_TASKS_SQLITE, LEGACY_SESSIONS_SQLITE, LEGACY_FILE_SYSTEM_SQLITE, adoptTwoSqlite } from './sqlite-two.ts'
+export { openSqlite, configureSqlite, quoteSqlitePath, SQLITE_BUSY_TIMEOUT_MS } from './sqlite-open.ts'
+export { ensureBiuAssetSchema } from './biu-schema.ts'
 
 export function pluginWebSpecifier(item: CordisPluginEntry): string | undefined {
   return item.web

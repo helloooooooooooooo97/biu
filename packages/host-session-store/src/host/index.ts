@@ -90,12 +90,12 @@ export type SessionStoreDriver = 'memory' | 'sqlite'
 
 export async function apply(
   ctx: Context,
-  config: { driver?: SessionStoreDriver; path?: string } = {},
+  config: { driver?: SessionStoreDriver; path?: string; eventsPath?: string } = {},
 ) {
   const envDriver = process.env.CORDIS_SESSION_STORE as SessionStoreDriver | undefined
   const driver = config.driver ?? (envDriver === 'memory' || envDriver === 'sqlite' ? envDriver : 'sqlite')
   const sqlitePath = config.path ?? dataPath(dataHome(), 'biu.sqlite')
-  const eventsPath = config.path ? undefined : dataPath(dataHome(), 'events.sqlite')
+  const eventsPath = config.eventsPath ?? (config.path ? undefined : dataPath(dataHome(), 'events.sqlite'))
 
   let inner: SessionStore
   if (driver === 'memory') {

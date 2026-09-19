@@ -1,7 +1,6 @@
-import { DATA_DIR_NAME, upsertAttachmentRow } from '@biu/host-plugin-loader/data-dir'
+import { DATA_DIR_NAME, ensureBiuAssetSchema, openSqlite, upsertAttachmentRow } from '@biu/host-plugin-loader/data-dir'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { createRequire } from 'node:module'
 import {
   asPerson,
   asPersonList,
@@ -16,8 +15,6 @@ import { parsePageBanner, type PageBanner, type PageBannerKind } from '../page-b
 import { bannerGalleryId, isBannerPreset } from '../banner-presets.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
-
-const require = createRequire(import.meta.url)
 
 export const FILE_SYSTEM_SQLITE = `${DATA_DIR_NAME}/biu.sqlite`
 
@@ -96,11 +93,7 @@ export class FacetStore {
 
   open(path = ':memory:') {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite')
-    this.db = new DatabaseSync(path)
-    this.db.exec('PRAGMA journal_mode = WAL')
-    this.db.exec('PRAGMA synchronous = NORMAL')
-    this.db.exec('PRAGMA foreign_keys = ON')
+    this.db = openSqlite(path)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS facets (
         id TEXT PRIMARY KEY,
@@ -135,75 +128,13 @@ export class FacetStore {
         updated_by_json TEXT,
         PRIMARY KEY (collection, record_id)
       );
-      CREATE TABLE IF NOT EXISTS record_banners (
-        collection TEXT NOT NULL,
-        record_id TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        html TEXT NOT NULL,
-        PRIMARY KEY (collection, record_id)
-      );
-      CREATE TABLE IF NOT EXISTS banner_gallery (
-        id TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,
-        style TEXT NOT NULL DEFAULT 'mine',
-        title TEXT NOT NULL DEFAULT '',
-        html TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      );
     `)
     this.ensureNotesColumn()
     this.ensureCreatedAtColumn()
     this.ensurePersonMetaColumns()
+    ensureBiuAssetSchema(this.db)
     this.ensureBannerTable()
-    this.ensureBannerGallery()
-    this.ensureAttachmentTables()
     return this
-  }
-
-  private ensureAttachmentTables() {
-    this.db!.exec(`
-      CREATE TABLE IF NOT EXISTS attachments (
-        name TEXT PRIMARY KEY,
-        etag TEXT NOT NULL,
-        mime TEXT NOT NULL,
-        bytes INTEGER NOT NULL,
-        kind TEXT NOT NULL DEFAULT 'asset',
-        storage TEXT NOT NULL DEFAULT 'hash',
-        created_at INTEGER NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS content_refs (
-        collection TEXT NOT NULL,
-        record_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        source TEXT NOT NULL,
-        PRIMARY KEY (collection, record_id, name, source)
-      );
-      CREATE TABLE IF NOT EXISTS block_refs (
-        collection TEXT NOT NULL,
-        record_id TEXT NOT NULL,
-        block_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        source TEXT NOT NULL,
-        PRIMARY KEY (collection, record_id, block_id, name, source)
-      );
-      CREATE INDEX IF NOT EXISTS content_refs_record ON content_refs(collection, record_id);
-      CREATE INDEX IF NOT EXISTS block_refs_record ON block_refs(collection, record_id);
-      CREATE INDEX IF NOT EXISTS block_refs_block ON block_refs(collection, record_id, block_id);
-    `)
-    const cols = this.db!.prepare('PRAGMA table_info(attachments)').all() as Array<{ name: string }>
-    if (!cols.some((col) => col.name === 'storage')) {
-      try {
-        this.db!.exec(`ALTER TABLE attachments ADD COLUMN storage TEXT NOT NULL DEFAULT 'hash'`)
-      } catch {
-        /* ignore */
-      }
-    }
-    try {
-      this.db!.exec(`UPDATE attachments SET storage = 'hash' WHERE storage IN ('cas', '')`)
-      this.db!.exec(`UPDATE attachments SET storage = 'name' WHERE storage = 'doc'`)
-    } catch {
-      /* ignore */
-    }
   }
 
   private ensureNotesColumn() {
@@ -232,15 +163,6 @@ export class FacetStore {
 
   private ensureBannerTable() {
     const db = this.db!
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS record_banners (
-        collection TEXT NOT NULL,
-        record_id TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        html TEXT NOT NULL,
-        PRIMARY KEY (collection, record_id)
-      )
-    `)
     const cols = db.prepare('PRAGMA table_info(record_meta)').all() as Array<{ name: string }>
     if (!cols.some((col) => col.name === 'banner_json')) return
     const rows = db
@@ -261,19 +183,6 @@ export class FacetStore {
       if (!parsed) continue
       put.run(row.collection, row.record_id, parsed.kind, parsed.html)
     }
-  }
-
-  private ensureBannerGallery() {
-    this.db!.exec(`
-      CREATE TABLE IF NOT EXISTS banner_gallery (
-        id TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,
-        style TEXT NOT NULL DEFAULT 'mine',
-        title TEXT NOT NULL DEFAULT '',
-        html TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      )
-    `)
   }
 
   notes(id: string) {

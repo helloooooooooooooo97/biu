@@ -14,6 +14,8 @@ export {
   parseIfMatch,
 } from './asset-cas.ts'
 export { adoptCasAssets, listCasAssetFiles, listDocAssetFiles, rewriteAssetText, upsertAttachmentRow, replacePageBlockRefs, ensureRefTables } from './adopt-cas-assets.ts'
+export { openSqlite, configureSqlite, quoteSqlitePath, SQLITE_BUSY_TIMEOUT_MS } from './sqlite-open.ts'
+export { ensureBiuAssetSchema } from './biu-schema.ts'
 import { adoptTwoSqlite } from './sqlite-two.ts'
 import { adoptCasAssets } from './adopt-cas-assets.ts'
 

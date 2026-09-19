@@ -1,7 +1,8 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import { createRequire } from 'node:module'
 import { contentAddressHash, hashedAssetName, hashedAssetRel, isHashedAssetName } from './asset-cas.ts'
+import { ensureBiuAssetSchema } from './biu-schema.ts'
+import { openSqlite } from './sqlite-open.ts'
 
 const HEX2 = /^[0-9a-f]{2}$/i
 const ASSET_NAME_RE = /^[\p{L}\p{N}._-]+$/u
@@ -113,46 +114,7 @@ export function rewriteAssetText(text: string, map: Map<string, string>) {
 }
 
 export function ensureRefTables(db: import('node:sqlite').DatabaseSync) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS attachments (
-      name TEXT PRIMARY KEY,
-      etag TEXT NOT NULL,
-      mime TEXT NOT NULL,
-      bytes INTEGER NOT NULL,
-      kind TEXT NOT NULL DEFAULT 'asset',
-      storage TEXT NOT NULL DEFAULT 'hash',
-      created_at INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS content_refs (
-      collection TEXT NOT NULL,
-      record_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      source TEXT NOT NULL,
-      PRIMARY KEY (collection, record_id, name, source)
-    );
-    CREATE TABLE IF NOT EXISTS block_refs (
-      collection TEXT NOT NULL,
-      record_id TEXT NOT NULL,
-      block_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      source TEXT NOT NULL,
-      PRIMARY KEY (collection, record_id, block_id, name, source)
-    );
-  `)
-  try {
-    const cols = db.prepare('PRAGMA table_info(attachments)').all() as Array<{ name: string }>
-    if (!cols.some((col) => col.name === 'storage')) {
-      db.exec(`ALTER TABLE attachments ADD COLUMN storage TEXT NOT NULL DEFAULT 'hash'`)
-    }
-    try {
-      db.exec(`UPDATE attachments SET storage = 'hash' WHERE storage IN ('cas', '')`)
-      db.exec(`UPDATE attachments SET storage = 'name' WHERE storage = 'doc'`)
-    } catch {
-      /* dummy sqlite */
-    }
-  } catch {
-    /* dummy sqlite */
-  }
+  ensureBiuAssetSchema(db)
 }
 
 function hasTable(db: import('node:sqlite').DatabaseSync, name: string) {
@@ -252,10 +214,9 @@ export function replacePageBlockRefs(
 function ledgerFromDisk(biuDir: string) {
   const sqlitePath = join(biuDir, 'biu.sqlite')
   if (!existsSync(sqlitePath)) return
-  const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
   let db: import('node:sqlite').DatabaseSync
   try {
-    db = new DatabaseSync(sqlitePath)
+    db = openSqlite(sqlitePath)
   } catch {
     return
   }
@@ -394,10 +355,9 @@ function rescanContentRefs(db: import('node:sqlite').DatabaseSync) {
 function rewriteSqlite(biuDir: string, map: Map<string, string>) {
   const sqlitePath = join(biuDir, 'biu.sqlite')
   if (!existsSync(sqlitePath) || !map.size) return
-  const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
   let db: import('node:sqlite').DatabaseSync
   try {
-    db = new DatabaseSync(sqlitePath)
+    db = openSqlite(sqlitePath)
   } catch {
     return
   }
