@@ -224,6 +224,20 @@ test('delete removes session from store and cache', async () => {
   assert.equal(await ctx.sessions.delete(record.id), false)
 })
 
+test('ensureDefaultSession creates exactly one session when the store is empty', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  const [first, second] = await Promise.all([
+    ctx.sessions.ensureDefaultSession(),
+    ctx.sessions.ensureDefaultSession(),
+  ])
+  assert.equal(first, second)
+  assert.deepEqual(await ctx.sessions.list(), [first])
+  assert.equal(await ctx.sessions.ensureDefaultSession(), first)
+  assert.deepEqual(await ctx.sessions.list(), [first])
+})
+
 test('create/listSummaries/fork round-trip without a session type field', async () => {
   const ctx = new Context()
   await ctx.plugin(sessionStore, { driver: 'memory' })

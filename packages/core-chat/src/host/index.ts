@@ -1093,6 +1093,7 @@ export function apply(ctx: Context) {
     }
   })
   ctx.http.route('GET', '/api/sessions', async (route) => {
+    await ctx.sessions.ensureDefaultSession()
     const items = await ctx.sessions.listSummaries()
     route.send(200, {
       sessions: items.map((item) => ({
