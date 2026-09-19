@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Core-Page：正文在 .biu/pages.sqlite，附件统一 .biu/assets",
+  "description": "Core-Page：正文在 .biu/pages.sqlite，附件在 .biu/assets/page",
   "exports": {
     "./host": "./src/host/index.ts",
     "./web": "./src/web/index.ts"

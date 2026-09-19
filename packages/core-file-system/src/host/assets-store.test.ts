@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { FileSystemAssets, AssetConflictError, assetHref, collectAssetNames, isAssetFileName } from './assets-store.ts'
@@ -26,13 +26,16 @@ test('shared assets live under a single directory and reject path escape', async
   assert.deepEqual([...collectAssetNames({ file: 'assets/画板-ab12.json' })], ['画板-ab12.json'])
 })
 
-test('asset reads fall back to a legacy folder', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'fs-assets-fb-'))
-  const shared = join(root, 'shared')
-  const legacy = join(root, 'legacy')
-  await mkdir(legacy, { recursive: true })
-  await writeFile(join(legacy, 'old.png'), 'old')
-  const store = new FileSystemAssets(shared)
-  const read = await store.read('old.png', [legacy])
-  assert.equal(read.bytes.toString(), 'old')
+test('new writes land in assets/db and still read leftover files at the assets root', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'fs-assets-layer-'))
+  const shared = join(root, '.biu/assets')
+  const layered = join(shared, 'db')
+  await mkdir(shared, { recursive: true })
+  await writeFile(join(shared, 'old.png'), 'old')
+  const store = new FileSystemAssets(layered)
+  const written = await store.write('shot.png', 'new')
+  assert.equal(written.name, 'shot.png')
+  assert.equal(await readFile(join(layered, 'shot.png'), 'utf8'), 'new')
+  const legacy = await store.read('old.png')
+  assert.equal(legacy.bytes.toString(), 'old')
 })

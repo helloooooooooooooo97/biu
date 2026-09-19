@@ -46,7 +46,7 @@ test('migrateDataDir moves leftover .page into .biu', () => {
   migrateDataDir(root)
   assert.equal(readFileSync(join(root, PAGE_ROOT, 'home.md'), 'utf8'), 'hello')
   assert.equal(readFileSync(join(root, PAGE_DB), 'utf8'), 'db')
-  assert.equal(readFileSync(join(root, DATA_DIR_NAME, 'assets', 'board.json'), 'utf8'), '{}')
+  assert.equal(readFileSync(join(root, DATA_DIR_NAME, 'assets', 'page', 'board.json'), 'utf8'), '{}')
   assert.equal(existsSync(join(root, LEGACY_PAGE_ROOT)), false)
 })
 

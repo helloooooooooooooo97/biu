@@ -4,7 +4,7 @@ import { basename, join } from 'node:path'
 import { createRequire } from 'node:module'
 import type { DbRecord, SchemaFieldValue } from '@biu/type-file-system'
 import { emptySchemaValue, normalizeSchemaValue } from '@biu/type-file-system'
-import { dataHome, dataPath, migrateLegacyPageDir, PAGE_ASSETS, PAGE_DB, PAGE_ROOT } from '@biu/host-plugin-loader/data-dir'
+import { assetsLayerPath, dataHome, migrateLegacyPageDir, PAGE_ASSETS, PAGE_DB, PAGE_ROOT, PAGE_ASSET_LAYER } from '@biu/host-plugin-loader/data-dir'
 import { splitMarkdown } from './markdown.ts'
 
 export { PAGE_ROOT, PAGE_DB, PAGE_ASSETS } from '@biu/host-plugin-loader/data-dir'
@@ -168,7 +168,7 @@ function applyPatch(current: PageRow, patch: Record<string, unknown>): PageRow {
 export class PagesStore {
   constructor(
     private fs: WorkspaceFs,
-    private assetsDir = dataPath(dataHome(), 'assets'),
+    private assetsDir = assetsLayerPath(dataHome(), PAGE_ASSET_LAYER),
   ) {}
 
   private db: import('node:sqlite').DatabaseSync | null = null
@@ -384,8 +384,16 @@ export class PagesStore {
       const bytes = await readFile(join(this.assetsDir, file))
       return { bytes, type: mimeOf(file), etag: bytesEtag(bytes) }
     } catch {
-      const bytes = await readFile(this.fs.resolve(`${PAGE_ASSETS}/${file}`))
-      return { bytes, type: mimeOf(file), etag: bytesEtag(bytes) }
+      const fallbacks = [join(this.assetsDir, '..'), this.fs.resolve(PAGE_ASSETS)]
+      for (const dir of fallbacks) {
+        try {
+          const bytes = await readFile(join(dir, file))
+          return { bytes, type: mimeOf(file), etag: bytesEtag(bytes) }
+        } catch {
+          /* try next */
+        }
+      }
+      throw new Error('not found')
     }
   }
 
