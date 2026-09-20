@@ -6541,6 +6541,68 @@ html.dark .composer-send:disabled {
   backdrop-filter: blur(8px);
 }
 
+.composer-goal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--dsw-border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--dsw-surface) 88%, transparent);
+}
+
+.composer-goal.is-pursuing {
+  border-color: color-mix(in srgb, var(--dsw-pick) 45%, var(--dsw-border));
+}
+
+.composer-goal-flag {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--dsw-icon-active);
+}
+
+.composer-goal-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.composer-goal-kicker {
+  color: var(--dsw-label-3);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.composer-goal-text {
+  overflow: hidden;
+  color: var(--dsw-label);
+  font-size: var(--dsw-chat-ui-font-size);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-goal-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.composer-goal-btn {
+  border: 1px solid var(--dsw-border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: var(--dsw-bubble);
+  color: var(--dsw-icon-active);
+  font: 600 12px/1.2 inherit;
+  cursor: pointer;
+}
+
+.composer-goal-btn:hover {
+  background: var(--dsw-hover);
+}
+
 .composer-inbox-head {
   margin-bottom: 6px;
   color: var(--dsw-label-3);

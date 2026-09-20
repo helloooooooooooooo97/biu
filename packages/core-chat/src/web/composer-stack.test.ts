@@ -49,8 +49,22 @@ describe('composer dock stacking above sticky user', () => {
     expect(overlayWin).toContain('chat-overlay-head')
     expect(css).not.toMatch(/chat-overlay-peek/)
     expect(composer).toContain('revealOverlayThread')
+    expect(composer).toContain('composer-goal')
+    expect(composer).toContain("controlGoal('pause')")
+    expect(composer).toContain("controlGoal('clear')")
     expect(composer).toContain('isComposerFocusPending')
     expect(composer).toContain('biu:composer-focus')
+  })
+
+  it('shows an interruptible Goal bar above the composer', () => {
+    const css = readFileSync(resolve(root, 'web/style.css'), 'utf8')
+    const composer = readFileSync(resolve(root, 'packages/core-chat/src/web/composer.tsx'), 'utf8')
+    expect(composer).toContain('composer-goal')
+    expect(composer).toContain("controlGoal('pause')")
+    expect(composer).toContain("controlGoal('resume')")
+    expect(composer).toContain("controlGoal('clear')")
+    expect(css).toMatch(/\.composer-goal\s*\{/)
+    expect(css).toMatch(/\.composer-goal-btn\s*\{/)
   })
 
   it('puts the session mascot after the header name, with the dock session picker', () => {
