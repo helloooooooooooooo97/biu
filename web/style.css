@@ -5663,6 +5663,46 @@ html:not(.dark) .chat-outline-item.is-active {
   white-space: nowrap;
 }
 
+/* 运行中：高亮带沿标题/摘要文字扫过 */
+.tool-call-head.is-running .tool-call-title,
+.tool-call-head.is-running .tool-call-summary {
+  color: transparent;
+  background-image: linear-gradient(
+    105deg,
+    var(--dsw-label-3) 0%,
+    var(--dsw-label-3) 36%,
+    var(--dsw-sidebar-fg) 50%,
+    var(--dsw-label-3) 64%,
+    var(--dsw-label-3) 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: tool-call-text-pulse 1.6s linear infinite;
+}
+
+@keyframes tool-call-text-pulse {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -40% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-call-head.is-running .tool-call-title,
+  .tool-call-head.is-running .tool-call-summary {
+    animation: none;
+    background: none;
+    color: var(--dsw-sidebar-fg);
+    -webkit-text-fill-color: unset;
+    opacity: 0.72;
+  }
+}
+
 .tool-call-status {
   display: grid;
   flex-shrink: 0;
@@ -7083,6 +7123,20 @@ html:not(.dark) .tool-call-title,
 html:not(.dark) .tool-call-head:hover .tool-call-title,
 html:not(.dark) .tool-call-toggle:hover .tool-call-title {
   color: #5f5e5a;
+}
+
+html:not(.dark) .tool-call-head.is-running .tool-call-title,
+html:not(.dark) .tool-call-head.is-running .tool-call-summary {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background-image: linear-gradient(
+    105deg,
+    #5f5e5a 0%,
+    #5f5e5a 36%,
+    #c4c2bb 50%,
+    #5f5e5a 64%,
+    #5f5e5a 100%
+  );
 }
 
 html:not(.dark) .fsdb-crumb-btn,

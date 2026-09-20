@@ -56,6 +56,49 @@ test('loop appends multiple assistant/chunk deltas from onDelta', async () => {
   assert.equal(message?.type === 'assistant/message' && message.usage?.inputTokens, 1)
 })
 
+test('loop invokes multiple tools concurrently', async () => {
+  const { ctx, sessionId } = await spine()
+  let inflight = 0
+  let peak = 0
+  ctx.tools.register({
+    name: 'hold',
+    description: 'hold',
+    parameters: { type: 'object', properties: { id: { type: 'string' } } },
+    execute: async (args) => {
+      inflight += 1
+      peak = Math.max(peak, inflight)
+      await new Promise((resolve) => setTimeout(resolve, 60))
+      inflight -= 1
+      return String(args.id ?? '')
+    },
+  })
+  const loop = new AgentLoop(
+    ctx,
+    new ScriptedLlm([
+      {
+        content: null,
+        toolCalls: [
+          { id: '1', name: 'hold', arguments: '{"id":"a"}' },
+          { id: '2', name: 'hold', arguments: '{"id":"b"}' },
+        ],
+      },
+      { content: 'both done', toolCalls: [] },
+    ]),
+    sessionId,
+    new AbortController().signal,
+  )
+  const turn = await loop.run([{ kind: 'wake', text: 'go' }])
+  assert.equal(peak, 2)
+  assert.deepEqual(
+    turn.steps.map((item) => item.detail),
+    ['a', 'b'],
+  )
+  const types = (await ctx.sessions.require(sessionId)).events.map((event) => event.type)
+  const firstResult = types.indexOf('tool/result')
+  const secondCall = types.lastIndexOf('tool/call')
+  assert.ok(secondCall >= 0 && firstResult >= 0 && secondCall < firstResult)
+})
+
 test('loop invokes tools then asks the model again', async () => {
   const { ctx, sessionId } = await spine()
   ctx.tools.register({
