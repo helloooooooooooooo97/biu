@@ -208,7 +208,13 @@ export class HttpService extends Service {
         shareServer.on('upgrade', (_req, socket) => {
           socket.destroy()
         })
+        let shareFallbackUsed = false
         shareServer.on('error', (error: NodeJS.ErrnoException) => {
+          if (error.code === 'EADDRINUSE' && sharePort > 0 && !shareFallbackUsed) {
+            shareFallbackUsed = true
+            shareServer.listen(0, shareHost)
+            return
+          }
           if (error.code === 'EADDRINUSE') {
             ctx.logger('http').error(
               `分享端口 ${sharePort} 已被占用。换 SHARE_PORT，或 lsof -ti:${sharePort} | xargs kill`,
@@ -220,6 +226,7 @@ export class HttpService extends Service {
         shareServer.listen(sharePort, shareHost, () => {
           const address = shareServer.address()
           const actualPort = address && typeof address !== 'string' ? address.port : sharePort
+          process.env.SHARE_PORT = String(actualPort)
           ctx.emit('http/share-ready', { port: actualPort })
           ctx.logger('http').info(
             `share-only listening on http://${shareHost}:${actualPort} （仅 /share 与 /api/share，不暴露本机工作台）`,

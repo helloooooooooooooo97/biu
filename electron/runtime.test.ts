@@ -30,6 +30,23 @@ test('desktop share service chooses another port when the preferred port is occu
   }
 })
 
+test('desktop share service probes the LAN bind host, not only loopback', async () => {
+  const server = createServer()
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '0.0.0.0', () => resolve())
+  })
+  try {
+    const address = server.address()
+    assert.ok(address && typeof address !== 'string')
+    const selected = await availablePort(address.port, '0.0.0.0')
+    assert.notEqual(selected, address.port)
+    assert.ok(selected > 0)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+  }
+})
+
 test('built-in plugin sources seed once without dependencies or overwriting user edits', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'biu-plugin-seed-'))
   cleanup.push(dir)
