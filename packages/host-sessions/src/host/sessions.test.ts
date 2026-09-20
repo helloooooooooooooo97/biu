@@ -149,6 +149,48 @@ test('reload heals orphan tool_calls so next LLM round is valid', async () => {
   assert.ok(tool)
 })
 
+test('startup reload promotes stuck partial tool/result instead of leaving it skipped', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'cordis-heal-partial-'))
+  const path = join(dir, 'sessions.sqlite')
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'sqlite', path })
+  await ctx.plugin(sessions)
+  await ctx.sessions.create('chestnut')
+  await ctx.sessions.append('chestnut', { type: 'user/message', text: 'ls', kind: 'wake' })
+  await ctx.sessions.append('chestnut', { type: 'turn/start', turn: 2 })
+  await ctx.sessions.append('chestnut', {
+    type: 'assistant/message',
+    text: '',
+    tool_calls: [{ id: 'call_00_partial', name: 'bash', arguments: '{}' }],
+  })
+  await ctx.sessions.append('chestnut', {
+    type: 'tool/result',
+    id: 'call_00_partial',
+    name: 'bash',
+    ok: true,
+    detail: 'file-a\n',
+    partial: true,
+  })
+  await new Promise((resolve) => setTimeout(resolve, 120))
+
+  const ctx2 = new Context()
+  await ctx2.plugin(sessionStore, { driver: 'sqlite', path })
+  await ctx2.plugin(sessions)
+  const loaded = await ctx2.sessions.get('chestnut')
+  const results = loaded!.events.filter((item) => item.type === 'tool/result')
+  assert.equal(results.length, 1)
+  if (results[0]?.type === 'tool/result') {
+    assert.equal(results[0].partial, undefined)
+    assert.equal(results[0].detail, 'file-a\n')
+    assert.equal(results[0].id, 'call_00_partial')
+  }
+  const history = ctx2.sessions.deriveMessages('chestnut')
+  const assistantAt = history.findIndex((item) => item.role === 'assistant' && item.tool_calls?.[0]?.id === 'call_00_partial')
+  assert.ok(assistantAt >= 0)
+  assert.equal(history[assistantAt + 1]?.role, 'tool')
+  assert.equal(history[assistantAt + 1]?.content, 'file-a\n')
+})
+
 test('fork copies the append-only log into a child session', async () => {
   const ctx = new Context()
   await ctx.plugin(sessionStore, { driver: 'memory' })
@@ -363,6 +405,28 @@ test('applyContextBudget: over budget keeps head + recent tail', () => {
   assert.equal(out[out.length - 1], msgs[msgs.length - 1]) // 最新保留
   // 中间的旧消息被丢弃
   assert.ok(out.length < msgs.length)
+})
+
+test('applyContextBudget does not split assistant tool_calls from their tool results', () => {
+  const msgs: LlmMessage[] = [
+    { role: 'system', content: 'SYS' },
+    { role: 'user', content: 'old-'.padEnd(400, 'x') },
+    { role: 'assistant', content: 'old-a'.padEnd(400, 'x') },
+    { role: 'user', content: 'run' },
+    {
+      role: 'assistant',
+      content: '',
+      tool_calls: [{ id: 'call_x', type: 'function', function: { name: 'bash', arguments: '{}' } }],
+    },
+    { role: 'tool', tool_call_id: 'call_x', content: 'out' },
+    { role: 'user', content: 'wake' },
+  ]
+  const out = applyContextBudget(msgs, 80, 2)
+  const assistant = out.find((item) => item.role === 'assistant' && item.tool_calls?.length)
+  const toolAt = out.findIndex((item) => item.role === 'tool' && item.tool_call_id === 'call_x')
+  assert.ok(assistant)
+  assert.ok(toolAt > 0)
+  assert.equal(out[toolAt - 1], assistant)
 })
 
 test('deriveMessages projects pasted images as multimodal content', () => {

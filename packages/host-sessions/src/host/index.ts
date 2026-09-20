@@ -45,16 +45,21 @@ export function deriveMessages(events: SessionEvent[]): LlmMessage[] {
   /** 最近一条带 tool_calls 的 assistant 之后，尚未配齐的 tool_call_id */
   const pendingToolCalls = new Map<string, string>()
 
+  /** 只有 partial、没有最终 result 时，用最后一片 detail 配平，避免模型拒收。 */
+  const partialToolDetail = new Map<string, string>()
+
   const flushOrphanTools = () => {
     if (!pendingToolCalls.size) return
     for (const [id, name] of pendingToolCalls) {
+      const streamed = partialToolDetail.get(id)
       messages.push({
         role: 'tool',
         tool_call_id: id,
-        content: `interrupted: missing tool result for ${name}`,
+        content: streamed || `interrupted: missing tool result for ${name}`,
       })
     }
     pendingToolCalls.clear()
+    partialToolDetail.clear()
   }
 
   for (const event of events) {
@@ -103,9 +108,14 @@ export function deriveMessages(events: SessionEvent[]): LlmMessage[] {
       }
     } else if (event.type === 'tool/result') {
       // 错位/重复的 tool/result 不能进 LLM（否则报 tool 必须跟在 tool_calls 后）
-      if (event.partial || !pendingToolCalls.has(event.id)) continue
+      if (!pendingToolCalls.has(event.id)) continue
+      if (event.partial) {
+        partialToolDetail.set(event.id, event.detail)
+        continue
+      }
       messages.push({ role: 'tool', tool_call_id: event.id, content: event.detail })
       pendingToolCalls.delete(event.id)
+      partialToolDetail.delete(event.id)
     }
   }
   flushOrphanTools()
@@ -258,10 +268,25 @@ export function applyContextBudget(messages: LlmMessage[], budgetTokens: number,
   if (budgetTokens <= 0 || messages.length === 0) return messages
   const total = messages.reduce((s, m) => s + msgTokens(m), 0)
   if (total <= budgetTokens) return messages
-  // 保留最前 1 条(system/锚点) + 最近 N 条；其余丢弃
   const head = Math.max(1, messages[0]?.role === 'system' ? 1 : 0)
   const start = messages.slice(0, head)
-  const tail = messages.slice(-keepRecent)
+  const rest = messages.slice(head)
+  let from = Math.max(0, rest.length - keepRecent)
+  while (from > 0 && rest[from]?.role === 'tool') from -= 1
+  let tail = rest.slice(from)
+  while (tail.length && tail[0]?.role === 'tool') {
+    if (from === 0) break
+    from -= 1
+    tail = rest.slice(from)
+  }
+  while (tail.length) {
+    const last = tail[tail.length - 1]
+    if (last?.role === 'assistant' && last.tool_calls?.length) {
+      tail = tail.slice(0, -1)
+      continue
+    }
+    break
+  }
   return [...start, ...tail]
 }
 
@@ -360,6 +385,23 @@ export class SessionsService extends Service {
     const healed = await this.healOpenTurnsOnLoad(loaded)
     this.cache.set(id, healed)
     return healed
+  }
+
+  /** 启动时把磁盘上崩溃残留的 partial / 未闭合 turn 一次修完并写回。 */
+  async healPersistedLogs() {
+    let ids: string[] = []
+    try {
+      ids = await this.list()
+    } catch {
+      return
+    }
+    for (const id of ids) {
+      try {
+        await this.get(id)
+      } catch {
+        /* 单条坏日志不挡启动 */
+      }
+    }
   }
 
   /**
@@ -668,5 +710,6 @@ export const name = 'sessions'
 export const inject = ['sessionStore']
 
 export function apply(ctx: Context) {
-  new SessionsService(ctx)
+  const sessions = new SessionsService(ctx)
+  void sessions.healPersistedLogs()
 }
