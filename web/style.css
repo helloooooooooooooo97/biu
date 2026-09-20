@@ -6551,10 +6551,6 @@ html.dark .composer-send:disabled {
   background: color-mix(in srgb, var(--dsw-surface) 88%, transparent);
 }
 
-.composer-goal.is-pursuing {
-  border-color: color-mix(in srgb, var(--dsw-pick) 45%, var(--dsw-border));
-}
-
 .composer-goal-mark {
   display: grid;
   flex: none;

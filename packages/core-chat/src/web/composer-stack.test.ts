@@ -68,6 +68,8 @@ describe('composer dock stacking above sticky user', () => {
     expect(composer).toContain("aria-label=\"清除 Goal\"")
     expect(composer).not.toMatch(/composer-goal-btn[^>]*>\s*暂停/)
     expect(css).toMatch(/\.composer-goal-btn\s*\{[^}]*width:\s*28px/s)
+    expect(css).toMatch(/\.composer-goal\s*\{[^}]*border:\s*1px solid var\(--dsw-border\)/s)
+    expect(css).not.toMatch(/\.composer-goal\.is-pursuing/)
   })
 
   it('puts the session mascot after the header name, with the dock session picker', () => {
