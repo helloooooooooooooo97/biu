@@ -1452,7 +1452,11 @@ export class SessionViewService extends Service {
     const sessionId = this.value.sessionId
     if (!sessionId || !itemId) return false
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/inbox/${encodeURIComponent(itemId)}`, { method: 'DELETE' })
+      const res = await fetch(`/api/sessions/${sessionId}/inbox/drop`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: itemId }),
+      })
       const data = (await res.json().catch(() => ({}))) as { error?: string; inbox?: InboxQueueItem[] }
       if (!res.ok) {
         this.replace({ error: data.error || `删除排队失败：${res.status}` })
@@ -1470,10 +1474,10 @@ export class SessionViewService extends Service {
     const sessionId = this.value.sessionId
     if (!sessionId || !itemId) return false
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/inbox/${encodeURIComponent(itemId)}`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/sessions/${sessionId}/inbox/patch`, {
+        method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ id: itemId, text }),
       })
       const data = (await res.json().catch(() => ({}))) as { error?: string; inbox?: InboxQueueItem[] }
       if (!res.ok) {
