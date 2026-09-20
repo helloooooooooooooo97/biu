@@ -678,6 +678,16 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
 
   const pickTool = useCallback(
     (name: string, slashState: SlashState | null = slash) => {
+      if (name === 'goal') {
+        if (editor && slashState) {
+          deletePlainRange(editor, slashState.start, slashState.end)
+          editor.chain().focus().insertContent('/goal ').run()
+        }
+        setSlash(null)
+        const packed = serializeComposer(editor)
+        scheduleCanSubmit(packed.plain, picked, packed.refs.length)
+        return
+      }
       setPicked((prev) => {
         const nextTools = prev.includes(name) ? prev : [...prev, name]
         if (editor && slashState) deletePlainRange(editor, slashState.start, slashState.end)
@@ -687,7 +697,7 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
       })
       setSlash(null)
     },
-    [slash, editor],
+    [slash, editor, picked],
   )
   pickToolRef.current = pickTool
 
@@ -838,7 +848,7 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
       >
       {slash?.open ? (
         <div className="composer-slash" role="listbox" aria-label="工具列表">
-          <div className="composer-slash-head">工具 · 输入过滤 · Enter 选用</div>
+          <div className="composer-slash-head">命令与工具 · 输入过滤 · Enter 选用</div>
           {filtered.length === 0 ? (
             <div className="composer-slash-empty">没有匹配的工具</div>
           ) : (

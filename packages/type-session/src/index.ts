@@ -93,6 +93,29 @@ export interface SessionMascot {
   eye?: number
 }
 
+export type SessionGoalStatus = 'pursuing' | 'paused' | 'achieved' | 'blocked'
+
+export interface SessionGoal {
+  id: string
+  objective: string
+  status: SessionGoalStatus
+  turns: number
+  summary?: string
+}
+
+export function normalizeSessionGoal(value: unknown): SessionGoal | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const raw = value as Record<string, unknown>
+  const id = String(raw.id ?? '').trim()
+  const objective = String(raw.objective ?? '').replace(/\s+/g, ' ').trim().slice(0, 4000)
+  const status = raw.status
+  if (!id || !objective) return undefined
+  if (status !== 'pursuing' && status !== 'paused' && status !== 'achieved' && status !== 'blocked') return undefined
+  const turns = typeof raw.turns === 'number' && Number.isFinite(raw.turns) ? Math.max(0, Math.floor(raw.turns)) : 0
+  const summary = typeof raw.summary === 'string' ? raw.summary.trim().slice(0, 4000) : ''
+  return { id, objective, status, turns, ...(summary ? { summary } : {}) }
+}
+
 /** 会话级覆盖配置；未设字段回落到全局 chat-config。 */
 export interface SessionConfig {
   /** 侧栏显示名；未设则仍用最近 user/message 推导 */
@@ -101,6 +124,8 @@ export interface SessionConfig {
   model?: string
   systemPrompt?: string
   agentMode?: 'standard' | 'minimal' | 'file'
+  /** /goal 挂上的会话目标；与极简/标准/数据无关。未完成前自动续跑。 */
+  goal?: SessionGoal
   /** 极简模式下常驻额外工具 */
   extraTools?: string[]
   /** 侧栏标签；一条会话可属于多个标签组 */
@@ -182,6 +207,8 @@ export function normalizeSessionConfig(value: unknown): SessionConfig | undefine
   if (typeof raw.systemPrompt === 'string') next.systemPrompt = raw.systemPrompt
   if (raw.agentMode === 'minimal' || raw.agentMode === 'file') next.agentMode = raw.agentMode
   if (raw.agentMode === 'standard' || raw.agentMode === 'create') next.agentMode = 'standard'
+  const goal = normalizeSessionGoal(raw.goal)
+  if (goal) next.goal = goal
   if (Array.isArray(raw.extraTools)) {
     next.extraTools = [...new Set(raw.extraTools.map((name) => String(name).trim()).filter(Boolean))]
   }
@@ -209,7 +236,12 @@ export function normalizeSessionConfig(value: unknown): SessionConfig | undefine
 
 export function mergeSessionConfig(
   base: SessionConfig | undefined,
-  patch: SessionConfig & { title?: string | null; systemPrompt?: string | null; inspector?: SessionInspectorBind | null },
+  patch: SessionConfig & {
+    title?: string | null
+    systemPrompt?: string | null
+    inspector?: SessionInspectorBind | null
+    goal?: SessionGoal | null
+  },
 ): SessionConfig | undefined {
   const next: SessionConfig = { ...(base ?? {}) }
   if ('title' in patch) {
@@ -227,6 +259,14 @@ export function mergeSessionConfig(
   }
   if (patch.agentMode === 'minimal' || patch.agentMode === 'file') next.agentMode = patch.agentMode
   if (patch.agentMode === 'standard' || patch.agentMode === 'create') next.agentMode = 'standard'
+  if ('goal' in patch) {
+    if (patch.goal == null) delete next.goal
+    else {
+      const goal = normalizeSessionGoal(patch.goal)
+      if (goal) next.goal = goal
+      else delete next.goal
+    }
+  }
   if (Array.isArray(patch.extraTools)) {
     next.extraTools = [...new Set(patch.extraTools.map((name) => String(name).trim()).filter(Boolean))]
   }

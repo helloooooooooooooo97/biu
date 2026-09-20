@@ -420,6 +420,20 @@ export class ChatService extends Service {
       }
       return this.config.systemPrompt
     })
+    ctx.systemPrompt.register('chat.goal', () => {
+      const sessionId = currentSessionId()
+      if (!sessionId) return ''
+      const goal = this.ctx.sessions.peek(sessionId)?.config?.goal
+      if (!goal || goal.status !== 'pursuing') return ''
+      return [
+        '用户用 /goal 挂上了当前目标。持续推进直到完成，不要停在计划或口头「差不多了」。',
+        `目标：${goal.objective}`,
+        `goal_id=${goal.id}`,
+        '完成后必须调用 goal_complete({ goal_id, summary })，summary 写具体证据（测试、文件、验收）。',
+        '只有真正卡住才调用 goal_blocked({ goal_id, reason, evidence })。',
+        '这与极简 / 标准 / 数据工具模式无关：Goal 是会话上的目标合同，工具集仍由当前 Agent 模式决定。',
+      ].join('\n')
+    })
     this.syncLlm()
     this.syncToolsMode()
   }
@@ -493,7 +507,14 @@ export class ChatService extends Service {
         })(),
       })),
       tools: this.ctx.tools.names(),
-      toolCatalog: this.ctx.tools.catalog(),
+      toolCatalog: [
+        {
+          name: 'goal',
+          description: '挂上目标并一直做到完成。/goal 目标；/goal pause、resume、clear',
+          origin: 'core' as const,
+        },
+        ...this.ctx.tools.catalog().filter((item) => item.name !== 'goal'),
+      ],
       extraTools: this.config.extraTools,
     }
   }
