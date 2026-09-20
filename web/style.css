@@ -1058,7 +1058,7 @@ body {
   min-width: 180px;
   transform: translateX(-50%);
   padding: 6px;
-  border: 1px solid var(--dsw-border);
+  border: 0;
   border-radius: 10px;
   background: var(--dsw-sidebar);
   box-shadow: var(--dsw-shadow-lv2);
@@ -1070,7 +1070,7 @@ body {
   width: 100%;
   border: 0;
   border-radius: 6px;
-  background: var(--dsw-input);
+  background: transparent;
   padding: 6px 8px;
   color: var(--dsw-label);
   font: inherit;
