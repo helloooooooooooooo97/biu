@@ -229,7 +229,7 @@ export class HttpService extends Service {
           process.env.SHARE_PORT = String(actualPort)
           ctx.emit('http/share-ready', { port: actualPort })
           ctx.logger('http').info(
-            `share-only listening on http://${shareHost}:${actualPort} （仅 /share 与 /api/share，不暴露本机工作台）`,
+            `share-only listening on http://${shareHost}:${actualPort} （/share、/api/share、token 保护的 /api/mcp；不暴露本机工作台）`,
           )
         })
         return () =>

@@ -10,6 +10,7 @@ import * as mcp from './index.ts'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { bearerToken, generateMcpToken, tokensMatch } from './host-token.ts'
+import { isLoopbackAddress } from './serve.ts'
 
 let dir = ''
 let prevHost = ''
@@ -69,6 +70,9 @@ test('bearer parser and token compare', () => {
   assert.equal(tokensMatch('a', 'a'), true)
   assert.equal(tokensMatch('a', 'b'), false)
   assert.equal(tokensMatch('', generateMcpToken()), false)
+  assert.equal(isLoopbackAddress('127.0.0.1'), true)
+  assert.equal(isLoopbackAddress('::ffff:127.0.0.1'), true)
+  assert.equal(isLoopbackAddress('192.168.1.2'), false)
 })
 
 test('host MCP requires a bearer token and only exposes file-mode db tools', async () => {
@@ -85,11 +89,13 @@ test('host MCP requires a bearer token and only exposes file-mode db tools', asy
     assert.equal(infoRes.status, 200)
     const info = (await infoRes.json()) as {
       url: string
+      localUrl?: string
       token: string
       tools: string[]
       clients: { cursor: { mcpServers: { biu: { url: string } } } }
     }
     assert.equal(info.url, `http://127.0.0.1:${port}/api/mcp`)
+    assert.equal(info.localUrl, info.url)
     assert.match(info.token, /^biu_mcp_/)
     assert.equal(info.tools.includes('db_list'), true)
     assert.equal(info.clients.cursor.mcpServers.biu.url, info.url)
@@ -124,19 +130,45 @@ test('host MCP requires a bearer token and only exposes file-mode db tools', asy
   }
 }, 20000)
 
-test('share listener does not expose /api/mcp', async () => {
+test('share listener exposes token-gated MCP on the LAN port, not the workstation', async () => {
   const ctx = new Context()
   const sharePortP = new Promise<number>((resolve) => ctx.on('http/share-ready', ({ port }) => resolve(port)))
   const localP = new Promise<number>((resolve) => ctx.on('http/ready', ({ port }) => resolve(port)))
   await ctx.plugin(http, { port: 0, host: '127.0.0.1', sharePort: 31429, shareHost: '127.0.0.1', fallbackPort: true })
   await ctx.plugin(tools)
+  ctx.tools.register({
+    name: 'db_list',
+    description: 'list',
+    parameters: { type: 'object', properties: {} },
+    execute: () => ({ ok: true }),
+  })
   await ctx.plugin(mcp)
   const [sharePort, localPort] = await Promise.all([sharePortP, localP])
   try {
-    const blocked = await fetch(`http://127.0.0.1:${sharePort}/api/mcp/info`)
-    assert.equal(blocked.status, 404)
-    const local = await fetch(`http://127.0.0.1:${localPort}/api/mcp/info`)
-    assert.equal(local.status, 200)
+    const info = (await (await fetch(`http://127.0.0.1:${localPort}/api/mcp/info`)).json()) as {
+      url: string
+      localUrl: string
+      bind: string
+      token: string
+    }
+    assert.equal(info.localUrl, `http://127.0.0.1:${localPort}/api/mcp`)
+    assert.equal(info.url, `http://127.0.0.1:${sharePort}/api/mcp`)
+    assert.equal(info.bind, '127.0.0.1')
+
+    const denied = await fetch(`http://127.0.0.1:${sharePort}/api/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
+    })
+    assert.equal(denied.status, 401)
+
+    const workstation = await fetch(`http://127.0.0.1:${sharePort}/api/db/list`)
+    assert.equal(workstation.status, 404)
+
+    const client = await mcpClient(info.url, info.token)
+    const listed = await client.listTools()
+    assert.deepEqual(listed.tools.map((tool) => tool.name), ['db_list'])
+    await client.close()
   } finally {
     await ctx.fiber.dispose()
   }

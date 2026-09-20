@@ -193,6 +193,8 @@ test('settings lists an MCP pane for host token and clients', () => {
   assert.match(chrome, /data-testid="settings-mcp"/)
   assert.match(chrome, /\/api\/mcp\/info/)
   assert.match(chrome, /\/api\/mcp\/rotate/)
+  assert.match(chrome, /局域网地址/)
+  assert.match(chrome, /0\.0\.0\.0/)
   assert.match(chrome, /ChatGPT/)
   assert.match(chrome, /Codex/)
   assert.match(chrome, /复制配置/)

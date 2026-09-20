@@ -1,6 +1,10 @@
 /** Paths the LAN share listener may serve. Everything else stays on localhost. */
+export function isMcpApiPath(pathname: string) {
+  return pathname === '/api/mcp' || pathname.startsWith('/api/mcp/')
+}
+
 export function isShareApiPath(pathname: string) {
-  return pathname === '/api/share' || pathname.startsWith('/api/share/')
+  return pathname === '/api/share' || pathname.startsWith('/api/share/') || isMcpApiPath(pathname)
 }
 
 export function isSharePublicPath(pathname: string) {

@@ -288,6 +288,8 @@ export function ShellSettingsUpdate() {
 
 type McpHostInfo = {
   url: string
+  localUrl?: string
+  bind?: string
   token: string
   tools?: string[]
   clients?: Record<string, unknown>
@@ -320,7 +322,15 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
       .then(async (res) => {
         const data = (await res.json()) as McpHostInfo & { error?: string }
         if (!res.ok) throw new Error(data.error || '无法读取 MCP 连接信息')
-        setInfo({ url: data.url, token: data.token, tools: data.tools, clients: data.clients, note: data.note })
+        setInfo({
+          url: data.url,
+          localUrl: data.localUrl,
+          bind: data.bind,
+          token: data.token,
+          tools: data.tools,
+          clients: data.clients,
+          note: data.note,
+        })
         setError('')
       })
       .catch((err) => setError(String(err instanceof Error ? err.message : err)))
@@ -351,7 +361,15 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
       })
       const data = (await res.json()) as McpHostInfo & { error?: string }
       if (!res.ok) throw new Error(data.error || '无法轮换 token')
-      setInfo({ url: data.url, token: data.token, tools: info.tools, clients: data.clients, note: info.note })
+      setInfo({
+        url: data.url,
+        localUrl: data.localUrl ?? info.localUrl,
+        bind: data.bind,
+        token: data.token,
+        tools: info.tools,
+        clients: data.clients,
+        note: info.note,
+      })
       setError('')
     } catch (err) {
       setError(String(err instanceof Error ? err.message : err))
@@ -366,7 +384,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
     <section className="settings-mcp" data-testid="settings-mcp">
       <h3 className="settings-pane-title">Biu MCP</h3>
       <p className="settings-muted settings-pane-lead">
-        让 Cursor、Claude、ChatGPT、Codex 通过 MCP 操作这个工作区。协议对各客户端相同，差别只在各自怎么填 URL 和 token。
+        MCP 听在分享口（默认 0.0.0.0），局域网其它电脑用下面的地址 + token 即可调用。工作台本身仍只在本机。
       </p>
       {error ? (
         <p className="settings-muted settings-mcp-error" role="alert">
@@ -376,7 +394,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
       <h4 className="settings-pane-subtitle">连接</h4>
       <div className="settings-mcp-fields">
         <label className="settings-mcp-field">
-          <span>地址</span>
+          <span>局域网地址</span>
           <div className="settings-mcp-field-row">
             <input readOnly value={info?.url ?? ''} data-testid="settings-mcp-url" className="settings-mcp-input" />
             <button
@@ -392,6 +410,14 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
             </button>
           </div>
         </label>
+        {info?.localUrl && info.localUrl !== info.url ? (
+          <label className="settings-mcp-field">
+            <span>本机地址</span>
+            <div className="settings-mcp-field-row">
+              <input readOnly value={info.localUrl} data-testid="settings-mcp-local-url" className="settings-mcp-input" />
+            </div>
+          </label>
+        ) : null}
         <label className="settings-mcp-field">
           <span>Token</span>
           <div className="settings-mcp-field-row">
