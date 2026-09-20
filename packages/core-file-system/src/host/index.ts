@@ -1912,11 +1912,12 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('POST', '/api/profile', async (route) => {
     try {
-      const body = (await route.json()) as { name?: unknown; avatar?: unknown; theme?: unknown }
+      const body = (await route.json()) as { name?: unknown; avatar?: unknown; theme?: unknown; pagePrefs?: unknown }
       route.send(200, asPublicProfile(writeWorkspaceProfile({
         name: typeof body.name === 'string' ? body.name : undefined,
         avatar: typeof body.avatar === 'string' ? body.avatar : undefined,
         theme: body.theme === 'dark' || body.theme === 'light' ? body.theme : undefined,
+        pagePrefs: body.pagePrefs,
       })))
     } catch (error) {
       route.send(400, { error: String(error) })
