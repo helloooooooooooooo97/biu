@@ -1246,6 +1246,38 @@ test('delete parks records in trash and restore puts them back', async () => {
   assert.equal(rows.has('n1'), false)
 })
 
+test('sessions delete parks in trash until purge', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, { id: string; title: string }>([['s1', { id: 's1', title: '会话' }]])
+  db.register({
+    id: 'sessions',
+    path: '/sessions',
+    schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } } },
+    records: { create: true, delete: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: () => [],
+    remove: (query) => {
+      const ids = query.ids ?? []
+      for (const id of ids) rows.delete(id)
+      return ids
+    },
+  })
+  const gone = await db.remove('/sessions', { ids: ['s1'] })
+  assert.equal((gone as { trash?: boolean }).trash, true)
+  assert.equal(rows.has('s1'), true)
+  const listed = await db.list('/sessions')
+  if (listed.kind !== 'collection') return
+  assert.equal(listed.items.length, 0)
+  await db.restore('/sessions', { ids: ['s1'] })
+  const back = await db.list('/sessions')
+  if (back.kind !== 'collection') return
+  assert.equal(back.items.length, 1)
+  await db.remove('/sessions', { ids: ['s1'], purge: true })
+  assert.equal(rows.has('s1'), false)
+})
+
 test('trash collection lists deleted rows and restore/delete actions', async () => {
   const ctx = new Context()
   const db = new DatabaseService(ctx)

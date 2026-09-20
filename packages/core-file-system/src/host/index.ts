@@ -533,7 +533,7 @@ function sortRecords(rows: DbRecord[], field: string, dir: 'asc' | 'desc', sorts
 
 export const DEFAULT_PAGE_SIZE = 50
 export const MAX_PAGE_SIZE = 200
-const HARD_DELETE_PATHS = new Set(['/sessions', '/events', '/asset-gc', '/trash'])
+const HARD_DELETE_PATHS = new Set(['/events', '/asset-gc', '/trash'])
 
 export function clampPage(limit?: number, offset?: number) {
   const size = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.isFinite(Number(limit)) ? Number(limit) : DEFAULT_PAGE_SIZE))
@@ -635,6 +635,15 @@ export class DatabaseService extends Service implements Database {
       for (const field of wanted) {
         if (bag[field.key] !== undefined) row[field.key] = bag[field.key]
       }
+    }
+  }
+
+  private disposeSessionAgents(ids: string[]) {
+    try {
+      const agents = this.ctx.get('agents') as { get?: (id: string) => { dispose?: () => void } | undefined } | undefined
+      for (const id of ids) agents?.get?.(id)?.dispose?.()
+    } catch {
+      /* agents 未注入时忽略 */
     }
   }
 
@@ -1102,6 +1111,7 @@ export class DatabaseService extends Service implements Database {
     const ids = [...new Set(matched.map((row) => row.id))]
     if (!ids.length) return { kind: 'deleted' as const, path: spec.path, ids }
     const hard = Boolean(query.purge) || HARD_DELETE_PATHS.has(spec.path)
+    if (spec.path === '/sessions') this.disposeSessionAgents(ids)
     for (const row of matched) {
       const rec = withoutContent(spec, this.withBanner(spec, this.decorateRecord(spec, row)))
       const title = String(rec.title ?? rec.name ?? row.id).trim() || row.id
@@ -1825,7 +1835,7 @@ export function apply(ctx: Context) {
   })
   ctx.tools.register({
     name: 'db_delete',
-    description: '按条件把记录放进回收站（软删除）。路径为 /<表>，必须带 ids、q 或 filter 之一。purge=true 才从原表彻底删掉。会话表始终硬删。成功返回 {ok, path, ids}。',
+    description: '按条件把记录放进回收站（软删除）。路径为 /<表>，必须带 ids、q 或 filter 之一。purge=true 才从原表彻底删掉。成功返回 {ok, path, ids}。',
     parameters: {
       type: 'object',
       properties: {
