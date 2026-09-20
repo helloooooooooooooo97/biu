@@ -183,6 +183,23 @@ test('settings appearance toggles day and night themes', () => {
   assert.doesNotMatch(html, /biu\.theme/)
 })
 
+test('settings lists an MCP pane for host token and clients', () => {
+  const shell = readFileSync(resolve(import.meta.dirname, './index.tsx'), 'utf8')
+  const chrome = readFileSync(resolve(import.meta.dirname, './shell-chrome.tsx'), 'utf8')
+  const css = readFileSync(resolve(import.meta.dirname, '../../../../web/style.css'), 'utf8')
+  assert.match(shell, /key: 'mcp'/)
+  assert.match(shell, /label: 'MCP'/)
+  assert.match(shell, /ShellSettingsMcp/)
+  assert.match(chrome, /data-testid="settings-mcp"/)
+  assert.match(chrome, /\/api\/mcp\/info/)
+  assert.match(chrome, /\/api\/mcp\/rotate/)
+  assert.match(chrome, /ChatGPT/)
+  assert.match(chrome, /Codex/)
+  assert.match(chrome, /复制配置/)
+  assert.match(css, /\.settings-mcp-card/)
+  assert.match(css, /\.settings-mcp-grid/)
+})
+
 test('settings lists search and pick shortcuts', () => {
   const shell = readFileSync(resolve(import.meta.dirname, './index.tsx'), 'utf8')
   const chrome = readFileSync(resolve(import.meta.dirname, './shell-chrome.tsx'), 'utf8')

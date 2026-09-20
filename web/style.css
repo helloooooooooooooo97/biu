@@ -612,6 +612,168 @@ body {
   font-weight: 650;
 }
 
+.settings-mcp-error {
+  margin: 0 0 16px;
+  color: var(--dsw-danger);
+}
+
+.settings-mcp-fields {
+  display: flex;
+  max-width: 560px;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-mcp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--dsw-label);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-mcp-field-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-mcp-input {
+  min-width: 0;
+  flex: 1;
+  height: 32px;
+  border: 1px solid var(--dsw-border);
+  border-radius: 6px;
+  background: var(--dsw-input);
+  padding: 0 10px;
+  color: var(--dsw-label);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+}
+
+.settings-mcp-icon-btn,
+.settings-mcp-rotate,
+.settings-mcp-enable,
+.settings-mcp-link {
+  margin: 0;
+  border: 1px solid var(--dsw-border);
+  border-radius: 6px;
+  background: var(--dsw-bg);
+  color: var(--dsw-label-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-mcp-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--dsw-icon);
+}
+
+.settings-mcp-icon-btn:hover:not(:disabled),
+.settings-mcp-rotate:hover:not(:disabled),
+.settings-mcp-enable:hover:not(:disabled),
+.settings-mcp-link:hover {
+  background: var(--dsw-hover);
+  color: var(--dsw-label);
+}
+
+.settings-mcp-icon-btn:disabled,
+.settings-mcp-rotate:disabled,
+.settings-mcp-enable:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.settings-mcp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.settings-mcp-rotate,
+.settings-mcp-link,
+.settings-mcp-enable {
+  height: 28px;
+  padding: 0 10px;
+}
+
+.settings-mcp-link {
+  border: 0;
+  background: transparent;
+  color: var(--dsw-label-3);
+}
+
+.settings-mcp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.settings-mcp-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--dsw-border);
+  border-radius: 10px;
+  background: var(--dsw-bg);
+}
+
+.settings-mcp-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--dsw-hover);
+  color: var(--dsw-label);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.settings-mcp-card-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-mcp-card-copy strong {
+  display: block;
+  color: var(--dsw-label);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.settings-mcp-card-copy p {
+  margin: 2px 0 0;
+  color: var(--dsw-label-3);
+  font-size: 12px;
+  font-weight: 450;
+  line-height: 1.4;
+}
+
+.settings-mcp-enable {
+  flex: none;
+  align-self: center;
+}
+
+@media (max-width: 720px) {
+  .settings-mcp-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .settings-page-prefs.fsdb-layout-menu {
   position: static;
   top: auto;

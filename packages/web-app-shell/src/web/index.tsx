@@ -44,7 +44,7 @@ import { SessionInspector } from './session-inspector.tsx'
 import { SessionConfigDialog } from '@biu/web-session-view/dialog'
 import { FolderGlyph } from '@biu/web-session-view/folder-glyph'
 import { OverlayChatWindow } from './overlay-window.tsx'
-import { ShellSettingsAbout, ShellSettingsAccount, ShellSettingsAppearance, ShellSettingsShortcuts, ShellSettingsUpdate } from './shell-chrome.tsx'
+import { ShellSettingsAbout, ShellSettingsAccount, ShellSettingsAppearance, ShellSettingsMcp, ShellSettingsShortcuts, ShellSettingsUpdate } from './shell-chrome.tsx'
 import { hydrateWorkspaceProfile } from '@biu/public-ui'
 import { hydrateTheme } from './theme.ts'
 import { hydratePagePrefs } from '@biu/core-file-system/page-width'
@@ -60,6 +60,7 @@ import {
   ArrowDownTrayIcon,
   CommandLineIcon,
   InformationCircleIcon,
+  LinkIcon,
   MapIcon,
   PuzzlePieceIcon,
   QueueListIcon,
@@ -856,6 +857,7 @@ function Shell(props: SlotProps) {
                     { key: 'account', label: '账户', Icon: UserCircleIcon },
                     { key: 'appearance', label: '外观', Icon: SwatchIcon },
                     { key: 'plugins', label: '插件', Icon: PuzzlePieceIcon },
+                    { key: 'mcp', label: 'MCP', Icon: LinkIcon },
                     { key: 'shortcuts', label: '快捷键', Icon: CommandLineIcon },
                     { key: 'routes', label: '路由', Icon: MapIcon },
                     { key: 'events', label: '事件', Icon: QueueListIcon },
@@ -895,6 +897,7 @@ function Shell(props: SlotProps) {
                       {props.renderSlot('sidebar')}
                     </section>
                   ) : null}
+                  {settingsTab === 'mcp' ? <ShellSettingsMcp onLeave={() => setSettingsOpen(false)} /> : null}
                   {settingsTab === 'shortcuts' ? <ShellSettingsShortcuts /> : null}
                   {settingsTab === 'routes' ? (
                     <section>
