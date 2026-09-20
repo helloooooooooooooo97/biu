@@ -42,23 +42,36 @@ export {
 export function deriveMessages(events: SessionEvent[]): LlmMessage[] {
   let system = ''
   const messages: LlmMessage[] = []
-  /** 最近一条带 tool_calls 的 assistant 之后，尚未配齐的 tool_call_id */
-  const pendingToolCalls = new Map<string, string>()
-
-  /** 只有 partial、没有最终 result 时，用最后一片 detail 配平，避免模型拒收。 */
+  /** 当前 assistant.tool_calls 的声明顺序（接口要求 role:tool 必须按此顺序紧跟） */
+  let pendingOrder: string[] = []
+  const pendingNames = new Map<string, string>()
+  const readyDetail = new Map<string, string>()
+  /** 只有 partial、没有最终 result 时，用最后一片 detail 配平 */
   const partialToolDetail = new Map<string, string>()
 
-  const flushOrphanTools = () => {
-    if (!pendingToolCalls.size) return
-    for (const [id, name] of pendingToolCalls) {
-      const streamed = partialToolDetail.get(id)
-      messages.push({
-        role: 'tool',
-        tool_call_id: id,
-        content: streamed || `interrupted: missing tool result for ${name}`,
-      })
+  const emitReadyTools = () => {
+    while (pendingOrder.length && readyDetail.has(pendingOrder[0]!)) {
+      const id = pendingOrder.shift()!
+      messages.push({ role: 'tool', tool_call_id: id, content: readyDetail.get(id)! })
+      readyDetail.delete(id)
+      pendingNames.delete(id)
+      partialToolDetail.delete(id)
     }
-    pendingToolCalls.clear()
+  }
+
+  const flushOrphanTools = () => {
+    if (!pendingOrder.length) return
+    for (const id of pendingOrder) {
+      const name = pendingNames.get(id) || id
+      const content =
+        readyDetail.get(id) ||
+        partialToolDetail.get(id) ||
+        `interrupted: missing tool result for ${name}`
+      messages.push({ role: 'tool', tool_call_id: id, content })
+    }
+    pendingOrder = []
+    pendingNames.clear()
+    readyDetail.clear()
     partialToolDetail.clear()
   }
 
@@ -66,7 +79,10 @@ export function deriveMessages(events: SessionEvent[]): LlmMessage[] {
     // 压缩点：sessions 的 compact/clear（含旧独立工具名）。从此处重起，摘要取调用参数。
     if (isSessionCompactPoint(event)) {
       messages.length = 0
-      pendingToolCalls.clear()
+      pendingOrder = []
+      pendingNames.clear()
+      readyDetail.clear()
+      partialToolDetail.clear()
       const text = sessionCompactSummaryText(event)
       if (text) {
         messages.push({ role: 'system', content: `[已压缩的历史摘要] ${text}` })
@@ -104,18 +120,18 @@ export function deriveMessages(events: SessionEvent[]): LlmMessage[] {
           : {}),
       })
       if (hasToolCalls) {
-        for (const call of event.tool_calls!) pendingToolCalls.set(call.id, call.name)
+        pendingOrder = event.tool_calls!.map((call) => call.id)
+        for (const call of event.tool_calls!) pendingNames.set(call.id, call.name)
       }
     } else if (event.type === 'tool/result') {
       // 错位/重复的 tool/result 不能进 LLM（否则报 tool 必须跟在 tool_calls 后）
-      if (!pendingToolCalls.has(event.id)) continue
+      if (!pendingNames.has(event.id)) continue
       if (event.partial) {
         partialToolDetail.set(event.id, event.detail)
         continue
       }
-      messages.push({ role: 'tool', tool_call_id: event.id, content: event.detail })
-      pendingToolCalls.delete(event.id)
-      partialToolDetail.delete(event.id)
+      readyDetail.set(event.id, event.detail)
+      emitReadyTools()
     }
   }
   flushOrphanTools()
@@ -282,6 +298,12 @@ export function applyContextBudget(messages: LlmMessage[], budgetTokens: number,
   while (tail.length) {
     const last = tail[tail.length - 1]
     if (last?.role === 'assistant' && last.tool_calls?.length) {
+      const need = last.tool_calls.length
+      const have = rest.length - (from + tail.length)
+      if (have >= need && rest.slice(from + tail.length, from + tail.length + need).every((item) => item.role === 'tool')) {
+        tail = rest.slice(from, from + tail.length + need)
+        break
+      }
       tail = tail.slice(0, -1)
       continue
     }

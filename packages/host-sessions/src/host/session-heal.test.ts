@@ -148,6 +148,61 @@ test('healInterruptedTurnBodies closes turn-only', () => {
   assert.deepEqual(turnOnly, [{ type: 'turn/end', turn: 4, reason: 'host-restart' }])
 })
 
+test('chestnut: dual tool_calls with first stuck partial and second final stay in declaration order', () => {
+  const events = [
+    ev({ type: 'user/message', text: '查库', kind: 'wake', seq: 0 }),
+    ev({
+      type: 'assistant/message',
+      text: '先列目录再查表',
+      tool_calls: [
+        { id: 'call_00_aScNfLb9WXaALtTkufJg2846', name: 'bash', arguments: '{}' },
+        { id: 'call_01_v5bHKMUQx1HJuV1kh7mX3881', name: 'db_list', arguments: '{}' },
+      ],
+      seq: 1,
+    }),
+    ev({
+      type: 'tool/result',
+      id: 'call_00_aScNfLb9WXaALtTkufJg2846',
+      name: 'bash',
+      ok: true,
+      detail: '{"stdout":"total 3240"}',
+      partial: true,
+      seq: 2,
+    }),
+    ev({
+      type: 'tool/result',
+      id: 'call_01_v5bHKMUQx1HJuV1kh7mX3881',
+      name: 'db_list',
+      ok: true,
+      detail: '{"kind":"root"}',
+      seq: 3,
+    }),
+    ev({ type: 'turn/end', turn: 2, reason: 'cancelled', seq: 4 }),
+    ev({ type: 'user/message', text: '????', kind: 'wake', seq: 5 }),
+  ]
+
+  const before = deriveMessages(events)
+  const assistantAt = before.findIndex((item) => item.role === 'assistant' && item.tool_calls?.length)
+  assert.equal(before[assistantAt + 1]?.tool_call_id, 'call_00_aScNfLb9WXaALtTkufJg2846')
+  assert.equal(before[assistantAt + 2]?.tool_call_id, 'call_01_v5bHKMUQx1HJuV1kh7mX3881')
+  assert.equal(before[assistantAt + 1]?.content, '{"stdout":"total 3240"}')
+  assert.equal(before[assistantAt + 3]?.role, 'user')
+
+  const rebuilt = rebuildHealedEvents(events, 99)
+  assert.ok(rebuilt)
+  const results = rebuilt!.filter((item) => item.type === 'tool/result')
+  assert.equal(results.length, 2)
+  if (results[0]?.type === 'tool/result' && results[1]?.type === 'tool/result') {
+    assert.equal(results[0].id, 'call_00_aScNfLb9WXaALtTkufJg2846')
+    assert.equal(results[1].id, 'call_01_v5bHKMUQx1HJuV1kh7mX3881')
+    assert.equal(results[0].partial, undefined)
+    assert.equal(results[1].partial, undefined)
+  }
+  const after = deriveMessages(rebuilt!)
+  assert.equal(after[assistantAt + 1]?.tool_call_id, 'call_00_aScNfLb9WXaALtTkufJg2846')
+  assert.equal(after[assistantAt + 2]?.tool_call_id, 'call_01_v5bHKMUQx1HJuV1kh7mX3881')
+})
+
 test('deriveMessages synthesizes missing tool results before next user', () => {
   const messages = deriveMessages([
     ev({ type: 'user/message', text: 'first', kind: 'wake', seq: 0 }),

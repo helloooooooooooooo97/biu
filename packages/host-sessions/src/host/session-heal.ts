@@ -89,6 +89,7 @@ export function rebuildHealedEvents(
 ): SessionEvent[] | null {
   const out: SessionEvent[] = []
   const pending = new Map<string, string>()
+  let pendingOrder: string[] = []
   let changed = false
 
   const push = (body: SessionEventBody, ts: number) => {
@@ -97,11 +98,28 @@ export function rebuildHealedEvents(
 
   /** 崩溃停在分片 result 时保留已流出的 detail，flush 时转成正式 tool/result。 */
   const partials = new Map<string, { name: string; ok: boolean; detail: string; ts: number }>()
+  const ready = new Map<string, SessionEvent>()
+
+  const emitReady = () => {
+    while (pendingOrder.length && ready.has(pendingOrder[0]!)) {
+      const id = pendingOrder.shift()!
+      pending.delete(id)
+      partials.delete(id)
+      push(stripSeqTs(ready.get(id)!), ready.get(id)!.ts)
+      ready.delete(id)
+    }
+  }
 
   const flushPending = () => {
-    if (!pending.size) return
+    if (!pendingOrder.length) return
     changed = true
-    for (const [id, name] of pending) {
+    for (const id of pendingOrder) {
+      const name = pending.get(id) || id
+      const finished = ready.get(id)
+      if (finished) {
+        push(stripSeqTs(finished), finished.ts)
+        continue
+      }
       const streamed = partials.get(id)
       if (streamed) {
         push(
@@ -119,7 +137,9 @@ export function rebuildHealedEvents(
       }
     }
     pending.clear()
+    pendingOrder = []
     partials.clear()
+    ready.clear()
   }
 
   for (const event of events) {
@@ -140,9 +160,9 @@ export function rebuildHealedEvents(
         changed = true
         continue
       }
-      pending.delete(event.id)
-      partials.delete(event.id)
-      push(stripSeqTs(event), event.ts)
+      ready.set(event.id, event)
+      if (pendingOrder[0] !== event.id) changed = true
+      emitReady()
       continue
     }
 
@@ -150,6 +170,7 @@ export function rebuildHealedEvents(
       flushPending()
       push(stripSeqTs(event), event.ts)
       if (event.type === 'assistant/message' && event.tool_calls?.length) {
+        pendingOrder = event.tool_calls.map((call) => call.id)
         for (const call of event.tool_calls) {
           pending.set(call.id, call.name)
         }
