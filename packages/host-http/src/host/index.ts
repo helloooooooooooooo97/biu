@@ -284,7 +284,9 @@ export class HttpService extends Service {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Share-Password',
+      'Access-Control-Allow-Headers':
+        'Content-Type, Authorization, X-Share-Password, mcp-session-id, mcp-protocol-version, Last-Event-ID',
+      'Access-Control-Expose-Headers': 'mcp-session-id, mcp-protocol-version',
       'Access-Control-Max-Age': '86400',
     }
     // CORS 预检：跨内网机器的浏览器请求，先给 OPTIONS 放行

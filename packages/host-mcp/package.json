@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "MCP 缝：.biu/mcp.json 可插拔挂载，server 级工具选择",
+  "description": "MCP 缝：挂载外部 server，同时把本机 Biu 暴露成 Streamable HTTP MCP",
   "exports": {
     ".": "./src/host/index.ts",
     "./config": "./src/host/config.ts"
@@ -14,7 +14,9 @@
   },
   "dependencies": {
     "@biu/host-plugin-loader": "0.1.0",
+    "@biu/host-tools": "0.1.0",
     "@biu/type-file-system": "0.1.0",
+    "@biu/type-http": "0.1.0",
     "@modelcontextprotocol/sdk": "^1.30.0"
   }
 }
