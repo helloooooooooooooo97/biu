@@ -246,6 +246,9 @@ export function flattenToolImagesForChatCompletions(messages: LlmMessage[]): Llm
         pending.push(...images)
         continue
       }
+      // 同一批 tool_calls 的后续 tool 即使没图也不能先 flush 图像 user，否则会拆对。
+      out.push(message)
+      continue
     }
     flush()
     out.push(message)

@@ -46,6 +46,36 @@ test('flattenToolImagesForChatCompletions keeps tool text and appends user image
   assert.equal(hasImageContent(out[2]?.content), true)
 })
 
+test('flattenToolImagesForChatCompletions does not insert user between sibling tool results', () => {
+  const out = flattenToolImagesForChatCompletions([
+    {
+      role: 'assistant',
+      content: null,
+      tool_calls: [
+        { id: 'a', type: 'function', function: { name: 'bash', arguments: '{}' } },
+        { id: 'b', type: 'function', function: { name: 'db_list', arguments: '{}' } },
+      ],
+    },
+    {
+      role: 'tool',
+      tool_call_id: 'a',
+      content: [
+        { type: 'text', text: '{"ok":true}' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,xx' } },
+      ],
+    },
+    { role: 'tool', tool_call_id: 'b', content: '{"kind":"root"}' },
+    { role: 'user', content: '????' },
+  ])
+  assert.equal(out[1]?.role, 'tool')
+  assert.equal(out[1]?.tool_call_id, 'a')
+  assert.equal(out[2]?.role, 'tool')
+  assert.equal(out[2]?.tool_call_id, 'b')
+  assert.equal(out[3]?.role, 'user')
+  assert.equal(hasImageContent(out[3]?.content), true)
+  assert.equal(out[4]?.content, '????')
+})
+
 test('toAnthropicContent wraps tool images as tool_result image source', () => {
   const content = toAnthropicContent(
     [
