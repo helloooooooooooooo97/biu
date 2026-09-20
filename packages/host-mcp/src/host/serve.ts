@@ -1,3 +1,4 @@
+import { networkInterfaces } from 'node:os'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
@@ -42,6 +43,30 @@ function asInputSchema(parameters: unknown) {
 
 function listenHost(host: string) {
   return host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host
+}
+
+export function isLoopbackAddress(addr?: string | null) {
+  const ip = String(addr ?? '')
+  return ip === '127.0.0.1' || ip === '::1' || ip === ':ffff:127.0.0.1' || ip === '::ffff:127.0.0.1'
+}
+
+/** 给局域网客户端看的 IPv4；0.0.0.0 不能当 URL host。 */
+export function lanIPv4() {
+  const preferred: string[] = []
+  const rest: string[] = []
+  for (const addrs of Object.values(networkInterfaces())) {
+    for (const item of addrs ?? []) {
+      const v4 = item.family === 'IPv4' || item.family === 4
+      if (!v4 || item.internal) continue
+      if (item.address.startsWith('169.254.')) continue
+      if (item.address.startsWith('192.168.') || item.address.startsWith('10.') || item.address.startsWith('172.')) {
+        preferred.push(item.address)
+      } else {
+        rest.push(item.address)
+      }
+    }
+  }
+  return preferred[0] || rest[0] || '127.0.0.1'
 }
 
 export function createBiuMcpServer(ctx: Context) {
@@ -92,20 +117,50 @@ export function applyHostServer(ctx: Context) {
   const path = mcpHostConfigPath()
   let token = loadOrCreateMcpToken(path)
   let listenPort = ctx.http.config.port
+  let sharePort = ctx.http.config.sharePort
 
   ctx.on('http/ready', ({ port }) => {
     listenPort = port
   })
+  ctx.on('http/share-ready', ({ port }) => {
+    sharePort = port
+  })
 
-  function publicUrl() {
+  function localUrl() {
     const host = listenHost(ctx.http.config.host)
     return `http://${host}:${listenPort}/api/mcp`
+  }
+
+  function publicUrl() {
+    if (sharePort > 0) {
+      const bind = ctx.http.config.shareHost
+      const host = bind === '0.0.0.0' || bind === '::' ? lanIPv4() : listenHost(bind)
+      return `http://${host}:${sharePort}/api/mcp`
+    }
+    return localUrl()
+  }
+
+  function payload() {
+    const url = publicUrl()
+    const local = localUrl()
+    const shareBind = ctx.http.config.shareHost
+    return {
+      url,
+      localUrl: local,
+      bind: sharePort > 0 ? shareBind || '0.0.0.0' : listenHost(ctx.http.config.host),
+      token,
+      tools: [...FILE_TOOL_NAMES],
+      clients: mcpClientSnippets(url, token),
+      note:
+        'MCP 协议对各客户端相同。局域网走分享口（默认 0.0.0.0），工作台仍只在本机。' +
+        '调用必须带 Authorization: Bearer <token>；token 只在本机 info 里明文给出。',
+    }
   }
 
   function requireToken(route: RouteContext) {
     const got = bearerToken(route.req.headers.authorization)
     if (!tokensMatch(got, token)) {
-      route.send(401, { error: 'mcp token required — Authorization: Bearer <token>，见 GET /api/mcp/info' })
+      route.send(401, { error: 'mcp token required — Authorization: Bearer <token>，见设置 → MCP' })
       return false
     }
     return true
@@ -113,24 +168,15 @@ export function applyHostServer(ctx: Context) {
 
   ctx.http.route('GET', '/api/mcp/info', (route) => {
     applyCors(route)
-    const url = publicUrl()
-    route.send(200, {
-      url,
-      token,
-      tools: [...FILE_TOOL_NAMES],
-      clients: mcpClientSnippets(url, token),
-      note:
-        'MCP 协议对各客户端相同。Notion 那种「Enable ChatGPT / Claude / Cursor」是各产品自己的 OAuth / 深链向导，不是不同协议。' +
-        'Biu v1 用工作区 token（.biu/mcp-host.json 或 BIU_MCP_TOKEN）控制谁能连；分享端口不会暴露这条路由。',
-    })
+    if (!isLoopbackAddress(route.req.socket.remoteAddress) && !requireToken(route)) return
+    route.send(200, payload())
   })
 
   ctx.http.route('POST', '/api/mcp/rotate', (route) => {
     applyCors(route)
     if (!requireToken(route)) return
     token = rotateMcpToken(path)
-    const url = publicUrl()
-    route.send(200, { url, token, clients: mcpClientSnippets(url, token) })
+    route.send(200, payload())
   })
 
   const handle = async (route: RouteContext) => {
