@@ -11,6 +11,8 @@ test('database-ui ships one search menu for select and multi-select', () => {
   assert.match(menu, /db-search-menu/)
   assert.match(menu, /className="db-search-field"/)
   assert.match(menu, /\.db-search-field\{[^}]*background:transparent/)
+  assert.match(menu, /\.db-search-field\{[^}]*border:0/)
+  assert.match(menu, /\.db-search-menu\{[^}]*border:0/)
   assert.match(menu, /\.db-search-field input\{[^}]*font-size:14px/)
   assert.match(menu, /\.db-search-field input::placeholder\{[^}]*font-size:14px/)
   assert.match(select, /<DbSearchMenu/)
