@@ -135,8 +135,6 @@ import {
 } from './page-width.ts'
 import { LayoutPrefsMenu } from './layout-prefs-menu.tsx'
 import { listCollection, readJson } from './db-client.ts'
-import { RecycleBin } from './recycle-bin.tsx'
-import { isRecycleBinPath } from './database-path.ts'
 import { savedViewRecordPath } from '../paths.ts'
 import { findViewNeighbor, indexOnPage } from './view-adjacent.ts'
 import { rememberPreviewTotal, viewTotalKey } from './sidebar-preview.ts'
@@ -835,7 +833,6 @@ export function CollectionBrowser({
   }
 
   const reload = useCallback(async () => {
-    if (isRecycleBinPath(collectionPath)) return true
     if (Date.now() < quietUntil.current) return true
     const gen = ++reloadGen.current
     try {
@@ -2599,29 +2596,6 @@ export function CollectionBrowser({
     wrapCells,
     sheet,
   ])
-
-  if (isRecycleBinPath(collectionPath) && !nested && !sheet) {
-    return (
-      <div className="fsdb-page tasks-root">
-        <DataSidebar
-          tables={tables}
-          collectionPath={collectionPath}
-          title={title}
-          views={[]}
-          activeViewId={null}
-          onOpenTable={onOpenTable}
-          onApplyView={() => undefined}
-          onRenameView={() => undefined}
-          onDeleteView={() => undefined}
-          onAddView={() => undefined}
-          expandedViewKey={expandedViewKey}
-          onExpandedViewKeyChange={onExpandedViewKeyChange}
-          onCollapse={toggleViewsOpen}
-        />
-        <RecycleBin />
-      </div>
-    )
-  }
 
   return (
     <div
