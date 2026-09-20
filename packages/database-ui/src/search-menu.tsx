@@ -4,7 +4,7 @@ import { AnchorMenu } from '@biu/public-ui'
 const STYLE_ID = 'biu-database-ui-search'
 const CSS = `
 .db-search-menu{box-sizing:border-box;padding:6px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:10px;box-shadow:var(--dsw-shadow);display:flex;flex-direction:column;gap:4px;font-size:14px}
-.db-search-field{display:flex;align-items:center;gap:6px;border:1px solid var(--dsw-border);border-radius:8px;padding:4px 8px;color:var(--dsw-label-3);background:var(--dsw-input);font-size:14px}
+.db-search-field{display:flex;align-items:center;gap:6px;border:1px solid var(--dsw-border);border-radius:8px;padding:4px 8px;color:var(--dsw-label-3);background:transparent;font-size:14px}
 .db-search-field input{flex:1;min-width:0;border:0;background:transparent;color:var(--dsw-label);font-family:inherit;font-size:14px;font-weight:400;line-height:1.4;outline:none}
 .db-search-field input::placeholder{font-size:14px;color:var(--dsw-label-3)}
 .db-search-list{display:flex;flex-direction:column;gap:1px;max-height:220px;overflow:auto}

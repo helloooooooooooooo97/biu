@@ -1070,7 +1070,7 @@ body {
   width: 100%;
   border: 0;
   border-radius: 6px;
-  background: var(--dsw-input);
+  background: transparent;
   padding: 6px 8px;
   color: var(--dsw-label);
   font: inherit;
