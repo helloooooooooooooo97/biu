@@ -875,7 +875,7 @@ test('apply registers db_* tools', async () => {
   new HttpStub(ctx)
   await ctx.plugin({ inject: ['tools', 'http'], apply: applyFileSystem })
   const names = ctx.tools.names()
-  for (const name of ['db_list', 'db_read', 'db_update', 'db_create', 'db_delete', 'db_stat', 'db_action', 'db_content', 'db_asset', 'db_doc']) {
+  for (const name of ['db_list', 'db_read', 'db_update', 'db_create', 'db_delete', 'db_restore', 'db_stat', 'db_action', 'db_content', 'db_asset', 'db_doc']) {
     assert.equal(names.includes(name), true, name)
   }
   const listed = await ctx.tools.invoke('db_list', { path: '/' })
@@ -1206,6 +1206,42 @@ test('create and delete follow records caps declared at register', async () => {
   if (after.kind !== 'collection') return
   assert.equal(after.items.length, 1)
   await assert.rejects(() => db.remove('/notes', {}), /delete requires/)
+})
+
+test('delete parks records in trash and restore puts them back', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, { id: string; title: string }>([['n1', { id: 'n1', title: '草稿' }]])
+  db.register({
+    id: 'notes',
+    path: '/notes',
+    schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } } },
+    records: { create: true, delete: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: () => [],
+    remove: (query) => {
+      const ids = query.ids ?? []
+      for (const id of ids) rows.delete(id)
+      return ids
+    },
+  })
+  const gone = await db.remove('/notes', { ids: ['n1'] })
+  assert.equal((gone as { trash?: boolean }).trash, true)
+  const listed = await db.list('/notes')
+  if (listed.kind !== 'collection') return
+  assert.equal(listed.items.length, 0)
+  assert.equal(rows.has('n1'), true)
+  await assert.rejects(() => db.read('/notes/n1'), /unknown record/)
+  const bin = await db.listTrash()
+  assert.equal(bin.items.length, 1)
+  assert.equal(bin.items[0]?.title, '草稿')
+  await db.restore('/notes', { ids: ['n1'] })
+  const back = await db.list('/notes')
+  if (back.kind !== 'collection') return
+  assert.equal(back.items.length, 1)
+  await db.remove('/notes', { ids: ['n1'], purge: true })
+  assert.equal(rows.has('n1'), false)
 })
 
 test('facet catalog is workspace-wide and collect uses sqlite stamps', async () => {

@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { parseAppPath } from '@biu/web-session-view'
-import { DATA_MODULE, databaseAllViewPath, databaseRecordPath, databaseViewPath, isRecordTreeCollection, isSystemCollection, sortDataCollections, viewsCatalogSource } from './database-path.ts'
+import { DATA_MODULE, databaseAllViewPath, databaseRecordPath, databaseViewPath, isRecordTreeCollection, isRecycleBinPath, isSystemCollection, sortDataCollections, viewsCatalogSource } from './database-path.ts'
 
 const plugins = [DATA_MODULE]
 
@@ -72,6 +72,8 @@ test('views and events are system collections; tags sort with user tables', () =
   assert.equal(isSystemCollection('/events'), true)
   assert.equal(isSystemCollection('/notices'), true)
   assert.equal(isSystemCollection('/asset-gc'), true)
+  assert.equal(isRecycleBinPath('/recycle'), true)
+  assert.equal(isRecycleBinPath('/pages'), false)
   assert.equal(isSystemCollection('/sessions'), false)
   const { user, system } = sortDataCollections([
     { path: '/events' },

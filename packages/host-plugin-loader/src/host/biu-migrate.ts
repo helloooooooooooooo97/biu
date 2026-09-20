@@ -210,6 +210,10 @@ export const BIU_MIGRATIONS: Migration[] = [
     rebuildContentRefs(db)
   } },
   { version: 15, module: 'core-file-system', name: 'rebuild.content_refs.v3', up: (db) => rebuildContentRefs(db) },
+  { version: 16, module: 'core-file-system', name: 'record.meta.deleted_at', up: (db) => {
+    addColumn(db, 'record_meta', 'deleted_at', 'deleted_at INTEGER')
+    db.exec('CREATE INDEX IF NOT EXISTS record_meta_deleted ON record_meta(collection, deleted_at)')
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

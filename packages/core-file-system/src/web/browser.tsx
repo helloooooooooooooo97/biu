@@ -135,6 +135,8 @@ import {
 } from './page-width.ts'
 import { LayoutPrefsMenu } from './layout-prefs-menu.tsx'
 import { listCollection, readJson } from './db-client.ts'
+import { RecycleBin } from './recycle-bin.tsx'
+import { isRecycleBinPath } from './database-path.ts'
 import { savedViewRecordPath } from '../paths.ts'
 import { findViewNeighbor, indexOnPage } from './view-adjacent.ts'
 import { rememberPreviewTotal, viewTotalKey } from './sidebar-preview.ts'
@@ -833,6 +835,7 @@ export function CollectionBrowser({
   }
 
   const reload = useCallback(async () => {
+    if (isRecycleBinPath(collectionPath)) return true
     if (Date.now() < quietUntil.current) return true
     const gen = ++reloadGen.current
     try {
@@ -2597,6 +2600,29 @@ export function CollectionBrowser({
     sheet,
   ])
 
+  if (isRecycleBinPath(collectionPath) && !nested && !sheet) {
+    return (
+      <div className="fsdb-page tasks-root">
+        <DataSidebar
+          tables={tables}
+          collectionPath={collectionPath}
+          title={title}
+          views={[]}
+          activeViewId={null}
+          onOpenTable={onOpenTable}
+          onApplyView={() => undefined}
+          onRenameView={() => undefined}
+          onDeleteView={() => undefined}
+          onAddView={() => undefined}
+          expandedViewKey={expandedViewKey}
+          onExpandedViewKeyChange={onExpandedViewKeyChange}
+          onCollapse={toggleViewsOpen}
+        />
+        <RecycleBin />
+      </div>
+    )
+  }
+
   return (
     <div
       className={`fsdb-page tasks-root${nested ? ' inspector-database-page' : ''}${sheet ? ' is-sheet' : ''}${!sheet && pageWidth === 'full' ? ' is-full-width' : ''}${collectionPath === '/plugins' ? ' is-plugins' : ''}`}
@@ -3477,7 +3503,7 @@ export function CollectionBrowser({
           danger
           onCancel={() => setDlg(null)}
           onConfirm={applyDeleteView}
-          body={<p>确定删除视图「{dlg.view.name}」？删除后不可恢复。</p>}
+          body={<p>确定删除视图「{dlg.view.name}」？会放进回收站，可随时恢复。</p>}
         />
       ) : null}
       {dlg?.kind === 'delete-record' ? (
@@ -3491,7 +3517,7 @@ export function CollectionBrowser({
             setDlg(null)
             void executeDeleteRecord(row)
           }}
-          body={<p>确定删除「{labelOf(dlg.row)}」？删除后不可恢复。</p>}
+          body={<p>确定删除「{labelOf(dlg.row)}」？会放进回收站，可随时恢复。</p>}
         />
       ) : null}
       {dlg?.kind === 'delete-records' ? (
@@ -3505,7 +3531,7 @@ export function CollectionBrowser({
             setDlg(null)
             void executeDeleteRecords(ids)
           }}
-          body={<p>确定删除选中的 {dlg.ids.length} 条记录？删除后不可恢复。</p>}
+          body={<p>确定删除选中的 {dlg.ids.length} 条记录？会放进回收站，可随时恢复。</p>}
         />
       ) : null}
       {dlg?.kind === 'bulk-edit' ? (

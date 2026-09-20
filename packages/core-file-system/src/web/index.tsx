@@ -18,7 +18,7 @@ import {
   collectionNavKey,
 } from './nav-boot.ts'
 import { defaultViewId, pullSavedViews, pushAllSavedViews } from './view-storage.ts'
-import { DATA_MODULE, DATA_MODULE_ID, DATA_MODULE_PATH, FACETS_COLLECTION_PATH, PAGE_BLOCKS_COLLECTION_PATH, VIEWS_COLLECTION_PATH, sortDataCollections } from './database-path.ts'
+import { DATA_MODULE, DATA_MODULE_ID, DATA_MODULE_PATH, FACETS_COLLECTION_PATH, PAGE_BLOCKS_COLLECTION_PATH, RECYCLE_BIN_PATH, VIEWS_COLLECTION_PATH, isRecycleBinPath, sortDataCollections } from './database-path.ts'
 import { pickMainDataRoute, readMainDataRoute, writeMainDataRoute } from './main-data-route.ts'
 import { facetsChrome } from './facet-chrome.tsx'
 import { viewsChrome } from './views-chrome.ts'
@@ -155,18 +155,48 @@ function CollectionPage(props: SlotProps) {
   useEffect(() => {
     if (parsed.kind !== 'collection-view' || parsed.viewId || recordFromRoute) return
     if (!parsed.collection) return
+    if (isRecycleBinPath(parsed.collection)) return
     go({ collection: parsed.collection, viewId: builtinAllViewId(parsed.collection) }, { replace: true })
   }, [parsed, recordFromRoute])
 
   useEffect(() => {
     if (!orderedTables.length || !collectionFromRoute) return
+    if (isRecycleBinPath(collectionFromRoute)) return
     if (orderedTables.some((item) => item.path === collectionFromRoute)) return
     const first = orderedTables[0]!
     go({ collection: first.path, viewId: defaultViewId(first.path) }, { replace: true })
   }, [collectionFromRoute, orderedTables])
 
   const lockedFilters = chrome.lockedFiltersFromSearch?.(location.search) ?? EMPTY_FILTERS
-  if (!currentPath) return null
+  if (!currentPath && !isRecycleBinPath(collectionFromRoute)) return null
+  if (isRecycleBinPath(collectionFromRoute) || isRecycleBinPath(currentPath)) {
+    return (
+      <CollectionBrowser
+        moduleId={DATA_MODULE_ID}
+        collectionPath={RECYCLE_BIN_PATH}
+        title="回收站"
+        blurb=""
+        chrome={EMPTY_CHROME}
+        tables={orderedTables}
+        lockedFilters={EMPTY_FILTERS}
+        routeRecordId={null}
+        routeViewId={undefined}
+        expandedViewKey={expandedViewKey}
+        onExpandedViewKeyChange={setExpandedViewKey}
+        onOpenTable={(path, viewId) =>
+          go({
+            collection: path,
+            viewId: isRecycleBinPath(path) ? undefined : viewId ?? builtinAllViewId(path),
+          })
+        }
+        onOpenView={() => undefined}
+        onOpenRecord={() => undefined}
+        resolveViews={(path, user) => viewsForRegisteredCollection(path, orderedTables, user)}
+        onCloseRecord={() => undefined}
+        onCrumbTarget={(target: CrumbTarget) => navigate(pathForCrumbTarget(target))}
+      />
+    )
+  }
   const title = row?.view?.title ?? row?.label ?? currentPath.replace(/^\//, '')
   return (
     <CollectionBrowser
@@ -181,7 +211,12 @@ function CollectionPage(props: SlotProps) {
       routeViewId={viewFromRoute}
       expandedViewKey={expandedViewKey}
       onExpandedViewKeyChange={setExpandedViewKey}
-      onOpenTable={(path, viewId) => go({ collection: path, viewId: viewId ?? builtinAllViewId(path) })}
+      onOpenTable={(path, viewId) =>
+          go({
+            collection: path,
+            viewId: isRecycleBinPath(path) ? undefined : viewId ?? builtinAllViewId(path),
+          })
+        }
       onOpenView={(viewId) => go({ collection: currentPath, viewId })}
       onOpenRecord={(recordId, viewId, collection) =>
         go({ collection: collection ?? currentPath, viewId: viewId ?? viewFromRoute, recordId })

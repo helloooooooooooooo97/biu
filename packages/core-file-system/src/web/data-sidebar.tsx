@@ -15,7 +15,7 @@ import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import type { CollectionInfo, CollectionSchema, DbRecord } from '@biu/type-file-system'
 import { groupField, groupRecords, parentFieldKey, treeChildren } from './fields.ts'
 import { builtinAllViewId } from '../catalog-views.ts'
-import { isRecordTreeCollection, isSystemCollection, sortDataCollections } from './database-path.ts'
+import { isRecordTreeCollection, isRecycleBinPath, isSystemCollection, RECYCLE_BIN_PATH, sortDataCollections } from './database-path.ts'
 import { readJson } from './db-client.ts'
 import { viewsForRegisteredCollection } from './collection-nav.ts'
 import type { SavedView } from './saved-view.ts'
@@ -1184,29 +1184,38 @@ export const DataSidebar = memo(function DataSidebar({
             </SidebarFold>
           </section>
 
-          {systemTables.length ? (
-            <section className="min-w-0">
-              <div className="sidebar-section-head min-w-0">
-                <div className="flex min-h-8 min-w-0 flex-1 items-center">
-                  <button
-                    type="button"
-                    className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
-                    aria-expanded={systemOpen}
-                    title="系统运行时记下的数据"
-                    onClick={() => setSystemOpen((prev) => !prev)}
-                  >
-                    <span className="min-w-0 flex-1 truncate tracking-normal">系统数据</span>
-                  </button>
-                </div>
-                <ChatCount count={systemTables.length} />
+          <section className="min-w-0">
+            <div className="sidebar-section-head min-w-0">
+              <div className="flex min-h-8 min-w-0 flex-1 items-center">
+                <button
+                  type="button"
+                  className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
+                  aria-expanded={systemOpen}
+                  title="系统运行时记下的数据"
+                  onClick={() => setSystemOpen((prev) => !prev)}
+                >
+                  <span className="min-w-0 flex-1 truncate tracking-normal">系统数据</span>
+                </button>
               </div>
+              <ChatCount count={systemTables.length + 1} />
+            </div>
               <SidebarFold open={systemOpen}>
                 <div className="flex min-w-0 flex-col gap-px" data-testid="sidebar-system-collections">
+                  <button
+                    type="button"
+                    className={`chat-session-row group${isRecycleBinPath(collectionPath) ? ' is-active' : ''}`}
+                    data-testid="sidebar-recycle-bin"
+                    onClick={() => onOpenTable?.(RECYCLE_BIN_PATH)}
+                  >
+                    <span className="chat-session-row-main flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-[14px] leading-5">
+                      <TrashGlyph className="size-4 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">回收站</span>
+                    </span>
+                  </button>
                   {renderTableRows(systemTables)}
                 </div>
               </SidebarFold>
             </section>
-          ) : null}
         </div>
       </div>
   )

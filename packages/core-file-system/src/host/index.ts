@@ -532,6 +532,7 @@ function sortRecords(rows: DbRecord[], field: string, dir: 'asc' | 'desc', sorts
 
 export const DEFAULT_PAGE_SIZE = 50
 export const MAX_PAGE_SIZE = 200
+const HARD_DELETE_PATHS = new Set(['/sessions', '/events', '/asset-gc'])
 
 export function clampPage(limit?: number, offset?: number) {
   const size = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.isFinite(Number(limit)) ? Number(limit) : DEFAULT_PAGE_SIZE))
@@ -590,7 +591,13 @@ export class DatabaseService extends Service implements Database {
   private async loadCollectionRows(spec: CollectionSpec, query: CollectionListQuery) {
     const rows = await spec.list(query)
     const listed = !query.ids?.length ? rows : rows.filter((row) => query.ids!.includes(row.id))
-    return listed.map((row) => this.decorateRecord(spec, row))
+    const hidden = this.facets.deletedIds(spec.path)
+    const scoped = query.trash ? listed.filter((row) => hidden.has(row.id)) : listed.filter((row) => !hidden.has(row.id))
+    return scoped.map((row) => this.decorateRecord(spec, row))
+  }
+
+  private assertLiveRecord(spec: CollectionSpec, id: string) {
+    if (this.facets.isDeleted(spec.path, id)) throw new Error(`unknown record: ${spec.path}/${id}`)
   }
 
   private async matchCollectionRows(
@@ -659,6 +666,7 @@ export class DatabaseService extends Service implements Database {
     if (parts.length === 2) {
       const record = await spec.get(parts[1]!)
       if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+      this.assertLiveRecord(spec, record.id)
       return {
         kind: 'record' as const,
         path: `${spec.path}/${record.id}`,
@@ -691,7 +699,13 @@ export class DatabaseService extends Service implements Database {
     const sortDir = page?.sortDir === 'desc' ? 'desc' : 'asc'
     const schemaFilter = filter?.facet != null && filter.facet !== '' ? String(filter.facet) : ''
     const columnKeys = listedColumnKeys(page?.columns, schema.labelField ?? 'title')
-    const query: CollectionListQuery = { q, filter }
+    const trash = filter?.deleted === true || filter?.trash === true
+    const liveFilter = filter ? { ...filter } : undefined
+    if (liveFilter) {
+      delete liveFilter.deleted
+      delete liveFilter.trash
+    }
+    const query: CollectionListQuery = { q, filter: liveFilter, trash }
     if (schemaFilter && schema.fields.facet && spec.path !== '/facets') {
       const stamped = this.facets.stampedIds(spec.path, schemaFilter)
       if (!stamped.size) {
@@ -710,7 +724,7 @@ export class DatabaseService extends Service implements Database {
       }
       query.ids = [...stamped]
     }
-    const matched = await this.matchCollectionRows(spec, query, filter, q)
+    const matched = await this.matchCollectionRows(spec, query, liveFilter, q)
     const tagFilter = spec.path === '/facets' ? String(filter?.facetId ?? '').trim() : ''
     if (tagFilter) schema = schemaWithTagPack(schema, this.facets.get(tagFilter))
     const sorted = sortRecords(matched, sortField, sortDir, page?.sorts)
@@ -743,7 +757,9 @@ export class DatabaseService extends Service implements Database {
     const labels = new Map(this.collectionsList().map((spec) => [spec.path, spec.label ?? spec.id]))
     return {
       facet: found.facet,
-      items: found.items.map((item) => ({
+      items: found.items
+        .filter((item) => !this.facets.isDeleted(item.collection, item.id))
+        .map((item) => ({
         ...item,
         collectionLabel: labels.get(item.collection) ?? item.collection,
       })),
@@ -896,6 +912,7 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    this.assertLiveRecord(spec, record.id)
     return { kind: 'record' as const, path: `${spec.path}/${record.id}`, schema: schemaFor(spec), value: withoutContent(spec, this.withBanner(spec, this.decorateRecord(spec, record))) }
   }
 
@@ -908,6 +925,7 @@ export class DatabaseService extends Service implements Database {
     const raw = parseContent(content)
     const current = await spec.get(parts[1]!)
     if (!current) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    this.assertLiveRecord(spec, current.id)
     const bannerPatch = takeBannerPatch(raw)
     if ('facet' in raw && schema.fields.facet) {
       if (!schema.fields.facet.writable || schema.fields.facet.computed) throw new Error(`field not writable: facet`)
@@ -1077,13 +1095,32 @@ export class DatabaseService extends Service implements Database {
       if (!stamped.size) return { kind: 'deleted' as const, path: spec.path, ids: [] as string[] }
       listQuery.ids = query.ids?.length ? query.ids.filter((id) => stamped.has(id)) : [...stamped]
     }
-    const matched = await this.matchCollectionRows(spec, listQuery, filter, q)
+    const matchedTrash = await this.matchCollectionRows(spec, { ...listQuery, trash: true }, filter, q)
+    const matchedLive = await this.matchCollectionRows(spec, { ...listQuery, trash: false }, filter, q)
+    const matched = query.purge ? (matchedTrash.length ? matchedTrash : matchedLive) : matchedLive
     const ids = [...new Set(matched.map((row) => row.id))]
     if (!ids.length) return { kind: 'deleted' as const, path: spec.path, ids }
+    const hard = Boolean(query.purge) || HARD_DELETE_PATHS.has(spec.path)
     for (const row of matched) {
       const rec = withoutContent(spec, this.withBanner(spec, this.decorateRecord(spec, row)))
       const title = String(rec.title ?? rec.name ?? row.id).trim() || row.id
       await this.ctx.get('contentTurns')?.recordDelete(`${spec.path}/${row.id}`, title, rec)
+    }
+    if (!hard) {
+      const at = Date.now()
+      for (const id of ids) {
+        this.facets.markDeleted(spec.path, id, at)
+        this.shares.revokeRecord(spec.path, id)
+      }
+      if (spec.path === '/views') {
+        for (const row of matched) {
+          const collection = normalizeCollectionPath(String(row.tablePath ?? ''))
+          const viewId = String(row.viewId ?? '').trim()
+          if (collection && collection !== '/' && viewId) this.shares.revokeView(collection, viewId)
+        }
+      }
+      this.bump()
+      return { kind: 'deleted' as const, path: spec.path, ids, trash: true }
     }
     await spec.remove({ ids })
     for (const id of ids) {
@@ -1102,6 +1139,45 @@ export class DatabaseService extends Service implements Database {
     return { kind: 'deleted' as const, path: spec.path, ids }
   }
 
+  async restore(path: string, query: CollectionListQuery = {}) {
+    const parts = splitPath(path)
+    if (parts.length !== 1) throw new Error(`cannot restore: ${normalizeCollectionPath(path)}`)
+    const spec = this.collection(`/${parts[0]}`)
+    if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
+    if (!hasCollectionDeleteQuery(query)) throw new Error('restore requires ids, q, or filter')
+    const matched = await this.matchCollectionRows(
+      spec,
+      { q: query.q ?? '', filter: query.filter, ids: query.ids, trash: true },
+      query.filter,
+      query.q ?? '',
+    )
+    const ids = [...new Set(matched.map((row) => row.id))]
+    for (const id of ids) this.facets.restoreDeleted(spec.path, id)
+    this.bump()
+    return { kind: 'restored' as const, path: spec.path, ids }
+  }
+
+  async listTrash() {
+    const items = []
+    for (const row of this.facets.listDeleted()) {
+      const spec = this.collection(row.collection)
+      if (!spec) continue
+      const record = await spec.get(row.record_id)
+      if (!record) continue
+      const decorated = this.decorateRecord(spec, record)
+      const title = String(decorated.title ?? decorated.name ?? record.id).trim() || record.id
+      items.push({
+        id: record.id,
+        path: `${spec.path}/${record.id}`,
+        collection: spec.path,
+        collectionLabel: spec.label ?? spec.id,
+        title,
+        deletedAt: row.deleted_at,
+      })
+    }
+    return { kind: 'trash' as const, items }
+  }
+
   async action(path: string, actionId: string, args?: Record<string, unknown>) {
     const parts = splitPath(path)
     if (parts.length !== 2) throw new Error(`cannot action: ${normalizeCollectionPath(path)}`)
@@ -1111,6 +1187,7 @@ export class DatabaseService extends Service implements Database {
     if (!action) throw new Error(`unknown action: ${actionId}`)
     const record = (await spec.get(parts[1]!)) ?? (action.allowMissing ? { id: parts[1]! } : null)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    if (!action.allowMissing) this.assertLiveRecord(spec, record.id)
     if (!matchActionWhen(record, action.when)) throw new Error(`action not available: ${actionId}`)
     const result = await action.run(parts[1]!, record, args)
     const next = (await spec.get(parts[1]!)) ?? record
@@ -1134,6 +1211,7 @@ export class DatabaseService extends Service implements Database {
     if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    this.assertLiveRecord(spec, record.id)
     const value = isEditorContentSpec(spec)
       ? readEditorContent(this.facets.ensure(), spec.path, record.id)
       : (record[field] ?? null)
@@ -1154,6 +1232,9 @@ export class DatabaseService extends Service implements Database {
     const schema = schemaFor(spec)
     const field = schema.contentField ?? 'content'
     if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
+    const existing = await spec.get(parts[1]!)
+    if (!existing) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    this.assertLiveRecord(spec, existing.id)
     if (isEditorContentSpec(spec)) {
       writeEditorContent(this.facets.ensure(), spec.path, parts[1]!, String(value ?? ''))
     }
@@ -1516,6 +1597,7 @@ function asDeleteQuery(args: Record<string, unknown>): CollectionListQuery {
     ids: asIds(args.ids),
     q: args.q != null ? String(args.q) : undefined,
     filter: asFilter(args.filter),
+    purge: args.purge === true,
   }
 }
 
@@ -1741,7 +1823,7 @@ export function apply(ctx: Context) {
   })
   ctx.tools.register({
     name: 'db_delete',
-    description: '按条件删除记录。路径为 /<表>，必须带 ids、q 或 filter 之一，禁止无条件清空全表。能否删除看 db_stat 的 caps。调用后会进入审批，用户同意才真正删。成功返回 {ok, path, ids}。',
+    description: '按条件把记录放进回收站（软删除）。路径为 /<表>，必须带 ids、q 或 filter 之一。purge=true 才从原表彻底删掉。会话表始终硬删。成功返回 {ok, path, ids}。',
     parameters: {
       type: 'object',
       properties: {
@@ -1749,11 +1831,30 @@ export function apply(ctx: Context) {
         ids: { type: 'array', items: { type: 'string' }, description: '要删除的 id 列表' },
         q: { type: 'string', description: '全文搜索条件' },
         filter: { type: 'object', description: '按列等值过滤' },
+        purge: { type: 'boolean', description: 'true 时彻底删除，不再进回收站' },
       },
       required: ['path'],
     },
     execute: (args) =>
       withInspectorReveal(ctx, String(args.path), () => db.remove(String(args.path), asDeleteQuery(args)), true).then(
+        (body) => agentDbCompact.write(body),
+      ),
+  })
+  ctx.tools.register({
+    name: 'db_restore',
+    description: '从回收站恢复记录。路径为 /<表>，必须带 ids、q 或 filter 之一。记录仍在原表，只是去掉删除标记。',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        ids: { type: 'array', items: { type: 'string' }, description: '要恢复的 id 列表' },
+        q: { type: 'string' },
+        filter: { type: 'object' },
+      },
+      required: ['path'],
+    },
+    execute: (args) =>
+      withInspectorReveal(ctx, String(args.path), () => db.restore(String(args.path), asDeleteQuery(args))).then(
         (body) => agentDbCompact.write(body),
       ),
   })
@@ -2005,12 +2106,21 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('POST', '/api/db/delete', async (route) => {
     try {
-      const body = (await route.json()) as { path?: string; ids?: unknown; q?: unknown; filter?: unknown }
+      const body = (await route.json()) as { path?: string; ids?: unknown; q?: unknown; filter?: unknown; purge?: unknown }
       route.send(200, await db.remove(String(body?.path ?? ''), asDeleteQuery((body ?? {}) as Record<string, unknown>)))
     } catch (error) {
       route.send(400, { error: String(error) })
     }
   })
+  ctx.http.route('POST', '/api/db/restore', async (route) => {
+    try {
+      const body = (await route.json()) as { path?: string; ids?: unknown; q?: unknown; filter?: unknown }
+      route.send(200, await db.restore(String(body?.path ?? ''), asDeleteQuery((body ?? {}) as Record<string, unknown>)))
+    } catch (error) {
+      route.send(400, { error: String(error) })
+    }
+  })
+  ctx.http.route('GET', '/api/db/trash', (route) => send(route, () => db.listTrash()))
   ctx.http.route('POST', '/api/db/saved-views', async (route) => {
     try {
       const body = (await route.json()) as { path?: string; views?: StoredView[] }

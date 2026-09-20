@@ -39,6 +39,7 @@ export const NOTICES_COLLECTION_PATH = '/notices'
 export const PAGE_BLOCKS_COLLECTION_PATH = '/page-blocks'
 export const PAGES_COLLECTION_PATH = '/pages'
 export const TASKS_COLLECTION_PATH = '/tasks'
+export const RECYCLE_BIN_PATH = '/recycle'
 
 /** 数据侧栏记录行按 parentId 嵌套：只有页面和任务。 */
 export function isRecordTreeCollection(path: string) {
@@ -55,6 +56,10 @@ const USER_COLLECTION_ORDER = ['/sessions', '/tasks', '/pages', '/page-blocks', 
 export function isSystemCollection(path: string) {
   const normalized = normalizeCollectionPath(path)
   return (SYSTEM_COLLECTION_ORDER as readonly string[]).includes(normalized)
+}
+
+export function isRecycleBinPath(path: string) {
+  return normalizeCollectionPath(path) === RECYCLE_BIN_PATH
 }
 
 export function sortDataCollections<T extends { path: string }>(tables: T[]): { user: T[]; system: T[] } {
