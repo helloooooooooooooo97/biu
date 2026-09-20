@@ -8,6 +8,7 @@ import {
   MapIcon,
   XMarkIcon,
 } from '@heroicons/react/16/solid'
+import { CopyIconButton } from './copy-icon-button.tsx'
 import type { ChatToolPart } from '@biu/web-session-view'
 import { pickDomAttrs } from '@biu/core-pick/web'
 import {
@@ -426,6 +427,8 @@ export function ToolCard({
       ? { label: '成功', className: 'is-ok' }
       : { label: '失败', className: 'is-fail' }
 
+  const copyTextValue = (node.result?.detail || node.arguments || '').trim()
+
   return (
     <div className="tool-call" {...pickDomAttrs('tool', node.callId, title)}>
       <div className={`tool-call-head${open ? ' is-open' : ''} ${status.className}`}>
@@ -496,6 +499,9 @@ export function ToolCard({
           detail={node.result?.detail}
           onClose={() => setZoom(false)}
         />
+      ) : null}
+      {copyTextValue ? (
+        <CopyIconButton className="tool-call-copy" text={copyTextValue} label="复制工具输出" />
       ) : null}
     </div>
   )

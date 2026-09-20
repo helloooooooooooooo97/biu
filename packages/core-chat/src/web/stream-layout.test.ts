@@ -24,6 +24,7 @@ describe('chat stream layout width stability', () => {
     const css = styleCss()
     expect(css).toMatch(/\.chat-md\s*\{[^}]*min-width:\s*0/s)
     expect(css).toMatch(/\.chat-md\s*\{[^}]*overflow-x:\s*hidden/s)
+    expect(css).toMatch(/\.chat-md \.chat-code\s*\{[^}]*position:\s*relative/s)
     expect(css).toMatch(/\.chat-md pre\s*\{[^}]*max-width:\s*100%/s)
     expect(css).toMatch(/\.chat-assistant-body\s*\{[^}]*overflow-x:\s*hidden/s)
   })
