@@ -8,9 +8,6 @@
   "exports": {
     ".": "./src/host/index.ts"
   },
-  "dependencies": {
-    "pinyin-pro": "^3.29.4"
-  },
   "peerDependencies": {
     "cordis": "4.0.0-rc.8"
   }

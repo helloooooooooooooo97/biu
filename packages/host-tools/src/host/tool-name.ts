@@ -1,39 +1,26 @@
-import { pinyin } from 'pinyin-pro'
+import { randomBytes } from 'node:crypto'
 
-/** OpenAI 系 function name：字母开头，字母数字下划线短横，≤64。 */
-const API_NAME = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/
-const HAN = /[\u3400-\u9fff]/
+/** OpenAI / Anthropic function name。 */
+export const TOOL_API_NAME = /^[a-zA-Z0-9_-]{1,64}$/
 
-/** 中文转拼音；已是合法 API 名则原样。tools.register 强制走这里。 */
-export function toolNameForApi(raw: string) {
+export function stripToolApiName(raw: string) {
   const input = String(raw ?? '').trim()
-  if (API_NAME.test(input) && !HAN.test(input)) return input
-  const parts: string[] = []
-  let buf = ''
-  const flush = () => {
-    if (!buf) return
-    parts.push(buf)
-    buf = ''
+  if (TOOL_API_NAME.test(input)) return input
+  const stripped = input.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64)
+  return TOOL_API_NAME.test(stripped) ? stripped : ''
+}
+
+function randomToolApiName(taken: ReadonlySet<string>) {
+  for (let i = 0; i < 16; i += 1) {
+    const name = `tool_${randomBytes(4).toString('hex')}`
+    if (TOOL_API_NAME.test(name) && !taken.has(name)) return name
   }
-  for (const ch of input) {
-    if (HAN.test(ch)) {
-      flush()
-      const slug = pinyin(ch, { toneType: 'none', v: true })
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '')
-      if (slug) parts.push(slug)
-      continue
-    }
-    if (/[a-zA-Z0-9]/.test(ch)) {
-      buf += ch
-      continue
-    }
-    flush()
-  }
-  flush()
-  let out = parts.join('_').replace(/_+/g, '_')
-  if (!/^[a-zA-Z]/.test(out)) out = `tool_${out}`.replace(/_+/g, '_')
-  out = out.slice(0, 64).replace(/_+$/g, '')
-  if (!API_NAME.test(out)) return 'tool'
-  return out
+  throw new Error('cannot allocate tool name')
+}
+
+/** 合法则原样；否则去掉非法字符；还不行则 tool_ + 随机 id。 */
+export function toolNameForApi(raw: string, taken: ReadonlySet<string> = new Set()) {
+  const stripped = stripToolApiName(raw)
+  if (stripped) return stripped
+  return randomToolApiName(taken)
 }

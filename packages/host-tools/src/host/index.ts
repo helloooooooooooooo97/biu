@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { Service, type Context } from 'cordis'
-import { toolNameForApi } from './tool-name.ts'
+import { toolNameForApi, stripToolApiName } from './tool-name.ts'
 
-export { toolNameForApi } from './tool-name.ts'
+export { toolNameForApi, stripToolApiName, TOOL_API_NAME } from './tool-name.ts'
 
 export interface ToolSpec {
   name: string
@@ -81,7 +81,7 @@ export function runWithToolOrigin<T>(origin: ToolOrigin, fn: () => T): T {
 }
 
 export function runWithExtraTools<T>(names: readonly string[], fn: () => T): T {
-  const cleaned = [...new Set(names.map((n) => toolNameForApi(n.trim())).filter(Boolean))]
+  const cleaned = [...new Set(names.map((n) => n.trim()).filter(Boolean))]
   return extraToolsStorage.run(new Set(cleaned), fn)
 }
 
@@ -89,7 +89,7 @@ export function runWithToolPolicy<T>(
   policy: { mode: AgentToolMode; extras?: readonly string[] },
   fn: () => T,
 ): T {
-  const extras = [...new Set((policy.extras ?? []).map((n) => toolNameForApi(n.trim())).filter(Boolean))]
+  const extras = [...new Set((policy.extras ?? []).map((n) => n.trim()).filter(Boolean))]
   return toolPolicyStorage.run({ mode: policy.mode, extras: new Set(extras) }, () =>
     runWithExtraTools(extras, fn),
   )
@@ -131,7 +131,7 @@ export class ToolsService extends Service {
     const cleaned = [
       ...new Set(
         names
-          .map((name) => toolNameForApi(name.trim()))
+          .map((name) => name.trim())
           .filter(Boolean)
           .filter((name) => !(MINIMAL_TOOL_NAMES as readonly string[]).includes(name))
           .filter((name) => !(FILE_TOOL_NAMES as readonly string[]).includes(name)),
@@ -152,8 +152,11 @@ export class ToolsService extends Service {
     if (mode === 'file') return (FILE_TOOL_NAMES as readonly string[]).includes(name)
     if ((MINIMAL_TOOL_NAMES as readonly string[]).includes(name)) return true
     if ((policy?.extras ?? new Set()).has(name)) return true
+    if ([...(policy?.extras ?? [])].some((item) => this.resolveName(item) === name)) return true
     if (!policy && this.pinnedExtras.includes(name)) return true
-    return extraToolsStorage.getStore()?.has(name) ?? false
+    if (!policy && this.pinnedExtras.some((item) => this.resolveName(item) === name)) return true
+    if (extraToolsStorage.getStore()?.has(name)) return true
+    return [...(extraToolsStorage.getStore() ?? [])].some((item) => this.resolveName(item) === name)
   }
 
   private resolveName(name: string) {
@@ -161,12 +164,14 @@ export class ToolsService extends Service {
     const aliased = this.aliases.get(raw)
     if (aliased) return aliased
     if (this.tools.has(raw)) return raw
-    return toolNameForApi(raw)
+    const stripped = stripToolApiName(raw)
+    if (stripped && this.tools.has(stripped)) return stripped
+    return raw
   }
 
   register(spec: ToolSpec) {
     const original = String(spec.name ?? '').trim()
-    const name = toolNameForApi(original)
+    const name = toolNameForApi(original, new Set(this.tools.keys()))
     const next = { ...spec, name }
     return this.ctx.effect(() => {
       if (this.tools.has(name)) throw new Error(`tool already registered: ${name}`)
