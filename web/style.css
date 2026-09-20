@@ -6555,26 +6555,18 @@ html.dark .composer-send:disabled {
   border-color: color-mix(in srgb, var(--dsw-pick) 45%, var(--dsw-border));
 }
 
-.composer-goal-flag {
+.composer-goal-mark {
+  display: grid;
   flex: none;
-  width: 16px;
-  height: 16px;
+  place-items: center;
+  width: 28px;
+  height: 28px;
   color: var(--dsw-icon-active);
 }
 
-.composer-goal-copy {
+.composer-goal-text {
   min-width: 0;
   flex: 1;
-}
-
-.composer-goal-kicker {
-  color: var(--dsw-label-3);
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-}
-
-.composer-goal-text {
   overflow: hidden;
   color: var(--dsw-label);
   font-size: var(--dsw-chat-ui-font-size);
@@ -6586,16 +6578,20 @@ html.dark .composer-send:disabled {
 .composer-goal-actions {
   display: flex;
   flex: none;
-  gap: 6px;
+  gap: 4px;
 }
 
 .composer-goal-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
   border: 1px solid var(--dsw-border);
-  border-radius: 8px;
-  padding: 4px 8px;
+  border-radius: 999px;
+  padding: 0;
   background: var(--dsw-bubble);
   color: var(--dsw-icon-active);
-  font: 600 12px/1.2 inherit;
   cursor: pointer;
 }
 
