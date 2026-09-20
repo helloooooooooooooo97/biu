@@ -72,6 +72,16 @@ describe('composer dock stacking above sticky user', () => {
     expect(css).not.toMatch(/\.composer-goal\.is-pursuing/)
   })
 
+  it('queued inbox rows can be edited or deleted with icons', () => {
+    const css = readFileSync(resolve(root, 'web/style.css'), 'utf8')
+    const composer = readFileSync(resolve(root, 'packages/core-chat/src/web/composer.tsx'), 'utf8')
+    expect(composer).toContain('PencilSquareIcon')
+    expect(composer).toContain('dropInboxItem')
+    expect(composer).toContain('aria-label="编辑排队消息"')
+    expect(composer).toContain('aria-label="删除排队消息"')
+    expect(css).toMatch(/\.composer-inbox-btn\s*\{[^}]*width:\s*24px/s)
+  })
+
   it('puts the session mascot after the header name, with the dock session picker', () => {
     const approvals = readFileSync(resolve(root, 'packages/core-chat/src/web/approvals.tsx'), 'utf8')
     const title = readFileSync(resolve(root, 'packages/web-app-shell/src/web/chat-session-title.tsx'), 'utf8')

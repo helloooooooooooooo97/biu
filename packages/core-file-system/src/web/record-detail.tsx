@@ -188,6 +188,7 @@ export function RecordDetail({
   canNext,
   headingOutline = true,
   toolbar,
+  share,
   collectionPath,
   onDelete,
   readOnly = false,
@@ -210,6 +211,7 @@ export function RecordDetail({
   canNext?: boolean
   headingOutline?: boolean
   toolbar?: ReactNode
+  share?: ReactNode
   collectionPath?: string
   onDelete?: () => void
   readOnly?: boolean
@@ -438,9 +440,9 @@ export function RecordDetail({
             const showMore = !readOnly && Boolean(
               chrome?.DetailTools || onDelete || chrome?.Actions || placedActions(schema, 'detail').length,
             )
-            if (!onPrev && !onNext && !showMore) return null
+            if (!onPrev && !onNext && !showMore && !share) return null
             return (
-            <nav className="fsdb-detail-float-nav" aria-label="按视图顺序切换记录">
+            <nav className={`fsdb-detail-float-nav${share ? ' has-share' : ''}`} aria-label="按视图顺序切换记录">
               {onPrev || onNext ? (
                 <button
                   type="button"
@@ -462,6 +464,7 @@ export function RecordDetail({
                   deleteLabel={collectionPath === '/pages' ? '删除页面' : '删除记录'}
                 />
               ) : null}
+              {share}
               {onPrev || onNext ? (
                 <button
                   type="button"

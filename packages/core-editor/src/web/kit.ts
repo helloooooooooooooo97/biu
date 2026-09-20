@@ -8,7 +8,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { TableKit } from '@tiptap/extension-table'
 import StarterKit from '@tiptap/starter-kit'
 import { Paragraph } from '@tiptap/extension-paragraph'
-import { common, createLowlight } from 'lowlight'
+import { pageLowlight } from './page-lowlight.ts'
 import { pageTextStyle, pageHighlight, Color } from './color-marks.ts'
 import { headingSkin } from './heading-skin.ts'
 import { pageBlock } from './page-block.ts'
@@ -130,8 +130,6 @@ const pageBlockMath = BlockMath.extend({
     attrs: { latex: latexFromMarkdown(token.latex) },
   }),
 })
-
-const pageLowlight = createLowlight(common)
 
 const pageCodeBlock = CodeBlockLowlight.extend({
   renderHTML({ node, HTMLAttributes }) {

@@ -43,6 +43,7 @@ const ECHO_TOOLS: McpToolInfo[] = [
     name: 'mcp_echo',
     description: 'echo arguments',
     inputSchema: { type: 'object', properties: { text: { type: 'string' } } },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
   },
 ]
 
@@ -329,6 +330,14 @@ export class McpService extends Service {
     )
   }
 
+  toolExecutionMode(serverId: string, name: string): 'parallel' | 'exclusive' {
+    const state = this.servers.get(serverId)
+    const tool = state && this.visibleTools(state).find((item) => item.name === name)
+    return tool?.annotations?.readOnlyHint === true && tool.annotations.destructiveHint !== true
+      ? 'parallel'
+      : 'exclusive'
+  }
+
   /** 未过滤的全量清单，供 /mcp 表勾选工具用。 */
   catalog(serverId: string) {
     const state = this.require(serverId)
@@ -407,6 +416,7 @@ export function apply(ctx: Context) {
     description:
       '列出已挂载的 MCP 服务器及连接状态（status: ready/idle/connecting/error）。toolCount 是工具选择后暴露的数量，totalToolCount 是服务器实际提供的数量。',
     parameters: { type: 'object', properties: {} },
+    execution: 'parallel',
     execute: () => mcp.listServers(),
   })
   ctx.tools.register({
@@ -417,6 +427,7 @@ export function apply(ctx: Context) {
       type: 'object',
       properties: { server: { type: 'string', description: '只列这台服务器的工具' } },
     },
+    execution: 'parallel',
     execute: (args) => {
       const server = String(args.server ?? '').trim()
       return mcp.listTools(server || undefined)
@@ -434,6 +445,7 @@ export function apply(ctx: Context) {
       },
       required: ['server', 'name'],
     },
+    execution: (args) => mcp.toolExecutionMode(String(args.server), String(args.name)),
     execute: (args) =>
       mcp.call(String(args.server), String(args.name), (args.arguments as Record<string, unknown>) ?? {}),
   })

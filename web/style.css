@@ -6805,12 +6805,38 @@ html.dark .composer-send:disabled {
 
 .composer-inbox-text {
   min-width: 0;
+  flex: 1;
   overflow: hidden;
   color: var(--dsw-label-2);
   font-size: var(--dsw-chat-ui-font-size);
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.composer-inbox-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.composer-inbox-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  background: transparent;
+  color: var(--dsw-icon);
+  cursor: pointer;
+}
+
+.composer-inbox-btn:hover {
+  background: var(--dsw-hover);
+  color: var(--dsw-icon-active);
 }
 
 .composer-slash {

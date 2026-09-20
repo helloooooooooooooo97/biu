@@ -1448,6 +1448,50 @@ export class SessionViewService extends Service {
     this.replace({ inbox: next })
   }
 
+  async dropInboxItem(itemId: string) {
+    const sessionId = this.value.sessionId
+    if (!sessionId || !itemId) return false
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/inbox/drop`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: itemId }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { error?: string; inbox?: InboxQueueItem[] }
+      if (!res.ok) {
+        this.replace({ error: data.error || `删除排队失败：${res.status}` })
+        return false
+      }
+      if (Array.isArray(data.inbox)) this.setInbox(data.inbox, sessionId)
+      return true
+    } catch (error) {
+      this.replace({ error: String(error) })
+      return false
+    }
+  }
+
+  async patchInboxItem(itemId: string, text: string) {
+    const sessionId = this.value.sessionId
+    if (!sessionId || !itemId) return false
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/inbox/patch`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: itemId, text }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { error?: string; inbox?: InboxQueueItem[] }
+      if (!res.ok) {
+        this.replace({ error: data.error || `修改排队失败：${res.status}` })
+        return false
+      }
+      if (Array.isArray(data.inbox)) this.setInbox(data.inbox, sessionId)
+      return true
+    } catch (error) {
+      this.replace({ error: String(error) })
+      return false
+    }
+  }
+
   async refreshInbox(sessionId = this.value.sessionId) {
     if (!sessionId) {
       this.replace({ inbox: [] })

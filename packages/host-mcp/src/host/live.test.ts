@@ -42,9 +42,16 @@ test('mounts a real stdio MCP server: handshake, tools/list, tools/call', async 
   assert.equal(row?.serverVersion, '9.9.9')
   assert.equal(row?.totalToolCount, 3)
 
-  const listed = (await ctx.tools.invoke('mcp_list', { server: 'mini' })) as Array<{ server: string; name: string }>
+  const listed = (await ctx.tools.invoke('mcp_list', { server: 'mini' })) as Array<{
+    server: string
+    name: string
+    annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean }
+  }>
   assert.deepEqual(listed.map((item) => item.name).sort(), ['read_file', 'read_secret', 'write_file'])
   assert.equal(listed.every((item) => item.server === 'mini'), true)
+  assert.equal(listed.find((item) => item.name === 'read_file')?.annotations?.readOnlyHint, true)
+  assert.equal(ctx.tools.executionMode('mcp_call', { server: 'mini', name: 'read_file' }), 'parallel')
+  assert.equal(ctx.tools.executionMode('mcp_call', { server: 'mini', name: 'write_file' }), 'exclusive')
 
   const result = (await ctx.tools.invoke('mcp_call', {
     server: 'mini',

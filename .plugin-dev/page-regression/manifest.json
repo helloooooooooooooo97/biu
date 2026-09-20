@@ -1,0 +1,14 @@
+{
+  "id": "page-regression",
+  "name": "页面回归检查块",
+  "blurb": "在页面里插一个块，配一组断言（exists/text/count/http），点「跑一遍」逐条执行并显示通过/失败/耗时；结果写进块 data.runs（留最近 10 次），并自动和上一次对比标出 fixed / broken。断言跟着文档走，下次点一下就能重跑。需要真发请求的断言走 host 路由 POST /api/page-regression/http，避开浏览器 CORS。斜杠菜单输入 run / 回归 / regression 插入。",
+  "tags": [
+    "page",
+    "editor",
+    "test",
+    "regression"
+  ],
+  "author": "Biu",
+  "createdAt": 1789200000000,
+  "headless": true
+}

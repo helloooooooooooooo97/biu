@@ -83,11 +83,34 @@ export class AgentsService extends Service {
   listInbox(sessionId: string): InboxRow[] {
     const live = this.lives.get(sessionId)
     if (!live) return []
-    return live.inbox.map((item) => ({
-      id: item.id ?? nextInboxId(),
-      kind: item.kind,
-      text: item.text,
-    }))
+    return live.inbox.map((item) => {
+      if (!item.id) item.id = nextInboxId()
+      return { id: item.id, kind: item.kind, text: item.text }
+    })
+  }
+
+  /** 丢掉尚未 claim 的排队项（编辑回输入框 / 删除）。 */
+  dropInbox(sessionId: string, itemId: string) {
+    const live = this.lives.get(sessionId)
+    if (!live || !itemId) return false
+    const index = live.inbox.findIndex((item) => (item.id ?? '') === itemId)
+    if (index < 0) return false
+    live.inbox.splice(index, 1)
+    this.emitInbox(sessionId)
+    return true
+  }
+
+  /** 改尚未 claim 的排队正文。空文本且没有图片时拒绝。 */
+  patchInbox(sessionId: string, itemId: string, text: string) {
+    const live = this.lives.get(sessionId)
+    if (!live || !itemId) return false
+    const item = live.inbox.find((row) => (row.id ?? '') === itemId)
+    if (!item) return false
+    const trimmed = text.trim()
+    if (!trimmed && !item.images?.length) return false
+    item.text = trimmed || item.text
+    this.emitInbox(sessionId)
+    return true
   }
 
   private emitInbox(sessionId: string) {

@@ -879,6 +879,14 @@ test('apply registers db_* tools', async () => {
   for (const name of ['db_list', 'db_read', 'db_update', 'db_create', 'db_delete', 'db_restore', 'db_stat', 'db_action', 'db_content', 'db_asset', 'db_doc']) {
     assert.equal(names.includes(name), true, name)
   }
+  for (const name of ['db_list', 'db_read', 'db_stat']) {
+    assert.equal(ctx.tools.executionMode(name), 'parallel', name)
+  }
+  assert.equal(ctx.tools.executionMode('db_update'), 'exclusive')
+  assert.equal(ctx.tools.executionMode('db_content', { path: '/pages/p1', command: 'view' }), 'parallel')
+  assert.equal(ctx.tools.executionMode('db_content', { path: '/pages/p1', command: 'write', value: 'x' }), 'exclusive')
+  assert.equal(ctx.tools.executionMode('db_asset', { path: '/pages/p1', command: 'view' }), 'parallel')
+  assert.equal(ctx.tools.executionMode('db_asset', { path: '/pages/p1', command: 'write', value: 'x' }), 'exclusive')
   const listed = await ctx.tools.invoke('db_list', { path: '/' })
   assert.equal((listed as { kind: string }).kind, 'root')
   const items = ((listed as { items: Array<{ path: string; view?: { blurb?: string } }> }).items ?? [])

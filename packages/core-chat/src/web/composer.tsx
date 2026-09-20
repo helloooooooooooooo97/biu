@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react'
-import { ArrowUpIcon, ChevronDownIcon, FlagIcon, PauseIcon, PlayIcon, PlusIcon, XMarkIcon } from '@heroicons/react/16/solid'
+import { ArrowUpIcon, ChevronDownIcon, FlagIcon, PauseIcon, PencilSquareIcon, PlayIcon, PlusIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -874,6 +874,34 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
                 <span className="composer-inbox-text" title={item.text}>
                   {item.text}
                 </span>
+                <div className="composer-inbox-actions">
+                  <button
+                    type="button"
+                    className="composer-inbox-btn"
+                    title="编辑"
+                    aria-label="编辑排队消息"
+                    onClick={() => {
+                      void (async () => {
+                        const ok = await sessionView.dropInboxItem(item.id)
+                        if (!ok || !editor) return
+                        editor.commands.setContent(jsonFromDraft(item.text))
+                        editor.commands.focus('end')
+                        scheduleCanSubmit(item.text, picked, pickRefs.length, pendingImages.length)
+                      })()
+                    }}
+                  >
+                    <PencilSquareIcon className="size-4" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="composer-inbox-btn"
+                    title="删除"
+                    aria-label="删除排队消息"
+                    onClick={() => void sessionView.dropInboxItem(item.id)}
+                  >
+                    <XMarkIcon className="size-4" aria-hidden />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

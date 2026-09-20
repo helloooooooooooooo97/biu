@@ -1461,6 +1461,29 @@ export function apply(ctx: Context) {
     await ctx.agents.create(id)
     route.send(200, { sessionId: id, inbox: ctx.agents.listInbox(id) })
   })
+  ctx.http.route('POST', '/api/sessions/:id/inbox/drop', async (route) => {
+    const id = route.params.id
+    if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
+    await ctx.agents.create(id)
+    const payload = ((await route.json().catch(() => null)) ?? {}) as { id?: string }
+    const itemId = typeof payload.id === 'string' ? payload.id : ''
+    if (!ctx.agents.dropInbox(id, itemId)) {
+      return route.send(404, { error: 'unknown inbox item' })
+    }
+    route.send(200, { ok: true, sessionId: id, inbox: ctx.agents.listInbox(id) })
+  })
+  ctx.http.route('POST', '/api/sessions/:id/inbox/patch', async (route) => {
+    const id = route.params.id
+    if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
+    await ctx.agents.create(id)
+    const payload = ((await route.json().catch(() => null)) ?? {}) as { id?: string; text?: string }
+    const itemId = typeof payload.id === 'string' ? payload.id : ''
+    const text = typeof payload.text === 'string' ? payload.text : ''
+    if (!ctx.agents.patchInbox(id, itemId, text)) {
+      return route.send(404, { error: 'unknown inbox item' })
+    }
+    route.send(200, { ok: true, sessionId: id, inbox: ctx.agents.listInbox(id) })
+  })
   ctx.http.route('POST', '/api/sessions/:id/goal', async (route) => {
     const id = route.params.id
     if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })

@@ -430,7 +430,7 @@ function onInspectorReveal(event: Event) {
 function onInspectorPaneClosed(event: Event) {
   const detail = (event as CustomEvent).detail
   const paneId = typeof detail === 'string' ? detail : String((detail as { paneId?: unknown })?.paneId ?? '')
-  if (paneId) clearInspectorDbPath(paneId)
+  if (paneId.startsWith('database:')) clearInspectorDbPath(paneId)
 }
 
 if (typeof window !== 'undefined') {

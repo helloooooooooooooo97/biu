@@ -380,6 +380,7 @@ const CSS = `
 .fsdb-detail-float-nav{position:sticky;top:50%;align-self:flex-start;flex:none;z-index:24;display:flex;flex-direction:column;gap:4px;width:24px;min-width:24px;margin:0 0 0 -24px;padding:4px 0;border:0;border-radius:8px;background:var(--dsw-sidebar);box-shadow:var(--dsw-shadow);overflow:visible;transform:translate(-28px,-50%);opacity:0;transition:opacity .16s ease;pointer-events:auto}
 .fsdb-detail-float-nav::before{content:'';position:absolute;z-index:0;top:-120px;bottom:-120px;left:0;right:-8px;pointer-events:auto}
 .fsdb-detail-float-nav:hover,.fsdb-detail-float-nav:focus-within,.fsdb-detail-float-nav:has([aria-expanded=true]),html[data-nav-pin="1"] .fsdb-detail-float-nav{opacity:1}
+.inspector-database-page .fsdb-detail-float-nav.has-share{opacity:1}
 .fsdb-detail-float-btn{position:relative;z-index:1;display:flex;width:24px;height:24px;align-items:center;justify-content:center;margin:0;border:0;border-radius:6px;padding:0;background:transparent;color:var(--dsw-icon);cursor:pointer;pointer-events:auto}
 .fsdb-detail-float-btn svg{width:16px;height:16px}
 .fsdb-detail-float-btn:hover:not(:disabled){background:var(--dsw-hover);color:var(--dsw-icon-active)}

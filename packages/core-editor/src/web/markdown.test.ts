@@ -2,6 +2,7 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import hljs from 'highlight.js'
 import { Editor } from '@tiptap/core'
 import { pageEditorExtensions } from './kit.ts'
 import { filterSlashItems, SLASH_ITEMS } from './slash.ts'
@@ -18,6 +19,19 @@ test('slash filter matches chinese labels and aliases', () => {
   assert.ok(filterSlashItems('latex').some((item) => item.id === 'math'))
   assert.equal(filterSlashItems('zzz').length, 0)
   assert.equal(filterSlashItems('').length, SLASH_ITEMS.length)
+})
+
+test('http and unknown code fences do not crash the page editor', () => {
+  assert.ok(hljs.getLanguage('http'), 'full highlight.js registers http globally')
+  const editor = new Editor({
+    extensions: pageEditorExtensions(),
+    content: '```http\nGET /api HTTP/1.1\n\n```\n\n```not-a-lang\nhello\n```\n',
+    contentType: 'markdown',
+  })
+  const html = editor.getHTML()
+  assert.match(html, /GET \/api HTTP\/1\.1/)
+  assert.match(html, /hello/)
+  editor.destroy()
 })
 
 test('markdown roundtrips headings lists quote and code', () => {

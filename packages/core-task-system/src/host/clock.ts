@@ -13,6 +13,7 @@ export function startTaskClock(ctx: Context) {
     name: 'clock_now',
     description: '读取最近一次心跳时间',
     parameters: { type: 'object', properties: {} },
+    execution: 'parallel',
     execute: () => lastIso,
   })
   ctx.hub.register({
