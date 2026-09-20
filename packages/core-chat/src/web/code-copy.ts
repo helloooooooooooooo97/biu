@@ -1,9 +1,9 @@
 import { copyText, markCopyDone } from './copy-text.ts'
 
 const COPY_SVG =
-  '<svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M5 3.75A1.75 1.75 0 0 1 6.75 2h6.5A1.75 1.75 0 0 1 15 3.75v6.5A1.75 1.75 0 0 1 13.25 12h-6.5A1.75 1.75 0 0 1 5 10.25v-6.5ZM6.75 3.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25v-6.5a.25.25 0 0 0-.25-.25h-6.5ZM3.5 6.75A.75.75 0 0 0 2.75 6h-.5A1.75 1.75 0 0 0 .5 7.75v6.5A1.75 1.75 0 0 0 2.25 16h6.5A1.75 1.75 0 0 0 10.5 14.25v-.5a.75.75 0 0 0-1.5 0v.5a.25.25 0 0 1-.25.25h-6.5a.25.25 0 0 1-.25-.25v-6.5A.25.25 0 0 1 2.25 7.5h.5a.75.75 0 0 0 .75-.75Z"/></svg>'
+  '<svg aria-hidden="true" viewBox="0 0 16 16" class="size-3.5" fill="currentColor"><path d="M5 6.5A1.5 1.5 0 0 1 6.5 5h6A1.5 1.5 0 0 1 14 6.5v6a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 5 12.5v-6Z"/><path d="M3.5 2A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11V6.5a3 3 0 0 1 3-3H11A1.5 1.5 0 0 0 9.5 2h-6Z"/></svg>'
 const CHECK_SVG =
-  '<svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path fill-rule="evenodd" d="M12.416 3.443a.75.75 0 0 1 .041 1.06l-6 6.5a.75.75 0 0 1-1.127.01l-3-3.25a.75.75 0 1 1 1.14-.976l2.43 2.632 5.456-5.916a.75.75 0 0 1 1.06-.06Z" clip-rule="evenodd"/></svg>'
+  '<svg aria-hidden="true" viewBox="0 0 16 16" class="size-3.5" fill="currentColor"><path fill-rule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clip-rule="evenodd"/></svg>'
 
 function makeCopyButton() {
   const button = document.createElement('button')

@@ -37,7 +37,7 @@ test('tool panels match the step bar: sidebar fill, no border', () => {
   assert.match(source, /CopyIconButton/)
   assert.match(source, /className="tool-call-copy"/)
   assert.match(css, /\.tool-call-copy,\s*\.chat-code-copy\s*\{[^}]*width:\s*24px[^}]*height:\s*24px/s)
-  assert.match(css, /\.chat-code-copy\s*\{[^}]*top:\s*4px[^}]*right:\s*8px/s)
+  assert.match(css, /\.chat-code-copy\s*\{[^}]*right:\s*8px[^}]*bottom:\s*8px/s)
   assert.match(css, /\.tool-call-head:hover \.tool-call-copy/)
   assert.match(css, /\.chat-reply-block:hover \.chat-code-copy/)
   assert.doesNotMatch(css, /\.tool-call-head\.is-running \.tool-call-title[\s\S]{0,400}color:\s*transparent/)
