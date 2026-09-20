@@ -1414,15 +1414,12 @@ async function readLocalWriteFile(raw: string) {
 }
 
 /**
- * 写入侧正文：value/new_str 内联，或 from 指向的本地文件（工作区或 /tmp）。二者互斥。
- * write 用 value（可用 new_str 别名）；insert / str_replace / find_replace / replace_lines 用 new_str。
+ * 写入侧正文：短文本用 value/new_str 内联；长文本用 from 读本地文件（工作区或 /tmp）。
+ * 两者都可出现在参数里；给了 from 就用文件内容。write 用 value（可用 new_str 别名）；
+ * insert / str_replace / find_replace / replace_lines 用 new_str。
  */
 async function resolveIncomingText(command: ContentCommand, args: Record<string, unknown>): Promise<string> {
   const rawFrom = String(args.from ?? '').trim()
-  const inlineKey = command === 'write' ? 'value' : 'new_str'
-  const hasInline =
-    command === 'write' ? args.value !== undefined || args.new_str !== undefined : args.new_str !== undefined
-  if (rawFrom && hasInline) throw new Error(`${command} accepts either ${inlineKey} or from, not both`)
   if (rawFrom) {
     const bytes = await readLocalWriteFile(rawFrom)
     return bytes.toString('utf8')
@@ -1795,11 +1792,11 @@ export function apply(ctx: Context) {
     description: [
       '读写一条记录的正文。list/read 不含正文。path 为 /<表>/<id>。',
       'command=view：带行号读一段正文，默认前 80 行，可用 view_range=[start,end]（1-based，end=-1 到末尾）；truncated 表示还有未读行。',
-      'command=str_replace：old_str 必须在正文里唯一，替换为 new_str（或 from 文件内容）。',
-      'command=replace_lines：按 1-based 闭区间 start_line..end_line 换成 new_str（或 from 文件内容）。',
-      'command=insert：在 insert_line 之后插入 new_str（0 插到第一行前）。大段用 from=<本地文件> 代替 new_str。',
-      'command=find_replace：批量替换。默认等价 str_replace（old_str 必须唯一）；all=true 替换所有匹配（可用 count 限制次数），regex=true 时 old_str 按正则解释。返回 replaced 为实际替换次数。新文本同样可用 from。',
-      'command=write：整篇覆盖。正文用 value 内联，或用 from=<本地文件路径>（工作区或 /tmp）从文件导入。write 的 value 与 from、以及 insert/str_replace/find_replace/replace_lines 的 new_str 与 from，均互斥、不可同时给。写成功只返回 {ok, path}，不含全文。str_replace / find_replace / replace_lines / insert 成功额外返回 start_line、end_line（改后正文的 1-based 行）。编辑器会标出该段改动，不抢输入焦点、不自动跳转；跳转只在用户主动点目录或查找时发生。',
+      'command=str_replace：old_str 必须在正文里唯一，替换为 new_str（短文本）或 from 文件内容（长文本）。',
+      'command=replace_lines：按 1-based 闭区间 start_line..end_line 换成 new_str（短）或 from 文件内容（长）。',
+      'command=insert：在 insert_line 之后插入。短文本用 new_str；长文本用 from=<本地文件>。',
+      'command=find_replace：批量替换。默认等价 str_replace（old_str 必须唯一）；all=true 替换所有匹配（可用 count 限制次数），regex=true 时 old_str 按正则解释。返回 replaced 为实际替换次数。新文本同样：短用 new_str，长用 from。',
+      'command=write：整篇覆盖。短全文用 value 内联，长全文用 from=<本地文件路径>（工作区或 /tmp）。new_str / value 与 from 都保留；同时给时以 from 为准。写成功只返回 {ok, path}，不含全文。str_replace / find_replace / replace_lines / insert 成功额外返回 start_line、end_line（改后正文的 1-based 行）。编辑器会标出该段改动，不抢输入焦点、不自动跳转；跳转只在用户主动点目录或查找时发生。',
       '页面插图：不要把 data URL / base64 写进正文。先把图片文件落到工作区（下载或生成），再用 db_asset command=write name=<逻辑名.ext> from=<本地路径> 入库（内容寻址，返回 name=<哈希.ext>），然后 insert/str_replace 写入一行 Markdown：![说明](/api/db/file/<哈希.ext>)。也可以先写这一行再 write 附件。',
     ].join(' '),
     parameters: {
@@ -1812,16 +1809,16 @@ export function apply(ctx: Context) {
           description:
             'view | str_replace | find_replace | replace_lines | insert | write。省略时：有 value 或 from 则 write，否则 view。',
         },
-        value: { type: 'string', description: 'write 的全文（与 from 互斥）' },
+        value: { type: 'string', description: 'write 的短全文。长文本用 from。' },
         from: {
           type: 'string',
           description:
-            '从该本地文件路径（工作区或 /tmp）读入文本。write 代替 value；insert / str_replace / find_replace / replace_lines 代替 new_str。与对应内联字段互斥。',
+            '长文本：从该本地文件路径（工作区或 /tmp）读入。write 对应 value；insert / str_replace / find_replace / replace_lines 对应 new_str。与短文本字段可同时出现，有 from 时用文件。',
         },
         old_str: { type: 'string', description: 'str_replace / find_replace 要替换的原文；find_replace 且 regex=true 时按正则解释' },
         new_str: {
           type: 'string',
-          description: 'str_replace / find_replace / insert / replace_lines 的新文本（与 from 互斥；大段请用 from）',
+          description: 'str_replace / find_replace / insert / replace_lines 的短新文本。长文本用 from。',
         },
         regex: { type: 'boolean', description: 'find_replace：old_str 是否按正则解释（默认 false）' },
         all: { type: 'boolean', description: 'find_replace：是否替换所有匹配（默认 false，等价 str_replace 的唯一性要求）' },
