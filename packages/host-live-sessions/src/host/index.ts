@@ -8,6 +8,7 @@ export const LIVE_TOOL_NAMES = [
   'db_update',
   'db_create',
   'db_delete',
+  'db_restore',
   'db_stat',
   'db_action',
   'db_content',

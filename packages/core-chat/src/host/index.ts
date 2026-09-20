@@ -988,6 +988,21 @@ export function computeTurnStats(events: SessionEvent[], targetTurn?: number): R
 export const name = 'chat'
 export const inject = ['http', 'hub', 'agents', 'sessions', 'systemPrompt', 'tools', 'tasks']
 
+function databaseOf(ctx: Context) {
+  return ctx.get('database') as
+    | {
+        facets: { isDeleted: (collection: string, id: string) => boolean; deletedIds: (collection: string) => Set<string> }
+        remove: (path: string, query: { ids: string[] }) => Promise<unknown>
+      }
+    | undefined
+}
+
+function liveSessionItems<T extends { id: string }>(ctx: Context, items: T[]) {
+  const hidden = databaseOf(ctx)?.facets.deletedIds('/sessions')
+  if (!hidden?.size) return items
+  return items.filter((item) => !hidden.has(item.id))
+}
+
 declare module 'cordis' {
   interface Context {
     chat: ChatService
@@ -1115,7 +1130,11 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('GET', '/api/sessions', async (route) => {
     await ctx.sessions.ensureDefaultSession()
-    const items = await ctx.sessions.listSummaries()
+    let items = liveSessionItems(ctx, await ctx.sessions.listSummaries())
+    if (!items.length) {
+      await ctx.sessions.create()
+      items = liveSessionItems(ctx, await ctx.sessions.listSummaries())
+    }
     route.send(200, {
       sessions: items.map((item) => ({
         id: item.id,
@@ -1136,6 +1155,9 @@ export function apply(ctx: Context) {
   ctx.http.route('GET', '/api/sessions/:id', async (route) => {
     const record = await ctx.sessions.get(route.params.id)
     if (!record) return route.send(404, { error: 'unknown session' })
+    if (databaseOf(ctx)?.facets.isDeleted('/sessions', record.id)) {
+      return route.send(404, { error: 'unknown session' })
+    }
     const turnsRaw = route.query.get('turns')
     const limitTurns =
       turnsRaw == null || turnsRaw === ''
@@ -1157,7 +1179,7 @@ export function apply(ctx: Context) {
       ...(record.mascot ? { mascot: record.mascot } : {}),
       ...(record.config ? { config: record.config } : {}),
     }
-    const summaries = await ctx.sessions.listSummaries()
+    const summaries = liveSessionItems(ctx, await ctx.sessions.listSummaries())
     const workers = []
     const titles = new Map<string, string>()
     const mascots = new Map<string, NonNullable<(typeof summaries)[number]['mascot']>>()
@@ -1366,7 +1388,16 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('DELETE', '/api/sessions/:id', async (route) => {
     const id = route.params.id
+    const record = await ctx.sessions.get(id)
+    if (!record) return route.send(404, { error: 'unknown session' })
+    const db = databaseOf(ctx)
+    if (db?.facets.isDeleted('/sessions', id)) return route.send(404, { error: 'unknown session' })
     ctx.agents.get(id)?.dispose()
+    if (db?.remove) {
+      await db.remove('/sessions', { ids: [id] })
+      route.send(200, { ok: true, id, trash: true })
+      return
+    }
     const ok = await ctx.sessions.delete(id)
     if (!ok) return route.send(404, { error: 'unknown session' })
     route.send(200, { ok: true, id })

@@ -10,6 +10,7 @@ import { FileSystemAssets } from './assets-store.ts'
 import type { CollectionSpec } from '@biu/type-file-system'
 import { REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
 import { facetsCollection } from './facets-collection.ts'
+import { trashCollection } from './trash-collection.ts'
 import { runWithSession } from '@biu/host-sessions/scope'
 import { builtinAllViewId } from '../catalog-views.ts'
 import { savedViewRecordPath } from '../paths.ts'
@@ -875,7 +876,7 @@ test('apply registers db_* tools', async () => {
   new HttpStub(ctx)
   await ctx.plugin({ inject: ['tools', 'http'], apply: applyFileSystem })
   const names = ctx.tools.names()
-  for (const name of ['db_list', 'db_read', 'db_update', 'db_create', 'db_delete', 'db_stat', 'db_action', 'db_content', 'db_asset', 'db_doc']) {
+  for (const name of ['db_list', 'db_read', 'db_update', 'db_create', 'db_delete', 'db_restore', 'db_stat', 'db_action', 'db_content', 'db_asset', 'db_doc']) {
     assert.equal(names.includes(name), true, name)
   }
   const listed = await ctx.tools.invoke('db_list', { path: '/' })
@@ -886,6 +887,7 @@ test('apply registers db_* tools', async () => {
   assert.equal(paths.includes('/facets'), true)
   assert.equal(paths.includes('/notices'), false)
   assert.equal(paths.includes('/asset-gc'), true)
+  assert.equal(paths.includes('/trash'), true)
   const views = items.find((item) => item.path === '/views')
   assert.match(String(views?.view?.blurb ?? ''), /db_list \/views/)
   assert.match(String(views?.view?.blurb ?? ''), /filterTree/)
@@ -1206,6 +1208,117 @@ test('create and delete follow records caps declared at register', async () => {
   if (after.kind !== 'collection') return
   assert.equal(after.items.length, 1)
   await assert.rejects(() => db.remove('/notes', {}), /delete requires/)
+})
+
+test('delete parks records in trash and restore puts them back', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, { id: string; title: string }>([['n1', { id: 'n1', title: '草稿' }]])
+  db.register({
+    id: 'notes',
+    path: '/notes',
+    schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } } },
+    records: { create: true, delete: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: () => [],
+    remove: (query) => {
+      const ids = query.ids ?? []
+      for (const id of ids) rows.delete(id)
+      return ids
+    },
+  })
+  const gone = await db.remove('/notes', { ids: ['n1'] })
+  assert.equal((gone as { trash?: boolean }).trash, true)
+  const listed = await db.list('/notes')
+  if (listed.kind !== 'collection') return
+  assert.equal(listed.items.length, 0)
+  assert.equal(rows.has('n1'), true)
+  await assert.rejects(() => db.read('/notes/n1'), /unknown record/)
+  const bin = await db.listTrash()
+  assert.equal(bin.items.length, 1)
+  assert.equal(bin.items[0]?.title, '草稿')
+  await db.restore('/notes', { ids: ['n1'] })
+  const back = await db.list('/notes')
+  if (back.kind !== 'collection') return
+  assert.equal(back.items.length, 1)
+  await db.remove('/notes', { ids: ['n1'], purge: true })
+  assert.equal(rows.has('n1'), false)
+})
+
+test('sessions delete parks in trash until purge', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, { id: string; title: string }>([['s1', { id: 's1', title: '会话' }]])
+  db.register({
+    id: 'sessions',
+    path: '/sessions',
+    schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } } },
+    records: { create: true, delete: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: () => [],
+    remove: (query) => {
+      const ids = query.ids ?? []
+      for (const id of ids) rows.delete(id)
+      return ids
+    },
+  })
+  const gone = await db.remove('/sessions', { ids: ['s1'] })
+  assert.equal((gone as { trash?: boolean }).trash, true)
+  assert.equal(rows.has('s1'), true)
+  const listed = await db.list('/sessions')
+  if (listed.kind !== 'collection') return
+  assert.equal(listed.items.length, 0)
+  await db.restore('/sessions', { ids: ['s1'] })
+  const back = await db.list('/sessions')
+  if (back.kind !== 'collection') return
+  assert.equal(back.items.length, 1)
+  await db.remove('/sessions', { ids: ['s1'], purge: true })
+  assert.equal(rows.has('s1'), false)
+})
+
+test('trash collection lists deleted rows and restore/delete actions', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, { id: string; title: string }>([['n1', { id: 'n1', title: '草稿' }]])
+  db.register({
+    id: 'notes',
+    path: '/notes',
+    schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } } },
+    records: { create: true, delete: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: () => [],
+    remove: (query) => {
+      const ids = query.ids ?? []
+      for (const id of ids) rows.delete(id)
+      return ids
+    },
+  })
+  db.register(trashCollection(db))
+  await db.remove('/notes', { ids: ['n1'] })
+  const listed = await db.list('/trash')
+  if (listed.kind !== 'collection') return
+  assert.equal(listed.items.length, 1)
+  assert.equal(listed.items[0]?.id, 'notes::n1')
+  assert.equal(listed.items[0]?.title, '草稿')
+  assert.equal(listed.items[0]?.table, 'notes')
+  const actions = listed.schema.actions?.map((item) => item.id) ?? []
+  assert.deepEqual(actions, ['restore', 'delete'])
+  await db.action('/trash/notes::n1', 'restore')
+  const live = await db.list('/notes')
+  if (live.kind !== 'collection') return
+  assert.equal(live.items.length, 1)
+  const empty = await db.list('/trash')
+  if (empty.kind !== 'collection') return
+  assert.equal(empty.items.length, 0)
+  await db.remove('/notes', { ids: ['n1'] })
+  await db.action('/trash/notes::n1', 'delete')
+  assert.equal(rows.has('n1'), false)
+  const gone = await db.list('/trash')
+  if (gone.kind !== 'collection') return
+  assert.equal(gone.items.length, 0)
 })
 
 test('facet catalog is workspace-wide and collect uses sqlite stamps', async () => {

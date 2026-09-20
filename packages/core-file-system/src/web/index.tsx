@@ -181,7 +181,12 @@ function CollectionPage(props: SlotProps) {
       routeViewId={viewFromRoute}
       expandedViewKey={expandedViewKey}
       onExpandedViewKeyChange={setExpandedViewKey}
-      onOpenTable={(path, viewId) => go({ collection: path, viewId: viewId ?? builtinAllViewId(path) })}
+      onOpenTable={(path, viewId) =>
+          go({
+            collection: path,
+            viewId: viewId ?? builtinAllViewId(path),
+          })
+        }
       onOpenView={(viewId) => go({ collection: currentPath, viewId })}
       onOpenRecord={(recordId, viewId, collection) =>
         go({ collection: collection ?? currentPath, viewId: viewId ?? viewFromRoute, recordId })

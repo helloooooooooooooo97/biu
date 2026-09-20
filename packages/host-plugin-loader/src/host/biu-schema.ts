@@ -55,8 +55,8 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     indexes: [],
   },
   record_meta: {
-    columns: ['collection', 'record_id', 'emoji', 'tags_json', 'created_by_json', 'updated_by_json'],
-    indexes: [],
+    columns: ['collection', 'record_id', 'emoji', 'tags_json', 'created_by_json', 'updated_by_json', 'deleted_at'],
+    indexes: ['record_meta_deleted'],
   },
   attachments: {
     columns: ['name', 'etag', 'mime', 'bytes', 'kind', 'storage', 'created_at'],
@@ -135,7 +135,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 15
+export const LATEST_BIU_SCHEMA = 16
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -210,8 +210,10 @@ CREATE TABLE IF NOT EXISTS record_meta (
   tags_json TEXT,
   created_by_json TEXT,
   updated_by_json TEXT,
+  deleted_at INTEGER,
   PRIMARY KEY (collection, record_id)
 );
+CREATE INDEX IF NOT EXISTS record_meta_deleted ON record_meta(collection, deleted_at);
 CREATE TABLE IF NOT EXISTS attachments (
   name TEXT PRIMARY KEY,
   etag TEXT NOT NULL,
