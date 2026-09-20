@@ -657,6 +657,7 @@ async function resolveHostProject(input: string): Promise<SessionProject> {
 export { sessionsCollection } from './sessions-collection.ts'
 export { eventsCollection } from './events-collection.ts'
 export { lastUsageBeforeCompact, retrieveHistory } from './session-compact.ts'
+export { liftToolImages, MAX_TOOL_IMAGES } from './tool-images.ts'
 
 export const name = 'sessions'
 export const inject = ['sessionStore']

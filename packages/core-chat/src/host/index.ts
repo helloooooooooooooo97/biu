@@ -19,7 +19,7 @@ import {
   buildTrajectoryWindow,
   findEvent,
 } from '@biu/host-sessions/trajectory'
-import { estimateTokens } from '@biu/host-sessions'
+import { estimateTokens, liftToolImages } from '@biu/host-sessions'
 import { readArtifactFile } from '@biu/host-sessions/artifacts'
 import { collectLiveDispatchedTasks } from '@biu/host-live-sessions/usage'
 import { loadLiveDispatchTasks, registerChatInspectorRoutes } from './inspector.ts'
@@ -1295,7 +1295,7 @@ export function apply(ctx: Context) {
     route.send(200, {
       id: record.id,
       seq,
-      messages: buildRequestMessages(record.events, seq),
+      messages: await liftToolImages(buildRequestMessages(record.events, seq), record.id),
       toolsTokens: toolsSchemaTokens,
     })
   })
