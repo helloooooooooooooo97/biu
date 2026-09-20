@@ -60,7 +60,7 @@ test('share mount loads page plugins without booting the workstation', () => {
   assert.match(page, /aria-label="刷新"|onRefresh/)
   assert.doesNotMatch(page, /clipboard\.writeText/)
   const style = readFileSync(resolve(import.meta.dirname, '../packages/core-file-system/src/web/fsdb-style.ts'), 'utf8')
-  assert.match(style, /html\.share \.fsdb-detail-float-nav/)
+  assert.doesNotMatch(style, /html\.share \.fsdb-detail-float-nav,html\.share \.heading-outline-host:not\(\.is-sheet\) \.chat-outline\{opacity:1\}/)
   const table = readFileSync(resolve(import.meta.dirname, '../packages/core-file-system/src/web/share-table.tsx'), 'utf8')
   assert.match(table, /tasks-table-stage/)
   assert.match(table, /fsdb-check-rail/)

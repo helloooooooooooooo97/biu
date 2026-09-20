@@ -104,7 +104,12 @@ test('blockElBySnippet prefers the rendered heading like the outline', () => {
 
 test('share phone outline is a tap button, not a side rail', () => {
   const src = readFileSync(resolve(import.meta.dirname, './heading-outline.tsx'), 'utf8')
+  const css = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
   assert.match(src, /heading-outline-toggle/)
   assert.match(src, /is-sheet/)
   assert.match(src, /useSharePhone/)
+  assert.match(src, /chat-outline-panel/)
+  assert.match(src, /chat-outline-item/)
+  assert.doesNotMatch(src, /fsdb-share-outline-item/)
+  assert.doesNotMatch(css, /html\.share \.fsdb-detail-float-nav,html\.share \.heading-outline-host/)
 })
