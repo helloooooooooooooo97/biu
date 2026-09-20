@@ -47,7 +47,7 @@ export function isRecordTreeCollection(path: string) {
   return normalized === PAGES_COLLECTION_PATH || normalized === TASKS_COLLECTION_PATH
 }
 
-const SYSTEM_COLLECTION_ORDER = [VIEWS_COLLECTION_PATH, EVENTS_COLLECTION_PATH, NOTICES_COLLECTION_PATH, '/asset-gc', TRASH_COLLECTION_PATH] as const
+const SYSTEM_COLLECTION_ORDER = [VIEWS_COLLECTION_PATH, EVENTS_COLLECTION_PATH, NOTICES_COLLECTION_PATH, TRASH_COLLECTION_PATH] as const
 
 /** 用户表侧栏顺序。组件是页面里嵌的块，紧挨页面下面。 */
 const USER_COLLECTION_ORDER = ['/sessions', '/tasks', '/pages', '/page-blocks', '/plugins', '/facets'] as const

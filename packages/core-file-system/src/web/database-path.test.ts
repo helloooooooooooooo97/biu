@@ -71,7 +71,6 @@ test('views and events are system collections; tags sort with user tables', () =
   assert.equal(isSystemCollection('/facets'), false)
   assert.equal(isSystemCollection('/events'), true)
   assert.equal(isSystemCollection('/notices'), true)
-  assert.equal(isSystemCollection('/asset-gc'), true)
   assert.equal(isSystemCollection('/trash'), true)
   assert.equal(isSystemCollection('/sessions'), false)
   const { user, system } = sortDataCollections([
@@ -79,7 +78,6 @@ test('views and events are system collections; tags sort with user tables', () =
     { path: '/plugins' },
     { path: '/views' },
     { path: '/notices' },
-    { path: '/asset-gc' },
     { path: '/trash' },
     { path: '/facets' },
     { path: '/sessions' },
@@ -93,6 +91,6 @@ test('views and events are system collections; tags sort with user tables', () =
   )
   assert.deepEqual(
     system.map((item) => item.path),
-    ['/views', '/events', '/notices', '/asset-gc', '/trash'],
+    ['/views', '/events', '/notices', '/trash'],
   )
 })

@@ -49,7 +49,6 @@ import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { FileSystemAssets, collectAssetNames, assetNamesFromMarkdown, assetNamesFromHtml, isAssetFileName, isHashedAssetName, mimeOfAsset, AssetConflictError, parseIfMatch } from './assets-store.ts'
 import { facetsCollection } from './facets-collection.ts'
-import { assetGcCollection } from './asset-gc-collection.ts'
 import { trashCollection } from './trash-collection.ts'
 import { runWorkspaceAssetGc } from './asset-gc-run.ts'
 import { ContentTurnService } from './content-turn-service.ts'
@@ -533,7 +532,7 @@ function sortRecords(rows: DbRecord[], field: string, dir: 'asc' | 'desc', sorts
 
 export const DEFAULT_PAGE_SIZE = 50
 export const MAX_PAGE_SIZE = 200
-const HARD_DELETE_PATHS = new Set(['/events', '/asset-gc', '/trash'])
+const HARD_DELETE_PATHS = new Set(['/events', '/trash'])
 
 export function clampPage(limit?: number, offset?: number) {
   const size = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.isFinite(Number(limit)) ? Number(limit) : DEFAULT_PAGE_SIZE))
@@ -1721,8 +1720,7 @@ export function apply(ctx: Context) {
       notices,
     }
   }
-  db.register(assetGcCollection(gcHooks))
-  db.register(trashCollection(db))
+  db.register(trashCollection(db, gcHooks))
   db.recycleAssets = () => {
     if (process.env.VITEST) return
     void runWorkspaceAssetGc(gcHooks())
