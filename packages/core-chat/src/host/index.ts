@@ -1129,6 +1129,7 @@ export function apply(ctx: Context) {
         tags: item.config?.tags ?? [],
         pinned: Boolean(item.config?.pinned),
         ...(item.config?.inspector ? { inspector: item.config.inspector } : {}),
+        ...(item.config?.goal ? { goal: item.config.goal } : {}),
       })),
     })
   })
@@ -1428,6 +1429,21 @@ export function apply(ctx: Context) {
     if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
     await ctx.agents.create(id)
     route.send(200, { sessionId: id, inbox: ctx.agents.listInbox(id) })
+  })
+  ctx.http.route('POST', '/api/sessions/:id/goal', async (route) => {
+    const id = route.params.id
+    if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
+    const payload = ((await route.json().catch(() => null)) ?? {}) as { action?: string }
+    const action = payload.action
+    if (action !== 'pause' && action !== 'resume' && action !== 'clear') {
+      return route.send(400, { error: 'action must be pause, resume, or clear' })
+    }
+    try {
+      const result = await ctx.agents.controlGoal(id, action)
+      route.send(200, result)
+    } catch (error) {
+      route.send(400, { error: String(error) })
+    }
   })
   ctx.http.route('POST', '/api/sessions/:id/cancel', async (route) => {
     const id = route.params.id

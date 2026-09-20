@@ -235,6 +235,23 @@ export class AgentsService extends Service {
     return this.lives.get(sessionId)?.handle
   }
 
+  async controlGoal(sessionId: string, action: 'pause' | 'resume' | 'clear') {
+    if (!(await this.ctx.sessions.get(sessionId))) throw new Error(`unknown session: ${sessionId}`)
+    await this.create(sessionId)
+    const text = await this.applyGoalSlash(sessionId, { kind: action })
+    if (action === 'pause' || action === 'clear') {
+      this.get(sessionId)?.cancel()
+    } else if (text === 'run') {
+      const goal = this.peekGoal(sessionId)
+      if (goal) void this.get(sessionId)?.send(continuationPrompt(goal), { wait: false })
+    }
+    return {
+      ok: true as const,
+      goal: this.peekGoal(sessionId) ?? null,
+      text: text === 'run' ? '已继续 Goal' : text,
+    }
+  }
+
   private peekGoal(sessionId: string): SessionGoal | undefined {
     return goalFromConfig(this.ctx.sessions.peek(sessionId)?.config?.goal)
   }

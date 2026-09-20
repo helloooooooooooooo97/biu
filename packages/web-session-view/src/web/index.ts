@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { Service, type Context } from 'cordis'
-import { mergeInspectorBind, mergeContentEditFiles, type SessionInspectorBind } from '@biu/type-session'
+import { mergeInspectorBind, mergeContentEditFiles, type SessionInspectorBind, type SessionGoal } from '@biu/type-session'
 import { captureLiveUiContext } from './live-ui-context.ts'
 import {
   compactSessionEvents,
@@ -98,6 +98,7 @@ export interface SessionListItem {
   tags?: string[]
   pinned?: boolean
   inspector?: SessionInspectorBind
+  goal?: SessionGoal
 }
 
 export type ConversationView = 'chat' | 'debug'
@@ -215,7 +216,7 @@ type SessionPayload = {
   totalTurns?: number
   totalEvents?: number
   project?: { name: string; path?: string; boundAt: number }
-  config?: { inspector?: SessionInspectorBind }
+  config?: { inspector?: SessionInspectorBind; goal?: SessionGoal }
   inspector?: SessionInspectorBind
   dispatchedUsage?: TrajectoryUsage
   dispatchedUsageByTurn?: Record<string, TrajectoryUsage>
@@ -261,7 +262,8 @@ function sessionsEqual(a: SessionListItem[], b: SessionListItem[]): boolean {
       Boolean(left.busy) !== Boolean(right.busy) ||
       Boolean(left.pinned) !== Boolean(right.pinned) ||
       (left.tags ?? []).join('\0') !== (right.tags ?? []).join('\0') ||
-      JSON.stringify(left.inspector ?? null) !== JSON.stringify(right.inspector ?? null)
+      JSON.stringify(left.inspector ?? null) !== JSON.stringify(right.inspector ?? null) ||
+      JSON.stringify(left.goal ?? null) !== JSON.stringify(right.goal ?? null)
     ) {
       return false
     }
@@ -749,8 +751,12 @@ export class SessionViewService extends Service {
     return body.config?.inspector ?? body.inspector
   }
 
-  private rememberSessionInspector(sessionId: string, inspector: SessionInspectorBind | undefined) {
-    const sessions = this.value.sessions.map((item) => (item.id === sessionId ? { ...item, inspector } : item))
+  private rememberSessionInspector(
+    sessionId: string,
+    inspector: SessionInspectorBind | undefined,
+    goal?: SessionGoal,
+  ) {
+    const sessions = this.value.sessions.map((item) => (item.id === sessionId ? { ...item, inspector, goal } : item))
     return { sessionInspector: inspector, inspectorReady: true as const, sessions }
   }
 
@@ -913,7 +919,7 @@ export class SessionViewService extends Service {
           dispatchedTasksByTurn: tasksByTurn,
           dispatchedUsage,
           nodes,
-          ...this.rememberSessionInspector(sessionId, this.inspectorFromPayload(body)),
+          ...this.rememberSessionInspector(sessionId, this.inspectorFromPayload(body), body.config?.goal),
         })
         this.syncDispatchedPoll()
         return
@@ -931,7 +937,7 @@ export class SessionViewService extends Service {
         trajectory: this.wantsTrajectory(view) ? this.value.trajectory : [],
         switchingSession: false,
         error: undefined,
-        ...this.rememberSessionInspector(sessionId, this.inspectorFromPayload(body)),
+        ...this.rememberSessionInspector(sessionId, this.inspectorFromPayload(body), body.config?.goal),
       })
       this.syncDispatchedPoll()
       if (this.wantsTrajectory(view)) void this.ensureTrajectory()
@@ -1460,8 +1466,35 @@ export class SessionViewService extends Service {
   async cancel() {
     const sessionId = this.value.sessionId
     if (!sessionId) return
+    const goal = this.value.sessions.find((item) => item.id === sessionId)?.goal
+    if (goal?.status === 'pursuing') {
+      await this.controlGoal('pause')
+      return
+    }
     await fetch(`/api/sessions/${sessionId}/cancel`, { method: 'POST' })
     this.setAgentStatus('idle', undefined, sessionId)
+  }
+
+  async controlGoal(action: 'pause' | 'resume' | 'clear') {
+    const sessionId = this.value.sessionId
+    if (!sessionId) return
+    const res = await fetch(`/api/sessions/${sessionId}/goal`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action }),
+    })
+    const data = (await res.json().catch(() => ({}))) as { error?: string; goal?: SessionGoal | null }
+    if (!res.ok) {
+      this.replace({ error: data.error || `Goal ${action} 失败` })
+      return
+    }
+    const goal = data.goal ?? undefined
+    const sessions = this.value.sessions.map((item) => (item.id === sessionId ? { ...item, goal } : item))
+    this.replace({
+      sessions,
+      ...(action === 'pause' || action === 'clear' ? { pending: false, agentStatus: 'idle' as const } : {}),
+      error: undefined,
+    })
   }
 
   /** 空回车：abort 当前回合并立刻 claim 队列（需队列里有 wake） */

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react'
-import { ArrowUpIcon, ChevronDownIcon, PlusIcon } from '@heroicons/react/16/solid'
+import { ArrowUpIcon, ChevronDownIcon, FlagIcon, PlusIcon } from '@heroicons/react/16/solid'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -208,6 +208,7 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
   const pending = useSessionView((state) => state.pending)
   const inbox = useSessionView((state) => state.inbox)
   const sessionId = useSessionView((state) => state.sessionId)
+  const goal = useSessionView((state) => state.sessions.find((item) => item.id === state.sessionId)?.goal)
   const sessionView = props.sessionView as SessionViewService
   const pick = props.pick as PickService | undefined
   const { refs: pickRefs } = usePickState(pick)
@@ -819,6 +820,31 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
 
   return (
     <div className="composer-stack" data-biu-ignore>
+      {goal && (goal.status === 'pursuing' || goal.status === 'paused') ? (
+        <div className={`composer-goal is-${goal.status}`} data-testid="composer-goal" aria-label="当前 Goal">
+          <FlagIcon className="composer-goal-flag" aria-hidden />
+          <div className="composer-goal-copy">
+            <div className="composer-goal-kicker">{goal.status === 'paused' ? 'Goal 已暂停' : 'Goal 推进中'}</div>
+            <div className="composer-goal-text" title={goal.objective}>
+              {goal.objective}
+            </div>
+          </div>
+          <div className="composer-goal-actions">
+            {goal.status === 'pursuing' ? (
+              <button type="button" className="composer-goal-btn" onClick={() => void sessionView.controlGoal('pause')}>
+                暂停
+              </button>
+            ) : (
+              <button type="button" className="composer-goal-btn" onClick={() => void sessionView.controlGoal('resume')}>
+                继续
+              </button>
+            )}
+            <button type="button" className="composer-goal-btn" onClick={() => void sessionView.controlGoal('clear')}>
+              清除
+            </button>
+          </div>
+        </div>
+      ) : null}
       {inbox.length > 0 ? (
         <div className="composer-inbox" aria-label="排队中">
           <div className="composer-inbox-head">排队中 · {inbox.length}</div>
