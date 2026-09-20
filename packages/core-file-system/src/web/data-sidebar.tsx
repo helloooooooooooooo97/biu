@@ -513,7 +513,7 @@ export const DataSidebar = memo(function DataSidebar({
     }
   })
   const [userOpen, setUserOpen] = useState(true)
-  const [systemOpen, setSystemOpen] = useState(true)
+  const [systemOpen, setSystemOpen] = useState(false)
   const [expandedViewKeyLocal, setExpandedViewKeyLocal] = useState<string | null>(null)
   const expandedViewKey = expandedViewKeyProp !== undefined ? expandedViewKeyProp : expandedViewKeyLocal
   const setExpandedViewKey = onExpandedViewKeyChange ?? setExpandedViewKeyLocal
