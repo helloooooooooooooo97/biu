@@ -136,7 +136,7 @@ test('settings appearance toggles day and night themes', () => {
   assert.match(chrome, /夜间模式/)
   assert.match(chrome, /LayoutPrefsMenu/)
   assert.match(chrome, /settings-layout/)
-  assert.match(chrome, /数据页/)
+  assert.match(chrome, /布局设计/)
   assert.match(css, /\.settings-page-prefs\.fsdb-layout-menu/)
   assert.match(shell, /hydratePagePrefs/)
   assert.match(css, /\.settings-account-avatar-veil\s*\{/)

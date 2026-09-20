@@ -156,7 +156,7 @@ export function ShellSettingsAppearance() {
   return (
     <section data-testid="settings-appearance">
       <h3 className="settings-pane-title">外观</h3>
-      <p className="settings-muted settings-pane-lead">界面颜色。日间是浅色，夜间是深色。数据页宽屏、目录和正文字号也记在这里。</p>
+      <p className="settings-muted settings-pane-lead">色彩和布局。日间是浅色，夜间是深色；宽屏、目录和正文字号记在下面。</p>
       <div className="settings-theme-grid">
         <button
           type="button"
@@ -181,7 +181,7 @@ export function ShellSettingsAppearance() {
           夜间模式
         </button>
       </div>
-      <h4 className="settings-pane-subtitle">数据页</h4>
+      <h4 className="settings-pane-subtitle">布局设计</h4>
       <p className="settings-muted settings-pane-lead">宽屏、悬浮目录和正文字号。重启后仍按上次选择。</p>
       <LayoutPrefsMenu prefs={pagePrefs} testPrefix="settings-layout" className="settings-page-prefs" />
     </section>
