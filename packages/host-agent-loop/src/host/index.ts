@@ -1,7 +1,7 @@
 import { Service, type Context } from 'cordis'
 import type { AssistantReply, ChatOptions, LlmClient, LlmConfig, LlmMessage, LlmUsage } from '@biu/host-llm'
 import { runWithSession } from '@biu/host-sessions/scope'
-import { applyContextBudget } from '@biu/host-sessions'
+import { applyContextBudget, liftToolImages } from '@biu/host-sessions'
 import { runWithToolPolicy, runWithToolProgress, type AgentToolMode } from '@biu/host-tools'
 
 /** 工具结果写入事件日志( tool/result )时统一上限字符数；超长裁剪，避免上下文被单次工具输出撑爆。 */
@@ -172,7 +172,7 @@ export class AgentLoop implements AgentRunner {
       // 让 step/start 先从 WS 出去，再去做可能很重的 derive / 等首 token
       await new Promise<void>((resolve) => setImmediate(resolve))
 
-      const rawMessages = session.deriveMessages(this.sessionId)
+      const rawMessages = await liftToolImages(session.deriveMessages(this.sessionId), this.sessionId)
       const inputComp = session.statInputComposition(this.sessionId)
       const attachUsage = (usage?: LlmUsage) =>
         usage !== undefined
