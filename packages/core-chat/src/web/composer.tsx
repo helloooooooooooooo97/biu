@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react'
-import { ArrowUpIcon, ChevronDownIcon, FlagIcon, PlusIcon } from '@heroicons/react/16/solid'
+import { ArrowUpIcon, ChevronDownIcon, FlagIcon, PauseIcon, PlayIcon, PlusIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -821,26 +821,43 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
   return (
     <div className="composer-stack" data-biu-ignore>
       {goal && (goal.status === 'pursuing' || goal.status === 'paused') ? (
-        <div className={`composer-goal is-${goal.status}`} data-testid="composer-goal" aria-label="当前 Goal">
-          <FlagIcon className="composer-goal-flag" aria-hidden />
-          <div className="composer-goal-copy">
-            <div className="composer-goal-kicker">{goal.status === 'paused' ? 'Goal 已暂停' : 'Goal 推进中'}</div>
-            <div className="composer-goal-text" title={goal.objective}>
-              {goal.objective}
-            </div>
+        <div className={`composer-goal is-${goal.status}`} data-testid="composer-goal">
+          <span className="composer-goal-mark" title={goal.status === 'paused' ? 'Goal 已暂停' : 'Goal 推进中'} aria-label={goal.status === 'paused' ? 'Goal 已暂停' : 'Goal 推进中'}>
+            <FlagIcon className="size-4" aria-hidden />
+          </span>
+          <div className="composer-goal-text" title={goal.objective}>
+            {goal.objective}
           </div>
           <div className="composer-goal-actions">
             {goal.status === 'pursuing' ? (
-              <button type="button" className="composer-goal-btn" onClick={() => void sessionView.controlGoal('pause')}>
-                暂停
+              <button
+                type="button"
+                className="composer-goal-btn"
+                title="暂停"
+                aria-label="暂停 Goal"
+                onClick={() => void sessionView.controlGoal('pause')}
+              >
+                <PauseIcon className="size-4" aria-hidden />
               </button>
             ) : (
-              <button type="button" className="composer-goal-btn" onClick={() => void sessionView.controlGoal('resume')}>
-                继续
+              <button
+                type="button"
+                className="composer-goal-btn"
+                title="继续"
+                aria-label="继续 Goal"
+                onClick={() => void sessionView.controlGoal('resume')}
+              >
+                <PlayIcon className="size-4" aria-hidden />
               </button>
             )}
-            <button type="button" className="composer-goal-btn" onClick={() => void sessionView.controlGoal('clear')}>
-              清除
+            <button
+              type="button"
+              className="composer-goal-btn"
+              title="清除"
+              aria-label="清除 Goal"
+              onClick={() => void sessionView.controlGoal('clear')}
+            >
+              <XMarkIcon className="size-4" aria-hidden />
             </button>
           </div>
         </div>
