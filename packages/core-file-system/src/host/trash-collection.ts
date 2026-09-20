@@ -1,5 +1,7 @@
-import type { CollectionListQuery, CollectionSpec, DbRecord } from '@biu/type-file-system'
+import type { CollectionAction, CollectionListQuery, CollectionSpec, DbRecord } from '@biu/type-file-system'
 import { REQUIRED_RECORD_FIELDS, recordBuiltinValues } from '@biu/type-file-system'
+import type { AssetGcHooks } from './asset-gc-run.ts'
+import { listWorkspaceGcCandidates, previewWorkspaceAssetGc, runWorkspaceAssetGc } from './asset-gc-run.ts'
 import { parseStampRecordId, stampRecordId } from './facets-collection.ts'
 
 export type TrashItem = {
@@ -36,7 +38,40 @@ async function rowsOf(store: TrashStore) {
   return listed.items.map(asRow)
 }
 
-export function trashCollection(store: TrashStore): CollectionSpec {
+function assetGcActions(hooks: () => AssetGcHooks): CollectionAction[] {
+  return [
+    {
+      id: 'preview',
+      label: '预览资产',
+      description: '列出本轮会进观察期或删除的附件，不删。path=/trash/status。',
+      for: 'agent',
+      placement: [],
+      allowMissing: true,
+      run: () => previewWorkspaceAssetGc(hooks()),
+    },
+    {
+      id: 'run',
+      label: '清理资产',
+      description: '按候选制跑一轮附件 GC。观察期内的文件不会立刻删。path=/trash/status。',
+      for: 'agent',
+      placement: [],
+      allowMissing: true,
+      confirm: '确定清理未引用附件？观察期满的文件会被删除。',
+      run: () => runWorkspaceAssetGc(hooks()),
+    },
+    {
+      id: 'candidates',
+      label: '资产观察期',
+      description: '列出 gc_candidates。path=/trash/status。',
+      for: 'agent',
+      placement: [],
+      allowMissing: true,
+      run: () => listWorkspaceGcCandidates(hooks()),
+    },
+  ]
+}
+
+export function trashCollection(store: TrashStore, hooks?: () => AssetGcHooks): CollectionSpec {
   return {
     id: 'trash',
     path: '/trash',
@@ -48,7 +83,7 @@ export function trashCollection(store: TrashStore): CollectionSpec {
       inspector: false,
       icon: 'trash',
       blurb:
-        '已软删除的记录仍在原表，只是列表不显示。列表 db_list /trash。恢复 db_action /trash/<表名::记录id> action=restore。彻底删除 db_action /trash/<表名::记录id> action=delete。不要对原表 purge，除非确定不要了。',
+        '已软删除的记录仍在原表，只是列表不显示。列表 db_list /trash。恢复 db_action /trash/<表名::记录id> action=restore。彻底删除 db_action /trash/<表名::记录id> action=delete。附件清理是后台事务：预览 db_action /trash/status action=preview，执行 action=run，观察期 action=candidates。不要对原表 purge，除非确定不要了。',
       order: 20,
     },
     records: { update: false, create: false, delete: false },
@@ -90,6 +125,7 @@ export function trashCollection(store: TrashStore): CollectionSpec {
           return store.remove(stamp.collection, { ids: [stamp.recordId], purge: true })
         },
       },
+      ...(hooks ? assetGcActions(hooks) : []),
     ],
     list: async (query?: CollectionListQuery) => {
       let listed = await rowsOf(store)
