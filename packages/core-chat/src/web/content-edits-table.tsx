@@ -251,8 +251,8 @@ export const ContentEditsTable = memo(function ContentEditsTable({
       data-testid="content-edits-table"
     >
       <div className="flex items-center justify-between gap-2 border-b border-(--dsw-border) px-3 py-2">
-        <div className="flex min-w-0 items-center gap-1.5 text-[12px] font-semibold text-(--dsw-label-2)">
-          <CircleStackIcon className="size-3.5 shrink-0" aria-hidden />
+        <div className="content-edits-ink flex min-w-0 items-center gap-1.5 text-[12px] font-semibold">
+          <CircleStackIcon className="content-edits-icon size-3.5 shrink-0" aria-hidden />
           数据改动
         </div>
         <div className="flex items-center gap-2 text-[12px] font-semibold tabular-nums">
@@ -268,7 +268,7 @@ export const ContentEditsTable = memo(function ContentEditsTable({
               <div className="flex items-center gap-2 px-3 py-1.5">
                 <button
                   type="button"
-                  className="shrink-0 text-(--dsw-label-3)"
+                  className="content-edits-icon shrink-0"
                   aria-expanded={shown}
                   aria-label={shown ? `收起 ${contentEditLabel(file, visible)} 的 diff` : `查看 ${contentEditLabel(file, visible)} 的 diff`}
                   onClick={() => setDiffPath(shown ? null : file.path)}
@@ -277,7 +277,7 @@ export const ContentEditsTable = memo(function ContentEditsTable({
                 </button>
                 <button
                   type="button"
-                  className="min-w-0 flex-1 truncate text-left text-[12px] font-semibold text-(--dsw-label) hover:underline"
+                  className="content-edits-ink min-w-0 flex-1 truncate text-left text-[12px] font-semibold hover:underline"
                   title={file.path}
                   onClick={() => revealContentEdit(file.path, file.jump_line, { sessionId, turn })}
                 >

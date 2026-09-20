@@ -27,6 +27,8 @@ test('page-video owns its headless block, studio, and timeline UI contracts', as
   assert.match(src, /全屏编辑/)
   assert.match(src, /className="pv-player-controls"/)
   assert.match(src, /className="pv-embed-script"/)
+  assert.match(src, /\.pv-embed-script\{[^}]*overflow:hidden/)
+  assert.match(src, /\.pv-embed-script \.pv-code-wrap\{[^}]*overflow:auto/)
   assert.match(src, /className="pv-embed-timeline"/)
   assert.match(src, /function TrackIcon/)
   assert.match(src, /from '@heroicons\/react\/16\/solid'/)

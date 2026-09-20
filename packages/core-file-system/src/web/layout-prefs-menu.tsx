@@ -15,9 +15,17 @@ const SCALES: { value: BodyScale; label: string }[] = [
   { value: 'lg', label: '大' },
 ]
 
-export function LayoutPrefsMenu({ prefs, testPrefix = 'fsdb-layout' }: { prefs: PagePrefs; testPrefix?: string }) {
+export function LayoutPrefsMenu({
+  prefs,
+  testPrefix = 'fsdb-layout',
+  className,
+}: {
+  prefs: PagePrefs
+  testPrefix?: string
+  className?: string
+}) {
   return (
-    <div className="fsdb-layout-menu" role="menu" data-testid={`${testPrefix}-menu`}>
+    <div className={className ? `fsdb-layout-menu ${className}` : 'fsdb-layout-menu'} role="menu" data-testid={`${testPrefix}-menu`}>
       {BOOLS.map((item) => {
         const on = prefs[item.key]
         return (

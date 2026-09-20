@@ -605,6 +605,118 @@ body {
   max-width: 420px;
 }
 
+.settings-pane-subtitle {
+  margin: 28px 0 6px;
+  color: var(--dsw-label);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.settings-page-prefs.fsdb-layout-menu {
+  position: static;
+  top: auto;
+  right: auto;
+  z-index: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: 420px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-page-prefs .fsdb-layout-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--dsw-label);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.settings-page-prefs .fsdb-layout-row:hover {
+  background: var(--dsw-hover);
+}
+
+.settings-page-prefs .fsdb-layout-scale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+.settings-page-prefs .fsdb-layout-scale > span {
+  color: var(--dsw-label-2);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.settings-page-prefs .fsdb-layout-pills {
+  display: flex;
+  gap: 2px;
+}
+
+.settings-page-prefs .fsdb-layout-opt {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-label-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.settings-page-prefs .fsdb-layout-opt:hover {
+  background: var(--dsw-hover);
+  color: var(--dsw-label);
+}
+
+.settings-page-prefs .fsdb-layout-opt.is-active {
+  color: var(--dsw-business);
+  background: color-mix(in srgb, var(--dsw-business) 10%, var(--dsw-input));
+}
+
+.settings-page-prefs .fsdb-boolbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid var(--dsw-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--dsw-bg);
+  box-sizing: border-box;
+}
+
+.settings-page-prefs .fsdb-boolbox.is-on {
+  background: var(--dsw-pick, #2383e2);
+  border-color: transparent;
+  color: var(--dsw-bg);
+}
+
 .settings-theme-card {
   display: flex;
   flex-direction: column;
@@ -1058,7 +1170,7 @@ body {
   min-width: 180px;
   transform: translateX(-50%);
   padding: 6px;
-  border: 1px solid var(--dsw-border);
+  border: 0;
   border-radius: 10px;
   background: var(--dsw-sidebar);
   box-shadow: var(--dsw-shadow-lv2);
@@ -1070,7 +1182,7 @@ body {
   width: 100%;
   border: 0;
   border-radius: 6px;
-  background: var(--dsw-input);
+  background: transparent;
   padding: 6px 8px;
   color: var(--dsw-label);
   font: inherit;
@@ -1481,7 +1593,7 @@ body {
 
 .inspector-tab.is-active {
   background: var(--dsw-hover);
-  color: var(--dsw-icon-active);
+  color: var(--dsw-sidebar-fg-active);
 }
 
 .inspector-tab.is-agent-working {
@@ -2247,6 +2359,7 @@ html.dark .chat-overlay-panel {
 .chat-overlay-thread {
   position: relative;
   display: flex;
+  min-width: 0;
   min-height: 0;
   flex: 1;
 }
@@ -2335,6 +2448,7 @@ html.dark .chat-overlay-panel {
 
 .chat-pane .chat-composer-dock > * {
   width: 100%;
+  min-width: 0;
   max-width: none;
 }
 
@@ -3138,7 +3252,7 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
   min-width: 0;
 }
 
-/* 顶部「收藏/项目/标签」：字号 12px，行高与会话行一致（头像 20 + 上下 4） */
+/* 顶部「收藏/项目」与数据页「分享/用户数据/系统数据」同一套：12px 粗体；行高与会话行一致 */
 .sidebar-section-head {
   display: flex;
   align-items: center;
@@ -3146,6 +3260,20 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
   margin: 0 0 1px;
   padding: 0 8px;
   border-radius: 6px;
+  color: var(--dsw-sidebar-fg);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sidebar-section-head button {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sidebar-section-head .sidebar-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: normal;
 }
 
 .sidebar-section-head:hover {
@@ -3163,8 +3291,8 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
   margin: 0;
   padding: 0;
   border-radius: 6px;
-  color: var(--dsw-icon-active);
-  font-size: 14px;
+  color: var(--dsw-icon);
+  font-size: 12px;
   font-weight: 500;
   line-height: 0;
   opacity: 0;
@@ -3183,7 +3311,7 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
 
 .sidebar-chat-count-num {
   display: block;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -3193,8 +3321,9 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
 .sidebar-section-head .sidebar-chat-count,
 .sidebar-group-head .sidebar-chat-count,
 .chat-session-row .sidebar-chat-count {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
+  color: var(--dsw-icon);
 }
 
 /* 顶层板块右侧分组切换：两个 24×24 按钮，图标 16×16；默认塌陷，悬浮展开 */
@@ -3227,7 +3356,7 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-icon-active);
+  color: var(--dsw-icon);
   cursor: pointer;
   line-height: 0;
 }
@@ -3240,12 +3369,12 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
 
 .sidebar-view-switch-btn:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-icon-active);
+  color: var(--dsw-icon);
 }
 
 .sidebar-view-switch-btn.is-on {
   background: var(--dsw-hover);
-  color: var(--dsw-icon-active);
+  color: var(--dsw-icon);
 }
 
 .sidebar-mascot {
@@ -4982,7 +5111,10 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
 .chat-stage {
   /* 把 sticky 用户消息的 z-index 关在滚动层内，避免压过底部输入栏/悬浮按钮 */
   isolation: isolate;
-  align-items: center;
+  align-items: stretch;
+  min-width: 0;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   font-family: var(--font-sans);
   font-size: var(--dsw-chat-font-size);
   line-height: var(--dsw-chat-line-height);
@@ -4991,7 +5123,9 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
 .chat-stage>* {
   box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   max-width: var(--dsw-chat-max-width);
+  margin-inline: auto;
 }
 
 /* 对话主列：预留 gutter，避免细滚动条出现时挤布局（样式走全局 * 规则） */
@@ -5023,23 +5157,22 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
   height: 16px;
 }
 
-.chat-stage {
-  scrollbar-gutter: stable;
-}
-
 /* 底部输入栏 + dock 悬浮控件：叠在对话内容之上 */
 .chat-composer-dock {
   z-index: 20;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
+  min-width: 0;
   font-size: var(--dsw-chat-ui-font-size);
 }
 
 .chat-composer-dock>* {
   box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   max-width: var(--dsw-chat-max-width);
+  margin-inline: auto;
 }
 
 .chat-outline {
@@ -5142,18 +5275,18 @@ html[data-outline-pin="1"] .chat-outline {
   max-height: min(40vh, 360px);
   overflow: auto;
   transform: translateY(-50%);
-  border: 0;
+  border: 1px solid var(--dsw-float-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(32, 32, 32, 0.92);
   padding: 6px;
   box-shadow: 0 1px 2px rgba(15, 15, 15, 0.04), 0 10px 32px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(24px) saturate(1.3);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
   color: var(--dsw-sidebar-fg);
 }
 
 html:not(.dark) .chat-outline-panel {
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(249, 248, 247, 0.94);
   box-shadow: 0 1px 2px rgba(15, 15, 15, 0.04), 0 10px 28px rgba(0, 0, 0, 0.08);
 }
 
@@ -5223,12 +5356,12 @@ html:not(.dark) .chat-outline-item.is-active {
 }
 
 /* 折叠靠 hidden，不卸载，展开不再重建 Markdown/工具 DOM。
-   色比最终回复暗一档，避免 Details 和最后一条正文抢对比度。 */
+   日间展开态用 #5f5e5a，不要落到正文 --dsw-label（#2c2c2b）。 */
 .chat-reply-details {
   display: flex;
   flex-direction: column;
   gap: var(--dsw-chat-gap);
-  color: var(--dsw-label-2);
+  color: var(--dsw-sidebar-fg);
 }
 
 .chat-reply-details .chat-md,
@@ -5242,11 +5375,11 @@ html:not(.dark) .chat-outline-item.is-active {
 .chat-reply-details .chat-md code,
 .chat-reply-details .chat-md pre,
 .chat-reply-details .chat-md pre code {
-  color: var(--dsw-label-2);
+  color: var(--dsw-sidebar-fg);
 }
 
 .chat-reply-details .chat-md a {
-  color: var(--dsw-label-2);
+  color: var(--dsw-sidebar-fg);
 }
 
 .chat-reply-details .chat-step-bar {
@@ -5262,7 +5395,7 @@ html:not(.dark) .chat-outline-item.is-active {
 .chat-reply-details .tool-call,
 .chat-reply-details .tool-call-head,
 .chat-reply-details .tool-call-toggle {
-  color: var(--dsw-label-2);
+  color: var(--dsw-icon);
 }
 
 .chat-reply-details .tool-call-head:hover::before,
@@ -5334,16 +5467,20 @@ html:not(.dark) .chat-outline-item.is-active {
 .chat-assistant-body {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .chat-reply-block {
   display: flex;
   width: 100%;
+  min-width: 0;
   flex-direction: column;
   background: transparent;
   border: 0;
   border-radius: 0;
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .chat-reply-block.is-streaming {
@@ -5423,6 +5560,7 @@ html:not(.dark) .chat-outline-item.is-active {
 }
 
 .tool-call {
+  position: relative;
   width: 100%;
   align-self: stretch;
   font-size: var(--dsw-chat-ui-font-size);
@@ -5481,7 +5619,7 @@ html:not(.dark) .chat-outline-item.is-active {
   border-radius: 6px;
   padding: 4px 0;
   background: transparent;
-  color: inherit;
+  color: var(--dsw-sidebar-fg);
   cursor: pointer;
   text-align: left;
 }
@@ -5496,7 +5634,7 @@ html:not(.dark) .chat-outline-item.is-active {
   height: 14px;
   flex-shrink: 0;
   place-items: center;
-  color: var(--dsw-sidebar-fg);
+  color: var(--dsw-icon);
 }
 
 .tool-call-chevron.is-ok {
@@ -5511,7 +5649,7 @@ html:not(.dark) .chat-outline-item.is-active {
   flex-shrink: 0;
   font-size: var(--dsw-chat-ui-font-size);
   font-weight: 600;
-  color: var(--dsw-label);
+  color: var(--dsw-sidebar-fg);
 }
 
 .tool-call-summary {
@@ -5533,7 +5671,7 @@ html:not(.dark) .chat-outline-item.is-active {
   height: 14px;
   border: 0;
   background: transparent;
-  color: var(--dsw-sidebar-fg);
+  color: var(--dsw-icon);
 }
 
 .tool-call-status.is-ok {
@@ -5545,7 +5683,7 @@ html:not(.dark) .chat-outline-item.is-active {
 }
 
 .tool-call-status.is-running {
-  color: var(--dsw-sidebar-fg);
+  color: var(--dsw-icon);
 }
 
 .tool-call-chars {
@@ -5567,7 +5705,7 @@ html:not(.dark) .chat-outline-item.is-active {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-sidebar-fg);
+  color: var(--dsw-icon);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -5581,7 +5719,51 @@ html:not(.dark) .chat-outline-item.is-active {
 
 .tool-call-inspect:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-sidebar-fg-active);
+  color: var(--dsw-icon);
+}
+
+.tool-call-copy,
+.chat-code-copy {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--dsw-sidebar) 88%, transparent);
+  color: var(--dsw-icon);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chat-reply-block:hover .tool-call-copy,
+.chat-reply-block:hover .chat-code-copy,
+.tool-call:hover .tool-call-copy,
+.chat-code:hover .chat-code-copy,
+.tool-call-copy:focus-visible,
+.chat-code-copy:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tool-call-copy:hover,
+.chat-code-copy:hover {
+  background: var(--dsw-hover);
+  color: var(--dsw-icon-active);
+}
+
+.tool-call-copy.is-done,
+.chat-code-copy.is-done {
+  color: var(--dsw-ok);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .chat-reply-actions {
@@ -5626,6 +5808,8 @@ html:not(.dark) .chat-outline-item.is-active {
 /* Chat Markdown */
 .chat-md {
   max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   overflow-wrap: anywhere;
 }
 
@@ -5659,8 +5843,18 @@ html:not(.dark) .chat-outline-item.is-active {
 .chat-md ol,
 .chat-md pre,
 .chat-md blockquote,
-.chat-md table {
+.chat-md table,
+.chat-md .chat-code {
   margin: var(--dsw-chat-gap) 0;
+}
+
+.chat-md .chat-code {
+  position: relative;
+  max-width: 100%;
+}
+
+.chat-md .chat-code pre {
+  margin: 0;
 }
 
 .chat-md h1,
@@ -5708,6 +5902,8 @@ html:not(.dark) .chat-outline-item.is-active {
 }
 
 .chat-md pre {
+  box-sizing: border-box;
+  max-width: 100%;
   overflow-x: auto;
   border-radius: 10px;
   border: 1px solid var(--dsw-border);
@@ -6867,4 +7063,128 @@ html.pick-mode .chat-overlay-panel * {
 [data-excalidraw-host] .unlocked-icon {
   width: 1.25rem !important;
   height: 1.25rem !important;
+}
+
+/* 日间：工具图标固定 #91918e；数据改动/文件名/工具名用 #5f5e5a */
+html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail),
+html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail) svg,
+html:not(.dark) .tool-call-inspect,
+html:not(.dark) .tool-call-inspect:hover,
+html:not(.dark) .tool-call-inspect svg,
+html:not(.dark) .tool-call-status.is-running,
+html:not(.dark) [data-testid="content-edits-table"] .content-edits-icon,
+html:not(.dark) [data-testid="content-edits-table"] .content-edits-icon svg {
+  color: #91918e;
+}
+
+html:not(.dark) [data-testid="content-edits-table"] .content-edits-ink,
+html:not(.dark) .tool-call-toggle,
+html:not(.dark) .tool-call-title,
+html:not(.dark) .tool-call-head:hover .tool-call-title,
+html:not(.dark) .tool-call-toggle:hover .tool-call-title {
+  color: #5f5e5a;
+}
+
+html:not(.dark) .fsdb-crumb-btn,
+html:not(.dark) .fsdb-crumb-btn:hover,
+html:not(.dark) .fsdb-crumb-btn.is-open,
+html:not(.dark) .fsdb-crumb .fsdb-crumb-btn,
+html:not(.dark) .inspector-tab.is-active,
+html:not(.dark) .inspector-tab.is-active .fsdb-crumb-btn {
+  color: #2c2c2b;
+}
+
+html:not(.dark) .chat-reply-details,
+html:not(.dark) .chat-reply-details .chat-md,
+html:not(.dark) .chat-reply-details .chat-md-stream-pre,
+html:not(.dark) .chat-reply-details .chat-md p,
+html:not(.dark) .chat-reply-details .chat-md li,
+html:not(.dark) .chat-reply-details .chat-md h1,
+html:not(.dark) .chat-reply-details .chat-md h2,
+html:not(.dark) .chat-reply-details .chat-md h3,
+html:not(.dark) .chat-reply-details .chat-md h4,
+html:not(.dark) .chat-reply-details .chat-md code,
+html:not(.dark) .chat-reply-details .chat-md pre,
+html:not(.dark) .chat-reply-details .chat-md pre code,
+html:not(.dark) .chat-reply-details .chat-md a {
+  color: #5f5e5a;
+}
+
+/* 日间浮窗：icon #91918e，文字 #5f5e5a（block 菜单 / slash / 右上角+ / 表格工具栏） */
+html:not(.dark) .page-block-handle-menu button,
+html:not(.dark) .page-block-handle-menu button:hover,
+html:not(.dark) .page-slash-item,
+html:not(.dark) .page-slash-item:hover,
+html:not(.dark) .page-slash-item.is-active,
+html:not(.dark) .page-slash-label,
+html:not(.dark) .page-bubble button:not(.is-on),
+html:not(.dark) .page-bubble-letter,
+html:not(.dark) .inspector-add-menu,
+html:not(.dark) .inspector-add-owner,
+html:not(.dark) .inspector-add-row,
+html:not(.dark) .inspector-add-row-main,
+html:not(.dark) .inspector-add-row.is-active .inspector-add-row-main,
+html:not(.dark) .inspector-add-menu .inspector-catalog-item,
+html:not(.dark) .inspector-add-menu .inspector-catalog-item:hover,
+html:not(.dark) .inspector-add-menu .inspector-catalog-item.is-active,
+html:not(.dark) .tasks-viewdd-menu,
+html:not(.dark) .tasks-viewdd-head,
+html:not(.dark) .tasks-viewdd-item-main,
+html:not(.dark) .tasks-viewdd-item.is-active .tasks-viewdd-item-main,
+html:not(.dark) .tasks-viewdd-saveas,
+html:not(.dark) .tasks-viewdd-empty,
+html:not(.dark) .tasks-sort-menu,
+html:not(.dark) .tasks-sort-head,
+html:not(.dark) .tasks-sort-item,
+html:not(.dark) .tasks-sort-item.is-active,
+html:not(.dark) .tasks-filter-menu,
+html:not(.dark) .fsdb-query-menu,
+html:not(.dark) .fsdb-query-menu .tasks-sort-head,
+html:not(.dark) .fsdb-col-menu,
+html:not(.dark) .fsdb-checkrow,
+html:not(.dark) .fsdb-checkrow:hover,
+html:not(.dark) .fsdb-checkrow.is-on,
+html:not(.dark) .fsdb-filter-row,
+html:not(.dark) .tasks-filter-menu-label {
+  color: #5f5e5a;
+}
+
+html:not(.dark) .page-block-handle-menu button svg,
+html:not(.dark) .page-slash-icon,
+html:not(.dark) .page-slash-icon svg,
+html:not(.dark) .page-slash .pick-kind-icon,
+html:not(.dark) .page-bubble button:not(.is-on) svg,
+html:not(.dark) .page-bubble-chat-icon,
+html:not(.dark) .inspector-add-row-main svg,
+html:not(.dark) .inspector-add-close,
+html:not(.dark) .inspector-add-close svg,
+html:not(.dark) .inspector-add-menu .inspector-catalog-item svg,
+html:not(.dark) .inspector-add-menu .inspector-catalog-item:hover svg,
+html:not(.dark) .tasks-viewdd-act,
+html:not(.dark) .tasks-viewdd-act svg,
+html:not(.dark) .tasks-viewdd-act:hover,
+html:not(.dark) .tasks-viewdd-act:hover svg,
+html:not(.dark) .tasks-viewdd-saveas svg,
+html:not(.dark) .tasks-sort-item svg,
+html:not(.dark) .tasks-sort-item:hover svg,
+html:not(.dark) .tasks-sort-item.is-active svg,
+html:not(.dark) .fsdb-query-menu svg,
+html:not(.dark) .fsdb-query-grip,
+html:not(.dark) .fsdb-checkrow-icon,
+html:not(.dark) .fsdb-checkrow-icon svg,
+html:not(.dark) .fsdb-checkrow.is-on .fsdb-checkrow-icon,
+html:not(.dark) .fsdb-checkrow:hover .fsdb-checkrow-icon,
+html:not(.dark) .fsdb-checkrow.is-on .fsdb-checkrow-icon svg,
+html:not(.dark) .fsdb-checkrow:hover .fsdb-checkrow-icon svg,
+html:not(.dark) .fsdb-checkrow > svg,
+html:not(.dark) .fsdb-checkrow.is-on > svg,
+html:not(.dark) .fsdb-checkrow:hover > svg {
+  color: #91918e;
+}
+
+html:not(.dark) .inspector-add-menu .inspector-add-check,
+html:not(.dark) .inspector-add-menu .inspector-add-check svg,
+html:not(.dark) .tasks-viewdd-menu .tasks-viewdd-check,
+html:not(.dark) .tasks-viewdd-menu .tasks-viewdd-check svg {
+  color: var(--dsw-business);
 }

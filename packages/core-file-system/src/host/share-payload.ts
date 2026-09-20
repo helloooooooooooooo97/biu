@@ -6,7 +6,7 @@ import { collectShareResources } from '../share-resources.ts'
 import { savedViewRecordPath } from '../paths.ts'
 import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
 import type { ShareRecord } from './shares-store.ts'
-import { asPublicProfile } from './workspace-profile.ts'
+import { asPublicProfile } from '@biu/host-workspace'
 import { encodeListFilter, resolveViewFilterTree } from '../query-logic.ts'
 
 const SHARE_LIMIT = 200

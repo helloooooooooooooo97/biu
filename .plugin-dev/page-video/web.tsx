@@ -225,8 +225,9 @@ const STYLE_CSS = `
 .pv-track-toggle{padding:0}
 .pv-embed-timeline{border-top:1px solid var(--pv-line)}
 .pv-embed-timeline .pv-rail{border-top:0}
-.pv-embed-script{border-top:1px solid var(--pv-line);max-height:240px;display:flex;flex-direction:column;min-height:0;background:var(--pv-panel)}
-.pv-embed-script .pv-code-wrap{min-height:168px}
+.pv-embed-script{border-top:1px solid var(--pv-line);max-height:min(52vh,420px);display:flex;flex-direction:column;min-height:0;overflow:hidden;background:var(--pv-panel)}
+.pv-embed-script .pv-code-wrap{flex:1;min-height:0;overflow:auto}
+.pv-embed-script .pv-code-wrap .cm-editor,.pv-embed-script .pv-code-wrap .cm-scroller{height:100%;min-height:0;overflow:auto}
 .pv-embed-script .pv-err,.pv-embed-script .pv-hint{border-top:1px solid var(--pv-line)}
 .pv-icon{
   width:28px;height:28px;border:0;border-radius:5px;background:transparent;
@@ -1832,6 +1833,23 @@ export function apply(ctx: {
     blockTypeLabel: '视频',
     hint: '标签时间轴，全屏编辑脚本',
     aliases: ['video', 'timeline', 'remotion', 'openscreen', '影片'],
+    assets: (data: Record<string, unknown>) => {
+      const out: string[] = []
+      const push = (raw: unknown) => {
+        if (typeof raw !== 'string') return
+        out.push(raw)
+        for (const match of raw.matchAll(/\bsrc=(?:["']?)([^"'\s>]+)/gi)) out.push(match[1] ?? '')
+      }
+      push(data.bgm)
+      push(data.file)
+      push(data.script)
+      if (Array.isArray(data.tracks)) {
+        for (const track of data.tracks) {
+          if (track && typeof track === 'object') push((track as { src?: unknown }).src)
+        }
+      }
+      return out
+    },
     defaults: { script: SAMPLE_SCRIPT },
     View: Editor,
   })

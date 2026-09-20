@@ -93,9 +93,18 @@ test('uniquifyPageBlockMarkdown keeps the first id and rewrites duplicates', () 
   assert.equal(uniquifyPageBlockMarkdown(next.markdown).changed, false)
 })
 
-test('pageBlock record id is page::block', () => {
-  assert.equal(pageBlockRecordId('p001', 'ab12cd34'), 'p001::ab12cd34')
-  assert.deepEqual(parsePageBlockRecordId('p001::ab12cd34'), { pageId: 'p001', blockId: 'ab12cd34' })
+test('pageBlock record id is collection::page::block', () => {
+  assert.equal(pageBlockRecordId('/pages', 'p001', 'ab12cd34'), '/pages::p001::ab12cd34')
+  assert.deepEqual(parsePageBlockRecordId('/pages::p001::ab12cd34'), {
+    collection: '/pages',
+    pageId: 'p001',
+    blockId: 'ab12cd34',
+  })
+  assert.deepEqual(parsePageBlockRecordId('p001::ab12cd34'), {
+    collection: '/pages',
+    pageId: 'p001',
+    blockId: 'ab12cd34',
+  })
   assert.equal(parsePageBlockRecordId('p001'), null)
 })
 

@@ -1,0 +1,68 @@
+appId: os.biu.app
+productName: Biu
+copyright: Apache-2.0
+artifactName: Biu-${version}-${os}-${arch}.${ext}
+directories:
+  output: release
+  app: pack-app
+files:
+  - "**/*"
+# extraResources 的 glob 会从 app 文件里排除同名路径。
+# 所以 host 整包放 pack-host/，不要在这里写裸的 package.json。
+extraResources:
+  - from: pack-host
+    to: biu
+    filter:
+      - "**/*"
+      - "!node_modules{,/**/*}"
+  # extraResources 的目录遍历会跳过名为 node_modules 的根目录；
+  # 以该目录本身为 source，才能把 host 运行时依赖复制到目标位置。
+  - from: pack-host/node_modules
+    to: biu/node_modules
+    filter:
+      - "**/*"
+      - "!**/*.d.ts"
+      - "!**/*.map"
+      - "!**/*.md"
+      - "!**/{test,tests,__tests__}{,/**/*}"
+asar: true
+# host 依赖已由 scripts/electron-pack.mjs 放进 pack-host/node_modules。
+# 返回 false 告诉 electron-builder 不要再扫描、复制根 node_modules 到壳应用。
+beforeBuild: scripts/electron-builder-before-build.cjs
+publish:
+  provider: github
+  releaseType: release
+mac:
+  category: public.app-category.developer-tools
+  icon: public/favicon.svg
+  identity: '-'
+  gatekeeperAssess: false
+  hardenedRuntime: false
+  notarize: false
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+win:
+  icon: public/favicon.svg
+  signAndEditExecutable: false
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  shortcutName: Biu
+  uninstallDisplayName: Biu
+linux:
+  target: []

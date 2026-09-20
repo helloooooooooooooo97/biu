@@ -1,0 +1,14 @@
+{
+  "name": "@biu/host-workspace",
+  "license": "Apache-2.0",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "工作区配置：名字、头像、主题、数据页外观（profile.json）",
+  "exports": {
+    ".": "./src/host/index.ts"
+  },
+  "dependencies": {
+    "@biu/host-plugin-loader": "0.1.0"
+  }
+}

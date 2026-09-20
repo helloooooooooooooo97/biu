@@ -439,7 +439,7 @@ function UserTurnBar({
         {hasDetails && reply ? (
           <button
             type="button"
-            className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-transparent bg-transparent py-0.5 pr-2 pl-1 text-(length:--dsw-chat-ui-font-size) leading-none text-(--dsw-sidebar-fg) hover:bg-(--dsw-hover) hover:text-(--dsw-sidebar-fg-active)${detailsOpen ? ' bg-(--dsw-hover) text-(--dsw-sidebar-fg-active)' : ''}`}
+            className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-transparent bg-transparent py-0.5 pr-2 pl-1 text-(length:--dsw-chat-ui-font-size) leading-none text-(--dsw-sidebar-fg) hover:bg-(--dsw-hover) hover:text-(--dsw-sidebar-fg)${detailsOpen ? ' bg-(--dsw-hover) text-(--dsw-sidebar-fg)' : ''}`}
             aria-expanded={detailsOpen}
             aria-controls={`reply-details-${reply.id}`}
             data-testid="details-toggle"

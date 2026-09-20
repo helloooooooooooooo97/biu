@@ -9,17 +9,25 @@
  */
 
 import { app, BrowserWindow, BrowserView, ipcMain, shell, session } from 'electron'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { availablePort, adoptPackedUserData, seedPluginSandboxes } from './runtime.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const electronRoot = join(__dirname, '..')
+const repoRoot = app.isPackaged ? join(process.resourcesPath, 'biu') : join(electronRoot, '..')
 
-/** dev：vite 起的地址；打包 / 无 dev 标记：本地 dist 文件。 */
+/** dev 走 Vite；打包后由本地 host 同源托管 UI、API 与 WebSocket。 */
 const DEV_URL = process.env.BIU_DEV_URL || 'http://127.0.0.1:5173'
 const distIndex = join(electronRoot, '..', 'dist', 'index.html')
 const isDev = process.env.BIU_ELECTRON_DEV === '1' || (!app.isPackaged && !existsSync(distIndex) && process.env.BIU_ELECTRON_DEV !== '0')
+let hostPort = Number(process.env.PORT || 0)
+let hostUrl = process.env.BIU_HOST_URL || `http://127.0.0.1:${hostPort}`
+
+let hostChild: ChildProcess | null = null
+let spawnedHost = false
 
 /** 侧栏浏览器那块的原生视图。同一时间只开一个。 */
 let view: BrowserView | null = null
@@ -460,14 +468,14 @@ async function createWindow() {
     await win.loadURL(DEV_URL)
     win.webContents.openDevTools({ mode: 'detach' })
   } else {
-    await win.loadFile(join(electronRoot, '..', 'dist', 'index.html'))
+    await win.loadURL(hostUrl)
   }
 }
 
 /** 窗口模式给红绿灯让位；全屏没有红绿灯，不保留左侧空白。 */
 const ELECTRON_CHROME_CSS = `
 html.biu-electron:not(.biu-electron-fullscreen) .app-side-bar-head-brand {
-  padding-left: 76px !important;
+  padding-left: 86px !important;
 }
 html.biu-electron:not(.biu-electron-fullscreen) .sidebar-flyout-host.is-collapsed.is-flyout-open .app-side-bar-head-brand,
 html.biu-electron:not(.biu-electron-fullscreen) .sidebar-flyout-host.is-collapsed:hover .app-side-bar-head-brand {
@@ -491,8 +499,10 @@ html.biu-electron .app-shell {
   position: relative;
 }
 html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-sidebar-collapsed > main > .app-stage-pane.is-active > .chat-view-header,
-html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden > main > .app-stage-pane.is-active > .chat-view-header {
-  padding-left: 76px;
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-sidebar-collapsed > main > .app-stage-pane.is-active .fsdb-right > .chat-view-header,
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden > main > .app-stage-pane.is-active > .chat-view-header,
+html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden > main > .app-stage-pane.is-active .fsdb-right > .chat-view-header {
+  padding-left: 86px;
   box-sizing: border-box;
 }
 html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-sidebar-collapsed::before,
@@ -502,7 +512,7 @@ html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden::befor
   left: 0;
   top: 0;
   z-index: 90;
-  width: 76px;
+  width: 86px;
   height: 44px;
   -webkit-app-region: drag;
 }
@@ -510,20 +520,26 @@ html.biu-electron:not(.biu-electron-fullscreen) .app-shell.is-left-hidden::befor
 
 async function ensureBrowserPanel() {
   if (browserPanelReady) return
-  const host = process.env.BIU_HOST_URL || 'http://127.0.0.1:3141'
+  const host = hostUrl
   for (let i = 0; i < 25; i += 1) {
     try {
-      await fetch(`${host}/api/db/action`, {
+      const pack = await fetch(`${host}/api/db/action`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ path: '/plugins/page-browser', action: 'pack' }),
       })
+      if (!pack.ok) throw new Error(`page-browser pack failed: ${pack.status}`)
+      const packed = (await pack.json()) as { value?: { running?: boolean } }
+      if (packed.value?.running) {
+        browserPanelReady = true
+        return
+      }
       const start = await fetch(`${host}/api/db/action`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ path: '/plugins/page-browser', action: 'start' }),
       })
-      if (start.ok || start.status === 400) {
+      if (start.ok) {
         browserPanelReady = true
         return
       }
@@ -532,6 +548,107 @@ async function ensureBrowserPanel() {
     }
     await new Promise((resolve) => setTimeout(resolve, 400))
   }
+}
+
+async function waitForHost(ms = 60_000) {
+  const start = Date.now()
+  while (Date.now() - start < ms) {
+    try {
+      const response = await fetch(`${hostUrl}/api/db/stat?path=/`)
+      if (response.ok) return
+    } catch {
+      /* external host 还没起来 */
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  throw new Error(`host ${hostUrl} did not start`)
+}
+
+function waitForHostReady(child: ChildProcess, ms = 60_000) {
+  return new Promise<number>((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer)
+      child.off('message', onMessage)
+      child.off('exit', onExit)
+    }
+    const onMessage = (message: unknown) => {
+      const ready = message as { type?: unknown; port?: unknown }
+      const port = Number(ready?.port)
+      if (ready?.type !== 'biu:host-ready' || !Number.isInteger(port) || port <= 0) return
+      cleanup()
+      resolve(port)
+    }
+    const onExit = (code: number | null) => {
+      cleanup()
+      reject(new Error(`packed host exited before ready (${code})`))
+    }
+    const timer = setTimeout(() => {
+      cleanup()
+      reject(new Error('packed host did not report ready'))
+    }, ms)
+    child.on('message', onMessage)
+    child.once('exit', onExit)
+  })
+}
+
+function stopHost() {
+  if (!spawnedHost || !hostChild) return
+  hostChild.kill()
+  hostChild = null
+  spawnedHost = false
+}
+
+/** 打包后没有外挂 npm start，由 Electron 用同一份 Node 跑预编译 host。 */
+async function startHost() {
+  if (isDev) return
+  if (process.env.BIU_HOST_URL) {
+    const remote = new URL(process.env.BIU_HOST_URL)
+    hostPort = Number(remote.port || (remote.protocol === 'https:' ? 443 : 80))
+    hostUrl = remote.origin
+    await waitForHost()
+    return
+  }
+  const entry = join(repoRoot, 'host', 'index.mjs')
+  if (!existsSync(entry)) {
+    throw new Error(`packed host missing: ${entry}`)
+  }
+  const requestedPort = Number.isInteger(hostPort) && hostPort > 0 ? hostPort : 0
+  const requestedSharePort = Number(process.env.SHARE_PORT || 3142)
+  const sharePort = await availablePort(
+    Number.isInteger(requestedSharePort) && requestedSharePort > 0 ? requestedSharePort : 3142,
+  )
+  const home = app.getPath('userData')
+  const workspace = process.env.CORDIS_WORKSPACE || join(home, 'workspace')
+  const pluginDir = process.env.BIU_PLUGIN_DIR || join(workspace, '.plugin')
+  const pluginDevDir = process.env.BIU_PLUGIN_DEV_DIR || join(workspace, '.plugin-dev')
+  adoptPackedUserData(repoRoot, home, workspace)
+  seedPluginSandboxes(join(repoRoot, '.plugin-dev'), pluginDevDir)
+  const child = spawn(process.execPath, [entry], {
+    cwd: repoRoot,
+    stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+      PORT: String(requestedPort),
+      BIU_PORT_FALLBACK: '1',
+      HTTP_HOST: process.env.HTTP_HOST || '127.0.0.1',
+      SHARE_PORT: String(sharePort),
+      // 分享链接使用局域网 IP；只监听 loopback 会让其他设备收到 ERR_CONNECTION_REFUSED。
+      SHARE_HOST: process.env.SHARE_HOST || '0.0.0.0',
+      BIU_HOME: home,
+      CORDIS_WORKSPACE: workspace,
+      BIU_PLUGIN_DIR: pluginDir,
+      BIU_PLUGIN_DEV_DIR: pluginDevDir,
+      BIU_PLUGIN_STATE: process.env.BIU_PLUGIN_STATE || join(pluginDir, 'store.json'),
+    },
+  })
+  hostChild = child
+  spawnedHost = true
+  hostPort = await waitForHostReady(child)
+  hostUrl = `http://127.0.0.1:${hostPort}`
+  child.on('exit', (code) => {
+    if (spawnedHost) console.error(`[electron] host exited ${code}`)
+  })
 }
 
 // 默认不暴露 Electron 的 CDP，避免测试脚本把主窗口误认成 Headless Chrome。
@@ -555,7 +672,12 @@ if (process.platform === 'linux') {
 app.whenReady().then(async () => {
   // 允许被嵌的话就允许；这里只是让一些站少弹无谓的告警
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(true))
+  await startHost()
   await createWindow()
+})
+
+app.on('before-quit', () => {
+  stopHost()
 })
 
 app.on('window-all-closed', () => {

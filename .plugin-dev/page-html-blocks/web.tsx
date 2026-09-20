@@ -784,6 +784,14 @@ export function apply(ctx: {
     blockTypeLabel: 'HTML',
     hint: 'HTML/CSS 卡片和刊头，不跑脚本；悬停可编辑',
     aliases: ['html', 'html直', '静态html', '排版', '直接渲染', '静态渲染', '静态演示'],
+    assets: (data: Record<string, unknown>) => {
+      const html = String(data.html ?? '')
+      const out: string[] = []
+      for (const match of html.matchAll(/<(?:img|a|source|video|audio)\b[^>]*?\b(?:src|href)\s*=\s*["']([^"']+)["']/gi)) {
+        out.push(match[1] ?? '')
+      }
+      return out
+    },
     defaults: { html: HTML_DIRECT_SAMPLE, deck: true },
     View: HtmlDirectCard,
   })
@@ -795,6 +803,14 @@ export function apply(ctx: {
     blockTypeLabel: 'HTML',
     hint: '能跑脚本的独立页面；放大后可翻页放映',
     aliases: ['iframe', 'htmlf', 'frame', '幻灯片', 'slide', '沙箱', '小网页', '动态演示'],
+    assets: (data: Record<string, unknown>) => {
+      const html = String(data.html ?? '')
+      const out: string[] = []
+      for (const match of html.matchAll(/<(?:img|a|source|video|audio)\b[^>]*?\b(?:src|href)\s*=\s*["']([^"']+)["']/gi)) {
+        out.push(match[1] ?? '')
+      }
+      return out
+    },
     defaults: { html: HTML_FRAME_SAMPLE, height: 300, deck: true },
     View: HtmlFrameCard,
   })

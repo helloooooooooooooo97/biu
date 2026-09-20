@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dataDir, dataPath } from '@biu/host-plugin-loader/data-dir'
+import { dataDir, dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
 import { Service, type Context } from 'cordis'
 import type { ChatMessage } from './chat-types.ts'
 import { isAgentToolMode, normalizeAgentMode, type AgentToolMode } from '@biu/host-tools'
@@ -71,7 +71,7 @@ interface ChatConfig {
 }
 
 function configPath() {
-  return dataPath(process.cwd(), 'chat-config.json')
+  return dataPath(dataHome(), 'chat-config.json')
 }
 
 function emptyKeys(): Record<string, string> {
@@ -124,7 +124,7 @@ function readPersisted(): Partial<ChatConfig> | null {
 }
 
 function writePersisted(config: ChatConfig) {
-  const dir = dataDir(process.cwd())
+  const dir = dataDir(dataHome())
   mkdirSync(dir, { recursive: true })
   writeFileSync(
     configPath(),
@@ -1093,6 +1093,7 @@ export function apply(ctx: Context) {
     }
   })
   ctx.http.route('GET', '/api/sessions', async (route) => {
+    await ctx.sessions.ensureDefaultSession()
     const items = await ctx.sessions.listSummaries()
     route.send(200, {
       sessions: items.map((item) => ({

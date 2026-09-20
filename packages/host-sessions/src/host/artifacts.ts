@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, access, readdir, stat } from 'node:fs/promises'
 import { basename, extname, isAbsolute, join, resolve, relative } from 'node:path'
 import { constants } from 'node:fs'
-import { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, dataDir } from '@biu/host-plugin-loader/data-dir'
+import { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, dataDir, dataHome } from '@biu/host-plugin-loader/data-dir'
 
 export const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'])
 
@@ -15,7 +15,7 @@ export type ArtifactMeta = {
 const PATH_CANDIDATE =
   /(?:^|[\s"'=`(,\[{])((?:\/|\.\/|\.\.\/)?[^\s"'`)\]},;]+?\.(?:png|jpe?g|gif|webp|svg))\b/gi
 
-export function artifactsDir(sessionId: string, baseDir = process.cwd()) {
+export function artifactsDir(sessionId: string, baseDir = dataHome()) {
   return join(dataDir(baseDir), 'artifacts', sessionId)
 }
 

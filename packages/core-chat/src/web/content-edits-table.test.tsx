@@ -93,8 +93,15 @@ describe('ContentEditsTable', () => {
     ]
     render(<ChatNodeList nodes={nodes} sessionId="sess-1" onInspect={() => undefined} onFork={() => undefined} />)
     expect(screen.getByTestId('content-edits-table')).toBeTruthy()
-    expect(screen.getByText('数据改动')).toBeTruthy()
-    expect(screen.getByText('首页')).toBeTruthy()
+    const title = screen.getByText('数据改动')
+    expect(title.className).toMatch(/content-edits-ink/)
+    expect(title.className).toMatch(/font-semibold/)
+    expect(title.querySelector('svg')?.className.baseVal ?? title.querySelector('svg')?.getAttribute('class')).toMatch(
+      /content-edits-icon/,
+    )
+    expect(screen.getByLabelText(/查看 首页 的 diff/).className).toMatch(/content-edits-icon/)
+    expect(screen.getByText('首页').className).toMatch(/content-edits-ink/)
+    expect(screen.getByText('首页').className).toMatch(/font-semibold/)
     expect(screen.queryByLabelText('撤销 首页')).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
   })

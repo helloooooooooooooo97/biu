@@ -1,5 +1,6 @@
 import { useSyncExternalStore, type ComponentType } from 'react'
 import { Service, type Context } from 'cordis'
+import { registerBlockAssets } from '@biu/type-file-system'
 
 export type HeadingLevel = 1 | 2 | 3
 
@@ -34,6 +35,11 @@ export type PageBlockSpec = {
   aliases?: string[]
   /** 插入时的块 data。每块都有 title；不写则用「当前页面名 + 组件类型名」。 */
   defaults?: Record<string, unknown> | (() => Record<string, unknown>)
+  /**
+   * data 里哪些字段是资产引用。string[] 为顶层字段；函数返回引用值。
+   * 不声明则宿主无法登记，资产可能被 GC 回收。
+   */
+  assets?: import('@biu/type-file-system').BlockAssetsDecl
   View: ComponentType<PageBlockViewProps>
 }
 
@@ -108,6 +114,11 @@ export class PageEditorService extends Service {
   registerBlock(spec: PageBlockSpec) {
     const plugin = String(spec.plugin ?? '').trim()
     if (!plugin) throw new Error('page block needs plugin id')
+    if (spec.assets === undefined) {
+      console.warn(`[${plugin}] 块 "${spec.kind}" 未声明 assets，其 data 里的资产引用不会被登记，可能被 GC 回收`)
+    } else {
+      registerBlockAssets(spec.kind, plugin, spec.assets)
+    }
     const blockType = String(spec.blockType ?? spec.kind).trim() || spec.kind
     const blockTypeLabel =
       String(spec.blockTypeLabel ?? '').trim() || (blockType === BASIC_BLOCK_TYPE ? '基础模块' : spec.label)

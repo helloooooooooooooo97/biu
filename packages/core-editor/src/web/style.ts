@@ -14,8 +14,10 @@ export const PAGE_EDITOR_STYLE = `
 .page-block-handle-grip:active{cursor:grabbing}
 .page-block-handle-dots{display:block;width:10px;height:16px;background-image:radial-gradient(circle,currentColor 1.35px,transparent 1.45px);background-size:5px 5.2px;background-position:0 0}
 .page-block-handle-menu{position:absolute;left:26px;top:0;z-index:40;min-width:132px;padding:4px;display:flex;flex-direction:column;gap:1px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:8px;box-shadow:var(--dsw-shadow)}
-.page-block-handle-menu button{display:flex;align-items:center;gap:8px;width:100%;margin:0;border:0;border-radius:6px;padding:6px 8px;background:transparent;color:var(--dsw-label);font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer}
-.page-block-handle-menu button:hover{background:var(--dsw-hover)}
+.page-block-handle-menu button{display:flex;align-items:center;gap:8px;width:100%;margin:0;border:0;border-radius:6px;padding:6px 8px;background:transparent;color:var(--dsw-sidebar-fg);font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer}
+.page-block-handle-menu button svg{flex:none;color:var(--dsw-icon)}
+.page-block-handle-menu button:hover{background:var(--dsw-hover);color:var(--dsw-sidebar-fg)}
+.page-block-handle-menu button:hover svg{color:var(--dsw-icon)}
 .page-editor .tiptap>:first-child{margin-top:0}
 .page-editor .tiptap p,.page-editor .tiptap h1,.page-editor .tiptap h2,.page-editor .tiptap h3,.page-editor .tiptap ul,.page-editor .tiptap ol,.page-editor .tiptap blockquote,.page-editor .tiptap pre{margin:2px 0}
 .page-editor .tiptap p{min-height:1.7em}
@@ -69,6 +71,8 @@ export const PAGE_EDITOR_STYLE = `
 .page-editor .tiptap span.mention,.page-editor .tiptap span.mention:has(.biu-tag){display:inline;padding:0;background:transparent;color:inherit}
 .page-editor .tiptap span.mention .biu-tag,.page-editor .tiptap span.mention .composer-tool-chip.is-pick,.page-editor .tiptap span[data-type=mention].biu-tag{height:1.7em;line-height:1.7em;cursor:pointer}
 .page-slash .pick-kind-icon{flex:none;width:14px;height:14px;color:var(--dsw-icon)}
+.page-slash-item:hover,.page-slash-item.is-active{color:var(--dsw-sidebar-fg)}
+.page-slash-item:hover .page-slash-icon,.page-slash-item.is-active .page-slash-icon,.page-slash-item:hover .pick-kind-icon,.page-slash-item.is-active .pick-kind-icon{color:var(--dsw-icon)}
 .page-editor .tiptap p.is-editor-empty:first-child::before,
 .page-editor .tiptap .is-empty::before{content:attr(data-placeholder);float:left;height:0;pointer-events:none;color:var(--dsw-placeholder)}
 html:not(.dark) .page-editor .tiptap p.is-editor-empty:first-child::before,
@@ -80,7 +84,7 @@ html:not(.dark) .page-bubble{box-shadow:none}
 .page-slash-head{flex:none;padding:6px 8px 2px}
 .page-slash-list{min-height:0;flex:1;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:1px}
 .page-slash-group{display:flex;flex-direction:column;gap:1px}
-.page-slash-item{display:flex;align-items:center;gap:8px;width:100%;margin:0;box-sizing:border-box;border:1px solid transparent;border-radius:6px;padding:4px 6px;background:transparent;color:var(--dsw-label);font:inherit;text-align:left;cursor:pointer}
+.page-slash-item{display:flex;align-items:center;gap:8px;width:100%;margin:0;box-sizing:border-box;border:1px solid transparent;border-radius:6px;padding:4px 6px;background:transparent;color:var(--dsw-sidebar-fg);font:inherit;text-align:left;cursor:pointer}
 .page-slash-item:hover,.page-slash-item.is-active{background:var(--dsw-hover);border-color:var(--dsw-border)}
 .page-slash-icon{flex:none;display:grid;place-items:center;width:18px;height:18px;border:0;border-radius:0;background:transparent;color:var(--dsw-icon);font-size:11px;font-weight:700;line-height:1}
 .page-slash-label{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;line-height:1.2}
@@ -108,12 +112,15 @@ html:not(.dark) .page-bubble{box-shadow:none}
 .page-editor .page-block.page-find-hit{color:inherit;background:transparent;box-shadow:0 0 0 2px color-mix(in srgb,${TAG_TONE_ROSE} 55%,transparent)}
 .page-editor .page-block.page-find-hit.is-current{box-shadow:0 0 0 2px ${TAG_TONE_ROSE}}
 .page-bubble{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:4px;max-width:min(420px,calc(100vw - 48px))}
-.page-bubble button{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;margin:0;border:0;border-radius:6px;padding:0 7px;background:transparent;color:var(--dsw-label);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.page-bubble button{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;margin:0;border:0;border-radius:6px;padding:0 7px;background:transparent;color:var(--dsw-sidebar-fg);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.page-bubble button svg{color:var(--dsw-icon)}
 .page-bubble button:hover,.page-bubble button.is-on{background:var(--dsw-hover)}
+.page-bubble button:hover{color:var(--dsw-sidebar-fg)}
+.page-bubble button:hover svg{color:var(--dsw-icon)}
 .page-bubble button.is-on{color:var(--dsw-business)}
 .page-bubble-chat{gap:4px;padding:0 8px}
-.page-bubble-chat-icon{display:block;width:14px;height:14px;flex:none}
-.page-bubble-letter{font-size:12px;font-weight:800;line-height:1;border-bottom:2px solid currentColor;color:var(--dsw-label)}
+.page-bubble-chat-icon{display:block;width:14px;height:14px;flex:none;color:var(--dsw-icon)}
+.page-bubble-letter{font-size:12px;font-weight:800;line-height:1;border-bottom:2px solid currentColor;color:var(--dsw-sidebar-fg)}
 .page-bubble-mark{display:block;width:12px;height:12px;border-radius:3px;border:1px solid var(--dsw-border);box-sizing:border-box}
 .page-color-menu{z-index:90;width:168px;padding:8px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:8px;box-shadow:var(--dsw-shadow)}
 .page-color-menu-h{padding:0 2px 6px;color:var(--dsw-label-3);font-size:11px;font-weight:600}
@@ -147,4 +154,21 @@ html[data-body-gap=sm] .page-editor .tiptap p,html[data-body-gap=sm] .page-edito
 html[data-body-gap=lg] .page-editor .tiptap p,html[data-body-gap=lg] .page-editor .tiptap h1,html[data-body-gap=lg] .page-editor .tiptap h2,html[data-body-gap=lg] .page-editor .tiptap h3,html[data-body-gap=lg] .page-editor .tiptap ul,html[data-body-gap=lg] .page-editor .tiptap ol,html[data-body-gap=lg] .page-editor .tiptap blockquote,html[data-body-gap=lg] .page-editor .tiptap pre{margin:8px 0}
 html[data-body-gap=sm] .page-editor .tiptap p{min-height:1.45em}
 html[data-body-gap=lg] .page-editor .tiptap p{min-height:2em}
+html:not(.dark) .page-block-handle-menu button,
+html:not(.dark) .page-block-handle-menu button:hover,
+html:not(.dark) .page-slash-item,
+html:not(.dark) .page-slash-item:hover,
+html:not(.dark) .page-slash-item.is-active,
+html:not(.dark) .page-slash-label,
+html:not(.dark) .page-bubble button:not(.is-on),
+html:not(.dark) .page-bubble-letter{color:#5f5e5a}
+html:not(.dark) .page-block-handle-menu button svg,
+html:not(.dark) .page-block-handle-menu button:hover svg,
+html:not(.dark) .page-slash-icon,
+html:not(.dark) .page-slash-icon svg,
+html:not(.dark) .page-slash .pick-kind-icon,
+html:not(.dark) .page-slash-item:hover .page-slash-icon,
+html:not(.dark) .page-slash-item.is-active .page-slash-icon,
+html:not(.dark) .page-bubble button:not(.is-on) svg,
+html:not(.dark) .page-bubble-chat-icon{color:#91918e}
 `

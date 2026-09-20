@@ -1,6 +1,8 @@
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { Service, type Context } from 'cordis'
 import { skillsCollection } from './collection.ts'
-import { legacySkillImports, SkillsStore, type SkillImportInput, type SkillRecord } from './store.ts'
+import { LEGACY_MIGRATED, legacySkillImports, SkillsStore, type SkillImportInput, type SkillRecord } from './store.ts'
 
 export type SkillSummary = {
   id: string
@@ -99,14 +101,21 @@ export class SkillsService extends Service {
 
   migrateLegacyDirectories() {
     let migrated = 0
-    for (const input of legacySkillImports()) {
-      const id = String(input.id || '')
-      if (!id || this.store.get(id)) continue
-      try {
-        this.store.import(input)
-        migrated += 1
-      } catch {
-        // 已存在或目录不合法就跳过。
+    for (const entry of legacySkillImports()) {
+      if (entry.input) {
+        const id = String(entry.input.id || '')
+        if (!(id && this.store.get(id))) {
+          try {
+            this.store.import(entry.input)
+            migrated += 1
+          } catch {
+            // 已存在或目录不合法就跳过。
+          }
+        }
+      }
+      mkdirSync(entry.folder, { recursive: true })
+      if (!existsSync(join(entry.folder, LEGACY_MIGRATED))) {
+        writeFileSync(join(entry.folder, LEGACY_MIGRATED), '')
       }
     }
     if (migrated) this.changed()

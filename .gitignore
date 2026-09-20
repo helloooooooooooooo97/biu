@@ -18,6 +18,9 @@ packages/**/*.d.ts.map
 host/**/*.js
 host/**/*.js.map
 electron/out/
+pack-app/
+pack-host/
+release/
 web/**/*.js
 web/**/*.js.map
 # 沙箱源码是 ts/tsx；pack 产物在 .plugin。这里挡住误编译进沙箱的 js 和依赖

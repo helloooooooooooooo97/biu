@@ -2,7 +2,7 @@ import { InputRule, mergeAttributes, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Markdown } from '@tiptap/markdown'
 import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
-import Image from '@tiptap/extension-image'
+import { pageImage } from './page-image.ts'
 import { BlockMath, InlineMath, Mathematics } from '@tiptap/extension-mathematics'
 import Placeholder from '@tiptap/extension-placeholder'
 import { TableKit } from '@tiptap/extension-table'
@@ -209,7 +209,7 @@ export function pageEditorExtensions() {
     pageTextStyle,
     Color,
     pageHighlight,
-    Image.configure({ inline: false, allowBase64: true }),
+    pageImage,
     TableKit.configure({
       table: { resizable: true, allowTableNodeSelection: true },
     }),

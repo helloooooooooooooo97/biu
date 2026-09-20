@@ -875,6 +875,7 @@ export function apply(ctx: {
     blockTypeLabel: '代码',
     hint: '在文档中运行多语言代码（Python/Java/C++/Go 等），编译执行并显示输出；高度随内容自适应，可拖动底部条调整、双击恢复，也可收起',
     aliases: ['code', 'run', 'runcode', '代码运行', 'java', 'python', 'js'],
+    assets: [],
     defaults: { lang: 'python', code: SAMPLES.python },
     View: CodeRunnerBlock,
   })

@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, posix, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
-import { dataPath } from '@biu/host-plugin-loader/data-dir'
+import { dataHome, dataPath, openAndMigrateBiu, readEditorContent, writeEditorContent } from '@biu/host-plugin-loader/data-dir'
 
 export type SkillRecord = {
   id: string
@@ -38,12 +38,13 @@ const ID_PATTERN = /^[a-z][a-z0-9-]{1,63}$/
 const MAX_FILES = 500
 const MAX_TOTAL_CHARS = 5_000_000
 const SKIP_DIR = new Set(['node_modules', '.git', '__pycache__'])
+export const LEGACY_MIGRATED = '.biu-migrated'
 
-export function skillRoot(cwd = process.cwd()) {
+export function skillRoot(cwd = dataHome()) {
   return process.env.BIU_SKILL_ROOT || dataPath(cwd, 'skill')
 }
 
-export function skillsDir(cwd = process.cwd()) {
+export function skillsDir(cwd = dataHome()) {
   return process.env.BIU_SKILLS_DIR || dataPath(cwd, 'skills')
 }
 
@@ -57,9 +58,16 @@ export function slugify(value: string) {
   return slug.replace(/^[^a-z]+/, '')
 }
 
+export function trySkillId(raw: string) {
+  const wanted = String(raw ?? '').trim()
+  if (ID_PATTERN.test(wanted)) return wanted
+  const slug = slugify(wanted)
+  return ID_PATTERN.test(slug) ? slug : ''
+}
+
 export function assertSkillId(id: string) {
-  const wanted = String(id ?? '').trim()
-  if (!ID_PATTERN.test(wanted)) {
+  const wanted = trySkillId(id)
+  if (!wanted) {
     throw new Error(`invalid skill id: ${id} (expected lowercase letters, digits and dashes, 2-64 chars)`)
   }
   return wanted
@@ -197,7 +205,7 @@ function walkFiles(dir: string, prefix = ''): string[] {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) return []
   const out: string[] = []
   for (const name of readdirSync(dir)) {
-    if (SKIP_DIR.has(name)) continue
+    if (SKIP_DIR.has(name) || name === LEGACY_MIGRATED) continue
     const full = join(dir, name)
     const rel = prefix ? posix.join(prefix, name) : name
     if (statSync(full).isDirectory()) {
@@ -305,7 +313,16 @@ export class SkillsStore {
     try {
       const file = skillFile(this.root, id)
       if (!existsSync(file) || !statSync(file).isFile()) return null
-      return loadSkill(id, readFileSync(file, 'utf8'))
+      const loaded = loadSkill(id, readFileSync(file, 'utf8'))
+      try {
+        const db = openAndMigrateBiu(dataPath(dataHome(), 'biu.sqlite'))
+        const body = readEditorContent(db, '/skills', loaded.id)
+        db.close()
+        if (body) loaded.notes = body
+      } catch {
+        /* sqlite unavailable */
+      }
+      return loaded
     } catch {
       return null
     }
@@ -325,7 +342,31 @@ export class SkillsStore {
       createdAt: record.createdAt || Date.now(),
     }
     writeFileSync(skillFile(this.ensureRoot(), next.id), dumpSkill(next))
+    try {
+      const db = openAndMigrateBiu(dataPath(dataHome(), 'biu.sqlite'))
+      writeEditorContent(db, '/skills', next.id, next.notes)
+      db.close()
+    } catch {
+      /* sqlite unavailable */
+    }
     return next
+  }
+
+  private allocateId(base: string) {
+    const root = trySkillId(base) || 'new-skill'
+    if (!this.get(root)) return root
+    for (let n = 2; n < 1000; n++) {
+      const id = `${root}-${n}`.slice(0, 64)
+      if (ID_PATTERN.test(id) && !this.get(id)) return id
+    }
+    throw new Error('could not allocate skill id')
+  }
+
+  private blankDraft() {
+    return this.list().find((item) => {
+      if (item.name !== '新技能' || item.description.trim() || item.notes.trim()) return false
+      return this.listFiles(item.id).length === 0
+    })
   }
 
   create(input: {
@@ -342,8 +383,14 @@ export class SkillsStore {
   }) {
     const name = String(input.name ?? '').trim() || '新技能'
     const description = String(input.description ?? '').trim()
-    const requested = String(input.id ?? '').trim()
-    const id = assertSkillId(requested || slugify(name) || `skill-${Date.now().toString(36)}`)
+    const notes = String(input.notes ?? '')
+    const requested = trySkillId(String(input.id ?? '').trim())
+    const blank = !description && !notes.trim() && !input.files?.length && name === '新技能'
+    if (!requested && blank) {
+      const existing = this.blankDraft()
+      if (existing) return existing
+    }
+    const id = requested || this.allocateId(slugify(name) || 'new-skill')
     if (this.get(id)) throw new Error(`skill already exists: ${id}`)
     const now = Date.now()
     const created = this.put({
@@ -354,7 +401,7 @@ export class SkillsStore {
       tags: asStringList(input.tags),
       emoji: String(input.emoji ?? '').trim(),
       enabled: input.draft || !description ? false : input.enabled !== false,
-      notes: String(input.notes ?? ''),
+      notes: notes,
       createdAt: now,
       updatedAt: now,
     })
@@ -366,7 +413,7 @@ export class SkillsStore {
     const packed = packSkillImport(input.files ?? [])
     const description = String(input.description || packed.parsed.meta.description || '').trim()
     return this.create({
-      id: input.id || slugify(packed.parsed.meta.name || '') || undefined,
+      id: trySkillId(String(input.id ?? '')) || trySkillId(packed.parsed.meta.name || '') || undefined,
       name: input.name || packed.parsed.meta.name,
       description,
       source: input.source || packed.parsed.meta.source,
@@ -415,7 +462,7 @@ function walkImportFiles(dir: string, prefix = ''): SkillImportFile[] {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) return []
   const out: SkillImportFile[] = []
   for (const name of readdirSync(dir)) {
-    if (SKIP_DIR.has(name)) continue
+    if (SKIP_DIR.has(name) || name === LEGACY_MIGRATED) continue
     const full = join(dir, name)
     const rel = posix.join(prefix, name)
     if (statSync(full).isDirectory()) {
@@ -427,16 +474,37 @@ function walkImportFiles(dir: string, prefix = ''): SkillImportFile[] {
   return out
 }
 
-export function legacySkillImports(cwd = process.cwd()): SkillImportInput[] {
+export type LegacySkillImport = {
+  folder: string
+  input: SkillImportInput | null
+}
+
+export function legacySkillImports(cwd = process.cwd()): LegacySkillImport[] {
   const root = skillsDir(cwd)
   if (!existsSync(root) || !statSync(root).isDirectory()) return []
-  const out: SkillImportInput[] = []
+  const out: LegacySkillImport[] = []
   for (const name of readdirSync(root)) {
     const folder = join(root, name)
     if (!statSync(folder).isDirectory()) continue
+    if (existsSync(join(folder, LEGACY_MIGRATED))) continue
     const files = walkImportFiles(folder)
     if (!files.some((file) => /(^|\/)skill\.md$/i.test(file.path))) continue
-    out.push({ id: slugify(name) || name, files, draft: false })
+    const packed = packSkillImport(files)
+    const description = String(packed.parsed.meta.description || '').trim()
+    const notes = packed.notes.trim()
+    // 空占位（只有空白 SKILL.md）不要在每次启动时再灌进技能表。
+    if (!description && !notes && packed.files.length === 0) {
+      out.push({ folder, input: null })
+      continue
+    }
+    out.push({
+      folder,
+      input: {
+        id: trySkillId(name) || trySkillId(packed.parsed.meta.name || '') || undefined,
+        files,
+        draft: false,
+      },
+    })
   }
   return out
 }

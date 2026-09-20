@@ -26,8 +26,26 @@ const VIRTUAL_UI = 'virtual:cordis-ui-loaders'
 const RESOLVED_UI = `\0${VIRTUAL_UI}`
 const VIRTUAL_WEB = 'virtual:cordis-web-runtime'
 const RESOLVED_WEB = `\0${VIRTUAL_WEB}`
+const PACKAGED_MODULES = Symbol.for('biu.packagedHostModules')
 
-export { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, dataDir, dataPath, migrateDataDir, migrateLegacyPageDir, LEGACY_PAGE_ROOT, PAGE_ROOT, PAGE_DB, PAGE_ASSETS } from './data-dir.ts'
+export { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, adoptPackedUserData, dataDir, dataHome, dataPath, assetsRootPath, migrateDataDir, migrateLegacyPageDir, LEGACY_PAGE_ROOT, PAGE_ROOT, PAGE_DB, PAGE_ASSETS, ASSETS_ROOT } from './data-dir.ts'
+export {
+  contentAddressHash,
+  hashedAssetName,
+  hashedAssetRel,
+  isHashedAssetName,
+  writeContentAddressed,
+  readContentAddressed,
+  writeDocument,
+  readDocument,
+  AssetConflictError,
+  parseIfMatch,
+} from './asset-cas.ts'
+export { adoptCasAssets, listCasAssetFiles, listDocAssetFiles } from './adopt-cas-assets.ts'
+export { openSqlite, configureSqlite, quoteSqlitePath, SQLITE_BUSY_TIMEOUT_MS, SQLITE_WAL_AUTOCHECKPOINT } from './sqlite-open.ts'
+export { ensureBiuAssetSchema, LATEST_BIU_SCHEMA, createLatestSchema } from './biu-schema.ts'
+export { migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
+export { migrateEvents, openAndMigrateEvents, LATEST_EVENTS_SCHEMA } from './events-migrate.ts'
 
 export function pluginWebSpecifier(item: CordisPluginEntry): string | undefined {
   return item.web
@@ -113,6 +131,10 @@ export function packageEntryFile(pkgDir: string, specifier = '.'): string {
 }
 
 export async function importConfiguredPackage(root: string, packageName: string) {
+  const packaged = (globalThis as any)[PACKAGED_MODULES] as Record<string, () => Promise<unknown>> | undefined
+  if (packaged && Object.prototype.hasOwnProperty.call(packaged, packageName)) {
+    return packaged[packageName]()
+  }
   const dir = findWorkspacePackageDir(root, packageName)
   if (dir) {
     const entry = packageEntryFile(dir, packageName)
@@ -136,15 +158,19 @@ export function linkConfiguredPackages(root: string) {
     }
     const linkPath = join(root, 'node_modules', ...name.split('/'))
     mkdirSync(dirname(linkPath), { recursive: true })
-    if (existsSync(linkPath)) {
-      try {
-        if (lstatSync(linkPath).isSymbolicLink()) rmSync(linkPath)
-        else continue
-      } catch {
-        continue
+    try {
+      const stat = lstatSync(linkPath)
+      if (stat.isSymbolicLink() || stat.isDirectory()) {
+        rmSync(linkPath, { recursive: true, force: true })
       }
+    } catch {
+      // 路径不存在或没有权限时忽略
     }
-    symlinkSync(dir, linkPath, 'dir')
+    try {
+      symlinkSync(dir, linkPath, 'dir')
+    } catch (e: any) {
+      if (e?.code !== 'EEXIST') throw e
+    }
   }
 }
 

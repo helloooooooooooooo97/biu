@@ -331,7 +331,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                         aria-expanded={!sectionCollapsed}
                         onClick={() => toggleSection(section.kind)}
                       >
-                        <span className="sidebar-label min-w-0 flex-1 truncate tracking-normal">{section.label}</span>
+                        <span className="min-w-0 flex-1 truncate tracking-normal">{section.label}</span>
                       </button>
                     <ChatCount
                       count={

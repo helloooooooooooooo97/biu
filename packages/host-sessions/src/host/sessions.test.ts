@@ -224,6 +224,20 @@ test('delete removes session from store and cache', async () => {
   assert.equal(await ctx.sessions.delete(record.id), false)
 })
 
+test('ensureDefaultSession creates exactly one session when the store is empty', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  const [first, second] = await Promise.all([
+    ctx.sessions.ensureDefaultSession(),
+    ctx.sessions.ensureDefaultSession(),
+  ])
+  assert.equal(first, second)
+  assert.deepEqual(await ctx.sessions.list(), [first])
+  assert.equal(await ctx.sessions.ensureDefaultSession(), first)
+  assert.deepEqual(await ctx.sessions.list(), [first])
+})
+
 test('create/listSummaries/fork round-trip without a session type field', async () => {
   const ctx = new Context()
   await ctx.plugin(sessionStore, { driver: 'memory' })
@@ -252,6 +266,31 @@ test('sqlite persists session records across reopen', async () => {
   assert.equal(loaded?.id, 'persist-sql')
   assert.equal('type' in (loaded ?? {}), false)
   assert.equal((await ctx2.sessions.listSummaries())[0]?.id, 'persist-sql')
+})
+
+test('sqlite split sessions and events stay consistent across files', async () => {
+  const { createRequire } = await import('node:module')
+  const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
+  const dir = await mkdtemp(join(tmpdir(), 'cordis-split-sql-'))
+  const path = join(dir, 'biu.sqlite')
+  const eventsPath = join(dir, 'events.sqlite')
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'sqlite', path, eventsPath })
+  await ctx.plugin(sessions)
+  await ctx.sessions.create('split1')
+  await ctx.sessions.append('split1', { type: 'user/message', text: 'hi', kind: 'wake' })
+  const sessionsDb = new DatabaseSync(path)
+  const eventsDb = new DatabaseSync(eventsPath)
+  const sessionRow = sessionsDb.prepare('SELECT event_count FROM sessions WHERE id = ?').get('split1') as
+    | { event_count: number }
+    | undefined
+  const eventRows = eventsDb.prepare('SELECT COUNT(*) AS n FROM events WHERE session_id = ?').get('split1') as
+    | { n: number }
+    | undefined
+  sessionsDb.close()
+  eventsDb.close()
+  assert.equal(sessionRow?.event_count, 2)
+  assert.equal(Number(eventRows?.n), 2)
 })
 
 test('sqlite drops leftover sessions.type column', async () => {

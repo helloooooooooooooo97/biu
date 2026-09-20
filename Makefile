@@ -1,4 +1,6 @@
-.PHONY: dev host web test install stop restart build build
+.PHONY: dev host web test install stop restart build rebuild pack
+
+# 默认：装依赖并同时起 host(:3141) + Vite(:5173)
 
 # 默认：装依赖并同时起 host(:3141) + Vite(:5173)
 dev: install
@@ -45,3 +47,11 @@ test:
 # Vite 生产构建。全仓 tsc 仍有历史债，不挡这条。
 build:
 	npm run build
+
+# 打包后部署运行：先释放占用端口，再 vite build，最后 npm start（无 Vite，UI 由 :3141 提供 dist）
+rebuild: stop build
+	npm start
+
+# macOS dmg / Windows exe：见 docs/desktop-install.md；CI tag v* 走 GitHub Release
+pack:
+	npm run electron:pack

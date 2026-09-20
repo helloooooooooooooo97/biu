@@ -651,7 +651,7 @@ test('editContent write accepts from a local file and rejects value+from togethe
   await assert.rejects(() => db.editContent('/docs/n1', { command: 'write', from: join(dir, 'nope.md') }), /cannot read from/)
 })
 
-test('editAsset views and writes referenced attachments with etag', async () => {
+test('editAsset views and writes referenced attachments as content-addressed files', async () => {
   const ctx = new Context()
   const db = new DatabaseService(ctx)
   db.assets = new FileSystemAssets(await mkdtemp(join(tmpdir(), 'db-asset-')))
@@ -682,28 +682,29 @@ test('editAsset views and writes referenced attachments with etag', async () => 
   const missing = (listed as { assets: Array<{ name: string; missing?: boolean }> }).assets
   assert.equal(missing[0]?.name, 'board.json')
   assert.equal(missing[0]?.missing, true)
-  await db.assets.write('board.json', '{"elements":[]}')
-  const viewed = await db.editAsset('/pages/p1', { command: 'view', name: 'board.json' })
-  assert.equal(typeof viewed.etag, 'string')
-  assert.equal(String(viewed.etag).length, 16)
-  await assert.rejects(() => db.editAsset('/pages/p1', { command: 'write', name: 'board.json', value: '{}' }))
   const written = await db.editAsset('/pages/p1', {
     command: 'write',
     name: 'board.json',
-    value: '{}',
-    etag: viewed.etag,
+    value: '{"elements":[]}',
+    block_id: 'e4945888',
+    kind: 'core',
+    source: 'block:e4945888:board',
   })
   assert.equal(written.ok, true)
+  assert.match(String(written.name), /^[a-f0-9]{64}\.json$/)
+  const viewed = await db.editAsset('/pages/p1', { command: 'view', name: written.name })
+  assert.equal(viewed.etag, written.name)
   const dump = join(await mkdtemp(join(tmpdir(), 'db-asset-from-')), 'scene.json')
   await writeFile(dump, '{"elements":[{"id":"a"}]}')
   const fromFile = await db.editAsset('/pages/p1', {
     command: 'write',
     name: 'board.json',
     from: dump,
-    etag: written.etag,
+    block_id: 'e4945888',
+    source: 'block:e4945888:board',
   })
-  assert.equal(fromFile.ok, true)
-  const again = await db.editAsset('/pages/p1', { command: 'view', name: 'board.json' })
+  assert.notEqual(fromFile.name, written.name)
+  const again = await db.editAsset('/pages/p1', { command: 'view', name: fromFile.name })
   assert.match(String((again as { text?: string }).text), /"id":"a"/)
   await assert.rejects(() => db.editAsset('/pages/p1', { command: 'write', name: 'board.json', etag: again.etag }), /value or from/)
   await assert.rejects(() => db.editAsset('/pages/p1', { command: 'view', name: 'nope.json' }), /not referenced/)
@@ -744,13 +745,13 @@ test('editAsset can create a new image then reference it from content', async ()
     from: dump,
   })
   assert.equal(created.ok, true)
-  assert.equal(created.name, 'hero.png')
+  assert.match(String(created.name), /^[a-f0-9]{64}\.png$/)
   await db.editContent('/pages/p1', {
     command: 'insert',
     insert_line: 1,
-    new_str: '![封面](/api/db/file/hero.png)',
+    new_str: `![封面](/api/db/file/${created.name})`,
   })
-  assert.match(String((await db.content('/pages/p1')).value), /\/api\/db\/file\/hero\.png/)
+  assert.match(String((await db.content('/pages/p1')).value), new RegExp(created.name.replace('.', '\\.')))
   const missingRef = await db.editContent('/pages/p1', {
     command: 'insert',
     insert_line: 2,
@@ -827,7 +828,7 @@ test('apply registers db_* tools', async () => {
   new HttpStub(ctx)
   await ctx.plugin({ inject: ['tools', 'http'], apply: applyFileSystem })
   const names = ctx.tools.names()
-  for (const name of ['db_list', 'db_read', 'db_update', 'db_create', 'db_delete', 'db_stat', 'db_action', 'db_content', 'db_asset']) {
+  for (const name of ['db_list', 'db_read', 'db_update', 'db_create', 'db_delete', 'db_stat', 'db_action', 'db_content', 'db_asset', 'db_doc']) {
     assert.equal(names.includes(name), true, name)
   }
   for (const name of ['db_list', 'db_read', 'db_stat']) {
@@ -844,9 +845,8 @@ test('apply registers db_* tools', async () => {
   const paths = items.map((item) => item.path)
   assert.equal(paths.includes('/views'), true)
   assert.equal(paths.includes('/facets'), true)
-  assert.equal(paths.includes('/notices'), true)
-  const notices = items.find((item) => item.path === '/notices')
-  assert.match(String(notices?.view?.blurb ?? ''), /db_list \/notices/)
+  assert.equal(paths.includes('/notices'), false)
+  assert.equal(paths.includes('/asset-gc'), true)
   const views = items.find((item) => item.path === '/views')
   assert.match(String(views?.view?.blurb ?? ''), /db_list \/views/)
   assert.match(String(views?.view?.blurb ?? ''), /filterTree/)

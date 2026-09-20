@@ -15,6 +15,8 @@ function stubStore(partial: Partial<PluginStoreService>): PluginStoreService {
     close() {},
     pack() {},
     uninstall() {},
+    pluginPath: (id: string) => `/workspace/.plugin/${id}`,
+    sandboxPath: (id: string) => `/workspace/.plugin-dev/${id}`,
     ...partial,
   } as PluginStoreService
 }
@@ -80,12 +82,14 @@ test('pluginsCollection lists installed plugins and sandboxes in one table', asy
   const demo = listed.find((row) => row.id === 'demo')
   const draft = listed.find((row) => row.id === 'draft-hello')
   assert.equal(demo?.installed, true)
+  assert.equal(demo?.pluginPath, '/workspace/.plugin/demo')
   assert.equal(demo?.sandbox, undefined)
   assert.equal(demo?.shellWidth, defaultStoreShell().width)
   assert.equal(demo?.hasWeb, true)
   assert.equal(demo?.codeVersion, 'abc123def456')
   assert.equal(demo?.headless, undefined)
   assert.equal(draft?.sandbox, true)
+  assert.equal(draft?.sandboxPath, '/workspace/.plugin-dev/draft-hello')
   assert.equal(draft?.installed, undefined)
   assert.equal(draft?.running, undefined)
   assert.equal(draft?.bytes, undefined)
@@ -109,6 +113,8 @@ test('pluginsCollection lists installed plugins and sandboxes in one table', asy
   assert.deepEqual(spec.records, { update: false, create: false, delete: true })
   assert.equal(typeof spec.remove, 'function')
   assert.ok(spec.schema.columns?.includes('sandbox'))
+  assert.ok(spec.schema.columns?.includes('sandboxPath'))
+  assert.ok(spec.schema.columns?.includes('pluginPath'))
   assert.ok(spec.schema.columns?.includes('installed'))
   assert.ok(spec.schema.columns?.includes('tags'))
   assert.ok(spec.schema.columns?.includes('codeVersion'))

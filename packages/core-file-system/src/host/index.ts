@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import type { IncomingMessage } from 'node:http'
 import { isAbsolute, resolve } from 'node:path'
-import { dataPath } from '@biu/host-plugin-loader/data-dir'
-import { asPublicProfile, readWorkspaceProfile, writeWorkspaceProfile } from './workspace-profile.ts'
+import { dataHome, dataPath, readEditorContent, writeEditorContent, ASSET_GC_INTERVAL_MS } from '@biu/host-plugin-loader/data-dir'
+import { asPublicProfile, readWorkspaceProfile, writeWorkspaceProfile } from '@biu/host-workspace'
 import { Service, type Context } from 'cordis'
 import {
   DATABASE_CHANNEL,
@@ -16,6 +16,7 @@ import {
   isFacetFieldType,
   bindSchemaValue,
   emptySchemaValue,
+  isEmptySchemaValue,
   normalizeSchemaValue,
   schemaSearchHaystack,
   withBuiltinFields,
@@ -46,10 +47,10 @@ import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
 import { buildShareSnapshot } from './share-payload.ts'
-import { AssetConflictError, FileSystemAssets, collectAssetNames, isAssetFileName, parseIfMatch } from './assets-store.ts'
+import { FileSystemAssets, collectAssetNames, assetNamesFromMarkdown, assetNamesFromHtml, isAssetFileName, isHashedAssetName, mimeOfAsset, AssetConflictError, parseIfMatch } from './assets-store.ts'
 import { facetsCollection } from './facets-collection.ts'
-import { noticesCollection } from './notices-collection.ts'
-import { NoticesService } from './notices-service.ts'
+import { assetGcCollection } from './asset-gc-collection.ts'
+import { runWorkspaceAssetGc } from './asset-gc-run.ts'
 import { ContentTurnService } from './content-turn-service.ts'
 import {
   asContentText,
@@ -161,6 +162,10 @@ function collectionCaps(spec: CollectionSpec) {
     spec.actions?.length ? 'action' : null,
     'content',
   ].filter(Boolean)
+}
+
+function isEditorContentSpec(spec: CollectionSpec) {
+  return schemaFor(spec).contentBackend === 'editorContent'
 }
 
 function contentKey(spec: CollectionSpec) {
@@ -538,6 +543,7 @@ export class DatabaseService extends Service implements Database {
   facets = new FacetStore()
   shares = new SharesStore()
   assets = new FileSystemAssets()
+  recycleAssets?: () => void
 
   private bumpQueued = false
 
@@ -746,7 +752,6 @@ export class DatabaseService extends Service implements Database {
   private decorateRecord(spec: CollectionSpec, row: DbRecord): DbRecord {
     const withFacet = this.applyFacetOverlay(spec, row)
     const withPeople = this.applyPersonOverlay(spec, withFacet)
-    if (this.collectionCanUpdate(spec)) return withPeople
     return this.applyMetaOverlay(spec, withPeople)
   }
 
@@ -756,6 +761,17 @@ export class DatabaseService extends Service implements Database {
     delete next.banner
     if (banner) next.banner = banner
     return next
+  }
+
+  private refreshContentRefs(spec: CollectionSpec, record: DbRecord) {
+    const banner = this.facets.recordBanner(spec.path, record.id)
+    const body = readEditorContent(this.facets.ensure(), spec.path, record.id)
+    this.facets.replaceContentRefs(
+      spec.path,
+      record.id,
+      assetNamesFromMarkdown(body),
+      assetNamesFromHtml(String(banner?.html ?? '')),
+    )
   }
 
   private applyPersonOverlay(spec: CollectionSpec, row: DbRecord): DbRecord {
@@ -826,13 +842,20 @@ export class DatabaseService extends Service implements Database {
 
   private applyFacetOverlay(spec: CollectionSpec, row: DbRecord): DbRecord {
     if (!schemaFor(spec).fields.facet) return row
-    const overlay = this.facets.recordFacet(spec.path, row.id)
+    let overlay = this.facets.recordFacet(spec.path, row.id)
+    if (!overlay && row.facet != null) {
+      const value = normalizeSchemaValue(row.facet)
+      if (!isEmptySchemaValue(value)) overlay = this.persistRecordFacet(spec, row.id, value, row)
+    }
     if (!overlay) return row
     return { ...row, facet: overlay }
   }
 
   private applyMetaOverlay(spec: CollectionSpec, row: DbRecord): DbRecord {
-    const meta = this.facets.recordMeta(spec.path, row.id)
+    let meta = this.facets.recordMeta(spec.path, row.id)
+    if ((!meta || meta.tags == null) && Array.isArray(row.tags) && row.tags.length) {
+      meta = this.facets.writeRecordMeta(spec.path, row.id, { tags: row.tags.map((item) => String(item)) })
+    }
     if (!meta) return row
     return {
       ...row,
@@ -923,6 +946,7 @@ export class DatabaseService extends Service implements Database {
         this.facets.writeRecordBanner(spec.path, current.id, bannerPatch.value)
         next = this.withBanner(spec, next)
       }
+      this.refreshContentRefs(spec, next)
       await this.stampActor(spec.path, current.id)
       this.bump()
       const beforeRow = this.decorateRecord(spec, current)
@@ -946,6 +970,17 @@ export class DatabaseService extends Service implements Database {
     await assertSameTableLinks(spec, patch, parts[1])
     let record = Object.keys(patch).length ? await spec.update(parts[1]!, patch) : current
     await this.stampActor(spec.path, record.id)
+    if ('emoji' in patch || 'tags' in patch) {
+      const meta = this.facets.writeRecordMeta(spec.path, record.id, {
+        ...('emoji' in patch ? { emoji: String(patch.emoji ?? '') } : {}),
+        ...('tags' in patch ? { tags: Array.isArray(patch.tags) ? patch.tags.map((item) => String(item)) : [] } : {}),
+      })
+      record = {
+        ...record,
+        ...(meta.emoji !== null ? { emoji: meta.emoji } : {}),
+        ...(meta.tags !== null ? { tags: meta.tags } : {}),
+      }
+    }
     if (schema.fields.facet && 'facet' in patch) {
       record = { ...record, facet: this.persistRecordFacet(spec, record.id, patch.facet, record) }
     }
@@ -953,6 +988,7 @@ export class DatabaseService extends Service implements Database {
       this.facets.writeRecordBanner(spec.path, record.id, bannerPatch.value)
     }
     this.indexFacetRecord(spec, this.decorateRecord(spec, record))
+    this.refreshContentRefs(spec, this.withBanner(spec, record))
     this.bump()
     const beforeSnap: Record<string, unknown> = {}
     const afterSnap: Record<string, unknown> = {}
@@ -993,10 +1029,18 @@ export class DatabaseService extends Service implements Database {
       await this.stampActor(spec.path, record.id)
       const banner = banners[index]
       if (banner !== undefined) this.facets.writeRecordBanner(spec.path, record.id, banner)
-      if (schema.fields.facet) {
-        this.persistRecordFacet(spec, record.id, record.facet, record)
+      const input = records[index] ?? record
+      if ('emoji' in input || 'tags' in input) {
+        this.facets.writeRecordMeta(spec.path, record.id, {
+          ...('emoji' in input ? { emoji: String(input.emoji ?? '') } : {}),
+          ...('tags' in input ? { tags: Array.isArray(input.tags) ? input.tags.map((item) => String(item)) : [] } : {}),
+        })
       }
-      this.indexFacetRecord(spec, record)
+      if (schema.fields.facet) {
+        this.persistRecordFacet(spec, record.id, input.facet ?? record.facet, record)
+      }
+      this.indexFacetRecord(spec, this.decorateRecord(spec, record))
+      this.refreshContentRefs(spec, this.withBanner(spec, record))
     }
     this.bump()
     const items = created.map((record) => ({
@@ -1053,6 +1097,7 @@ export class DatabaseService extends Service implements Database {
       }
     }
     this.bump()
+    this.recycleAssets?.()
     return { kind: 'deleted' as const, path: spec.path, ids }
   }
 
@@ -1088,11 +1133,14 @@ export class DatabaseService extends Service implements Database {
     if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    const value = isEditorContentSpec(spec)
+      ? readEditorContent(this.facets.ensure(), spec.path, record.id)
+      : (record[field] ?? null)
     return {
       kind: 'content' as const,
       path: `${spec.path}/${record.id}`,
       field,
-      value: record[field] ?? null,
+      value,
     }
   }
 
@@ -1105,11 +1153,15 @@ export class DatabaseService extends Service implements Database {
     const schema = schemaFor(spec)
     const field = schema.contentField ?? 'content'
     if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
+    if (isEditorContentSpec(spec)) {
+      writeEditorContent(this.facets.ensure(), spec.path, parts[1]!, String(value ?? ''))
+    }
     const patch = this.collectionCanUpdate(spec)
       ? pickWritablePatch(schema, { [field]: value })
       : { [field]: value }
     const record = await spec.update(parts[1]!, patch)
     await this.stampActor(spec.path, record.id)
+    this.refreshContentRefs(spec, this.withBanner(spec, record))
     this.bump()
     return {
       kind: 'content' as const,
@@ -1185,7 +1237,10 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    const names = collectAssetNames(record)
+    const names = new Set([
+      ...collectAssetNames(record, this.facets.recordBanner(spec.path, record.id)?.html),
+      ...this.facets.listedAttachmentNames(spec.path, record.id),
+    ])
     const file = String(args.name ?? '')
       .trim()
       .replace(/^assets\//, '')
@@ -1197,7 +1252,7 @@ export class DatabaseService extends Service implements Database {
       const assets = []
       for (const name of [...names].sort()) {
         try {
-          const read = await this.assets.read(name)
+          const read = await this.assets.readAny(name)
           assets.push({ name, etag: read.etag, type: read.type })
         } catch {
           assets.push({ name, missing: true })
@@ -1209,7 +1264,7 @@ export class DatabaseService extends Service implements Database {
     if (command === 'view') {
       if (!names.has(file)) throw new Error(`asset not referenced: ${file}`)
       try {
-        const read = await this.assets.read(file)
+        const read = await this.assets.readAny(file)
         const text =
           read.type.startsWith('text/') || read.type.includes('json') ? read.bytes.toString('utf8') : undefined
         return {
@@ -1235,9 +1290,109 @@ export class DatabaseService extends Service implements Database {
     if (command !== 'write') throw new Error(`unknown asset command: ${command}`)
     const body = from ? await readLocalWriteFile(from) : String(args.value ?? '')
     if (!from && args.value == null) throw new Error('write needs value or from')
-    const written = await this.assets.write(file, body, { etag: String(args.etag ?? '') })
+    const written = await this.assets.write(file, body)
+    const kind = String(args.kind ?? '') === 'core' ? 'core' : 'asset'
+    const blockId = String(args.block_id ?? args.blockId ?? '').trim()
+    const source = String(args.source ?? (blockId ? `block:${blockId}` : 'asset')).trim() || 'asset'
+    this.facets.putAttachment({
+      name: written.name,
+      etag: written.etag,
+      mime: mimeOfAsset(written.name),
+      bytes: written.bytes,
+      kind,
+      storage: 'hash',
+    })
+    if (Array.isArray(args.refs)) {
+      const refs = args.refs.flatMap((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+        const rec = item as Record<string, unknown>
+        const name = String(rec.name ?? '').trim()
+        if (!isAssetFileName(name)) return []
+        return [{ name, source: String(rec.source ?? source) }]
+      })
+      if (blockId) this.facets.replaceBlockRefs(spec.path, record.id, blockId, refs.length ? refs : [{ name: written.name, source }])
+    } else if (blockId) {
+      this.facets.upsertBlockRef(spec.path, record.id, blockId, written.name, source)
+    }
     this.broadcastAsset(recPath, written.name, written.etag)
-    return { kind: 'asset' as const, ok: true as const, path: recPath, name: written.name, etag: written.etag }
+    return { kind: 'asset' as const, ok: true as const, path: recPath, name: written.name, etag: written.etag, storage: 'hash' as const }
+  }
+
+  async editDoc(path: string, args: Record<string, unknown> = {}) {
+    const parts = splitPath(path)
+    if (parts.length !== 2) throw new Error(`cannot doc: ${normalizeCollectionPath(path)}`)
+    const spec = this.collection(`/${parts[0]}`)
+    if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
+    const record = await spec.get(parts[1]!)
+    if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    const names = new Set([
+      ...collectAssetNames(record, this.facets.recordBanner(spec.path, record.id)?.html),
+      ...this.facets.listedAttachmentNames(spec.path, record.id),
+    ])
+    const file = String(args.name ?? '')
+      .trim()
+      .replace(/^assets\//, '')
+      .replace(/^.*[/\\]/, '')
+    const from = String(args.from ?? '').trim()
+    const command = String(args.command ?? (args.value != null || from ? 'write' : 'view'))
+    const recPath = `${spec.path}/${record.id}`
+    if (command === 'view' && !file) {
+      const assets = []
+      for (const name of [...names].sort()) {
+        try {
+          const read = await this.assets.readAny(name)
+          assets.push({ name, etag: read.etag, type: read.type, storage: read.storage })
+        } catch {
+          assets.push({ name, missing: true })
+        }
+      }
+      return { kind: 'doc' as const, path: recPath, command: 'view' as const, assets }
+    }
+    if (!isAssetFileName(file)) throw new Error('invalid asset')
+    if (command === 'view') {
+      if (!names.has(file)) throw new Error(`doc not referenced: ${file}`)
+      try {
+        const read = await this.assets.readDoc(file)
+        const text =
+          read.type.startsWith('text/') || read.type.includes('json') ? read.bytes.toString('utf8') : undefined
+        return {
+          kind: 'doc' as const,
+          path: recPath,
+          command: 'view' as const,
+          name: file,
+          etag: read.etag,
+          type: read.type,
+          ...(text != null ? { text } : {}),
+        }
+      } catch {
+        return {
+          kind: 'doc' as const,
+          path: recPath,
+          command: 'view' as const,
+          name: file,
+          missing: true,
+          etag: '',
+        }
+      }
+    }
+    if (command !== 'write') throw new Error(`unknown doc command: ${command}`)
+    const body = from ? await readLocalWriteFile(from) : String(args.value ?? '')
+    if (!from && args.value == null) throw new Error('write needs value or from')
+    const written = await this.assets.writeDoc(file, body, { etag: String(args.etag ?? '') })
+    const kind = String(args.kind ?? '') === 'core' ? 'core' : 'asset'
+    const blockId = String(args.block_id ?? args.blockId ?? '').trim()
+    const source = String(args.source ?? (blockId ? `block:${blockId}` : 'doc')).trim() || 'doc'
+    this.facets.putAttachment({
+      name: written.name,
+      etag: written.etag,
+      mime: mimeOfAsset(written.name),
+      bytes: written.bytes,
+      kind,
+      storage: 'name',
+    })
+    if (blockId) this.facets.upsertBlockRef(spec.path, record.id, blockId, written.name, source)
+    this.broadcastAsset(recPath, written.name, written.etag)
+    return { kind: 'doc' as const, ok: true as const, path: recPath, name: written.name, etag: written.etag, storage: 'name' as const }
   }
 
   private broadcastAsset(path: string, name: string, etag: string) {
@@ -1432,12 +1587,12 @@ export const inject = ['tools', 'http']
 
 export function apply(ctx: Context) {
   const db = new DatabaseService(ctx)
-  db.facets.open(dataPath(process.cwd(), 'file-system.sqlite'))
+  db.facets.open(dataPath(dataHome(), 'biu.sqlite'))
   const assets = db.assets
   const savedViews = new SavedViewsStore()
-  savedViews.open(process.env.VITEST ? ':memory:' : dataPath(process.cwd(), 'file-system.sqlite'))
+  savedViews.open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'biu.sqlite'))
   const shares = db.shares
-  shares.open(process.env.VITEST ? ':memory:' : dataPath(process.cwd(), 'file-system.sqlite'))
+  shares.open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'biu.sqlite'))
   const facets = db.facets
   db.register(viewsCollection(savedViews, () => db.collectionsList().map((item) => ({
     id: item.id,
@@ -1451,13 +1606,37 @@ export function apply(ctx: Context) {
     path: item.path,
     label: item.label ?? item.id,
   }))))
-  const notices = new NoticesService(ctx).open(process.env.VITEST ? ':memory:' : dataPath(process.cwd(), 'notices.json'))
-  db.register(noticesCollection(notices.store))
-  ctx.http.route('POST', '/api/db/notices/clear', (route) => {
-    route.send(200, { ok: true, cleared: notices.clear() })
-  })
+  const sqlitePath = dataPath(dataHome(), 'biu.sqlite')
+  const gcHooks = () => {
+    let notices: { push: (input: { kind: 'session'; title: string; body: string; sourceKey: string }) => unknown } | undefined
+    try {
+      notices = ctx.get('notices') as typeof notices
+    } catch {
+      notices = undefined
+    }
+    return {
+      db: db.facets.ensure(),
+      assetsDir: db.assets.root(),
+      sqlitePath,
+      notices,
+    }
+  }
+  db.register(assetGcCollection(gcHooks))
+  db.recycleAssets = () => {
+    if (process.env.VITEST) return
+    void runWorkspaceAssetGc(gcHooks())
+  }
+  ctx.effect(() => {
+    if (!process.env.VITEST) void runWorkspaceAssetGc(gcHooks())
+    const tick = setInterval(() => {
+      if (process.env.VITEST) return
+      void runWorkspaceAssetGc(gcHooks())
+    }, ASSET_GC_INTERVAL_MS)
+    tick.unref()
+    return () => clearInterval(tick)
+  }, 'core-file-system.asset-gc')
   const contentTurns = new ContentTurnService(ctx).open(
-    process.env.VITEST ? ':memory:' : dataPath(process.cwd(), 'content-turns.json'),
+    process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'content-turns.json'),
   )
   ctx.http.route('GET', '/api/content-turns/file', (route) => {
     const session = String(route.query.get('session') ?? '').trim()
@@ -1614,7 +1793,7 @@ export function apply(ctx: Context) {
       'command=insert：在 insert_line 之后插入 new_str（0 插到第一行前）。',
       'command=find_replace：批量替换。默认等价 str_replace（old_str 必须唯一）；all=true 替换所有匹配（可用 count 限制次数），regex=true 时 old_str 按正则解释。返回 replaced 为实际替换次数。',
       'command=write：整篇覆盖。正文用 value 内联，或用 from=<本地文件路径>（工作区或 /tmp）从文件导入，二者互斥、不可同时给。写成功只返回 {ok, path}，不含全文。str_replace / find_replace / replace_lines / insert 成功额外返回 start_line、end_line（改后正文的 1-based 行）。编辑器会标出该段改动，不抢输入焦点、不自动跳转；跳转只在用户主动点目录或查找时发生。',
-      '页面插图：不要把 data URL / base64 写进正文。先把图片文件落到工作区（下载或生成），再用 db_asset command=write name=<文件名> from=<本地路径> 入库（新文件不要带 etag），然后 insert/str_replace 写入一行 Markdown：![说明](/api/db/file/<文件名>)。也可以先写这一行再 write 附件。',
+      '页面插图：不要把 data URL / base64 写进正文。先把图片文件落到工作区（下载或生成），再用 db_asset command=write name=<逻辑名.ext> from=<本地路径> 入库（内容寻址，返回 name=<哈希.ext>），然后 insert/str_replace 写入一行 Markdown：![说明](/api/db/file/<哈希.ext>)。也可以先写这一行再 write 附件。',
     ].join(' '),
     parameters: {
       type: 'object',
@@ -1653,13 +1832,12 @@ export function apply(ctx: Context) {
   ctx.tools.register({
     name: 'db_asset',
     description: [
-      '读写一条记录的附件（画板 json、图片、文件），不是正文。正文仍用 db_content。',
-      'path 为 /<表>/<id>，name 为附件文件名（正文里写成 assets/xxx、/api/db/file/xxx 或 /api/page/file/xxx）。',
-      'command=view：不传 name 列出本条已引用的附件及 etag；带 name 读该文件（文本/json 带 text）和 etag。引用了但文件还不存在时返回 missing=true、etag 空串。',
-      'command=write：写入该文件。新文件不要带 etag（可先不出现在正文里）；覆盖已有文件必须带 etag（等于上次 view 的 etag），对不上返回 etag conflict。',
-      '插图：先 write 图片（from=本地路径），再 db_content 插入 ![说明](/api/db/file/<name>)。不要把图片 base64 写进 db_content。',
-      '大内容不要塞进 value：先用 bash/python 写到本地文件，再 from=该路径（工作区相对或绝对，如 /tmp/hero.png）。value 只适合短文本。',
-      '写成功只返回 {ok, path, name, etag}。前端开着的编辑器按 etag 重载，过期 PUT 会 409。',
+      '读写一条记录的不可变资源（图片、音频、导入文件）。可变文档（画板 json、块本体）用 db_doc。正文仍用 db_content。',
+      'path 为 /<表>/<id>。write 落盘 .biu/assets/hash/<2>/<2>/<哈希>.<ext>，返回 name=<哈希.ext>。引用写成 /api/db/file/<哈希.ext>。',
+      'command=view：列出已引用附件；带 name 读该文件。missing=true 合法。',
+      'command=write：内容寻址，只增不改。可带 block_id / source / kind=core|asset；refs 为该块当前引用完整列表。',
+      '插图：write from=本地路径，再用返回的 name 插入 ![说明](/api/db/file/<name>)。',
+      '写成功只返回 {ok, path, name, etag}。',
     ].join(' '),
     parameters: {
       type: 'object',
@@ -1676,7 +1854,15 @@ export function apply(ctx: Context) {
           type: 'string',
           description: 'write 时读这个本地文件作为内容，代替 value。相对工作区根，或绝对路径。',
         },
-        etag: { type: 'string', description: 'write 必填，等于上次 view 的 etag' },
+        etag: { type: 'string', description: '资源路径不用 etag；文档请用 db_doc' },
+        block_id: { type: 'string', description: '块级归属，写入 block_refs' },
+        source: { type: 'string', description: '引用子键，如 block:<id>:bgm' },
+        kind: { type: 'string', description: 'core（永不自动回收）或 asset' },
+        refs: {
+          type: 'array',
+          items: { type: 'object' },
+          description: '该 block_id 当前引用的完整列表 [{name, source}]，宿主 diff 后写 block_refs',
+        },
       },
       required: ['path'],
     },
@@ -1687,6 +1873,38 @@ export function apply(ctx: Context) {
     execute: (args) =>
       withInspectorReveal(ctx, String(args.path), () =>
         db.editAsset(String(args.path), args).then((body) => agentDbCompact.query(body)),
+      ),
+  })
+  ctx.tools.register({
+    name: 'db_doc',
+    description: [
+      '读写一条记录的可变文档（画板场景、视频脚本、htmlframe HTML）。图片等不可变资源用 db_asset。',
+      'path 为 /<表>/<id>。write 落盘 .biu/assets/name/<逻辑名>，覆盖必须带 etag（上次 view 的内容哈希），对不上返回 etag conflict。引用写成 /api/db/file/<逻辑名>（按名字寻址；哈希名则是不可变文件）。画板也可走 /api/page/file/<逻辑名>。',
+      'command=view：列出引用或读该文档（文本带 text）和 etag。',
+      'command=write：稳定名覆盖 + If-Match。可带 block_id / source / kind=core|asset。',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        name: { type: 'string', description: '稳定逻辑名，如 画板-ab12cd.json' },
+        command: {
+          type: 'string',
+          enum: ['view', 'write'],
+          description: 'view | write。省略时：有 value 或 from 则 write，否则 view。',
+        },
+        value: { type: 'string' },
+        from: { type: 'string' },
+        etag: { type: 'string', description: '覆盖已有文档时必填，等于上次 view 的 etag' },
+        block_id: { type: 'string' },
+        source: { type: 'string' },
+        kind: { type: 'string' },
+      },
+      required: ['path'],
+    },
+    execute: (args) =>
+      withInspectorReveal(ctx, String(args.path), () =>
+        db.editDoc(String(args.path), args).then((body) => agentDbCompact.query(body)),
       ),
   })
 
@@ -1702,10 +1920,12 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('POST', '/api/profile', async (route) => {
     try {
-      const body = (await route.json()) as { name?: unknown; avatar?: unknown }
+      const body = (await route.json()) as { name?: unknown; avatar?: unknown; theme?: unknown; pagePrefs?: unknown }
       route.send(200, asPublicProfile(writeWorkspaceProfile({
         name: typeof body.name === 'string' ? body.name : undefined,
         avatar: typeof body.avatar === 'string' ? body.avatar : undefined,
+        theme: body.theme === 'dark' || body.theme === 'light' ? body.theme : undefined,
+        pagePrefs: body.pagePrefs,
       })))
     } catch (error) {
       route.send(400, { error: String(error) })
@@ -2075,23 +2295,34 @@ export function apply(ctx: Context) {
       route.send(400, { error: String(error) })
     }
   })
-  ctx.http.route('GET', '/api/db/file/:name', async (route) => {
+  const serveDbFile: Parameters<typeof ctx.http.route>[2] = async (route) => {
     try {
-      const { bytes, type, etag } = await assets.read(route.params.name ?? '')
+      const name = route.params.name ?? ''
+      const { bytes, type, etag } = await assets.readAny(name)
       route.res.writeHead(200, {
         'content-type': type,
-        'cache-control': 'no-store',
+        'cache-control': isHashedAssetName(name) ? 'public, max-age=31536000, immutable' : 'no-store',
         etag: `"${etag}"`,
       })
       route.res.end(bytes)
     } catch {
       route.send(404, { error: 'not found' })
     }
-  })
-  ctx.http.route('PUT', '/api/db/file/:name', async (route) => {
+  }
+  const putDbFile: Parameters<typeof ctx.http.route>[2] = async (route) => {
     try {
-      const written = await assets.write(route.params.name ?? '', await route.bytes(), {
-        etag: parseIfMatch(route.req.headers['if-match']),
+      const name = route.params.name ?? ''
+      const bytes = await route.bytes()
+      const written = isHashedAssetName(name)
+        ? await assets.write(name, bytes)
+        : await assets.writeDoc(name, bytes, { etag: parseIfMatch(route.req.headers['if-match']) })
+      db.facets.putAttachment({
+        name: written.name,
+        etag: written.etag,
+        mime: mimeOfAsset(written.name),
+        bytes: written.bytes,
+        kind: 'asset',
+        storage: written.storage,
       })
       ctx.http.broadcast?.(DATABASE_CHANNEL, { ts: Date.now(), asset: { name: written.name, etag: written.etag } })
       route.send(200, { ok: true, ...written })
@@ -2102,7 +2333,31 @@ export function apply(ctx: Context) {
       }
       route.send(400, { error: String(error) })
     }
-  })
+  }
+  const putHashFile: Parameters<typeof ctx.http.route>[2] = async (route) => {
+    try {
+      const name = route.params.name ?? ''
+      const bytes = await route.bytes()
+      const written = await assets.write(name, bytes)
+      db.facets.putAttachment({
+        name: written.name,
+        etag: written.etag,
+        mime: mimeOfAsset(written.name),
+        bytes: written.bytes,
+        kind: 'asset',
+        storage: written.storage,
+      })
+      ctx.http.broadcast?.(DATABASE_CHANNEL, { ts: Date.now(), asset: { name: written.name, etag: written.etag } })
+      route.send(200, { ok: true, ...written })
+    } catch (error) {
+      route.send(400, { error: String(error) })
+    }
+  }
+  ctx.http.route('PUT', '/api/db/file/hash/:name', putHashFile)
+  ctx.http.route('GET', '/api/db/file/:name', serveDbFile)
+  ctx.http.route('PUT', '/api/db/file/:name', putDbFile)
+  ctx.http.route('GET', '/api/doc/file/:name', serveDbFile)
+  ctx.http.route('PUT', '/api/doc/file/:name', putDbFile)
   ctx.http.route('POST', '/api/db/action', async (route) => {
     try {
       const body = (await route.json()) as { path?: string; action?: string; args?: unknown }

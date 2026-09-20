@@ -8,15 +8,24 @@ import type { CatalogEntry } from '@biu/host-hub'
 import {
   buildStoreManifest,
   bundleStoreEntry,
+  copyPluginRuntimeDependencies,
   findEntry,
   HOST_ENTRIES,
   persistStoreManifestCreatedAt,
   listingCreatedAt,
+  ensureSandboxPackageJson,
   WEB_ENTRIES,
   type PluginCreateInput,
   type StoreManifestFields,
 } from './plugin-create.ts'
 import { parseStoreShell, requireDeclaredShell, type StoreShell } from '../shell.ts'
+import {
+  DATA_DIR_NAME,
+  copyReferencedEditorAssets,
+  openAndMigrateBiu,
+  readEditorContent,
+  writeEditorContent,
+} from '@biu/host-plugin-loader/data-dir'
 
 export type StoreListing = {
   id: string
@@ -128,7 +137,10 @@ function importHostModule(code: string) {
 async function importHostFile(hostFile: string) {
   try {
     return await import(`${pathToFileURL(hostFile).href}?t=${Date.now()}`)
-  } catch {
+  } catch (error) {
+    // data: URL 没有文件目录，无法解析插件自带的原生 node_modules。
+    // 原生插件应保留原始 file:// 错误，避免回退后错误地查找宿主依赖。
+    if (existsSync(join(dirname(hostFile), 'node_modules'))) throw error
     return importHostModule(await readFile(hostFile, 'utf8'))
   }
 }
@@ -271,6 +283,7 @@ export class PluginStoreService extends Service {
     await writeFile(join(dest, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
     if (hostJs) await writeFile(join(dest, 'host.ts'), hostJs.endsWith('\n') ? hostJs : `${hostJs}\n`)
     if (webSrc) await writeFile(join(dest, 'web.tsx'), webSrc.endsWith('\n') ? webSrc : `${webSrc}\n`)
+    await ensureSandboxPackageJson(dest, id)
     await this.ensureReadme(dest, manifest.name, manifest.blurb)
     return { id, sandboxPath: dest }
   }
@@ -299,9 +312,16 @@ export class PluginStoreService extends Service {
     else if (existsSync(join(dest, 'host.js'))) await rm(join(dest, 'host.js'))
     if (webEntry) await writeFile(join(dest, 'web.js'), await bundleStoreEntry(webEntry, 'web'))
     else if (existsSync(join(dest, 'web.js'))) await rm(join(dest, 'web.js'))
-    const sandboxReadme = join(sandbox, README_FILE)
-    if (existsSync(sandboxReadme)) await writeFile(join(dest, README_FILE), await readFile(sandboxReadme))
-    else await this.ensureReadme(dest, manifest.name, manifest.blurb)
+    copyPluginRuntimeDependencies(sandbox, dest)
+    const workspace = dirname(this.sandboxDir)
+    let readme = await this.readReadme(id)
+    if (!readme.trim()) readme = `# ${manifest.name}\n\n${manifest.blurb.trim()}\n`
+    const packed = copyReferencedEditorAssets({
+      body: readme,
+      assetsDir: join(workspace, DATA_DIR_NAME, 'assets'),
+      destDir: dest,
+    })
+    await writeFile(join(dest, README_FILE), packed)
     await copyPackedMedia(sandbox, dest)
     // 运行中才重新挂载；停着的下次 start 会从磁盘再挂。
     if (this.isEnabled(manifest.id)) await this.mountFromDisk(manifest, dest)
@@ -433,7 +453,11 @@ export class PluginStoreService extends Service {
     await writeFile(path, body)
   }
 
-  async readReadme(id: string) {
+  private warnReadme(error: unknown) {
+    this.ctx.logger('core-plugin-system').warn(error)
+  }
+
+  private async readDiskReadme(id: string) {
     const dir = this.readmeDir(id)
     if (!dir) return ''
     const path = join(dir, README_FILE)
@@ -441,10 +465,51 @@ export class PluginStoreService extends Service {
     return readFile(path, 'utf8')
   }
 
+  async readReadme(id: string) {
+    const workspace = dirname(this.sandboxDir)
+    const sqlitePath = join(workspace, DATA_DIR_NAME, 'biu.sqlite')
+    if (existsSync(sqlitePath)) {
+      try {
+        const db = openAndMigrateBiu(sqlitePath)
+        try {
+          const body = readEditorContent(db, '/plugins', id)
+          if (body) return body
+          const text = await this.readDiskReadme(id)
+          if (!text) return ''
+          try {
+            writeEditorContent(db, '/plugins', id, text)
+          } catch (error) {
+            this.warnReadme(error)
+          }
+          return text
+        } finally {
+          db.close()
+        }
+      } catch (error) {
+        this.warnReadme(error)
+      }
+    }
+    return this.readDiskReadme(id)
+  }
+
   async writeReadme(id: string, markdown: string) {
-    const dir = this.readmeDir(id)
-    if (!dir) throw new Error(`unknown plugin: ${id}`)
-    await writeFile(join(dir, README_FILE), String(markdown ?? ''))
+    const text = String(markdown ?? '')
+    const workspace = dirname(this.sandboxDir)
+    mkdirSync(join(workspace, DATA_DIR_NAME), { recursive: true })
+    const db = openAndMigrateBiu(join(workspace, DATA_DIR_NAME, 'biu.sqlite'))
+    try {
+      writeEditorContent(db, '/plugins', id, text)
+    } finally {
+      db.close()
+    }
+    for (const dir of [this.sandboxPath(id), this.pluginPath(id)]) {
+      if (!existsSync(join(dir, 'manifest.json'))) continue
+      try {
+        await writeFile(join(dir, README_FILE), text)
+      } catch (error) {
+        this.warnReadme(error)
+      }
+    }
     this.invalidateList()
   }
 

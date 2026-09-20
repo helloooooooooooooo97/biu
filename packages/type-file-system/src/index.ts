@@ -1,3 +1,6 @@
+export { isAssetFileName, assetNameFromUrl, assetNamesFromMarkdown, assetNamesFromHtml, collectAssetNames, registerBlockAssets, assetNamesFromBlock } from './asset-ref.ts'
+export type { BlockAssetsDecl } from './asset-ref.ts'
+
 /** 列类型：登记时声明，Core-File System 按类型渲染。string[] 视为 multi-select。 */
 export type FieldType =
   | 'string'
@@ -397,6 +400,14 @@ export function emptySchemaValue(): SchemaFieldValue {
   return { tags: [], values: {} }
 }
 
+export function isEmptySchemaValue(value: SchemaFieldValue): boolean {
+  if (value.tags.length) return false
+  for (const bag of Object.values(value.values)) {
+    if (bag && typeof bag === 'object' && !Array.isArray(bag) && Object.keys(bag).length) return false
+  }
+  return true
+}
+
 /** 只保留仍贴着的合集下的值；从页面拿掉合集时元数据一起丢掉。 */
 export function bindSchemaValue(
   tags: string[],
@@ -565,6 +576,8 @@ export type CollectionSchema = {
   labelField?: string
   /** 记录正文：真正存的文件内容。默认 `content`。结构由登记方自定。 */
   contentField?: string
+  /** 正文后端：sqlite 旁表 / 文件 / 只读投影。 */
+  contentBackend?: 'editorContent' | 'file' | 'computed'
   /** 必须包含图标、创建/更新时间、分面、父级、依赖、创建人/编辑人；登记方自己持久化。 */
   fields: CollectionFields
   /** 表格默认可见列（须为 fields 的键）。不写则列出全部列表列。详情仍显示全部字段。 */
