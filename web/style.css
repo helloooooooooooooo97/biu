@@ -5755,27 +5755,8 @@ html:not(.dark) .chat-outline-item.is-active {
   color: var(--dsw-icon);
 }
 
+.tool-call-copy,
 .chat-code-copy {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--dsw-sidebar) 88%, transparent);
-  color: var(--dsw-icon);
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.tool-call-copy {
   display: grid;
   width: 24px;
   height: 24px;
@@ -5790,6 +5771,13 @@ html:not(.dark) .chat-outline-item.is-active {
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
+}
+
+.chat-code-copy {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  z-index: 2;
 }
 
 .chat-reply-block:hover .tool-call-copy,
@@ -7124,6 +7112,9 @@ html:not(.dark) .tool-call-inspect svg,
 html:not(.dark) .tool-call-copy,
 html:not(.dark) .tool-call-copy:hover,
 html:not(.dark) .tool-call-copy svg,
+html:not(.dark) .chat-code-copy,
+html:not(.dark) .chat-code-copy:hover,
+html:not(.dark) .chat-code-copy svg,
 html:not(.dark) .tool-call-status.is-running,
 html:not(.dark) [data-testid="content-edits-table"] .content-edits-icon,
 html:not(.dark) [data-testid="content-edits-table"] .content-edits-icon svg {
