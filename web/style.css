@@ -5560,6 +5560,7 @@ html:not(.dark) .chat-outline-item.is-active {
 }
 
 .tool-call {
+  position: relative;
   width: 100%;
   align-self: stretch;
   font-size: var(--dsw-chat-ui-font-size);
@@ -5721,6 +5722,50 @@ html:not(.dark) .chat-outline-item.is-active {
   color: var(--dsw-icon);
 }
 
+.tool-call-copy,
+.chat-code-copy {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--dsw-sidebar) 88%, transparent);
+  color: var(--dsw-icon);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chat-reply-block:hover .tool-call-copy,
+.chat-reply-block:hover .chat-code-copy,
+.tool-call:hover .tool-call-copy,
+.chat-code:hover .chat-code-copy,
+.tool-call-copy:focus-visible,
+.chat-code-copy:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tool-call-copy:hover,
+.chat-code-copy:hover {
+  background: var(--dsw-hover);
+  color: var(--dsw-icon-active);
+}
+
+.tool-call-copy.is-done,
+.chat-code-copy.is-done {
+  color: var(--dsw-ok);
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .chat-reply-actions {
   display: inline-flex;
   height: 100%;
@@ -5798,8 +5843,18 @@ html:not(.dark) .chat-outline-item.is-active {
 .chat-md ol,
 .chat-md pre,
 .chat-md blockquote,
-.chat-md table {
+.chat-md table,
+.chat-md .chat-code {
   margin: var(--dsw-chat-gap) 0;
+}
+
+.chat-md .chat-code {
+  position: relative;
+  max-width: 100%;
+}
+
+.chat-md .chat-code pre {
+  margin: 0;
 }
 
 .chat-md h1,
