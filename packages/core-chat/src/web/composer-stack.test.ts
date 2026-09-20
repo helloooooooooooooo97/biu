@@ -49,8 +49,37 @@ describe('composer dock stacking above sticky user', () => {
     expect(overlayWin).toContain('chat-overlay-head')
     expect(css).not.toMatch(/chat-overlay-peek/)
     expect(composer).toContain('revealOverlayThread')
+    expect(composer).toContain('composer-goal')
+    expect(composer).toContain("controlGoal('pause')")
+    expect(composer).toContain("controlGoal('clear')")
     expect(composer).toContain('isComposerFocusPending')
     expect(composer).toContain('biu:composer-focus')
+  })
+
+  it('shows an interruptible Goal bar above the composer', () => {
+    const css = readFileSync(resolve(root, 'web/style.css'), 'utf8')
+    const composer = readFileSync(resolve(root, 'packages/core-chat/src/web/composer.tsx'), 'utf8')
+    expect(composer).toContain('composer-goal')
+    expect(composer).toContain('PauseIcon')
+    expect(composer).toContain('PlayIcon')
+    expect(composer).toContain('XMarkIcon')
+    expect(composer).toContain('FlagIcon')
+    expect(composer).toContain("aria-label=\"暂停 Goal\"")
+    expect(composer).toContain("aria-label=\"清除 Goal\"")
+    expect(composer).not.toMatch(/composer-goal-btn[^>]*>\s*暂停/)
+    expect(css).toMatch(/\.composer-goal-btn\s*\{[^}]*width:\s*28px/s)
+    expect(css).toMatch(/\.composer-goal\s*\{[^}]*border:\s*1px solid var\(--dsw-border\)/s)
+    expect(css).not.toMatch(/\.composer-goal\.is-pursuing/)
+  })
+
+  it('queued inbox rows can be edited or deleted with icons', () => {
+    const css = readFileSync(resolve(root, 'web/style.css'), 'utf8')
+    const composer = readFileSync(resolve(root, 'packages/core-chat/src/web/composer.tsx'), 'utf8')
+    expect(composer).toContain('PencilSquareIcon')
+    expect(composer).toContain('dropInboxItem')
+    expect(composer).toContain('aria-label="编辑排队消息"')
+    expect(composer).toContain('aria-label="删除排队消息"')
+    expect(css).toMatch(/\.composer-inbox-btn\s*\{[^}]*width:\s*24px/s)
   })
 
   it('puts the session mascot after the header name, with the dock session picker', () => {

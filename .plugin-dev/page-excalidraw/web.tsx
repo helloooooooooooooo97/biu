@@ -603,6 +603,7 @@ export function apply(ctx: { pageEditor: PageEditor }) {
     blockTypeLabel: '画板',
     hint: '手绘白板，放大后编辑',
     aliases: ['excalidraw', 'draw', '白板', '画板', 'board'],
+    assets: ['file'],
     defaults: () => ({ file: `assets/画板-${crypto.randomUUID().slice(0, 8)}.json` }),
     View: Board,
   })

@@ -31,6 +31,10 @@ test('in-process mcp echo provider', async () => {
   const ctx = await boot()
   const listed = await ctx.tools.invoke('mcp_list')
   assert.equal(Array.isArray(listed) && listed.some((item: { name: string }) => item.name === 'mcp_echo'), true)
+  assert.equal(ctx.tools.executionMode('mcp_servers'), 'parallel')
+  assert.equal(ctx.tools.executionMode('mcp_list'), 'parallel')
+  assert.equal(ctx.tools.executionMode('mcp_call', { server: 'echo', name: 'mcp_echo' }), 'parallel')
+  assert.equal(ctx.tools.executionMode('mcp_call', { server: 'missing', name: 'unknown' }), 'exclusive')
   const result = (await ctx.tools.invoke('mcp_call', { server: 'echo', name: 'mcp_echo', arguments: { text: 'hi' } })) as { text: string }
   assert.equal(result.text, 'hi')
 })

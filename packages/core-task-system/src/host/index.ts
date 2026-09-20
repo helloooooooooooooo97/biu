@@ -1,7 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
-import { createRequire } from 'node:module'
+import { dataHome, dataPath, openAndMigrateBiu, readEditorContent, writeEditorContent } from '@biu/host-plugin-loader/data-dir'
 import { Service, type Context } from 'cordis'
 import { currentSessionId } from '@biu/host-sessions/scope'
 import { emptySchemaValue, normalizeSchemaValue, type SchemaFieldValue } from '@biu/type-file-system'
@@ -10,8 +9,6 @@ import { tasksCollection } from './collection.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 type SQLInputValue = import('node:sqlite').SQLInputValue
-
-const require = createRequire(import.meta.url)
 
 export type TaskStatus = 'todo' | 'doing' | 'done' | 'failed'
 export type TaskPriority = 'low' | 'med' | 'high'
@@ -836,7 +833,7 @@ function mapRow(row: Record<string, unknown>): TaskRow {
     priority: asPriority(row.priority),
     difficulty: asDifficulty(row.difficulty),
     dueAt: row.due_at == null ? null : Number(row.due_at),
-    description: String(row.description ?? ''),
+    description: '',
     notes: String(row.notes ?? ''),
     project: typeof row.project === 'string' && row.project.trim() ? row.project.trim() : null,
     tags,
@@ -1054,57 +1051,7 @@ export class TasksService extends Service {
 
   open() {
     mkdirSync(dirname(this.dbPath), { recursive: true })
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite')
-    this.db = new DatabaseSync(this.dbPath)
-    this.db.exec('PRAGMA journal_mode = WAL')
-    this.db.exec('PRAGMA synchronous = NORMAL')
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS tasks (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'todo',
-        priority TEXT NOT NULL DEFAULT 'med',
-        difficulty TEXT NOT NULL DEFAULT 'med',
-        assignee TEXT NOT NULL DEFAULT '',
-        due_at INTEGER,
-        notes TEXT NOT NULL DEFAULT '',
-        sort REAL NOT NULL DEFAULT 0,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        creator_json TEXT,
-        assignee_json TEXT,
-        assigned_at INTEGER
-      );
-      CREATE INDEX IF NOT EXISTS tasks_status_sort ON tasks(status, sort, updated_at DESC);
-    `)
-    for (const sql of [
-      'ALTER TABLE tasks ADD COLUMN creator_json TEXT',
-      'ALTER TABLE tasks ADD COLUMN assignee_json TEXT',
-      'ALTER TABLE tasks ADD COLUMN assigned_at INTEGER',
-      "ALTER TABLE tasks ADD COLUMN description TEXT NOT NULL DEFAULT ''",
-      "ALTER TABLE tasks ADD COLUMN reports_json TEXT NOT NULL DEFAULT '[]'",
-      'ALTER TABLE tasks ADD COLUMN start_at INTEGER',
-      "ALTER TABLE tasks ADD COLUMN project TEXT NOT NULL DEFAULT ''",
-      "ALTER TABLE tasks ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'",
-      "ALTER TABLE tasks ADD COLUMN parent_id TEXT DEFAULT ''",
-      "ALTER TABLE tasks ADD COLUMN depends_on TEXT NOT NULL DEFAULT '[]'",
-      'ALTER TABLE tasks ADD COLUMN depth INTEGER NOT NULL DEFAULT 0',
-      "ALTER TABLE tasks ADD COLUMN difficulty TEXT NOT NULL DEFAULT 'med'",
-      "ALTER TABLE tasks ADD COLUMN trigger_json TEXT NOT NULL DEFAULT '{}'",
-      'ALTER TABLE tasks ADD COLUMN report_interval_sec INTEGER NOT NULL DEFAULT 60',
-      'ALTER TABLE tasks ADD COLUMN last_report_prompt_at INTEGER',
-      'ALTER TABLE tasks ADD COLUMN report_prompt_count INTEGER NOT NULL DEFAULT 0',
-      "ALTER TABLE tasks ADD COLUMN facet_json TEXT NOT NULL DEFAULT '{}'",
-      "ALTER TABLE tasks ADD COLUMN emoji TEXT NOT NULL DEFAULT ''",
-    ]) {
-      try {
-        this.db.exec(sql)
-      } catch {
-        /* already exists */
-      }
-    }
-    // 视图已迁到 File System `/api/db/saved-views`，丢掉旧的 task_views 表。
-    this.db.exec('DROP TABLE IF EXISTS task_views')
+    this.db = openAndMigrateBiu(this.dbPath, { foreignKeys: false })
     return this
   }
 
@@ -1126,7 +1073,7 @@ export class TasksService extends Service {
     }
     if (filter.q?.trim()) {
       clauses.push(
-        '(title LIKE ? OR description LIKE ? OR notes LIKE ? OR assignee LIKE ? OR creator_json LIKE ? OR assignee_json LIKE ?)',
+        '(title LIKE ? OR IFNULL(c.body, \'\') LIKE ? OR notes LIKE ? OR assignee LIKE ? OR creator_json LIKE ? OR assignee_json LIKE ?)',
       )
       const like = `%${filter.q.trim()}%`
       params.push(like, like, like, like, like, like)
@@ -1138,19 +1085,26 @@ export class TasksService extends Service {
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
     const rows = this.db
       .prepare(
-        `SELECT * FROM tasks ${where} ORDER BY
+        `SELECT tasks.* FROM tasks
+         LEFT JOIN editor_content c ON c.collection = '/tasks' AND c.record_id = tasks.id
+         ${where} ORDER BY
           CASE status WHEN 'doing' THEN 0 WHEN 'todo' THEN 1 ELSE 2 END,
           sort DESC, updated_at DESC`,
       )
       .all(...params) as Array<Record<string, unknown>>
-    return rows.map(mapRow)
+    return rows.map((row) => this.withEditorDescription(mapRow(row)))
   }
 
   get(id: string): TaskRow | undefined {
     const row = this.db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as
       | Record<string, unknown>
       | undefined
-    return row ? mapRow(row) : undefined
+    return row ? this.withEditorDescription(mapRow(row)) : undefined
+  }
+
+  private withEditorDescription(row: TaskRow): TaskRow {
+    const body = readEditorContent(this.db, '/tasks', row.id)
+    return { ...row, description: body }
   }
 
   create(input: TaskCreateInput & { creator: TaskActor; assignee?: TaskActor | null; assignedAt?: number | null }): TaskRow {
@@ -1200,11 +1154,11 @@ export class TasksService extends Service {
     this.db
       .prepare(
         `INSERT INTO tasks (
-          id, title, status, priority, difficulty, assignee, due_at, description, notes, sort,
+          id, title, status, priority, difficulty, assignee, due_at, notes, sort,
           created_at, updated_at, creator_json, assignee_json, assigned_at,
           project, tags_json, parent_id, depends_on, depth, trigger_json,
           report_interval_sec, facet_json, emoji
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -1214,7 +1168,6 @@ export class TasksService extends Service {
         difficulty,
         assigneeLabel,
         dueAt,
-        description,
         notes,
         sort,
         ts,
@@ -1232,6 +1185,7 @@ export class TasksService extends Service {
         JSON.stringify(normalizeSchemaValue(input.facet)),
         typeof input.emoji === 'string' ? input.emoji : '',
       )
+    writeEditorContent(this.db, '/tasks', id, description)
     this.emitChange()
     return this.get(id)!
   }
@@ -1335,7 +1289,7 @@ export class TasksService extends Service {
     this.db
       .prepare(
         `UPDATE tasks SET
-          title = ?, status = ?, priority = ?, difficulty = ?, assignee = ?, due_at = ?, description = ?, notes = ?, sort = ?,
+          title = ?, status = ?, priority = ?, difficulty = ?, assignee = ?, due_at = ?, notes = ?, sort = ?,
           updated_at = ?, creator_json = ?, assignee_json = ?, assigned_at = ?, project = ?, tags_json = ?,
           parent_id = ?, depends_on = ?, depth = ?, trigger_json = ?,
           report_interval_sec = ?, last_report_prompt_at = ?, report_prompt_count = ?, facet_json = ?, emoji = ?
@@ -1348,7 +1302,6 @@ export class TasksService extends Service {
         difficulty,
         assignee?.name ?? '',
         dueAt,
-        description,
         notes,
         sort,
         ts,
@@ -1368,6 +1321,7 @@ export class TasksService extends Service {
         emoji,
         id,
       )
+    writeEditorContent(this.db, '/tasks', id, description)
     this.emitChange()
     return this.get(id)!
   }
@@ -1415,7 +1369,7 @@ export { tasksCollection } from './collection.ts'
 export function apply(ctx: Context) {
   startTaskClock(ctx)
   const host = ctx as HostCtx
-  const dbPath = dataPath(dataHome(), 'tasks.sqlite')
+  const dbPath = dataPath(dataHome(), 'biu.sqlite')
   const tasks = new TasksService(ctx, dbPath).open()
 
   async function present(row: TaskRow): Promise<TaskRow> {

@@ -2,6 +2,7 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import hljs from 'highlight.js'
 import { Editor } from '@tiptap/core'
 import { pageEditorExtensions } from './kit.ts'
 import { filterSlashItems, SLASH_ITEMS } from './slash.ts'
@@ -10,14 +11,27 @@ test('slash filter matches chinese labels and aliases', () => {
   assert.ok(filterSlashItems('标题').some((item) => item.id === 'h1'))
   assert.ok(filterSlashItems('code').some((item) => item.id === 'code'))
   assert.ok(filterSlashItems('图片').some((item) => item.id === 'image'))
-  const slashSrc = readFileSync(resolve(import.meta.dirname, './slash.ts'), 'utf8')
-  assert.match(slashSrc, /\/api\/db\/file\//)
+  const slashSrc = readFileSync(resolve(import.meta.dirname, './page-image.ts'), 'utf8')
+  assert.match(slashSrc, /\/api\/db\/file\/hash\//)
   assert.doesNotMatch(slashSrc, /readAsDataURL/)
   assert.ok(filterSlashItems('表格').some((item) => item.id === 'table'))
   assert.ok(filterSlashItems('公式').some((item) => item.id === 'math'))
   assert.ok(filterSlashItems('latex').some((item) => item.id === 'math'))
   assert.equal(filterSlashItems('zzz').length, 0)
   assert.equal(filterSlashItems('').length, SLASH_ITEMS.length)
+})
+
+test('http and unknown code fences do not crash the page editor', () => {
+  assert.ok(hljs.getLanguage('http'), 'full highlight.js registers http globally')
+  const editor = new Editor({
+    extensions: pageEditorExtensions(),
+    content: '```http\nGET /api HTTP/1.1\n\n```\n\n```not-a-lang\nhello\n```\n',
+    contentType: 'markdown',
+  })
+  const html = editor.getHTML()
+  assert.match(html, /GET \/api HTTP\/1\.1/)
+  assert.match(html, /hello/)
+  editor.destroy()
 })
 
 test('markdown roundtrips headings lists quote and code', () => {
@@ -115,6 +129,10 @@ test('slash suggestion uses a fixed high stacking context', async () => {
   assert.match(css, /\.page-slash-foot\{/)
   assert.match(css, /\.page-slash\{[^}]*border:1px solid/)
   assert.doesNotMatch(css, /\.page-slash\{[^}]*0 0 0 1px/)
+  assert.match(css, /\.page-slash-item\{[^}]*color:var\(--dsw-sidebar-fg\)/)
+  assert.match(css, /\.page-slash-icon\{[^}]*color:var\(--dsw-icon\)/)
+  assert.match(css, /html:not\(\.dark\) \.page-slash-item[\s\S]*color:#5f5e5a/)
+  assert.match(css, /html:not\(\.dark\) \.page-slash-icon[\s\S]*color:#91918e/)
   assert.match(src, /MENU_HEIGHT = 280|Math.min\(280/)
   assert.match(src, /width: Math.max\(rects.floating.width, 240\)/)
   assert.match(css, /\.page-editor\{[^}]*font-family:var\(--font-sans\)/)

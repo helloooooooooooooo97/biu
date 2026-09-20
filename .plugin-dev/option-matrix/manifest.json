@@ -1,0 +1,14 @@
+{
+  "id": "option-matrix",
+  "name": "方案对比块",
+  "blurb": "页面块：多方案 × 多维度加权对比矩阵，自动算加权总分并推荐；higherIsBetter=false 的维度反向计入。",
+  "tags": [
+    "page",
+    "editor",
+    "table"
+  ],
+  "author": "Biu",
+  "authorUrl": "",
+  "createdAt": 1789444131627,
+  "headless": true
+}

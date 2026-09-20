@@ -71,8 +71,61 @@ test('partial tool/result does not close orphan tool calls', () => {
   assert.equal(finals.length, 1)
   if (finals[0]?.type === 'tool/result') {
     assert.equal(finals[0].ok, false)
-    assert.match(finals[0].detail, /interrupted/)
+    assert.equal(finals[0].detail, '{}')
+    assert.equal(finals[0].partial, undefined)
   }
+})
+
+test('stuck partial bash result is promoted with streamed detail before wake user', () => {
+  const events = [
+    ev({ type: 'turn/start', turn: 10, seq: 0 }),
+    ev({ type: 'user/message', text: '查一下', kind: 'wake', seq: 1 }),
+    ev({
+      type: 'assistant/message',
+      text: '',
+      tool_calls: [{ id: 'call_x', name: 'bash', arguments: '{"command":"ls"}' }],
+      seq: 2,
+    }),
+    ev({ type: 'tool/call', id: 'call_x', name: 'bash', arguments: '{"command":"ls"}', seq: 3 }),
+    ev({
+      type: 'tool/result',
+      id: 'call_x',
+      name: 'bash',
+      ok: true,
+      detail: 'a.txt\nb.txt\n',
+      partial: true,
+      seq: 4,
+    }),
+    ev({ type: 'step/end', turn: 10, step: 0, seq: 5 }),
+    ev({ type: 'turn/end', turn: 10, reason: 'host-restart', seq: 6 }),
+    ev({ type: 'turn/start', turn: 11, seq: 7 }),
+    ev({ type: 'user/message', text: '????', kind: 'wake', seq: 8 }),
+  ]
+
+  const rebuilt = rebuildHealedEvents(events, 99)
+  assert.ok(rebuilt)
+  const result = rebuilt!.find((item) => item.type === 'tool/result')
+  assert.equal(result?.type, 'tool/result')
+  if (result?.type === 'tool/result') {
+    assert.equal(result.id, 'call_x')
+    assert.equal(result.partial, undefined)
+    assert.equal(result.detail, 'a.txt\nb.txt\n')
+    assert.equal(result.ok, false)
+  }
+  const resultIdx = rebuilt!.findIndex((item) => item.type === 'tool/result')
+  const assistantIdx = rebuilt!.findIndex((item) => item.type === 'assistant/message')
+  const stepIdx = rebuilt!.findIndex((item) => item.type === 'step/end')
+  assert.ok(resultIdx > assistantIdx)
+  assert.ok(resultIdx < stepIdx)
+
+  const messages = deriveMessages(events)
+  const assistant = messages.find((item) => item.role === 'assistant' && item.tool_calls?.length)
+  const toolIdx = messages.findIndex((item) => item.role === 'tool' && item.tool_call_id === 'call_x')
+  const assistantAt = messages.findIndex((item) => item === assistant)
+  assert.equal(messages[assistantAt + 1]?.role, 'tool')
+  assert.equal(messages[assistantAt + 1]?.tool_call_id, 'call_x')
+  assert.equal(messages[toolIdx]?.content, 'a.txt\nb.txt\n')
+  assert.notEqual(String(messages[toolIdx]?.content), `interrupted: missing tool result for bash`)
 })
 
 test('findOrphanToolCalls ignores completed tool pairs', () => {
@@ -93,6 +146,61 @@ test('findOrphanToolCalls ignores completed tool pairs', () => {
 test('healInterruptedTurnBodies closes turn-only', () => {
   const turnOnly = healInterruptedTurnBodies([ev({ type: 'turn/start', turn: 4, seq: 0 })])
   assert.deepEqual(turnOnly, [{ type: 'turn/end', turn: 4, reason: 'host-restart' }])
+})
+
+test('chestnut: dual tool_calls with first stuck partial and second final stay in declaration order', () => {
+  const events = [
+    ev({ type: 'user/message', text: '查库', kind: 'wake', seq: 0 }),
+    ev({
+      type: 'assistant/message',
+      text: '先列目录再查表',
+      tool_calls: [
+        { id: 'call_00_aScNfLb9WXaALtTkufJg2846', name: 'bash', arguments: '{}' },
+        { id: 'call_01_v5bHKMUQx1HJuV1kh7mX3881', name: 'db_list', arguments: '{}' },
+      ],
+      seq: 1,
+    }),
+    ev({
+      type: 'tool/result',
+      id: 'call_00_aScNfLb9WXaALtTkufJg2846',
+      name: 'bash',
+      ok: true,
+      detail: '{"stdout":"total 3240"}',
+      partial: true,
+      seq: 2,
+    }),
+    ev({
+      type: 'tool/result',
+      id: 'call_01_v5bHKMUQx1HJuV1kh7mX3881',
+      name: 'db_list',
+      ok: true,
+      detail: '{"kind":"root"}',
+      seq: 3,
+    }),
+    ev({ type: 'turn/end', turn: 2, reason: 'cancelled', seq: 4 }),
+    ev({ type: 'user/message', text: '????', kind: 'wake', seq: 5 }),
+  ]
+
+  const before = deriveMessages(events)
+  const assistantAt = before.findIndex((item) => item.role === 'assistant' && item.tool_calls?.length)
+  assert.equal(before[assistantAt + 1]?.tool_call_id, 'call_00_aScNfLb9WXaALtTkufJg2846')
+  assert.equal(before[assistantAt + 2]?.tool_call_id, 'call_01_v5bHKMUQx1HJuV1kh7mX3881')
+  assert.equal(before[assistantAt + 1]?.content, '{"stdout":"total 3240"}')
+  assert.equal(before[assistantAt + 3]?.role, 'user')
+
+  const rebuilt = rebuildHealedEvents(events, 99)
+  assert.ok(rebuilt)
+  const results = rebuilt!.filter((item) => item.type === 'tool/result')
+  assert.equal(results.length, 2)
+  if (results[0]?.type === 'tool/result' && results[1]?.type === 'tool/result') {
+    assert.equal(results[0].id, 'call_00_aScNfLb9WXaALtTkufJg2846')
+    assert.equal(results[1].id, 'call_01_v5bHKMUQx1HJuV1kh7mX3881')
+    assert.equal(results[0].partial, undefined)
+    assert.equal(results[1].partial, undefined)
+  }
+  const after = deriveMessages(rebuilt!)
+  assert.equal(after[assistantAt + 1]?.tool_call_id, 'call_00_aScNfLb9WXaALtTkufJg2846')
+  assert.equal(after[assistantAt + 2]?.tool_call_id, 'call_01_v5bHKMUQx1HJuV1kh7mX3881')
 })
 
 test('deriveMessages synthesizes missing tool results before next user', () => {

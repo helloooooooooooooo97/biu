@@ -1,4 +1,4 @@
-import { dataHome, dataPath, migrateLegacyPageDir } from '@biu/host-plugin-loader/data-dir'
+import { assetsRootPath, dataHome, migrateLegacyPageDir } from '@biu/host-plugin-loader/data-dir'
 import type { Context } from 'cordis'
 import type { CollectionSpec } from '@biu/type-file-system'
 import { DATABASE_CHANNEL, REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
@@ -6,7 +6,7 @@ import { PagesStore, PageAssetConflictError, type WorkspaceFs } from './store.ts
 import { pageBlocksCollection } from './page-blocks-collection.ts'
 import { PAGE_BLOCK_TICK_MS, PageBlocksIndex } from './page-blocks-index.ts'
 
-export { PAGE_ROOT, PAGE_ASSETS, ASSET_GC_GRACE_MS, collectPageAssetNames, PagesStore } from './store.ts'
+export { PAGE_ROOT, PAGE_ASSETS, ASSET_GC_GRACE_MS, PagesStore } from './store.ts'
 export { pageBlocksCollection } from './page-blocks-collection.ts'
 export { PageBlocksIndex, PAGE_BLOCK_TICK_MS } from './page-blocks-index.ts'
 
@@ -20,13 +20,14 @@ export function pagesCollection(store: PagesStore, index: PageBlocksIndex): Coll
       route: '/pages',
       title: '页面',
       inspector: true,
-      blurb: '每页正文在工作区 .biu/page/<id>.md（YAML 头 + Markdown）。.biu/pages.sqlite 只做列表索引（无 notes 列），不扫全部文件。正文用 db_content；改标题/标签等用 db_update。合集用 db_update 写 facet：{tags:["facet-2"],values:{导演:"查泽雷"}}。图片不要写 data URL：先 db_asset write name=xxx.png from=本地文件，再 db_content 插入 ![说明](/api/db/file/xxx.png)。附件在 .biu/assets。树用 parentId。新建 db_create，删除 db_delete。本表没有 db_action。',
+      blurb: '每页正文在 .biu/biu.sqlite 的 editor_content。正文用 db_content；改标题/标签等用 db_update。合集用 db_update 写 facet：{tags:["facet-2"],values:{导演:"查泽雷"}}。图片不要写 data URL：先 db_asset write name=xxx.png from=本地文件，再 db_content 插入 ![说明](/api/db/file/xxx.png)。附件在 .biu/assets。树用 parentId。新建 db_create，删除 db_delete。本表没有 db_action。',
       order: 25,
       icon: 'document',
     },
     schema: {
       labelField: 'title',
       contentField: 'notes',
+      contentBackend: 'editorContent',
       parentField: 'parentId',
         columns: ['title', 'tags', 'createdBy', 'updatedBy'],
       fields: {
@@ -58,7 +59,7 @@ export function pagesCollection(store: PagesStore, index: PageBlocksIndex): Coll
     remove: async (query) => {
       const ids = query.ids ?? []
       for (const id of ids) {
-        await index.dropPage(id)
+        await index.dropRecord('/pages', id)
         await store.remove(id)
       }
       return ids
@@ -115,7 +116,7 @@ export function apply(ctx: Context) {
     write: (rel, content) => ctx.fs.writeIn(root, rel, content),
     list: (rel) => ctx.fs.listIn(root, rel ?? '.'),
   }
-  const store = new PagesStore(fs, dataPath(root, 'assets'))
+  const store = new PagesStore(fs, assetsRootPath(root))
   const index = new PageBlocksIndex(store)
   ctx.database.register(pagesCollection(store, index))
   ctx.database.register(pageBlocksCollection(store, index))

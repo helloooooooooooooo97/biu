@@ -80,12 +80,24 @@ test('sqlite stores facet overlay for records that cannot update', async () => {
   assert.equal(store.stampedIds('/plugins', 'dp').has('demo'), false)
 })
 
+test('empty facet overlay is not stored', async () => {
+  const store = new FacetStore()
+  store.writeRecordFacet('/pages', 'p1', { tags: ['dp'], values: { dp: {} } }, 'P')
+  assert.equal(store.recordFacet('/pages', 'p1')?.tags[0], 'dp')
+  store.writeRecordFacet('/pages', 'p1', { tags: [], values: {} }, 'P')
+  assert.equal(store.recordFacet('/pages', 'p1'), null)
+})
+
 test('sqlite stores emoji and tags overlay without wiping the other', () => {
   const store = new FacetStore()
   store.writeRecordMeta('/plugins', 'demo', { emoji: '🔌' })
   assert.equal(store.recordMeta('/plugins', 'demo')?.emoji, '🔌')
   assert.equal(store.recordMeta('/plugins', 'demo')?.tags, null)
   store.writeRecordMeta('/plugins', 'demo', { tags: ['host-ui'] })
+  store.markDeleted('/plugins', 'demo')
+  assert.equal(store.isDeleted('/plugins', 'demo'), true)
+  store.restoreDeleted('/plugins', 'demo')
+  assert.equal(store.isDeleted('/plugins', 'demo'), false)
   assert.equal(store.recordMeta('/plugins', 'demo')?.emoji, '🔌')
   assert.deepEqual(store.recordMeta('/plugins', 'demo')?.tags, ['host-ui'])
   store.removeRecord('/plugins', 'demo')
@@ -108,6 +120,16 @@ test('sqlite stores html banner in its own table without wrapping json', () => {
   assert.equal(store.forgetBannerGallery(mine.id), true)
   assert.equal(store.listBannerGallery().some((item) => item.html.includes('custom-cover')), false)
   assert.deepEqual(store.recordBanner('/pages', 'home'), { kind: 'html', html: '<div>custom-cover</div>' })
+})
+
+test('attachments and refs live next to record_meta', () => {
+  const store = new FacetStore()
+  store.putAttachment({ name: 'ab'.repeat(32) + '.png', etag: 'ab'.repeat(32) + '.png', mime: 'image/png', bytes: 4, kind: 'asset' })
+  store.replaceContentRefs('/pages', 'p1', ['hero.png'], ['cover.png'])
+  store.replaceBlockRefs('/pages', 'p1', 'e4945888', [{ name: 'ab'.repeat(32) + '.html', source: 'block:e4945888:core' }])
+  assert.deepEqual(store.listedAttachmentNames('/pages', 'p1'), ['ab'.repeat(32) + '.html', 'cover.png', 'hero.png'].sort())
+  store.removeRecord('/pages', 'p1')
+  assert.deepEqual(store.listedAttachmentNames('/pages', 'p1'), [])
 })
 
 test('preset banners are not copied into the custom gallery', async () => {

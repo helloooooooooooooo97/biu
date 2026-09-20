@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('biuBrowser', {
   visible: (visible) => cmd({ type: 'visible', visible }),
   openExternal: (url) => cmd({ type: 'openExternal', url }),
   inspect: (x, y) => cmd({ type: 'inspect', x, y }),
+  cancelInspect: () => cmd({ type: 'cancelInspect' }),
   close: () => cmd({ type: 'close' }),
   onState: (fn) => {
     const h = (_e, payload) => fn(payload)

@@ -11,14 +11,14 @@ function safeFileName(name: string) {
 
 async function uploadDbAsset(file: File) {
   const name = `${Date.now()}-${safeFileName(file.name)}`
-  const res = await fetch(`/api/db/file/${encodeURIComponent(name)}`, {
+  const res = await fetch(`/api/db/file/hash/${encodeURIComponent(name)}`, {
     method: 'PUT',
     headers: { 'content-type': file.type || 'application/octet-stream' },
     body: file,
   })
   const body = (await res.json().catch(() => ({}))) as { error?: string; href?: string; name?: string }
   if (!res.ok) throw new Error(body.error || res.statusText)
-  return { name: body.name || name, href: body.href || `/api/db/file/${encodeURIComponent(name)}` }
+  return { name: body.name || name, href: body.href || `/api/db/file/${encodeURIComponent(body.name || name)}` }
 }
 
 function commitImages(list: string[], onCommit: (next: unknown) => void) {

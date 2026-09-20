@@ -44,6 +44,7 @@ export function skillsCollection(skills: SkillsService): CollectionSpec {
     schema: {
       labelField: 'title',
       contentField: 'notes',
+      contentBackend: 'editorContent',
       columns: ['title', 'description', 'source', 'enabled'],
       fields: {
         ...REQUIRED_RECORD_FIELDS,

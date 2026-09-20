@@ -8,6 +8,7 @@ import {
   MapIcon,
   XMarkIcon,
 } from '@heroicons/react/16/solid'
+import { CopyIconButton } from './copy-icon-button.tsx'
 import type { ChatToolPart } from '@biu/web-session-view'
 import { pickDomAttrs } from '@biu/core-pick/web'
 import {
@@ -31,7 +32,7 @@ function DiffBlock({ lines, path }: { lines: DiffLine[]; path?: string }) {
     <div className="overflow-hidden rounded-[10px] bg-(--dsw-sidebar)">
       {path ? (
         <div className="flex items-center justify-between gap-2 px-3 py-1.5">
-          <span className="min-w-0 truncate font-mono text-(length:--dsw-chat-ui-font-size) text-(--dsw-label-2)">{path}</span>
+          <span className="min-w-0 truncate font-mono text-(length:--dsw-chat-ui-font-size) text-(--dsw-icon)">{path}</span>
           <span className="shrink-0 font-mono text-(length:--dsw-chat-ui-font-size) tabular-nums text-(--dsw-label-3)">
             {stats.removed ? <span className="text-(--dsw-danger)">−{stats.removed}</span> : null}
             {stats.removed && stats.added ? ' ' : null}
@@ -426,6 +427,8 @@ export function ToolCard({
       ? { label: '成功', className: 'is-ok' }
       : { label: '失败', className: 'is-fail' }
 
+  const copyTextValue = (node.result?.detail || node.arguments || '').trim()
+
   return (
     <div className="tool-call" {...pickDomAttrs('tool', node.callId, title)}>
       <div className={`tool-call-head${open ? ' is-open' : ''} ${status.className}`}>
@@ -467,6 +470,9 @@ export function ToolCard({
         >
           <MapIcon className="size-3.5" aria-hidden />
         </button>
+        {copyTextValue ? (
+          <CopyIconButton className="tool-call-copy" text={copyTextValue} label="复制工具输出" />
+        ) : null}
       </div>
       {!open && previewLines && previewLines.length > 0 ? (
         <div className="tool-call-body">

@@ -337,12 +337,15 @@ The system turns both declarations into a functioning interface. So **a whole pa
 
 That is also why composition doesn't explode: **components are a finite set of atoms; pages are an unlimited set of recipes.**
 
-A page body is a real file, so this container is transparent:
+Page bodies live in SQLite; attachments share one tree with two layers:
 
 ```
-.biu/page/<id>.md     ← YAML front matter + Markdown
-.biu/pages.sqlite     ← list index only; does not hold bodies
+.biu/biu.sqlite       ← pages, tasks, sessions, facets, views
+.biu/events.sqlite    ← session event log
+.biu/assets/          ← attachments
 ```
+
+Back up those sqlite files with `VACUUM INTO '/path/to/backup.sqlite'` (a single file, no WAL). Do not `cp` a live `.sqlite` while WAL exists. Facet stamp tables (`facet_stamps`, `facet_record_values`) are reserved for the 合集 overlay and may be empty until that overlay is used.
 
 Markdown can carry **blocks** — a fenced section that renders as a live component:
 
@@ -437,7 +440,7 @@ At this point a fair question: if what's underneath is SQLite, directories, and 
 Because the abstraction **never locks data behind the interface**.
 
 ```
-/pages/abc    →  .biu/page/abc.md             really opens in an editor
+/pages/abc    →  .biu/biu.sqlite               pages.notes
 /skills/bento →  .biu/skill/bento/DESIGN.md   really cats out of the filesystem
 ```
 
@@ -445,7 +448,7 @@ You can use only `db_*`, or read the disk directly. **The abstraction is a conve
 
 This clarifies what "everything is a file" means. It is not a literal description of the underlying storage, which remains heterogeneous; it describes a **property**: data is available through one interface while remaining directly visible on disk.
 
-Page bodies live in `.biu/page/<id>.md`, and the adjacent `.biu/pages.sqlite` only handles listing and search; table rows live in File System storage. A capability stores whatever it wants, under the same contract, and it shows up in the same tree.
+Page bodies live in `.biu/biu.sqlite` (`pages.notes`); session events live in `.biu/events.sqlite`. Attachments share `.biu/assets`. Table rows live in the same biu database. A capability stores whatever it wants, under the same contract, and it shows up in the same tree.
 
 **Transparency buys one more thing: traceability.** An append-only event stream records every action, and every surface is a projection of it. The session log is authoritative — projections can be swapped; the log cannot be lost. Because you can see both the state and how it came to be, you never have to distrust the abstraction layer.
 

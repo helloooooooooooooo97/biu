@@ -6,8 +6,11 @@ import {
   ChatBubbleLeftRightIcon,
   CheckIcon,
   CircleStackIcon,
+  ClipboardDocumentIcon,
   Cog6ToothIcon,
   CameraIcon,
+  EyeIcon,
+  EyeSlashIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/16/solid'
 import { AnchorMenu } from '@biu/public-ui'
@@ -17,6 +20,8 @@ import { applyNoticeClick, noticeIdOf } from './notice-open.ts'
 import { readMainDataRoute } from '@biu/core-file-system/main-data-route'
 import { persistTheme, readTheme, type ThemeMode } from './theme.ts'
 import { persistWorkspaceProfile, useWorkspaceProfile } from '@biu/public-ui'
+import { LayoutPrefsMenu } from '@biu/core-file-system/layout-prefs-menu'
+import { getPagePrefs, hydratePagePrefs, subscribePageWidth } from '@biu/core-file-system/page-width'
 
 async function readAvatarFile(file: File) {
   const url = URL.createObjectURL(file)
@@ -139,6 +144,12 @@ export function ShellSettingsAccount() {
 
 export function ShellSettingsAppearance() {
   const [theme, setTheme] = useState(readTheme)
+  const [pagePrefs, setPagePrefs] = useState(getPagePrefs)
+
+  useEffect(() => subscribePageWidth(() => setPagePrefs(getPagePrefs())), [])
+  useEffect(() => {
+    void hydratePagePrefs().then(() => setPagePrefs(getPagePrefs()))
+  }, [])
 
   const pick = (next: ThemeMode) => {
     persistTheme(next)
@@ -148,7 +159,7 @@ export function ShellSettingsAppearance() {
   return (
     <section data-testid="settings-appearance">
       <h3 className="settings-pane-title">外观</h3>
-      <p className="settings-muted settings-pane-lead">界面颜色。日间是浅色，夜间是深色。</p>
+      <p className="settings-muted settings-pane-lead">色彩和布局。日间是浅色，夜间是深色；宽屏、目录和正文字号记在下面。</p>
       <div className="settings-theme-grid">
         <button
           type="button"
@@ -173,6 +184,9 @@ export function ShellSettingsAppearance() {
           夜间模式
         </button>
       </div>
+      <h4 className="settings-pane-subtitle">布局设计</h4>
+      <p className="settings-muted settings-pane-lead">宽屏、悬浮目录和正文字号。重启后仍按上次选择。</p>
+      <LayoutPrefsMenu prefs={pagePrefs} testPrefix="settings-layout" className="settings-page-prefs" />
     </section>
   )
 }
@@ -268,6 +282,223 @@ export function ShellSettingsUpdate() {
           {hint}
         </p>
       ) : null}
+    </section>
+  )
+}
+
+type McpHostInfo = {
+  url: string
+  localUrl?: string
+  bind?: string
+  token: string
+  tools?: string[]
+  clients?: Record<string, unknown>
+  note?: string
+}
+
+const MCP_CLIENTS: Array<{ id: string; name: string; blurb: string }> = [
+  { id: 'cursor', name: 'Cursor', blurb: '把工作区交给 Cursor Agent 当 MCP 工具。' },
+  { id: 'claude', name: 'Claude', blurb: 'Claude Desktop / Claude.ai 连进这个工作区。' },
+  { id: 'chatgpt', name: 'ChatGPT', blurb: 'Custom GPT 或 Connector 填同一套 URL + token。' },
+  { id: 'codex', name: 'Codex', blurb: 'CLI 用 Streamable HTTP，请求头带 Bearer。' },
+]
+
+function mcpSnippet(info: McpHostInfo, id: string) {
+  const headers = { Authorization: `Bearer ${info.token}` }
+  if (id === 'chatgpt') return JSON.stringify({ url: info.url, headers }, null, 2)
+  return JSON.stringify({ mcpServers: { biu: { url: info.url, headers } } }, null, 2)
+}
+
+export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
+  const navigate = useNavigate()
+  const [info, setInfo] = useState<McpHostInfo | null>(null)
+  const [error, setError] = useState('')
+  const [reveal, setReveal] = useState(false)
+  const [copied, setCopied] = useState('')
+  const [rotating, setRotating] = useState(false)
+
+  const load = useCallback(() => {
+    void fetch('/api/mcp/info')
+      .then(async (res) => {
+        const data = (await res.json()) as McpHostInfo & { error?: string }
+        if (!res.ok) throw new Error(data.error || '无法读取 MCP 连接信息')
+        setInfo({
+          url: data.url,
+          localUrl: data.localUrl,
+          bind: data.bind,
+          token: data.token,
+          tools: data.tools,
+          clients: data.clients,
+          note: data.note,
+        })
+        setError('')
+      })
+      .catch((err) => setError(String(err instanceof Error ? err.message : err)))
+  }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  async function copy(key: string, text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(key)
+      window.setTimeout(() => setCopied((prev) => (prev === key ? '' : prev)), 1600)
+    } catch {
+      setError('无法复制，请重试')
+    }
+  }
+
+  async function rotate() {
+    if (!info || rotating) return
+    if (!window.confirm('重新生成后，已经配好的客户端会立刻失效，需要重新复制配置。')) return
+    setRotating(true)
+    try {
+      const res = await fetch('/api/mcp/rotate', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${info.token}` },
+      })
+      const data = (await res.json()) as McpHostInfo & { error?: string }
+      if (!res.ok) throw new Error(data.error || '无法轮换 token')
+      setInfo({
+        url: data.url,
+        localUrl: data.localUrl ?? info.localUrl,
+        bind: data.bind,
+        token: data.token,
+        tools: info.tools,
+        clients: data.clients,
+        note: info.note,
+      })
+      setError('')
+    } catch (err) {
+      setError(String(err instanceof Error ? err.message : err))
+    } finally {
+      setRotating(false)
+    }
+  }
+
+  const tokenShown = info ? (reveal ? info.token : '•'.repeat(Math.min(28, info.token.length))) : ''
+
+  return (
+    <section className="settings-mcp" data-testid="settings-mcp">
+      <h3 className="settings-pane-title">Biu MCP</h3>
+      <p className="settings-muted settings-pane-lead">
+        MCP 听在分享口（默认 0.0.0.0），局域网其它电脑用下面的地址 + token 即可调用。工作台本身仍只在本机。
+      </p>
+      {error ? (
+        <p className="settings-muted settings-mcp-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <h4 className="settings-pane-subtitle">连接</h4>
+      <div className="settings-mcp-fields">
+        <label className="settings-mcp-field">
+          <span>局域网地址</span>
+          <div className="settings-mcp-field-row">
+            <input readOnly value={info?.url ?? ''} data-testid="settings-mcp-url" className="settings-mcp-input" />
+            <button
+              type="button"
+              className="settings-mcp-icon-btn"
+              disabled={!info}
+              data-testid="settings-mcp-copy-url"
+              title={copied === 'url' ? '已复制' : '复制地址'}
+              aria-label={copied === 'url' ? '已复制' : '复制地址'}
+              onClick={() => info && void copy('url', info.url)}
+            >
+              {copied === 'url' ? <CheckIcon className="size-4" /> : <ClipboardDocumentIcon className="size-4" />}
+            </button>
+          </div>
+        </label>
+        {info?.localUrl && info.localUrl !== info.url ? (
+          <label className="settings-mcp-field">
+            <span>本机地址</span>
+            <div className="settings-mcp-field-row">
+              <input readOnly value={info.localUrl} data-testid="settings-mcp-local-url" className="settings-mcp-input" />
+            </div>
+          </label>
+        ) : null}
+        <label className="settings-mcp-field">
+          <span>Token</span>
+          <div className="settings-mcp-field-row">
+            <input
+              readOnly
+              value={tokenShown}
+              data-testid="settings-mcp-token"
+              className="settings-mcp-input"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className="settings-mcp-icon-btn"
+              disabled={!info}
+              data-testid="settings-mcp-reveal"
+              title={reveal ? '隐藏 token' : '显示 token'}
+              aria-label={reveal ? '隐藏 token' : '显示 token'}
+              onClick={() => setReveal((on) => !on)}
+            >
+              {reveal ? <EyeSlashIcon className="size-4" /> : <EyeIcon className="size-4" />}
+            </button>
+            <button
+              type="button"
+              className="settings-mcp-icon-btn"
+              disabled={!info}
+              data-testid="settings-mcp-copy-token"
+              title={copied === 'token' ? '已复制' : '复制 token'}
+              aria-label={copied === 'token' ? '已复制' : '复制 token'}
+              onClick={() => info && void copy('token', info.token)}
+            >
+              {copied === 'token' ? <CheckIcon className="size-4" /> : <ClipboardDocumentIcon className="size-4" />}
+            </button>
+          </div>
+        </label>
+        <div className="settings-mcp-actions">
+          <button
+            type="button"
+            className="settings-mcp-rotate"
+            disabled={!info || rotating}
+            data-testid="settings-mcp-rotate"
+            onClick={() => void rotate()}
+          >
+            {rotating ? '正在生成…' : '重新生成 token'}
+          </button>
+          <button
+            type="button"
+            className="settings-mcp-link"
+            data-testid="settings-mcp-open-table"
+            onClick={() => {
+              onLeave?.()
+              navigate('/mcp')
+            }}
+          >
+            挂外部 MCP 服务器
+          </button>
+        </div>
+      </div>
+      <h4 className="settings-pane-subtitle">客户端</h4>
+      <p className="settings-muted settings-pane-lead">复制配置后贴进对应产品。没有各家 OAuth 向导，接入就是带 Bearer 的同一条地址。</p>
+      <div className="settings-mcp-grid">
+        {MCP_CLIENTS.map((client) => (
+          <article key={client.id} className="settings-mcp-card" data-testid={`settings-mcp-client-${client.id}`}>
+            <span className="settings-mcp-mark" aria-hidden>
+              {client.name.slice(0, 1)}
+            </span>
+            <div className="settings-mcp-card-copy">
+              <strong>{client.name}</strong>
+              <p>{client.blurb}</p>
+            </div>
+            <button
+              type="button"
+              className="settings-mcp-enable"
+              disabled={!info}
+              data-testid={`settings-mcp-copy-${client.id}`}
+              onClick={() => info && void copy(client.id, mcpSnippet(info, client.id))}
+            >
+              {copied === client.id ? '已复制' : '复制配置'}
+            </button>
+          </article>
+        ))}
+      </div>
     </section>
   )
 }

@@ -1171,10 +1171,13 @@ export function CollectionBrowser({
 
   useEffect(() => {
     if (!schema || sortFields.some((item) => item.key === sortField)) return
-    const fallback = sortFields.find((item) => item.key === 'title') ?? sortFields[0]
+    const fallback =
+      sortFields.find((item) => item.key === 'updatedAt') ??
+      sortFields.find((item) => item.key === 'title') ??
+      sortFields[0]
     if (fallback) {
       setSortField(fallback.key)
-      setSortDir('asc')
+      setSortDir(fallback.key === 'updatedAt' ? 'desc' : 'asc')
     }
   }, [schema, sortField, sortFields])
 
@@ -1323,12 +1326,16 @@ export function CollectionBrowser({
     window.dispatchEvent(new Event('fsdb:crumb-labels'))
   }, [activeViewId, collectionPath, items, routeViewId, schema?.labelField, selected])
   const filterActive = countFilterRules(filterTree) > 0
-  const sortCustom = isCustomSorts(sorts, schema?.labelField ?? 'title')
+  const activeView = views.find((view) => view.id === activeViewId)
+  const sortCustom = isCustomSorts(
+    sorts,
+    activeView?.builtin ? 'updatedAt' : (schema?.labelField ?? 'title'),
+    activeView?.builtin ? 'desc' : 'asc',
+  )
   const queryFields = useMemo(
     () => collectQueryFields(sorts, filterTree, schema?.labelField ?? 'title'),
     [filterTree, schema?.labelField, sorts],
   )
-  const activeView = views.find((view) => view.id === activeViewId)
   const [viewBanner, setViewBanner] = useState<unknown>(null)
   useEffect(() => {
     if (sheet || !activeViewId || isReadOnlyViewId(activeViewId)) {
@@ -2671,28 +2678,26 @@ export function CollectionBrowser({
                 <StarIcon aria-hidden className={`size-4${viewStarred ? ' text-[#f5b700]' : ''}`} />
               </button>
             ) : null}
-            {nested ? null : (
-              <ShareButton
-                target={
-                  detailId
+            <ShareButton
+              target={
+                detailId
+                  ? {
+                      kind: 'record' as const,
+                      collection: collectionPath,
+                      viewId: activeViewId ?? undefined,
+                      recordId: detailId,
+                      title: String(detailRow?.title ?? title),
+                    }
+                  : !nested && activeViewId
                     ? {
-                        kind: 'record' as const,
+                        kind: 'view' as const,
                         collection: collectionPath,
-                        viewId: activeViewId ?? undefined,
-                        recordId: detailId,
-                        title: String(detailRow?.title ?? title),
+                        viewId: activeViewId,
+                        title: activeView?.name ?? title,
                       }
-                    : activeViewId
-                      ? {
-                          kind: 'view' as const,
-                          collection: collectionPath,
-                          viewId: activeViewId,
-                          title: activeView?.name ?? title,
-                        }
-                      : null
-                }
-              />
-            )}
+                    : null
+              }
+            />
             <div className="fsdb-layout-wrap" ref={layoutRef}>
               <button
                 type="button"
@@ -3439,6 +3444,20 @@ export function CollectionBrowser({
           writePatch={writePatch}
           tableIcon={currentTable?.view?.icon}
           toolbar={<RecordActions row={selected} place="detail" />}
+          share={
+            nested && detailId ? (
+              <ShareButton
+                buttonClassName="fsdb-detail-float-btn"
+                target={{
+                  kind: 'record',
+                  collection: collectionPath,
+                  viewId: activeViewId ?? undefined,
+                  recordId: detailId,
+                  title: String(detailRow?.title ?? title),
+                }}
+              />
+            ) : undefined
+          }
           onDelete={canDelete ? () => setDlg({ kind: 'delete-record', row: selected }) : undefined}
           onOpenRecord={(recordId, collection) => onOpenRecord?.(recordId, activeViewId, collection)}
           onPrev={total > 1 ? () => void stepViewRecord(-1) : undefined}
@@ -3470,7 +3489,7 @@ export function CollectionBrowser({
           danger
           onCancel={() => setDlg(null)}
           onConfirm={applyDeleteView}
-          body={<p>确定删除视图「{dlg.view.name}」？删除后不可恢复。</p>}
+          body={<p>确定删除视图「{dlg.view.name}」？会放进回收站，可随时恢复。</p>}
         />
       ) : null}
       {dlg?.kind === 'delete-record' ? (
@@ -3484,7 +3503,7 @@ export function CollectionBrowser({
             setDlg(null)
             void executeDeleteRecord(row)
           }}
-          body={<p>确定删除「{labelOf(dlg.row)}」？删除后不可恢复。</p>}
+          body={<p>确定删除「{labelOf(dlg.row)}」？会放进回收站，可随时恢复。</p>}
         />
       ) : null}
       {dlg?.kind === 'delete-records' ? (
@@ -3498,7 +3517,7 @@ export function CollectionBrowser({
             setDlg(null)
             void executeDeleteRecords(ids)
           }}
-          body={<p>确定删除选中的 {dlg.ids.length} 条记录？删除后不可恢复。</p>}
+          body={<p>确定删除选中的 {dlg.ids.length} 条记录？会放进回收站，可随时恢复。</p>}
         />
       ) : null}
       {dlg?.kind === 'bulk-edit' ? (

@@ -8,6 +8,7 @@ import { slashMayOpen } from './editor-live.ts'
 import { createPageBlockId } from './page-block.ts'
 import { defaultPageBlockTitle } from '../page-block-fence.ts'
 import { BASIC_BLOCK_TYPE, getPageEditor, type SlashInsert } from './service.ts'
+import { uploadPageImage } from './page-image.ts'
 
 export type SlashItem = {
   id: string
@@ -162,23 +163,6 @@ export const SLASH_ITEMS: SlashItem[] = [
     ...BASIC_GROUP,
   },
 ]
-
-function safeAssetFileName(name: string) {
-  const base = name.replace(/^.*[/\\]/, '').replace(/[^\p{L}\p{N}._-]+/gu, '-')
-  return base || `image-${Date.now()}.png`
-}
-
-async function uploadPageImage(file: File) {
-  const name = `${Date.now()}-${safeAssetFileName(file.name)}`
-  const res = await fetch(`/api/db/file/${encodeURIComponent(name)}`, {
-    method: 'PUT',
-    headers: { 'content-type': file.type || 'application/octet-stream' },
-    body: file,
-  })
-  const body = (await res.json().catch(() => ({}))) as { error?: string; href?: string; name?: string }
-  if (!res.ok) throw new Error(body.error || res.statusText)
-  return body.href || `/api/db/file/${encodeURIComponent(body.name || name)}`
-}
 
 function pickLocalImageSrc() {
   return new Promise<string>((resolve) => {

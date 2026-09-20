@@ -513,7 +513,7 @@ export const DataSidebar = memo(function DataSidebar({
     }
   })
   const [userOpen, setUserOpen] = useState(true)
-  const [systemOpen, setSystemOpen] = useState(true)
+  const [systemOpen, setSystemOpen] = useState(false)
   const [expandedViewKeyLocal, setExpandedViewKeyLocal] = useState<string | null>(null)
   const expandedViewKey = expandedViewKeyProp !== undefined ? expandedViewKeyProp : expandedViewKeyLocal
   const setExpandedViewKey = onExpandedViewKeyChange ?? setExpandedViewKeyLocal
@@ -847,6 +847,7 @@ export const DataSidebar = memo(function DataSidebar({
   const body = (
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3">
         <div className="mt-2 space-y-1.5">
+          {shareCount ? (
           <section className="min-w-0">
             <div className="sidebar-section-head min-w-0">
               <div className="flex min-h-8 min-w-0 flex-1 items-center">
@@ -871,7 +872,7 @@ export const DataSidebar = memo(function DataSidebar({
             </div>
             <SidebarFold open={shareOpen}>
               <div className="min-w-0 pt-0.5" data-testid="sidebar-shares">
-                {shares.length ? shares.map((share) => {
+                {shares.map((share) => {
                   const table = listedTables.find((row) => row.path === share.collection)
                   const tableName = table?.view?.title ?? table?.label ?? share.collection.replace(/^\//, '')
                   const view = viewsFor(share.collection).find((row) => row.id === share.viewId)
@@ -931,12 +932,11 @@ export const DataSidebar = memo(function DataSidebar({
                       </div>
                     </div>
                   )
-                }) : (
-                  <div className="px-1 py-1 text-[12px] text-(--dsw-label-3)">还没有分享</div>
-                )}
+                })}
               </div>
             </SidebarFold>
           </section>
+          ) : null}
           {favCount ? (
             <section className="min-w-0">
               <div className="sidebar-section-head min-w-0">
@@ -1184,29 +1184,27 @@ export const DataSidebar = memo(function DataSidebar({
             </SidebarFold>
           </section>
 
-          {systemTables.length ? (
-            <section className="min-w-0">
-              <div className="sidebar-section-head min-w-0">
-                <div className="flex min-h-8 min-w-0 flex-1 items-center">
-                  <button
-                    type="button"
-                    className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
-                    aria-expanded={systemOpen}
-                    title="系统运行时记下的数据"
-                    onClick={() => setSystemOpen((prev) => !prev)}
-                  >
-                    <span className="min-w-0 flex-1 truncate tracking-normal">系统数据</span>
-                  </button>
-                </div>
-                <ChatCount count={systemTables.length} />
+          <section className="min-w-0">
+            <div className="sidebar-section-head min-w-0">
+              <div className="flex min-h-8 min-w-0 flex-1 items-center">
+                <button
+                  type="button"
+                  className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
+                  aria-expanded={systemOpen}
+                  title="系统运行时记下的数据"
+                  onClick={() => setSystemOpen((prev) => !prev)}
+                >
+                  <span className="min-w-0 flex-1 truncate tracking-normal">系统数据</span>
+                </button>
               </div>
+              <ChatCount count={systemTables.length} />
+            </div>
               <SidebarFold open={systemOpen}>
                 <div className="flex min-w-0 flex-col gap-px" data-testid="sidebar-system-collections">
                   {renderTableRows(systemTables)}
                 </div>
               </SidebarFold>
             </section>
-          ) : null}
         </div>
       </div>
   )

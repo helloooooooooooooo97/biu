@@ -1,15 +1,19 @@
 import type { DbRecord } from '@biu/type-file-system'
 import { recordBuiltinValues } from '@biu/type-file-system'
 import { listPageBlockFences, pageBlockData, pageBlockRecordId, parsePageBlockRecordId, uniquifyPageBlockMarkdown, defaultPageBlockTitle } from '@biu/core-editor/host'
+import { assetNamesFromBlock, assetNamesFromHtml } from '@biu/type-file-system'
+import { readEditorContent, replacePageBlockRefs, writeEditorContent } from '@biu/host-plugin-loader/data-dir'
 import type { PagesStore, PageRow } from './store.ts'
 
 export const PAGE_BLOCK_HOT_WINDOW_MS = 5 * 60 * 1000
 export const PAGE_BLOCK_HOT_LIMIT = 24
 export const PAGE_BLOCK_WARM_LIMIT = 8
 export const PAGE_BLOCK_TICK_MS = 15_000
+export const EDITOR_BLOCK_COLLECTIONS = ['/pages', '/tasks', '/facets', '/skills', '/plugins'] as const
 
-type Cover = { page_id: string; page_updated_at: number }
+type Cover = { collection: string; page_id: string; page_updated_at: number }
 type IndexRow = {
+  collection: string
   page_id: string
   block_id: string
   kind: string
@@ -26,15 +30,36 @@ function blockTitle(pageName: string, kindName: string, data: Record<string, unk
   return defaultPageBlockTitle(pageName, kindName)
 }
 
-function pageNameFromRecord(rec: { data?: unknown } | null): string {
-  const data = rec?.data && typeof rec.data === 'object' && !Array.isArray(rec.data) ? (rec.data as Record<string, unknown>) : {}
-  return String(data.title ?? data.name ?? data.label ?? '').trim()
+function assetNamesFromFence(kind: string, plugin: string, data: Record<string, unknown>, body: string) {
+  const names = new Set(assetNamesFromBlock(kind, plugin, data))
+  if (kind === 'html' || kind === 'htmlframe') {
+    for (const name of assetNamesFromHtml(body)) names.add(name)
+  }
+  return names
+}
+
+function slimBlockIndexData(kind: string, plugin: string, data: Record<string, unknown>, blockId: string) {
+  const bodyKeys = new Set(['html', 'script', 'code', 'source', 'body'])
+  const attrs: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(data)) {
+    if (bodyKeys.has(key)) continue
+    attrs[key] = value
+  }
+  return {
+    blockId,
+    kind,
+    plugin,
+    attrs,
+    assets: [...assetNamesFromBlock(kind, plugin, data)].sort(),
+  }
 }
 
 function toRecord(row: IndexRow): DbRecord {
+  const collection = row.collection || '/pages'
   return {
-    id: pageBlockRecordId(row.page_id, row.block_id),
+    id: pageBlockRecordId(collection, row.page_id, row.block_id),
     title: row.title,
+    collection,
     pageId: row.page_id,
     pageTitle: row.page_title || undefined,
     blockId: row.block_id,
@@ -45,13 +70,47 @@ function toRecord(row: IndexRow): DbRecord {
   }
 }
 
+function coverKey(collection: string, pageId: string) {
+  return `${collection}\0${pageId}`
+}
+
+function recordMeta(
+  db: import('node:sqlite').DatabaseSync,
+  collection: string,
+  recordId: string,
+): { title: string; createdAt: number } {
+  try {
+    if (collection === '/pages') {
+      const row = db.prepare('SELECT title, created_at FROM pages WHERE id = ?').get(recordId) as
+        | { title?: string; created_at?: number }
+        | undefined
+      return { title: String(row?.title ?? '').trim(), createdAt: Number(row?.created_at) || 0 }
+    }
+    if (collection === '/tasks') {
+      const row = db.prepare('SELECT title, created_at FROM tasks WHERE id = ?').get(recordId) as
+        | { title?: string; created_at?: number }
+        | undefined
+      return { title: String(row?.title ?? '').trim(), createdAt: Number(row?.created_at) || 0 }
+    }
+    if (collection === '/facets') {
+      const row = db.prepare('SELECT label, created_at FROM facets WHERE id = ?').get(recordId) as
+        | { label?: string; created_at?: number }
+        | undefined
+      return { title: String(row?.label ?? '').trim(), createdAt: Number(row?.created_at) || 0 }
+    }
+  } catch {
+    /* table missing in tests */
+  }
+  return { title: '', createdAt: 0 }
+}
+
 export type PageBlocksIndexOptions = {
   hotWindowMs?: number
   hotLimit?: number
   warmLimit?: number
 }
 
-/** 倒排只扫脏页：先最近窗口，再少量补旧的；每拍有上限。 */
+/** 倒排只扫脏记录：先最近窗口，再少量补旧的；每拍有上限。 */
 export class PageBlocksIndex {
   constructor(
     private store: PagesStore,
@@ -71,36 +130,7 @@ export class PageBlocksIndex {
   }
 
   private async db() {
-    const sqlite = await this.store.sqlite()
-    sqlite.exec(`
-      CREATE TABLE IF NOT EXISTS page_block_index (
-        page_id TEXT NOT NULL,
-        block_id TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        plugin TEXT NOT NULL DEFAULT '',
-        title TEXT NOT NULL,
-        page_title TEXT NOT NULL DEFAULT '',
-        data_json TEXT NOT NULL,
-        page_created_at INTEGER NOT NULL DEFAULT 0,
-        page_updated_at INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (page_id, block_id)
-      );
-      CREATE INDEX IF NOT EXISTS page_block_index_page ON page_block_index(page_id);
-      CREATE TABLE IF NOT EXISTS page_block_cover (
-        page_id TEXT PRIMARY KEY,
-        page_updated_at INTEGER NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS page_block_index_meta (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-    `)
-    try {
-      sqlite.exec('ALTER TABLE page_block_index ADD COLUMN page_title TEXT NOT NULL DEFAULT ""')
-    } catch {
-      /* 列已在 */
-    }
-    return sqlite
+    return this.store.sqlite()
   }
 
   lastRunAt() {
@@ -119,39 +149,69 @@ export class PageBlocksIndex {
   }
 
   async reindexPage(page: PageRow) {
-    const unique = uniquifyPageBlockMarkdown(page.notes)
-    const row = unique.changed ? await this.store.update(page.id, { notes: unique.markdown }) : page
+    await this.reindexRecord('/pages', page.id, {
+      title: page.title,
+      createdAt: page.createdAt,
+      updatedAt: page.updatedAt,
+    })
+  }
+
+  async reindexRecord(
+    collection: string,
+    recordId: string,
+    meta?: { body?: string; title?: string; createdAt?: number; updatedAt?: number },
+  ) {
     const db = await this.db()
-    const fences = listPageBlockFences(row.notes).filter((item) => item.id)
+    let body = meta?.body ?? readEditorContent(db, collection, recordId)
+    const unique = uniquifyPageBlockMarkdown(body)
+    if (unique.changed) {
+      body = unique.markdown
+      writeEditorContent(db, collection, recordId, body, { transaction: false })
+    }
+    const stamp = db
+      .prepare('SELECT updated_at FROM editor_content WHERE collection = ? AND record_id = ?')
+      .get(collection, recordId) as { updated_at?: number } | undefined
+    const names = recordMeta(db, collection, recordId)
+    const pageTitle = String(meta?.title ?? names.title ?? '').trim()
+    const createdAt = meta?.createdAt ?? names.createdAt
+    const updatedAt = Number(stamp?.updated_at) || meta?.updatedAt || Date.now()
+    const fences = listPageBlockFences(body).filter((item) => item.id)
     db.exec('BEGIN')
     try {
-      db.prepare('DELETE FROM page_block_index WHERE page_id = ?').run(row.id)
+      db.prepare('DELETE FROM page_block_index WHERE collection = ? AND page_id = ?').run(collection, recordId)
       const insert = db.prepare(`
         INSERT INTO page_block_index(
-          page_id, block_id, kind, plugin, title, page_title, data_json, page_created_at, page_updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          collection, page_id, block_id, kind, plugin, title, page_title, data_json, page_created_at, page_updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       const seen = new Set<string>()
-      const pageTitle = String(row.title ?? '').trim()
+      const blockRefs: Array<{ blockId: string; names: Iterable<string> }> = []
       for (const fence of fences) {
         if (seen.has(fence.id)) continue
         seen.add(fence.id)
         const data = pageBlockData(fence)
         insert.run(
-          row.id,
+          collection,
+          recordId,
           fence.id,
           fence.kind,
           fence.plugin,
           blockTitle(pageTitle, fence.kind, data),
           pageTitle,
-          JSON.stringify(data),
-          row.createdAt,
-          row.updatedAt,
+          JSON.stringify(slimBlockIndexData(fence.kind, fence.plugin, data, fence.id)),
+          createdAt,
+          updatedAt,
         )
+        blockRefs.push({
+          blockId: fence.id,
+          names: assetNamesFromFence(fence.kind, fence.plugin, data, fence.body),
+        })
       }
       db.prepare(
-        'INSERT INTO page_block_cover(page_id, page_updated_at) VALUES(?, ?) ON CONFLICT(page_id) DO UPDATE SET page_updated_at=excluded.page_updated_at',
-      ).run(row.id, row.updatedAt)
+        `INSERT INTO page_block_cover(collection, page_id, page_updated_at) VALUES(?, ?, ?)
+         ON CONFLICT(collection, page_id) DO UPDATE SET page_updated_at=excluded.page_updated_at`,
+      ).run(collection, recordId, updatedAt)
+      replacePageBlockRefs(db, collection, recordId, blockRefs)
       db.exec('COMMIT')
     } catch (error) {
       db.exec('ROLLBACK')
@@ -160,37 +220,51 @@ export class PageBlocksIndex {
   }
 
   async dropPage(pageId: string) {
+    await this.dropRecord('/pages', pageId)
+  }
+
+  async dropRecord(collection: string, recordId: string) {
     const db = await this.db()
-    db.prepare('DELETE FROM page_block_index WHERE page_id = ?').run(pageId)
-    db.prepare('DELETE FROM page_block_cover WHERE page_id = ?').run(pageId)
+    db.prepare('DELETE FROM page_block_index WHERE collection = ? AND page_id = ?').run(collection, recordId)
+    db.prepare('DELETE FROM page_block_cover WHERE collection = ? AND page_id = ?').run(collection, recordId)
+    try {
+      db.prepare(`DELETE FROM block_refs WHERE collection = ? AND record_id = ?`).run(collection, recordId)
+    } catch {
+      /* table may not exist yet */
+    }
   }
 
   async sync(now = Date.now()) {
     const db = await this.db()
-    const pages = await this.store.list()
-    const live = new Set(pages.map((item) => item.id))
-    const covers = (db.prepare('SELECT page_id, page_updated_at FROM page_block_cover').all() as Cover[])
-    const coverAt = new Map(covers.map((item) => [item.page_id, item.page_updated_at]))
+    const liveRows = db
+      .prepare(
+        `SELECT collection, record_id AS page_id, updated_at AS page_updated_at FROM editor_content
+         WHERE collection IN (${EDITOR_BLOCK_COLLECTIONS.map(() => '?').join(',')})`,
+      )
+      .all(...EDITOR_BLOCK_COLLECTIONS) as Cover[]
+    const live = new Set(liveRows.map((item) => coverKey(item.collection, item.page_id)))
+    const covers = (db.prepare('SELECT collection, page_id, page_updated_at FROM page_block_cover').all() as Cover[])
+    const coverAt = new Map(covers.map((item) => [coverKey(item.collection, item.page_id), item.page_updated_at]))
     for (const item of covers) {
-      if (!live.has(item.page_id)) await this.dropPage(item.page_id)
+      if (!live.has(coverKey(item.collection, item.page_id))) await this.dropRecord(item.collection, item.page_id)
     }
-    const dirty = pages.filter((page) => (coverAt.get(page.id) ?? -1) < page.updatedAt)
+    const dirty = liveRows.filter((row) => (coverAt.get(coverKey(row.collection, row.page_id)) ?? -1) < row.page_updated_at)
     const hotCut = now - this.hotWindowMs()
-    const hot = dirty.filter((page) => page.updatedAt >= hotCut).sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))
+    const hot = dirty
+      .filter((row) => row.page_updated_at >= hotCut)
+      .sort((a, b) => b.page_updated_at - a.page_updated_at || coverKey(a.collection, a.page_id).localeCompare(coverKey(b.collection, b.page_id)))
     const takeHot = hot.slice(0, this.hotLimit())
-    const taken = new Set(takeHot.map((item) => item.id))
+    const taken = new Set(takeHot.map((item) => coverKey(item.collection, item.page_id)))
     const warm = dirty
-      .filter((page) => !taken.has(page.id))
-      .sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))
+      .filter((row) => !taken.has(coverKey(row.collection, row.page_id)))
+      .sort((a, b) => b.page_updated_at - a.page_updated_at || coverKey(a.collection, a.page_id).localeCompare(coverKey(b.collection, b.page_id)))
       .slice(0, this.warmLimit())
     const batch = [...takeHot, ...warm]
     for (const slim of batch) {
-      const page = await this.store.get(slim.id)
-      if (!page) continue
       try {
-        await this.reindexPage(page)
+        await this.reindexRecord(slim.collection, slim.page_id, { updatedAt: slim.page_updated_at })
       } catch {
-        /* 单页索引失败不拖垮 host */
+        /* 单条索引失败不拖垮 host */
       }
     }
     await this.writeMeta('last_run_at', String(now))
@@ -200,7 +274,7 @@ export class PageBlocksIndex {
 
   async list() {
     const db = await this.db()
-    const rows = db.prepare('SELECT * FROM page_block_index ORDER BY page_id, block_id').all() as IndexRow[]
+    const rows = db.prepare('SELECT * FROM page_block_index ORDER BY collection, page_id, block_id').all() as IndexRow[]
     return rows.map(toRecord)
   }
 
@@ -208,7 +282,9 @@ export class PageBlocksIndex {
     const parsed = parsePageBlockRecordId(id)
     if (!parsed) return null
     const db = await this.db()
-    const row = db.prepare('SELECT * FROM page_block_index WHERE page_id = ? AND block_id = ?').get(parsed.pageId, parsed.blockId) as IndexRow | undefined
+    const row = db
+      .prepare('SELECT * FROM page_block_index WHERE collection = ? AND page_id = ? AND block_id = ?')
+      .get(parsed.collection, parsed.pageId, parsed.blockId) as IndexRow | undefined
     return row ? toRecord(row) : null
   }
 }

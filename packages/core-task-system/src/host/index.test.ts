@@ -47,6 +47,24 @@ test('tasks sqlite crud and status move', async () => {
   }
 })
 
+test('task search hits editor_content body', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'tasks-search-'))
+  const path = join(dir, 'tasks.sqlite')
+  try {
+    const tasks = new TasksService(new Context(), path).open()
+    tasks.create({
+      title: '标题不含关键字',
+      creator: { kind: 'user', name: '用户' },
+      description: '把需求写清楚 unique-body-token',
+    })
+    const hit = tasks.list({ q: 'unique-body-token' })
+    assert.equal(hit.length, 1)
+    assert.match(hit[0]?.description ?? '', /unique-body-token/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('coerceAssigneeArg accepts actor object, sessionId string, and person name', async () => {
   const host = { sessions: undefined } as never
   const actor = await coerceAssigneeArg(host, {

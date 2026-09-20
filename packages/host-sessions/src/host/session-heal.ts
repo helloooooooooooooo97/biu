@@ -89,26 +89,70 @@ export function rebuildHealedEvents(
 ): SessionEvent[] | null {
   const out: SessionEvent[] = []
   const pending = new Map<string, string>()
+  let pendingOrder: string[] = []
   let changed = false
 
   const push = (body: SessionEventBody, ts: number) => {
     out.push({ ...body, seq: out.length, ts } as SessionEvent)
   }
 
+  /** 崩溃停在分片 result 时保留已流出的 detail，flush 时转成正式 tool/result。 */
+  const partials = new Map<string, { name: string; ok: boolean; detail: string; ts: number }>()
+  const ready = new Map<string, SessionEvent>()
+
+  const emitReady = () => {
+    while (pendingOrder.length && ready.has(pendingOrder[0]!)) {
+      const id = pendingOrder.shift()!
+      pending.delete(id)
+      partials.delete(id)
+      push(stripSeqTs(ready.get(id)!), ready.get(id)!.ts)
+      ready.delete(id)
+    }
+  }
+
   const flushPending = () => {
-    if (!pending.size) return
+    if (!pendingOrder.length) return
     changed = true
-    for (const body of orphanToolResultBodies(
-      [...pending.entries()].map(([id, name]) => ({ id, name })),
-    )) {
-      push(body, now)
+    for (const id of pendingOrder) {
+      const name = pending.get(id) || id
+      const finished = ready.get(id)
+      if (finished) {
+        push(stripSeqTs(finished), finished.ts)
+        continue
+      }
+      const streamed = partials.get(id)
+      if (streamed) {
+        push(
+          {
+            type: 'tool/result',
+            id,
+            name: streamed.name || name,
+            ok: false,
+            detail: streamed.detail || INTERRUPTED_TOOL_DETAIL,
+          },
+          streamed.ts || now,
+        )
+      } else {
+        push(orphanToolResultBodies([{ id, name }])[0]!, now)
+      }
     }
     pending.clear()
+    pendingOrder = []
+    partials.clear()
+    ready.clear()
   }
 
   for (const event of events) {
     if (event.type === 'tool/result') {
       if (event.partial) {
+        if (pending.has(event.id)) {
+          partials.set(event.id, {
+            name: event.name || pending.get(event.id) || '',
+            ok: event.ok,
+            detail: event.detail,
+            ts: event.ts,
+          })
+        }
         changed = true
         continue
       }
@@ -116,8 +160,9 @@ export function rebuildHealedEvents(
         changed = true
         continue
       }
-      pending.delete(event.id)
-      push(stripSeqTs(event), event.ts)
+      ready.set(event.id, event)
+      if (pendingOrder[0] !== event.id) changed = true
+      emitReady()
       continue
     }
 
@@ -125,6 +170,7 @@ export function rebuildHealedEvents(
       flushPending()
       push(stripSeqTs(event), event.ts)
       if (event.type === 'assistant/message' && event.tool_calls?.length) {
+        pendingOrder = event.tool_calls.map((call) => call.id)
         for (const call of event.tool_calls) {
           pending.set(call.id, call.name)
         }

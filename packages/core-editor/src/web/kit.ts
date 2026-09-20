@@ -2,13 +2,13 @@ import { InputRule, mergeAttributes, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Markdown } from '@tiptap/markdown'
 import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
-import Image from '@tiptap/extension-image'
+import { pageImage } from './page-image.ts'
 import { BlockMath, InlineMath, Mathematics } from '@tiptap/extension-mathematics'
 import Placeholder from '@tiptap/extension-placeholder'
 import { TableKit } from '@tiptap/extension-table'
 import StarterKit from '@tiptap/starter-kit'
 import { Paragraph } from '@tiptap/extension-paragraph'
-import { common, createLowlight } from 'lowlight'
+import { pageLowlight } from './page-lowlight.ts'
 import { pageTextStyle, pageHighlight, Color } from './color-marks.ts'
 import { headingSkin } from './heading-skin.ts'
 import { pageBlock } from './page-block.ts'
@@ -131,8 +131,6 @@ const pageBlockMath = BlockMath.extend({
   }),
 })
 
-const pageLowlight = createLowlight(common)
-
 const pageCodeBlock = CodeBlockLowlight.extend({
   renderHTML({ node, HTMLAttributes }) {
     const language = String(node.attrs.language ?? '').trim()
@@ -209,7 +207,7 @@ export function pageEditorExtensions() {
     pageTextStyle,
     Color,
     pageHighlight,
-    Image.configure({ inline: false, allowBase64: true }),
+    pageImage,
     TableKit.configure({
       table: { resizable: true, allowTableNodeSelection: true },
     }),

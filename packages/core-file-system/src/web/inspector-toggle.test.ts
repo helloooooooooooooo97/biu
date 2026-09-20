@@ -5,6 +5,18 @@ import assert from 'node:assert/strict'
 
 const browser = readFileSync(resolve(import.meta.dirname, './browser.tsx'), 'utf8')
 const detail = readFileSync(resolve(import.meta.dirname, './record-detail.tsx'), 'utf8')
+const style = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
+
+test('embedded record details can share their explicit record target', () => {
+  assert.match(browser, /share=\{\s*nested && detailId \?/)
+  assert.match(browser, /buttonClassName="fsdb-detail-float-btn"/)
+  assert.match(browser, /recordId: detailId/)
+  assert.match(detail, /share\?: ReactNode/)
+  assert.match(detail, /fsdb-detail-float-nav\$\{share \? ' has-share' : ''\}/)
+  assert.match(detail, /\{share\}/)
+  assert.match(style, /\.inspector-database-page \.fsdb-detail-float-nav\.has-share\{opacity:1\}/)
+  assert.doesNotMatch(browser, /\{nested \? null : \(\s*<ShareButton/)
+})
 
 test('hydrating page-blocks prefers the route view over local 全部', () => {
   assert.match(browser, /pickViewForRoute\(listed, collectionPath, routeViewId\)/)
@@ -13,6 +25,12 @@ test('hydrating page-blocks prefers the route view over local 全部', () => {
     browser,
     /listed.find\(\(item\) => item.id === routeViewId\) \?\?\s*listed.find\(\(item\) => item.id === loadActiveViewId/,
   )
+})
+
+test('data sidebar hides the share section when nothing is shared', () => {
+  const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
+  assert.match(sidebar, /\{shareCount \? \(/)
+  assert.doesNotMatch(sidebar, /还没有分享/)
 })
 
 test('data sidebar brand sits left with a collapse control on the right', () => {
@@ -30,7 +48,7 @@ test('user and system collection sections fold independently', () => {
   const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
   const fold = readFileSync(resolve(import.meta.dirname, '../../../public-ui/src/sidebar-fold.tsx'), 'utf8')
   assert.match(sidebar, /const \[userOpen, setUserOpen\] = useState\(true\)/)
-  assert.match(sidebar, /const \[systemOpen, setSystemOpen\] = useState\(true\)/)
+  assert.match(sidebar, /const \[systemOpen, setSystemOpen\] = useState\(false\)/)
   assert.match(sidebar, /onClick=\{\(\) => setUserOpen\(\(prev\) => !prev\)\}/)
   assert.match(sidebar, /onClick=\{\(\) => setSystemOpen\(\(prev\) => !prev\)\}/)
   assert.match(sidebar, /<SidebarFold/)
@@ -63,7 +81,7 @@ test('table and view rows only expand from the fold column', () => {
   assert.doesNotMatch(sidebar, /catalog: true/)
   const page = readFileSync(resolve(import.meta.dirname, './index.tsx'), 'utf8')
   assert.doesNotMatch(page, /opts\?\.catalog/)
-  assert.match(page, /go\(\{ collection: path, viewId: viewId \?\? builtinAllViewId\(path\) \}\)/)
+  assert.match(page, /viewId: viewId \?\? builtinAllViewId\(path\)/)
   assert.doesNotMatch(page, /recordsPath=\{recordsPath\}/)
   assert.doesNotMatch(page, /isCollectionHub/)
   assert.doesNotMatch(page, /go\(\{ collection: path, viewId: viewId \?\? defaultViewId\(path\) \}\)/)
@@ -75,7 +93,7 @@ test('table and view rows only expand from the fold column', () => {
   assert.match(sidebar, /用户数据/)
   assert.match(sidebar, /系统数据/)
   assert.match(sidebar, /data-testid="sidebar-user-collections"/)
-  assert.match(sidebar, /data-testid="sidebar-system-collections"/)
+  assert.doesNotMatch(sidebar, /sidebar-recycle-bin/)
   assert.match(sidebar, /className="flex min-w-0 flex-col gap-px" data-testid="sidebar-user-collections"/)
   assert.match(sidebar, /className="flex min-w-0 flex-col gap-px" data-testid="sidebar-system-collections"/)
   assert.match(sidebar, /className="flex min-w-0 flex-col gap-px" data-collection-kind/)
@@ -603,8 +621,10 @@ test('database extras sit after the record detail, not in the inspector', () => 
   assert.match(style, /\.fsdb-page-banner:hover \.fsdb-banner-title-actions/)
   assert.match(style, /\.fsdb-banner-right\{[^}]*right:80px/)
   assert.match(style, /\.fsdb-banner-right\{[^}]*flex-direction:column/)
-  assert.match(style, /\.fsdb-page-banner:not\(\.is-empty\) \.fsdb-banner-right\{[^}]*top:50%/)
-  assert.match(style, /\.fsdb-page-banner:not\(\.is-empty\) \.fsdb-banner-right\{[^}]*translateY\(-50%\)/)
+  assert.match(style, /\.fsdb-page-banner:not\(\.is-empty\) \.fsdb-banner-right\{[^}]*top:auto/)
+  assert.match(style, /\.fsdb-page-banner:not\(\.is-empty\) \.fsdb-banner-right\{[^}]*bottom:16px/)
+  assert.doesNotMatch(style, /\.fsdb-page-banner:not\(\.is-empty\) \.fsdb-banner-right\{[^}]*top:50%/)
+  assert.doesNotMatch(style, /\.fsdb-page-banner:not\(\.is-empty\) \.fsdb-banner-right\{[^}]*translateY\(-50%\)/)
   assert.match(style, /\.fsdb-banner-title-actions\{[^}]*opacity:0/)
   assert.match(style, /\.fsdb-banner-story\{/)
   assert.doesNotMatch(style, /\.fsdb-banner-title-actions\{[^}]*top:16px/)
@@ -739,9 +759,10 @@ test('pager keeps the current page when filter objects are only recreated', () =
   assert.doesNotMatch(inspector, /lockedFiltersFromSearch\?\.\(search\) \?\? \{\}/)
 })
 
-test('missing sort field falls back to title, not updatedAt', () => {
+test('missing sort field falls back to updatedAt, then title', () => {
+  assert.match(browser, /sortFields.find\(\(item\) => item.key === 'updatedAt'\)/)
   assert.match(browser, /sortFields.find\(\(item\) => item.key === 'title'\)/)
-  assert.doesNotMatch(browser, /item.kind === 'datetime' \? 'desc'/)
+  assert.match(browser, /fallback.key === 'updatedAt' \? 'desc' : 'asc'/)
   assert.match(browser, /<SortQueryMenu/)
   assert.match(browser, /<FilterQueryMenu/)
   assert.match(browser, /QUERY_NEST_IGNORE/)

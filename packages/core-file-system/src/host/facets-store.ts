@@ -1,10 +1,17 @@
-import { DATA_DIR_NAME } from '@biu/host-plugin-loader/data-dir'
+import {
+  DATA_DIR_NAME,
+  openAndMigrateBiu,
+  upsertAttachmentRow,
+  writeEditorContent,
+  readEditorContent,
+  replaceContentRefs as replaceContentRefsRows,
+} from '@biu/host-plugin-loader/data-dir'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { createRequire } from 'node:module'
 import {
   asPerson,
   asPersonList,
+  isEmptySchemaValue,
   normalizeSchemaPack,
   normalizeSchemaValue,
   type CollectionSchemaPack,
@@ -16,9 +23,7 @@ import { bannerGalleryId, isBannerPreset } from '../banner-presets.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 
-const require = createRequire(import.meta.url)
-
-export const FILE_SYSTEM_SQLITE = `${DATA_DIR_NAME}/file-system.sqlite`
+export const FILE_SYSTEM_SQLITE = `${DATA_DIR_NAME}/biu.sqlite`
 
 export type FacetStamp = {
   collection: string
@@ -72,7 +77,7 @@ function packFromRow(row: TagRow): CollectionSchemaPack | null {
   return normalizeSchemaPack({ id: row.id, label: row.label, fields })
 }
 
-function entryFromRow(row: TagRow): FacetEntry | null {
+function entryFromRow(db: DatabaseSync, row: TagRow): FacetEntry | null {
   const pack = packFromRow(row)
   if (!pack) return null
   const updated = Number(row.updated_at) || 0
@@ -81,13 +86,13 @@ function entryFromRow(row: TagRow): FacetEntry | null {
   const updatedAt = updated > 0 ? updated : createdAt
   return {
     pack,
-    notes: typeof row.notes === 'string' ? row.notes : '',
+    notes: readEditorContent(db, '/facets', row.id),
     createdAt,
     updatedAt,
   }
 }
 
-const FACET_ROW_SQL = 'id, label, fields_json, notes, created_at, updated_at'
+const FACET_ROW_SQL = 'id, label, fields_json, created_at, updated_at'
 
 /** 分面目录由 File System 用 SQLite 管：目录 + 跨表倒排，查询不扫全表。 */
 export class FacetStore {
@@ -95,74 +100,12 @@ export class FacetStore {
 
   open(path = ':memory:') {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite')
-    this.db = new DatabaseSync(path)
-    this.db.exec('PRAGMA journal_mode = WAL')
-    this.db.exec('PRAGMA synchronous = NORMAL')
-    this.db.exec('PRAGMA foreign_keys = ON')
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS facets (
-        id TEXT PRIMARY KEY,
-        label TEXT NOT NULL,
-        fields_json TEXT NOT NULL DEFAULT '[]',
-        notes TEXT NOT NULL DEFAULT '',
-        created_at INTEGER NOT NULL DEFAULT 0,
-        updated_at INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS facets_label ON facets(label);
-      CREATE TABLE IF NOT EXISTS facet_stamps (
-        facet_id TEXT NOT NULL,
-        collection TEXT NOT NULL,
-        record_id TEXT NOT NULL,
-        title TEXT NOT NULL DEFAULT '',
-        PRIMARY KEY (facet_id, collection, record_id)
-      );
-      CREATE INDEX IF NOT EXISTS facet_stamps_facet ON facet_stamps(facet_id);
-      CREATE INDEX IF NOT EXISTS facet_stamps_record ON facet_stamps(collection, record_id);
-      CREATE TABLE IF NOT EXISTS facet_record_values (
-        collection TEXT NOT NULL,
-        record_id TEXT NOT NULL,
-        facet_json TEXT NOT NULL,
-        PRIMARY KEY (collection, record_id)
-      );
-      CREATE TABLE IF NOT EXISTS record_meta (
-        collection TEXT NOT NULL,
-        record_id TEXT NOT NULL,
-        emoji TEXT,
-        tags_json TEXT,
-        created_by_json TEXT,
-        updated_by_json TEXT,
-        PRIMARY KEY (collection, record_id)
-      );
-      CREATE TABLE IF NOT EXISTS record_banners (
-        collection TEXT NOT NULL,
-        record_id TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        html TEXT NOT NULL,
-        PRIMARY KEY (collection, record_id)
-      );
-      CREATE TABLE IF NOT EXISTS banner_gallery (
-        id TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,
-        style TEXT NOT NULL DEFAULT 'mine',
-        title TEXT NOT NULL DEFAULT '',
-        html TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      );
-    `)
-    this.ensureNotesColumn()
+    this.db = openAndMigrateBiu(path)
     this.ensureCreatedAtColumn()
     this.ensurePersonMetaColumns()
+    this.ensureDeletedAtColumn()
     this.ensureBannerTable()
-    this.ensureBannerGallery()
     return this
-  }
-
-  private ensureNotesColumn() {
-    const db = this.db!
-    const cols = db.prepare('PRAGMA table_info(facets)').all() as Array<{ name: string }>
-    if (cols.some((col) => col.name === 'notes')) return
-    db.exec(`ALTER TABLE facets ADD COLUMN notes TEXT NOT NULL DEFAULT ''`)
   }
 
   private ensureCreatedAtColumn() {
@@ -180,19 +123,20 @@ export class FacetStore {
     const names = new Set(cols.map((col) => col.name))
     if (!names.has('created_by_json')) db.exec(`ALTER TABLE record_meta ADD COLUMN created_by_json TEXT`)
     if (!names.has('updated_by_json')) db.exec(`ALTER TABLE record_meta ADD COLUMN updated_by_json TEXT`)
+    if (!names.has('deleted_at')) db.exec(`ALTER TABLE record_meta ADD COLUMN deleted_at INTEGER`)
+  }
+
+  private ensureDeletedAtColumn() {
+    const db = this.db!
+    const cols = db.prepare('PRAGMA table_info(record_meta)').all() as Array<{ name: string }>
+    if (!cols.some((col) => col.name === 'deleted_at')) {
+      db.exec(`ALTER TABLE record_meta ADD COLUMN deleted_at INTEGER`)
+    }
+    db.exec('CREATE INDEX IF NOT EXISTS record_meta_deleted ON record_meta(collection, deleted_at)')
   }
 
   private ensureBannerTable() {
     const db = this.db!
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS record_banners (
-        collection TEXT NOT NULL,
-        record_id TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        html TEXT NOT NULL,
-        PRIMARY KEY (collection, record_id)
-      )
-    `)
     const cols = db.prepare('PRAGMA table_info(record_meta)').all() as Array<{ name: string }>
     if (!cols.some((col) => col.name === 'banner_json')) return
     const rows = db
@@ -215,42 +159,28 @@ export class FacetStore {
     }
   }
 
-  private ensureBannerGallery() {
-    this.db!.exec(`
-      CREATE TABLE IF NOT EXISTS banner_gallery (
-        id TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,
-        style TEXT NOT NULL DEFAULT 'mine',
-        title TEXT NOT NULL DEFAULT '',
-        html TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      )
-    `)
-  }
-
   notes(id: string) {
     const want = String(id ?? '').trim()
     if (!want) return ''
-    const row = this.ensure().prepare('SELECT notes FROM facets WHERE id = ?').get(want) as { notes?: string } | undefined
-    return typeof row?.notes === 'string' ? row.notes : ''
+    return readEditorContent(this.ensure(), '/facets', want)
   }
 
   private savePack(pack: CollectionSchemaPack, notes: string) {
     const now = Date.now()
-    this.ensure()
-      .prepare(
-        `INSERT INTO facets (id, label, fields_json, created_at, updated_at, notes)
-         VALUES (?, ?, ?, ?, ?, ?)
+    const db = this.ensure()
+    db.prepare(
+        `INSERT INTO facets (id, label, fields_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            label = excluded.label,
            fields_json = excluded.fields_json,
-           updated_at = excluded.updated_at,
-           notes = excluded.notes`,
+           updated_at = excluded.updated_at`,
       )
-      .run(pack.id, pack.label, JSON.stringify(pack.fields), now, now, notes)
+      .run(pack.id, pack.label, JSON.stringify(pack.fields), now, now)
+    writeEditorContent(db, '/facets', pack.id, notes, { transaction: false })
   }
 
-  private ensure() {
+  ensure() {
     if (!this.db) this.open(':memory:')
     return this.db!
   }
@@ -273,7 +203,7 @@ export class FacetStore {
             .all(q, q) as TagRow[])
         : (db.prepare(`SELECT ${FACET_ROW_SQL} FROM facets ORDER BY label`).all() as TagRow[])
     )
-    return rows.map((row) => entryFromRow(row)).filter((item): item is FacetEntry => Boolean(item))
+    return rows.map((row) => entryFromRow(db, row)).filter((item): item is FacetEntry => Boolean(item))
   }
 
   get(idOrLabel: string): CollectionSchemaPack | null {
@@ -286,7 +216,7 @@ export class FacetStore {
     const row = this.ensure()
       .prepare(`SELECT ${FACET_ROW_SQL} FROM facets WHERE id = ? OR label = ? LIMIT 1`)
       .get(want, want) as TagRow | undefined
-    return row ? entryFromRow(row) : null
+    return row ? entryFromRow(this.ensure(), row) : null
   }
 
   replace(tags: unknown[]): CollectionSchemaPack[] {
@@ -372,13 +302,17 @@ export class FacetStore {
 
   writeRecordFacet(collection: string, recordId: string, facet: unknown, title: string) {
     const value = normalizeSchemaValue(facet)
-    this.ensure()
-      .prepare(
-        `INSERT INTO facet_record_values (collection, record_id, facet_json)
-         VALUES (?, ?, ?)
-         ON CONFLICT(collection, record_id) DO UPDATE SET facet_json = excluded.facet_json`,
-      )
-      .run(collection, recordId, JSON.stringify(value))
+    const db = this.ensure()
+    if (isEmptySchemaValue(value)) {
+      db.prepare('DELETE FROM facet_record_values WHERE collection = ? AND record_id = ?').run(collection, recordId)
+      this.indexRecord(collection, recordId, title, [])
+      return value
+    }
+    db.prepare(
+      `INSERT INTO facet_record_values (collection, record_id, facet_json)
+       VALUES (?, ?, ?)
+       ON CONFLICT(collection, record_id) DO UPDATE SET facet_json = excluded.facet_json`,
+    ).run(collection, recordId, JSON.stringify(value))
     this.indexRecord(collection, recordId, title, value.tags)
     return value
   }
@@ -388,14 +322,16 @@ export class FacetStore {
     tags: string[] | null
     createdBy: PersonValue | null
     updatedBy: PersonValue[]
+    deletedAt: number | null
   } | null {
     const row = this.ensure()
-      .prepare('SELECT emoji, tags_json, created_by_json, updated_by_json FROM record_meta WHERE collection = ? AND record_id = ?')
+      .prepare('SELECT emoji, tags_json, created_by_json, updated_by_json, deleted_at FROM record_meta WHERE collection = ? AND record_id = ?')
       .get(collection, recordId) as {
         emoji: string | null
         tags_json: string | null
         created_by_json?: string | null
         updated_by_json?: string | null
+        deleted_at?: number | null
       } | undefined
     if (!row) return null
     let tags: string[] | null = null
@@ -430,6 +366,7 @@ export class FacetStore {
       tags,
       createdBy: parsePerson(row.created_by_json),
       updatedBy: parsePeople(row.updated_by_json),
+      deletedAt: Number(row.deleted_at) > 0 ? Number(row.deleted_at) : null,
     }
   }
 
@@ -518,7 +455,47 @@ export class FacetStore {
         patch.createdBy !== undefined ? JSON.stringify(patch.createdBy) : null,
         patch.updatedBy !== undefined ? JSON.stringify(asPersonList(patch.updatedBy)) : null,
       )
-    return this.recordMeta(collection, recordId) ?? { emoji: null, tags: null, createdBy: null, updatedBy: [] }
+    return this.recordMeta(collection, recordId) ?? { emoji: null, tags: null, createdBy: null, updatedBy: [], deletedAt: null }
+  }
+
+  deletedIds(collection: string) {
+    const rows = this.ensure()
+      .prepare('SELECT record_id FROM record_meta WHERE collection = ? AND deleted_at IS NOT NULL AND deleted_at > 0')
+      .all(collection) as Array<{ record_id: string }>
+    return new Set(rows.map((row) => row.record_id))
+  }
+
+  isDeleted(collection: string, recordId: string) {
+    const row = this.ensure()
+      .prepare('SELECT deleted_at FROM record_meta WHERE collection = ? AND record_id = ?')
+      .get(collection, recordId) as { deleted_at?: number | null } | undefined
+    return Number(row?.deleted_at) > 0
+  }
+
+  markDeleted(collection: string, recordId: string, at = Date.now()) {
+    this.ensure()
+      .prepare(
+        `INSERT INTO record_meta (collection, record_id, deleted_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(collection, record_id) DO UPDATE SET deleted_at = excluded.deleted_at`,
+      )
+      .run(collection, recordId, at)
+  }
+
+  restoreDeleted(collection: string, recordId: string) {
+    this.ensure()
+      .prepare('UPDATE record_meta SET deleted_at = NULL WHERE collection = ? AND record_id = ?')
+      .run(collection, recordId)
+  }
+
+  listDeleted() {
+    return this.ensure()
+      .prepare(
+        `SELECT collection, record_id, deleted_at FROM record_meta
+         WHERE deleted_at IS NOT NULL AND deleted_at > 0
+         ORDER BY deleted_at DESC`,
+      )
+      .all() as Array<{ collection: string; record_id: string; deleted_at: number }>
   }
 
   removeRecord(collection: string, recordId: string) {
@@ -527,6 +504,85 @@ export class FacetStore {
     db.prepare('DELETE FROM facet_record_values WHERE collection = ? AND record_id = ?').run(collection, recordId)
     db.prepare('DELETE FROM record_meta WHERE collection = ? AND record_id = ?').run(collection, recordId)
     db.prepare('DELETE FROM record_banners WHERE collection = ? AND record_id = ?').run(collection, recordId)
+    db.prepare('DELETE FROM content_refs WHERE collection = ? AND record_id = ?').run(collection, recordId)
+    db.prepare('DELETE FROM block_refs WHERE collection = ? AND record_id = ?').run(collection, recordId)
+  }
+
+  putAttachment(row: { name: string; etag: string; mime: string; bytes: number; kind?: string; storage?: string }) {
+    upsertAttachmentRow(this.ensure(), row)
+  }
+
+  replaceContentRefs(collection: string, recordId: string, content: Iterable<string>, banner: Iterable<string> = []) {
+    const db = this.ensure()
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      replaceContentRefsRows(db, collection, recordId, content, banner)
+      db.exec('COMMIT')
+    } catch (error) {
+      db.exec('ROLLBACK')
+      throw error
+    }
+  }
+
+  upsertBlockRef(collection: string, recordId: string, blockId: string, name: string, source: string) {
+    this.ensure()
+      .prepare(
+        `INSERT INTO block_refs (collection, record_id, block_id, name, source)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(collection, record_id, block_id, name, source) DO NOTHING`,
+      )
+      .run(collection, recordId, blockId, name, source)
+  }
+
+  replaceBlockRefs(
+    collection: string,
+    recordId: string,
+    blockId: string,
+    refs: Array<{ name: string; source: string }>,
+  ) {
+    const db = this.ensure()
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      db.prepare('DELETE FROM block_refs WHERE collection = ? AND record_id = ? AND block_id = ?').run(
+        collection,
+        recordId,
+        blockId,
+      )
+      const insert = db.prepare(
+        'INSERT INTO block_refs (collection, record_id, block_id, name, source) VALUES (?, ?, ?, ?, ?)',
+      )
+      for (const ref of refs) insert.run(collection, recordId, blockId, ref.name, ref.source)
+      db.exec('COMMIT')
+    } catch (error) {
+      db.exec('ROLLBACK')
+      throw error
+    }
+  }
+
+  dropBlockRefs(collection: string, recordId: string, blockId?: string) {
+    if (blockId) {
+      this.ensure()
+        .prepare('DELETE FROM block_refs WHERE collection = ? AND record_id = ? AND block_id = ?')
+        .run(collection, recordId, blockId)
+      return
+    }
+    this.ensure().prepare('DELETE FROM block_refs WHERE collection = ? AND record_id = ?').run(collection, recordId)
+  }
+
+  listedAttachmentNames(collection: string, recordId: string): string[] {
+    const db = this.ensure()
+    const names = new Set<string>()
+    for (const row of db
+      .prepare('SELECT name FROM content_refs WHERE collection = ? AND record_id = ?')
+      .all(collection, recordId) as Array<{ name: string }>) {
+      names.add(row.name)
+    }
+    for (const row of db
+      .prepare('SELECT name FROM block_refs WHERE collection = ? AND record_id = ?')
+      .all(collection, recordId) as Array<{ name: string }>) {
+      names.add(row.name)
+    }
+    return [...names].sort()
   }
 
   stampedIds(collection: string, tagIdOrLabel: string): Set<string> {

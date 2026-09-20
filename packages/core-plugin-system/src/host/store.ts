@@ -19,6 +19,13 @@ import {
   type StoreManifestFields,
 } from './plugin-create.ts'
 import { parseStoreShell, requireDeclaredShell, type StoreShell } from '../shell.ts'
+import {
+  DATA_DIR_NAME,
+  copyReferencedEditorAssets,
+  openAndMigrateBiu,
+  readEditorContent,
+  writeEditorContent,
+} from '@biu/host-plugin-loader/data-dir'
 
 export type StoreListing = {
   id: string
@@ -306,9 +313,15 @@ export class PluginStoreService extends Service {
     if (webEntry) await writeFile(join(dest, 'web.js'), await bundleStoreEntry(webEntry, 'web'))
     else if (existsSync(join(dest, 'web.js'))) await rm(join(dest, 'web.js'))
     copyPluginRuntimeDependencies(sandbox, dest)
-    const sandboxReadme = join(sandbox, README_FILE)
-    if (existsSync(sandboxReadme)) await writeFile(join(dest, README_FILE), await readFile(sandboxReadme))
-    else await this.ensureReadme(dest, manifest.name, manifest.blurb)
+    const workspace = dirname(this.sandboxDir)
+    let readme = await this.readReadme(id)
+    if (!readme.trim()) readme = `# ${manifest.name}\n\n${manifest.blurb.trim()}\n`
+    const packed = copyReferencedEditorAssets({
+      body: readme,
+      assetsDir: join(workspace, DATA_DIR_NAME, 'assets'),
+      destDir: dest,
+    })
+    await writeFile(join(dest, README_FILE), packed)
     await copyPackedMedia(sandbox, dest)
     // 运行中才重新挂载；停着的下次 start 会从磁盘再挂。
     if (this.isEnabled(manifest.id)) await this.mountFromDisk(manifest, dest)
@@ -440,7 +453,11 @@ export class PluginStoreService extends Service {
     await writeFile(path, body)
   }
 
-  async readReadme(id: string) {
+  private warnReadme(error: unknown) {
+    this.ctx.logger('core-plugin-system').warn(error)
+  }
+
+  private async readDiskReadme(id: string) {
     const dir = this.readmeDir(id)
     if (!dir) return ''
     const path = join(dir, README_FILE)
@@ -448,10 +465,51 @@ export class PluginStoreService extends Service {
     return readFile(path, 'utf8')
   }
 
+  async readReadme(id: string) {
+    const workspace = dirname(this.sandboxDir)
+    const sqlitePath = join(workspace, DATA_DIR_NAME, 'biu.sqlite')
+    if (existsSync(sqlitePath)) {
+      try {
+        const db = openAndMigrateBiu(sqlitePath)
+        try {
+          const body = readEditorContent(db, '/plugins', id)
+          if (body) return body
+          const text = await this.readDiskReadme(id)
+          if (!text) return ''
+          try {
+            writeEditorContent(db, '/plugins', id, text)
+          } catch (error) {
+            this.warnReadme(error)
+          }
+          return text
+        } finally {
+          db.close()
+        }
+      } catch (error) {
+        this.warnReadme(error)
+      }
+    }
+    return this.readDiskReadme(id)
+  }
+
   async writeReadme(id: string, markdown: string) {
-    const dir = this.readmeDir(id)
-    if (!dir) throw new Error(`unknown plugin: ${id}`)
-    await writeFile(join(dir, README_FILE), String(markdown ?? ''))
+    const text = String(markdown ?? '')
+    const workspace = dirname(this.sandboxDir)
+    mkdirSync(join(workspace, DATA_DIR_NAME), { recursive: true })
+    const db = openAndMigrateBiu(join(workspace, DATA_DIR_NAME, 'biu.sqlite'))
+    try {
+      writeEditorContent(db, '/plugins', id, text)
+    } finally {
+      db.close()
+    }
+    for (const dir of [this.sandboxPath(id), this.pluginPath(id)]) {
+      if (!existsSync(join(dir, 'manifest.json'))) continue
+      try {
+        await writeFile(join(dir, README_FILE), text)
+      } catch (error) {
+        this.warnReadme(error)
+      }
+    }
     this.invalidateList()
   }
 

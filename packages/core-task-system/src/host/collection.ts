@@ -194,6 +194,7 @@ export function tasksCollection(tasks: TasksLike, recordActions?: TaskRecordActi
     schema: {
       labelField: 'title',
       contentField: 'description',
+      contentBackend: 'editorContent',
       parentField: 'parentId',
       columns: ['title', 'status', 'priority', 'difficulty', 'usage', 'createdBy', 'assignee', 'project', 'tags', 'dueAt'],
       fields: {

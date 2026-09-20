@@ -28,7 +28,24 @@ const VIRTUAL_WEB = 'virtual:cordis-web-runtime'
 const RESOLVED_WEB = `\0${VIRTUAL_WEB}`
 const PACKAGED_MODULES = Symbol.for('biu.packagedHostModules')
 
-export { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, adoptPackedUserData, dataDir, dataHome, dataPath, migrateDataDir, migrateLegacyPageDir, LEGACY_PAGE_ROOT, PAGE_ROOT, PAGE_DB, PAGE_ASSETS } from './data-dir.ts'
+export { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, adoptPackedUserData, dataDir, dataHome, dataPath, assetsRootPath, migrateDataDir, migrateLegacyPageDir, LEGACY_PAGE_ROOT, PAGE_ROOT, PAGE_DB, PAGE_ASSETS, ASSETS_ROOT } from './data-dir.ts'
+export {
+  contentAddressHash,
+  hashedAssetName,
+  hashedAssetRel,
+  isHashedAssetName,
+  writeContentAddressed,
+  readContentAddressed,
+  writeDocument,
+  readDocument,
+  AssetConflictError,
+  parseIfMatch,
+} from './asset-cas.ts'
+export { adoptCasAssets, listCasAssetFiles, listDocAssetFiles } from './adopt-cas-assets.ts'
+export { openSqlite, configureSqlite, quoteSqlitePath, SQLITE_BUSY_TIMEOUT_MS, SQLITE_WAL_AUTOCHECKPOINT } from './sqlite-open.ts'
+export { ensureBiuAssetSchema, LATEST_BIU_SCHEMA, createLatestSchema } from './biu-schema.ts'
+export { migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
+export { migrateEvents, openAndMigrateEvents, LATEST_EVENTS_SCHEMA } from './events-migrate.ts'
 
 export function pluginWebSpecifier(item: CordisPluginEntry): string | undefined {
   return item.web

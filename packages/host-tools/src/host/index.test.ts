@@ -25,6 +25,30 @@ test('invoke missing tool fails; unregister drops the name', async () => {
   await assert.rejects(() => ctx.tools.invoke('ping'), /unknown tool: ping/)
 })
 
+test('execution mode defaults to exclusive and can depend on arguments', async () => {
+  const ctx = new Context()
+  await ctx.plugin(tools)
+  ctx.tools.register({
+    name: 'safe',
+    description: 'safe',
+    parameters: { type: 'object', properties: {} },
+    execution: 'parallel',
+    execute: () => 'ok',
+  })
+  ctx.tools.register({
+    name: 'dynamic',
+    description: 'dynamic',
+    parameters: { type: 'object', properties: {} },
+    execution: (args) => (args.readOnly === true ? 'parallel' : 'exclusive'),
+    execute: () => 'ok',
+  })
+
+  assert.equal(ctx.tools.executionMode('safe'), 'parallel')
+  assert.equal(ctx.tools.executionMode('dynamic', { readOnly: true }), 'parallel')
+  assert.equal(ctx.tools.executionMode('dynamic', { readOnly: false }), 'exclusive')
+  assert.equal(ctx.tools.executionMode('gone'), 'exclusive')
+})
+
 test('pre-execute waterfall can deny a call', async () => {
   const ctx = new Context()
   await ctx.plugin(tools)
@@ -181,4 +205,20 @@ test('report is ignored unless invoke is wrapped with progress', async () => {
   const result = await runWithToolProgress((detail) => seen.push(detail), () => ctx.tools.invoke('tick'))
   assert.deepEqual(result, { n: 3 })
   assert.deepEqual(seen, ['{"n":1}', '{"n":2}'])
+})
+
+test('Chinese tool names are sanitized for OpenAI-style APIs', async () => {
+  const ctx = new Context()
+  await ctx.plugin(tools)
+  ctx.tools.register({
+    name: '查天气',
+    description: '查天气',
+    parameters: { type: 'object', properties: {} },
+    execute: () => 'ok',
+  })
+  const [name] = ctx.tools.names()
+  assert.match(String(name), /^tool_[a-f0-9]{8}$/)
+  assert.equal(ctx.tools.schemas()[0]?.function.name, name)
+  assert.equal(await ctx.tools.invoke('查天气'), 'ok')
+  assert.equal(await ctx.tools.invoke(name!), 'ok')
 })

@@ -10,6 +10,7 @@ import { FileSystemAssets } from './assets-store.ts'
 import type { CollectionSpec } from '@biu/type-file-system'
 import { REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
 import { facetsCollection } from './facets-collection.ts'
+import { trashCollection } from './trash-collection.ts'
 import { runWithSession } from '@biu/host-sessions/scope'
 import { builtinAllViewId } from '../catalog-views.ts'
 import { savedViewRecordPath } from '../paths.ts'
@@ -644,14 +645,61 @@ test('editContent write accepts from a local file and rejects value+from togethe
   const written = await db.editContent('/docs/n1', { command: 'write', from: file })
   assert.equal(written.ok, true)
   assert.equal((await db.content('/docs/n1')).value, '# 来自文件\n\n正文内容\n')
-  await assert.rejects(
-    () => db.editContent('/docs/n1', { command: 'write', from: file, value: 'x' }),
-    /either value or from/,
-  )
+  const both = await db.editContent('/docs/n1', { command: 'write', from: file, value: 'x' })
+  assert.equal(both.ok, true)
+  assert.equal((await db.content('/docs/n1')).value, '# 来自文件\n\n正文内容\n')
   await assert.rejects(() => db.editContent('/docs/n1', { command: 'write', from: join(dir, 'nope.md') }), /cannot read from/)
 })
 
-test('editAsset views and writes referenced attachments with etag', async () => {
+test('editContent insert/str_replace/replace_lines accept from in place of new_str', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, Record<string, unknown>>([
+    ['n1', { id: 'n1', title: 'a', content: 'one\ntwo\nthree' }],
+  ])
+  db.register({
+    id: 'docs',
+    path: '/docs',
+    schema: {
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+        content: { type: 'file', writable: true },
+      },
+    },
+    list: () => [...rows.values()] as { id: string }[],
+    get: (id) => rows.get(id) as { id: string } | undefined,
+    records: { update: true },
+    update: (id, patch) => {
+      const next = { ...rows.get(id), ...patch, id }
+      rows.set(id, next)
+      return next as { id: string }
+    },
+  })
+  const dir = await mkdtemp(join(tmpdir(), 'db-content-from-edit-'))
+  const insertFile = join(dir, 'insert.md')
+  const replaceFile = join(dir, 'replace.md')
+  const linesFile = join(dir, 'lines.md')
+  await writeFile(insertFile, 'mid-from-file')
+  await writeFile(replaceFile, 'TWO')
+  await writeFile(linesFile, 'C\nD')
+  const inserted = await db.editContent('/docs/n1', {
+    command: 'insert',
+    insert_line: 1,
+    from: insertFile,
+    new_str: 'ignored-short',
+  })
+  assert.equal(inserted.ok, true)
+  assert.equal((await db.content('/docs/n1')).value, 'one\nmid-from-file\ntwo\nthree')
+  const replaced = await db.editContent('/docs/n1', { command: 'str_replace', old_str: 'two', from: replaceFile })
+  assert.equal((await db.content('/docs/n1')).value, 'one\nmid-from-file\nTWO\nthree')
+  const lined = await db.editContent('/docs/n1', { command: 'replace_lines', start_line: 4, end_line: 4, from: linesFile })
+  assert.equal((await db.content('/docs/n1')).value, 'one\nmid-from-file\nTWO\nC\nD')
+  assert.equal(lined.start_line, 4)
+  assert.equal(lined.end_line, 5)
+})
+
+test('editAsset views and writes referenced attachments as content-addressed files', async () => {
   const ctx = new Context()
   const db = new DatabaseService(ctx)
   db.assets = new FileSystemAssets(await mkdtemp(join(tmpdir(), 'db-asset-')))
@@ -682,28 +730,29 @@ test('editAsset views and writes referenced attachments with etag', async () => 
   const missing = (listed as { assets: Array<{ name: string; missing?: boolean }> }).assets
   assert.equal(missing[0]?.name, 'board.json')
   assert.equal(missing[0]?.missing, true)
-  await db.assets.write('board.json', '{"elements":[]}')
-  const viewed = await db.editAsset('/pages/p1', { command: 'view', name: 'board.json' })
-  assert.equal(typeof viewed.etag, 'string')
-  assert.equal(String(viewed.etag).length, 16)
-  await assert.rejects(() => db.editAsset('/pages/p1', { command: 'write', name: 'board.json', value: '{}' }))
   const written = await db.editAsset('/pages/p1', {
     command: 'write',
     name: 'board.json',
-    value: '{}',
-    etag: viewed.etag,
+    value: '{"elements":[]}',
+    block_id: 'e4945888',
+    kind: 'core',
+    source: 'block:e4945888:board',
   })
   assert.equal(written.ok, true)
+  assert.match(String(written.name), /^[a-f0-9]{64}\.json$/)
+  const viewed = await db.editAsset('/pages/p1', { command: 'view', name: written.name })
+  assert.equal(viewed.etag, written.name)
   const dump = join(await mkdtemp(join(tmpdir(), 'db-asset-from-')), 'scene.json')
   await writeFile(dump, '{"elements":[{"id":"a"}]}')
   const fromFile = await db.editAsset('/pages/p1', {
     command: 'write',
     name: 'board.json',
     from: dump,
-    etag: written.etag,
+    block_id: 'e4945888',
+    source: 'block:e4945888:board',
   })
-  assert.equal(fromFile.ok, true)
-  const again = await db.editAsset('/pages/p1', { command: 'view', name: 'board.json' })
+  assert.notEqual(fromFile.name, written.name)
+  const again = await db.editAsset('/pages/p1', { command: 'view', name: fromFile.name })
   assert.match(String((again as { text?: string }).text), /"id":"a"/)
   await assert.rejects(() => db.editAsset('/pages/p1', { command: 'write', name: 'board.json', etag: again.etag }), /value or from/)
   await assert.rejects(() => db.editAsset('/pages/p1', { command: 'view', name: 'nope.json' }), /not referenced/)
@@ -744,13 +793,13 @@ test('editAsset can create a new image then reference it from content', async ()
     from: dump,
   })
   assert.equal(created.ok, true)
-  assert.equal(created.name, 'hero.png')
+  assert.match(String(created.name), /^[a-f0-9]{64}\.png$/)
   await db.editContent('/pages/p1', {
     command: 'insert',
     insert_line: 1,
-    new_str: '![封面](/api/db/file/hero.png)',
+    new_str: `![封面](/api/db/file/${created.name})`,
   })
-  assert.match(String((await db.content('/pages/p1')).value), /\/api\/db\/file\/hero\.png/)
+  assert.match(String((await db.content('/pages/p1')).value), new RegExp(created.name.replace('.', '\\.')))
   const missingRef = await db.editContent('/pages/p1', {
     command: 'insert',
     insert_line: 2,
@@ -827,18 +876,26 @@ test('apply registers db_* tools', async () => {
   new HttpStub(ctx)
   await ctx.plugin({ inject: ['tools', 'http'], apply: applyFileSystem })
   const names = ctx.tools.names()
-  for (const name of ['db_list', 'db_read', 'db_update', 'db_create', 'db_delete', 'db_stat', 'db_action', 'db_content', 'db_asset']) {
+  for (const name of ['db_list', 'db_read', 'db_update', 'db_create', 'db_delete', 'db_restore', 'db_stat', 'db_action', 'db_content', 'db_asset', 'db_doc']) {
     assert.equal(names.includes(name), true, name)
   }
+  for (const name of ['db_list', 'db_read', 'db_stat']) {
+    assert.equal(ctx.tools.executionMode(name), 'parallel', name)
+  }
+  assert.equal(ctx.tools.executionMode('db_update'), 'exclusive')
+  assert.equal(ctx.tools.executionMode('db_content', { path: '/pages/p1', command: 'view' }), 'parallel')
+  assert.equal(ctx.tools.executionMode('db_content', { path: '/pages/p1', command: 'write', value: 'x' }), 'exclusive')
+  assert.equal(ctx.tools.executionMode('db_asset', { path: '/pages/p1', command: 'view' }), 'parallel')
+  assert.equal(ctx.tools.executionMode('db_asset', { path: '/pages/p1', command: 'write', value: 'x' }), 'exclusive')
   const listed = await ctx.tools.invoke('db_list', { path: '/' })
   assert.equal((listed as { kind: string }).kind, 'root')
   const items = ((listed as { items: Array<{ path: string; view?: { blurb?: string } }> }).items ?? [])
   const paths = items.map((item) => item.path)
   assert.equal(paths.includes('/views'), true)
   assert.equal(paths.includes('/facets'), true)
-  assert.equal(paths.includes('/notices'), true)
-  const notices = items.find((item) => item.path === '/notices')
-  assert.match(String(notices?.view?.blurb ?? ''), /db_list \/notices/)
+  assert.equal(paths.includes('/notices'), false)
+  assert.equal(paths.includes('/asset-gc'), false)
+  assert.equal(paths.includes('/trash'), true)
   const views = items.find((item) => item.path === '/views')
   assert.match(String(views?.view?.blurb ?? ''), /db_list \/views/)
   assert.match(String(views?.view?.blurb ?? ''), /filterTree/)
@@ -1159,6 +1216,117 @@ test('create and delete follow records caps declared at register', async () => {
   if (after.kind !== 'collection') return
   assert.equal(after.items.length, 1)
   await assert.rejects(() => db.remove('/notes', {}), /delete requires/)
+})
+
+test('delete parks records in trash and restore puts them back', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, { id: string; title: string }>([['n1', { id: 'n1', title: '草稿' }]])
+  db.register({
+    id: 'notes',
+    path: '/notes',
+    schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } } },
+    records: { create: true, delete: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: () => [],
+    remove: (query) => {
+      const ids = query.ids ?? []
+      for (const id of ids) rows.delete(id)
+      return ids
+    },
+  })
+  const gone = await db.remove('/notes', { ids: ['n1'] })
+  assert.equal((gone as { trash?: boolean }).trash, true)
+  const listed = await db.list('/notes')
+  if (listed.kind !== 'collection') return
+  assert.equal(listed.items.length, 0)
+  assert.equal(rows.has('n1'), true)
+  await assert.rejects(() => db.read('/notes/n1'), /unknown record/)
+  const bin = await db.listTrash()
+  assert.equal(bin.items.length, 1)
+  assert.equal(bin.items[0]?.title, '草稿')
+  await db.restore('/notes', { ids: ['n1'] })
+  const back = await db.list('/notes')
+  if (back.kind !== 'collection') return
+  assert.equal(back.items.length, 1)
+  await db.remove('/notes', { ids: ['n1'], purge: true })
+  assert.equal(rows.has('n1'), false)
+})
+
+test('sessions delete parks in trash until purge', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, { id: string; title: string }>([['s1', { id: 's1', title: '会话' }]])
+  db.register({
+    id: 'sessions',
+    path: '/sessions',
+    schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } } },
+    records: { create: true, delete: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: () => [],
+    remove: (query) => {
+      const ids = query.ids ?? []
+      for (const id of ids) rows.delete(id)
+      return ids
+    },
+  })
+  const gone = await db.remove('/sessions', { ids: ['s1'] })
+  assert.equal((gone as { trash?: boolean }).trash, true)
+  assert.equal(rows.has('s1'), true)
+  const listed = await db.list('/sessions')
+  if (listed.kind !== 'collection') return
+  assert.equal(listed.items.length, 0)
+  await db.restore('/sessions', { ids: ['s1'] })
+  const back = await db.list('/sessions')
+  if (back.kind !== 'collection') return
+  assert.equal(back.items.length, 1)
+  await db.remove('/sessions', { ids: ['s1'], purge: true })
+  assert.equal(rows.has('s1'), false)
+})
+
+test('trash collection lists deleted rows and restore/delete actions', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, { id: string; title: string }>([['n1', { id: 'n1', title: '草稿' }]])
+  db.register({
+    id: 'notes',
+    path: '/notes',
+    schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } } },
+    records: { create: true, delete: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: () => [],
+    remove: (query) => {
+      const ids = query.ids ?? []
+      for (const id of ids) rows.delete(id)
+      return ids
+    },
+  })
+  db.register(trashCollection(db))
+  await db.remove('/notes', { ids: ['n1'] })
+  const listed = await db.list('/trash')
+  if (listed.kind !== 'collection') return
+  assert.equal(listed.items.length, 1)
+  assert.equal(listed.items[0]?.id, 'notes::n1')
+  assert.equal(listed.items[0]?.title, '草稿')
+  assert.equal(listed.items[0]?.table, 'notes')
+  const actions = listed.schema.actions?.map((item) => item.id) ?? []
+  assert.deepEqual(actions, ['restore', 'delete'])
+  await db.action('/trash/notes::n1', 'restore')
+  const live = await db.list('/notes')
+  if (live.kind !== 'collection') return
+  assert.equal(live.items.length, 1)
+  const empty = await db.list('/trash')
+  if (empty.kind !== 'collection') return
+  assert.equal(empty.items.length, 0)
+  await db.remove('/notes', { ids: ['n1'] })
+  await db.action('/trash/notes::n1', 'delete')
+  assert.equal(rows.has('n1'), false)
+  const gone = await db.list('/trash')
+  if (gone.kind !== 'collection') return
+  assert.equal(gone.items.length, 0)
 })
 
 test('facet catalog is workspace-wide and collect uses sqlite stamps', async () => {

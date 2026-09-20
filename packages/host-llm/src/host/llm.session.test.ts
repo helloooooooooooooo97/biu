@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { hasImageContent, DEEPSEEK_VISION_MODEL } from '@biu/host-llm'
+import {
+  hasImageContent,
+  DEEPSEEK_VISION_MODEL,
+  flattenToolImagesForChatCompletions,
+  toAnthropicContent,
+} from '@biu/host-llm'
 
 test('hasImageContent detects image_url block in array content', () => {
   assert.equal(
@@ -21,4 +26,72 @@ test('hasImageContent returns false for plain string / null / text-only', () => 
 
 test('DEEPSEEK_VISION_MODEL constant matches vision-exp model', () => {
   assert.equal(DEEPSEEK_VISION_MODEL, 'deepseek-v4-flash-vision-exp')
+})
+
+test('flattenToolImagesForChatCompletions keeps tool text and appends user images', () => {
+  const out = flattenToolImagesForChatCompletions([
+    { role: 'assistant', content: null, tool_calls: [{ id: '1', type: 'function', function: { name: 'bash', arguments: '{}' } }] },
+    {
+      role: 'tool',
+      tool_call_id: '1',
+      content: [
+        { type: 'text', text: '{"ok":true}' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,xx' } },
+      ],
+    },
+  ])
+  assert.equal(out[1]?.role, 'tool')
+  assert.equal(out[1]?.content, '{"ok":true}')
+  assert.equal(out[2]?.role, 'user')
+  assert.equal(hasImageContent(out[2]?.content), true)
+})
+
+test('flattenToolImagesForChatCompletions does not insert user between sibling tool results', () => {
+  const out = flattenToolImagesForChatCompletions([
+    {
+      role: 'assistant',
+      content: null,
+      tool_calls: [
+        { id: 'a', type: 'function', function: { name: 'bash', arguments: '{}' } },
+        { id: 'b', type: 'function', function: { name: 'db_list', arguments: '{}' } },
+      ],
+    },
+    {
+      role: 'tool',
+      tool_call_id: 'a',
+      content: [
+        { type: 'text', text: '{"ok":true}' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,xx' } },
+      ],
+    },
+    { role: 'tool', tool_call_id: 'b', content: '{"kind":"root"}' },
+    { role: 'user', content: '????' },
+  ])
+  assert.equal(out[1]?.role, 'tool')
+  assert.equal(out[1]?.tool_call_id, 'a')
+  assert.equal(out[2]?.role, 'tool')
+  assert.equal(out[2]?.tool_call_id, 'b')
+  assert.equal(out[3]?.role, 'user')
+  assert.equal(hasImageContent(out[3]?.content), true)
+  assert.equal(out[4]?.content, '????')
+})
+
+test('toAnthropicContent wraps tool images as tool_result image source', () => {
+  const content = toAnthropicContent(
+    [
+      { type: 'text', text: 'shot' },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } },
+    ],
+    'call-1',
+  )
+  assert.deepEqual(content, [
+    {
+      type: 'tool_result',
+      tool_use_id: 'call-1',
+      content: [
+        { type: 'text', text: 'shot' },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'abc' } },
+      ],
+    },
+  ])
 })

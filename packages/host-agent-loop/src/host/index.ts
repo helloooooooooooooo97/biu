@@ -1,11 +1,34 @@
 import { Service, type Context } from 'cordis'
 import type { AssistantReply, ChatOptions, LlmClient, LlmConfig, LlmMessage, LlmUsage } from '@biu/host-llm'
 import { runWithSession } from '@biu/host-sessions/scope'
-import { applyContextBudget } from '@biu/host-sessions'
+import { applyContextBudget, liftToolImages } from '@biu/host-sessions'
 import { runWithToolPolicy, runWithToolProgress, type AgentToolMode } from '@biu/host-tools'
 
 /** 工具结果写入事件日志( tool/result )时统一上限字符数；超长裁剪，避免上下文被单次工具输出撑爆。 */
 export const MAX_TOOL_RESULT_CHARS = 16_000
+export const DEFAULT_TOOL_CONCURRENCY = 4
+
+type ReplyToolCall = AssistantReply['toolCalls'][number]
+type ToolOutcome = { name: string; ok: boolean; detail: string; cancelled: boolean }
+
+function toolConcurrency() {
+  const configured = Number(process.env.BIU_TOOL_CONCURRENCY ?? DEFAULT_TOOL_CONCURRENCY)
+  return Number.isInteger(configured) && configured > 0 ? Math.min(configured, 32) : DEFAULT_TOOL_CONCURRENCY
+}
+
+async function mapConcurrent<T, R>(items: readonly T[], limit: number, run: (item: T) => Promise<R>): Promise<R[]> {
+  if (!items.length) return []
+  const results = new Array<R>(items.length)
+  let cursor = 0
+  const worker = async () => {
+    while (cursor < items.length) {
+      const index = cursor++
+      results[index] = await run(items[index]!)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()))
+  return results
+}
 
 export type { AgentTurn, ClaimedInput, PreStepReq, AgentRunner } from '@biu/type-agent-loop'
 import type { AgentTurn, ClaimedInput, AgentRunner, PreStepReq } from '@biu/type-agent-loop'
@@ -172,7 +195,7 @@ export class AgentLoop implements AgentRunner {
       // 让 step/start 先从 WS 出去，再去做可能很重的 derive / 等首 token
       await new Promise<void>((resolve) => setImmediate(resolve))
 
-      const rawMessages = session.deriveMessages(this.sessionId)
+      const rawMessages = await liftToolImages(session.deriveMessages(this.sessionId), this.sessionId)
       const inputComp = session.statInputComposition(this.sessionId)
       const attachUsage = (usage?: LlmUsage) =>
         usage !== undefined
@@ -236,14 +259,32 @@ export class AgentLoop implements AgentRunner {
         ...(usage ? { usage } : {}),
       })
 
-      for (const call of reply.toolCalls) {
+      const prepared = reply.toolCalls.map((call) => {
         let args: Record<string, unknown> = {}
         try {
           args = JSON.parse(call.arguments || '{}') as Record<string, unknown>
         } catch {
           args = {}
         }
+        return { call, args, mode: this.ctx.tools.executionMode(call.name, args) }
+      })
+
+      // 先把整批调用都推给前端，这样并行工具会同时显示为“运行中”。
+      for (const { call } of prepared) {
         await session.append(this.sessionId, { type: 'tool/call', id: call.id, name: call.name, arguments: call.arguments })
+      }
+
+      let appendQueue = Promise.resolve()
+      const enqueueAppend = (body: Parameters<typeof session.append>[1]) => {
+        const next = appendQueue.then(() => session.append(this.sessionId, body))
+        appendQueue = next.then(
+          () => undefined,
+          () => undefined,
+        )
+        return next
+      }
+
+      const executeCall = async (call: ReplyToolCall, args: Record<string, unknown>): Promise<ToolOutcome> => {
         let detail = ''
         let ok = true
         try {
@@ -255,7 +296,7 @@ export class AgentLoop implements AgentRunner {
                 const now = Date.now()
                 if (now - lastPartialAt < 40) return
                 lastPartialAt = now
-                void session.append(this.sessionId, {
+                void enqueueAppend({
                   type: 'tool/result',
                   id: call.id,
                   name: call.name,
@@ -269,24 +310,42 @@ export class AgentLoop implements AgentRunner {
         } catch (error) {
           ok = false
           detail = String(error)
-          steps.push({ name: call.name, ok, detail })
-          await session.append(this.sessionId, { type: 'tool/result', id: call.id, name: call.name, ok, detail })
-          if (this.signal.aborted || isCancelError(error)) {
-            await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
-            this.ctx.emit('agent/status', { sessionId: this.sessionId, status: 'idle' })
-            throw new Error('cancelled')
-          }
-          continue
+          await enqueueAppend({ type: 'tool/result', id: call.id, name: call.name, ok, detail })
+          return { name: call.name, ok, detail, cancelled: this.signal.aborted || isCancelError(error) }
         }
-        steps.push({ name: call.name, ok, detail })
-        await session.append(this.sessionId, { type: 'tool/result', id: call.id, name: call.name, ok, detail })
-        if (this.signal.aborted) {
-          await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
+        await enqueueAppend({ type: 'tool/result', id: call.id, name: call.name, ok, detail })
+        return { name: call.name, ok, detail, cancelled: this.signal.aborted }
+      }
+
+      const recordOutcomes = async (outcomes: ToolOutcome[]) => {
+        steps.push(...outcomes.map(({ name, ok, detail }) => ({ name, ok, detail })))
+        if (outcomes.some((item) => item.cancelled) || this.signal.aborted) {
+          await enqueueAppend({ type: 'turn/end', turn, reason: 'cancelled' })
           this.ctx.emit('agent/status', { sessionId: this.sessionId, status: 'idle' })
           throw new Error('cancelled')
         }
       }
-      await session.append(this.sessionId, { type: 'step/end', turn, step })
+
+      let parallel: typeof prepared = []
+      const flushParallel = async () => {
+        if (!parallel.length) return
+        const batch = parallel
+        parallel = []
+        await recordOutcomes(
+          await mapConcurrent(batch, toolConcurrency(), ({ call, args }) => executeCall(call, args)),
+        )
+      }
+
+      for (const item of prepared) {
+        if (item.mode === 'parallel') {
+          parallel.push(item)
+          continue
+        }
+        await flushParallel()
+        await recordOutcomes([await executeCall(item.call, item.args)])
+      }
+      await flushParallel()
+      await enqueueAppend({ type: 'step/end', turn, step })
       final = steps.at(-1)?.detail ?? final
     }
   }

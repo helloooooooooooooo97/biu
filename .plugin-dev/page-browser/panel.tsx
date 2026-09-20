@@ -34,6 +34,7 @@ type Bridge = {
   visible: (visible: boolean) => void
   openExternal: (url: string) => void
   inspect: (x: number, y: number) => void
+  cancelInspect: () => void
   close: () => void
   onState: (fn: (s: { url: string; title: string; canGoBack: boolean; canGoForward: boolean; loading: boolean }) => void) => () => void
   onError: (fn: (e: { code: number; desc: string; url: string }) => void) => () => void
@@ -180,6 +181,7 @@ function BrowserPanel({ pick }: { pick?: PickApi }) {
       if (next.url) setError('')
     })
     const offError = api.onError((e) => {
+      setPicking(false)
       setError(`${e.desc || '加载失败'}${e.code ? ` (${e.code})` : ''}`)
     })
     const offInspect = api.onInspected((info) => {
@@ -214,6 +216,19 @@ function BrowserPanel({ pick }: { pick?: PickApi }) {
       offInspect()
     }
   }, [api, pick, state.url])
+
+  useEffect(() => {
+    if (!api || !picking) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      setPicking(false)
+      api.cancelInspect()
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [api, picking])
 
   if (!api) {
     return (
@@ -309,10 +324,16 @@ function BrowserPanel({ pick }: { pick?: PickApi }) {
         <button
           type="button"
           style={{ ...iconBtn, color: picking ? '#5b9fd6' : undefined }}
-          title="选取"
-          aria-label="选取"
+          title={picking ? '取消选取' : '选取'}
+          aria-label={picking ? '取消选取' : '选取'}
+          aria-pressed={picking}
           data-testid="browser-panel-pick"
           onClick={() => {
+            if (picking) {
+              setPicking(false)
+              api.cancelInspect()
+              return
+            }
             setPicking(true)
             api.inspect(-1, -1)
           }}

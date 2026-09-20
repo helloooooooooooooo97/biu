@@ -1,0 +1,14 @@
+{
+  "id": "plugin-doctor",
+  "name": "插件体检",
+  "blurb": "扫描 .plugin 里所有已安装插件，列出 id/名称/headless/host/web/大小/最近运行时间，并检查 README 是否含 :::pageBlock 示例写法，给出「合规 / 缺 README 示例 / 缺引擎 / 空插件」结论。无头插件：宿主注册 GET /api/plugin-doctor/scan，页面块 kind=plugin-doctor 点「体检」调用并写入块 data.report，只读态展示上次结果。",
+  "tags": [
+    "page",
+    "editor",
+    "dev"
+  ],
+  "author": "Biu",
+  "authorUrl": "",
+  "createdAt": 1789444148683,
+  "headless": true
+}

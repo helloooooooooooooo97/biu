@@ -36,6 +36,9 @@ test('each registered table gets a builtin catalog view', () => {
   assert.equal(listed[1]?.name, '页面')
   assert.deepEqual(listed[1]?.filters, { tablePath: '/pages' })
   assert.equal(listed[1]?.builtin, true)
+  assert.equal(listed[1]?.sortField, 'updatedAt')
+  assert.equal(listed[1]?.sortDir, 'desc')
+  assert.equal(listed[1]?.tree, false)
   const merged = mergeCatalogViews(tables, [
     { id: builtinCatalogViewId('/pages'), name: '旧的', mode: 'table', sortField: 'id', sortDir: 'asc', filters: {}, columns: [] },
     { id: 'user-1', name: '周报', mode: 'table', sortField: 'id', sortDir: 'asc', filters: {}, columns: [] },
@@ -69,6 +72,9 @@ test('every registered table gets a read-only 全部xx view', () => {
   assert.equal(all.name, '全部会话')
   assert.deepEqual(all.filters, {})
   assert.equal(all.builtin, true)
+  assert.equal(all.sortField, 'updatedAt')
+  assert.equal(all.sortDir, 'desc')
+  assert.equal(all.tree, false)
   const merged = mergeTableViews(sessions, [
     { id: builtinAllViewId('/sessions'), name: '假的', mode: 'table', sortField: 'id', sortDir: 'asc', filters: {}, columns: [] },
     { id: 'mine', name: '置顶', mode: 'table', sortField: 'id', sortDir: 'asc', filters: {}, columns: [] },

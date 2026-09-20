@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react'
-import { ArrowUpIcon, ChevronDownIcon, PlusIcon } from '@heroicons/react/16/solid'
+import { ArrowUpIcon, ChevronDownIcon, FlagIcon, PauseIcon, PencilSquareIcon, PlayIcon, PlusIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -208,6 +208,7 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
   const pending = useSessionView((state) => state.pending)
   const inbox = useSessionView((state) => state.inbox)
   const sessionId = useSessionView((state) => state.sessionId)
+  const goal = useSessionView((state) => state.sessions.find((item) => item.id === state.sessionId)?.goal)
   const sessionView = props.sessionView as SessionViewService
   const pick = props.pick as PickService | undefined
   const { refs: pickRefs } = usePickState(pick)
@@ -678,6 +679,16 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
 
   const pickTool = useCallback(
     (name: string, slashState: SlashState | null = slash) => {
+      if (name === 'goal') {
+        if (editor && slashState) {
+          deletePlainRange(editor, slashState.start, slashState.end)
+          editor.chain().focus().insertContent('/goal ').run()
+        }
+        setSlash(null)
+        const packed = serializeComposer(editor)
+        scheduleCanSubmit(packed.plain, picked, packed.refs.length)
+        return
+      }
       setPicked((prev) => {
         const nextTools = prev.includes(name) ? prev : [...prev, name]
         if (editor && slashState) deletePlainRange(editor, slashState.start, slashState.end)
@@ -687,7 +698,7 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
       })
       setSlash(null)
     },
-    [slash, editor],
+    [slash, editor, picked],
   )
   pickToolRef.current = pickTool
 
@@ -809,6 +820,48 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
 
   return (
     <div className="composer-stack" data-biu-ignore>
+      {goal && (goal.status === 'pursuing' || goal.status === 'paused') ? (
+        <div className={`composer-goal is-${goal.status}`} data-testid="composer-goal">
+          <span className="composer-goal-mark" title={goal.status === 'paused' ? 'Goal 已暂停' : 'Goal 推进中'} aria-label={goal.status === 'paused' ? 'Goal 已暂停' : 'Goal 推进中'}>
+            <FlagIcon className="size-4" aria-hidden />
+          </span>
+          <div className="composer-goal-text" title={goal.objective}>
+            {goal.objective}
+          </div>
+          <div className="composer-goal-actions">
+            {goal.status === 'pursuing' ? (
+              <button
+                type="button"
+                className="composer-goal-btn"
+                title="暂停"
+                aria-label="暂停 Goal"
+                onClick={() => void sessionView.controlGoal('pause')}
+              >
+                <PauseIcon className="size-4" aria-hidden />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="composer-goal-btn"
+                title="继续"
+                aria-label="继续 Goal"
+                onClick={() => void sessionView.controlGoal('resume')}
+              >
+                <PlayIcon className="size-4" aria-hidden />
+              </button>
+            )}
+            <button
+              type="button"
+              className="composer-goal-btn"
+              title="清除"
+              aria-label="清除 Goal"
+              onClick={() => void sessionView.controlGoal('clear')}
+            >
+              <XMarkIcon className="size-4" aria-hidden />
+            </button>
+          </div>
+        </div>
+      ) : null}
       {inbox.length > 0 ? (
         <div className="composer-inbox" aria-label="排队中">
           <div className="composer-inbox-head">排队中 · {inbox.length}</div>
@@ -821,6 +874,34 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
                 <span className="composer-inbox-text" title={item.text}>
                   {item.text}
                 </span>
+                <div className="composer-inbox-actions">
+                  <button
+                    type="button"
+                    className="composer-inbox-btn"
+                    title="编辑"
+                    aria-label="编辑排队消息"
+                    onClick={() => {
+                      void (async () => {
+                        const ok = await sessionView.dropInboxItem(item.id)
+                        if (!ok || !editor) return
+                        editor.commands.setContent(jsonFromDraft(item.text))
+                        editor.commands.focus('end')
+                        scheduleCanSubmit(item.text, picked, pickRefs.length, pendingImages.length)
+                      })()
+                    }}
+                  >
+                    <PencilSquareIcon className="size-4" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="composer-inbox-btn"
+                    title="删除"
+                    aria-label="删除排队消息"
+                    onClick={() => void sessionView.dropInboxItem(item.id)}
+                  >
+                    <XMarkIcon className="size-4" aria-hidden />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -838,7 +919,7 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
       >
       {slash?.open ? (
         <div className="composer-slash" role="listbox" aria-label="工具列表">
-          <div className="composer-slash-head">工具 · 输入过滤 · Enter 选用</div>
+          <div className="composer-slash-head">命令与工具 · 输入过滤 · Enter 选用</div>
           {filtered.length === 0 ? (
             <div className="composer-slash-empty">没有匹配的工具</div>
           ) : (

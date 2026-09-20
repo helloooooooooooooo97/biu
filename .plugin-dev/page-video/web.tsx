@@ -116,7 +116,7 @@ const STYLE_CSS = `
   position:absolute;top:0;left:0;transform-origin:top left;
 }
 .pv-embed .pv-stage,.pv-embed .pv-screen,.pv-embed .pv-cam,.pv-embed .pv-stage-fit{border-radius:0}
-.pv-screen{position:absolute;inset:0;overflow:hidden;isolation:isolate;perspective:1400px}
+.pv-screen{position:absolute;inset:0;overflow:hidden;isolation:isolate;perspective:1400px;container-type:inline-size}
 .pv-cam{position:absolute;inset:0;transform-origin:center center;will-change:transform;transform-style:preserve-3d}
 .pv-layer{position:absolute;inset:0}
 .pv-frame{position:absolute;inset:0;display:flex;flex-direction:column;padding:9% 10%;box-sizing:border-box}
@@ -923,7 +923,12 @@ function Stage({ project, time, playing, chrome = 'embed' }: { project: Project;
                     textAlign: clip.align,
                   }}
                 >
-                  <div className="pv-title">{clip.text || '·'}</div>
+                  <div
+                    className="pv-title"
+                    style={{ fontSize: `${(clip.size / project.width) * 100}cqw` }}
+                  >
+                    {clip.text || '·'}
+                  </div>
                 </div>
               </div>
               )
@@ -943,6 +948,7 @@ function Stage({ project, time, playing, chrome = 'embed' }: { project: Project;
               color: clip.ink,
               opacity: alphaAt(clip, time) * propAt(clip, 'opacity', time, clip.opacity),
               bottom: `${10 + (captions.length - 1 - index) * 7}%`,
+              fontSize: `${(clip.size / project.width) * 100}cqw`,
             }}
           >
             {clip.text}
@@ -1827,6 +1833,23 @@ export function apply(ctx: {
     blockTypeLabel: '视频',
     hint: '标签时间轴，全屏编辑脚本',
     aliases: ['video', 'timeline', 'remotion', 'openscreen', '影片'],
+    assets: (data: Record<string, unknown>) => {
+      const out: string[] = []
+      const push = (raw: unknown) => {
+        if (typeof raw !== 'string') return
+        out.push(raw)
+        for (const match of raw.matchAll(/\bsrc=(?:["']?)([^"'\s>]+)/gi)) out.push(match[1] ?? '')
+      }
+      push(data.bgm)
+      push(data.file)
+      push(data.script)
+      if (Array.isArray(data.tracks)) {
+        for (const track of data.tracks) {
+          if (track && typeof track === 'object') push((track as { src?: unknown }).src)
+        }
+      }
+      return out
+    },
     defaults: { script: SAMPLE_SCRIPT },
     View: Editor,
   })

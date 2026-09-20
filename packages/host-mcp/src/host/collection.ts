@@ -111,6 +111,8 @@ export function mcpCollection(mcp: McpService): CollectionSpec {
       title: 'MCP',
       blurb:
         '这是 MCP 服务器表（外部工具来源），不是插件（插件在 /plugins）也不是代理（代理在 /sessions）。真源是 .biu/mcp.json，格式与 Cursor / Claude Desktop 的 mcpServers 一致。' +
+        'Biu 自己也作为 MCP 服务端对外：设置 → MCP 或本机 GET /api/mcp/info 拿局域网 url + Bearer token。' +
+        'MCP 挂在分享口（默认 0.0.0.0），局域网其它电脑可以调；工作台 API 仍只在本机。' +
         '一行 = 一台服务器；它提供的工具不会各自变成独立工具，Agent 统一用 mcp_list 看清单、mcp_call 调用。' +
         '新建一行会得到一台停用的 stdio 草稿（名字 new-server），把 command / args 填好再打开 enabled 即可；' +
         'title 就是 .biu/mcp.json 的 key，改它等于重命名。远端服务器把 transport 改成 http 或 sse 并填 url。' +
