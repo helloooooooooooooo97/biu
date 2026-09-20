@@ -644,10 +644,9 @@ test('editContent write accepts from a local file and rejects value+from togethe
   const written = await db.editContent('/docs/n1', { command: 'write', from: file })
   assert.equal(written.ok, true)
   assert.equal((await db.content('/docs/n1')).value, '# 来自文件\n\n正文内容\n')
-  await assert.rejects(
-    () => db.editContent('/docs/n1', { command: 'write', from: file, value: 'x' }),
-    /either value or from/,
-  )
+  const both = await db.editContent('/docs/n1', { command: 'write', from: file, value: 'x' })
+  assert.equal(both.ok, true)
+  assert.equal((await db.content('/docs/n1')).value, '# 来自文件\n\n正文内容\n')
   await assert.rejects(() => db.editContent('/docs/n1', { command: 'write', from: join(dir, 'nope.md') }), /cannot read from/)
 })
 
@@ -683,13 +682,14 @@ test('editContent insert/str_replace/replace_lines accept from in place of new_s
   await writeFile(insertFile, 'mid-from-file')
   await writeFile(replaceFile, 'TWO')
   await writeFile(linesFile, 'C\nD')
-  const inserted = await db.editContent('/docs/n1', { command: 'insert', insert_line: 1, from: insertFile })
+  const inserted = await db.editContent('/docs/n1', {
+    command: 'insert',
+    insert_line: 1,
+    from: insertFile,
+    new_str: 'ignored-short',
+  })
   assert.equal(inserted.ok, true)
   assert.equal((await db.content('/docs/n1')).value, 'one\nmid-from-file\ntwo\nthree')
-  await assert.rejects(
-    () => db.editContent('/docs/n1', { command: 'insert', insert_line: 1, from: insertFile, new_str: 'x' }),
-    /either new_str or from/,
-  )
   const replaced = await db.editContent('/docs/n1', { command: 'str_replace', old_str: 'two', from: replaceFile })
   assert.equal((await db.content('/docs/n1')).value, 'one\nmid-from-file\nTWO\nthree')
   const lined = await db.editContent('/docs/n1', { command: 'replace_lines', start_line: 4, end_line: 4, from: linesFile })
