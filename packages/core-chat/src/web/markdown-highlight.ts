@@ -15,7 +15,11 @@ export const markdownHighlight = markedHighlight({
       return hljs.highlight(code, { language, ignoreIllegals: true }).value
     } catch {
       // 高亮失败时退回原样，保证内容不丢
-      return code
+      try {
+        return hljs.highlight(code, { language: 'plaintext', ignoreIllegals: true }).value
+      } catch {
+        return code
+      }
     }
   },
 })
