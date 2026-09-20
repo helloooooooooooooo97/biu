@@ -48,7 +48,7 @@ test('user and system collection sections fold independently', () => {
   const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
   const fold = readFileSync(resolve(import.meta.dirname, '../../../public-ui/src/sidebar-fold.tsx'), 'utf8')
   assert.match(sidebar, /const \[userOpen, setUserOpen\] = useState\(true\)/)
-  assert.match(sidebar, /const \[systemOpen, setSystemOpen\] = useState\(true\)/)
+  assert.match(sidebar, /const \[systemOpen, setSystemOpen\] = useState\(false\)/)
   assert.match(sidebar, /onClick=\{\(\) => setUserOpen\(\(prev\) => !prev\)\}/)
   assert.match(sidebar, /onClick=\{\(\) => setSystemOpen\(\(prev\) => !prev\)\}/)
   assert.match(sidebar, /<SidebarFold/)

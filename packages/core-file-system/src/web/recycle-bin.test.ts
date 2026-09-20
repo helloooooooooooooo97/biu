@@ -16,6 +16,8 @@ test('recycle bin is a registered /trash table with restore and delete actions',
   assert.match(host, /trashCollection\(db, gcHooks\)/)
   assert.doesNotMatch(host, /assetGcCollection/)
   assert.match(paths, /TRASH_COLLECTION_PATH = '\/trash'/)
+  assert.match(paths, /USER_COLLECTION_ORDER = \[[^\]]*TRASH_COLLECTION_PATH/)
+  assert.doesNotMatch(paths, /SYSTEM_COLLECTION_ORDER = \[[^\]]*TRASH_COLLECTION_PATH/)
   assert.match(spec, /path: '\/trash'/)
   assert.match(spec, /id: 'restore'/)
   assert.match(spec, /id: 'delete'/)
