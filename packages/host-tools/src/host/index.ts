@@ -1,5 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { Service, type Context } from 'cordis'
+import { toolNameForApi } from './tool-name.ts'
+
+export { toolNameForApi } from './tool-name.ts'
 
 export interface ToolSpec {
   name: string
@@ -78,7 +81,7 @@ export function runWithToolOrigin<T>(origin: ToolOrigin, fn: () => T): T {
 }
 
 export function runWithExtraTools<T>(names: readonly string[], fn: () => T): T {
-  const cleaned = [...new Set(names.map((n) => n.trim()).filter(Boolean))]
+  const cleaned = [...new Set(names.map((n) => toolNameForApi(n.trim())).filter(Boolean))]
   return extraToolsStorage.run(new Set(cleaned), fn)
 }
 
@@ -86,7 +89,7 @@ export function runWithToolPolicy<T>(
   policy: { mode: AgentToolMode; extras?: readonly string[] },
   fn: () => T,
 ): T {
-  const extras = [...new Set((policy.extras ?? []).map((n) => n.trim()).filter(Boolean))]
+  const extras = [...new Set((policy.extras ?? []).map((n) => toolNameForApi(n.trim())).filter(Boolean))]
   return toolPolicyStorage.run({ mode: policy.mode, extras: new Set(extras) }, () =>
     runWithExtraTools(extras, fn),
   )
@@ -95,6 +98,7 @@ export function runWithToolPolicy<T>(
 export class ToolsService extends Service {
   private tools = new Map<string, ToolSpec>()
   private origins = new Map<string, ToolOrigin>()
+  private aliases = new Map<string, string>()
   private guards: ToolGuard[] = []
   private mode: AgentToolMode = 'standard'
   /** 极简模式下常驻额外工具（配置面板勾选，跨回合生效）。 */
@@ -109,7 +113,7 @@ export class ToolsService extends Service {
   }
 
   originOf(name: string): ToolOrigin {
-    return this.origins.get(name) ?? 'core'
+    return this.origins.get(this.resolveName(name)) ?? 'core'
   }
 
   setMode(mode: AgentToolMode) {
@@ -127,7 +131,7 @@ export class ToolsService extends Service {
     const cleaned = [
       ...new Set(
         names
-          .map((name) => name.trim())
+          .map((name) => toolNameForApi(name.trim()))
           .filter(Boolean)
           .filter((name) => !(MINIMAL_TOOL_NAMES as readonly string[]).includes(name))
           .filter((name) => !(FILE_TOOL_NAMES as readonly string[]).includes(name)),
@@ -152,18 +156,33 @@ export class ToolsService extends Service {
     return extraToolsStorage.getStore()?.has(name) ?? false
   }
 
+  private resolveName(name: string) {
+    const raw = String(name ?? '').trim()
+    const aliased = this.aliases.get(raw)
+    if (aliased) return aliased
+    if (this.tools.has(raw)) return raw
+    return toolNameForApi(raw)
+  }
+
   register(spec: ToolSpec) {
+    const original = String(spec.name ?? '').trim()
+    const name = toolNameForApi(original)
+    const next = { ...spec, name }
     return this.ctx.effect(() => {
-      if (this.tools.has(spec.name)) throw new Error(`tool already registered: ${spec.name}`)
-      this.tools.set(spec.name, spec)
-      this.origins.set(spec.name, toolOriginStorage.getStore() ?? 'core')
+      if (this.tools.has(name)) throw new Error(`tool already registered: ${name}`)
+      this.tools.set(name, next)
+      this.origins.set(name, toolOriginStorage.getStore() ?? 'core')
+      this.aliases.set(name, name)
+      if (original && original !== name) this.aliases.set(original, name)
       this.ctx.emit('hub/change')
       return () => {
-        this.tools.delete(spec.name)
-        this.origins.delete(spec.name)
+        this.tools.delete(name)
+        this.origins.delete(name)
+        this.aliases.delete(name)
+        if (original && original !== name) this.aliases.delete(original)
         this.ctx.emit('hub/change')
       }
-    }, `tools.register ${spec.name}`)
+    }, `tools.register ${name}`)
   }
 
   guard(fn: ToolGuard) {
@@ -209,26 +228,27 @@ export class ToolsService extends Service {
   }
 
   async invoke(name: string, args: Record<string, unknown> = {}, signal: AbortSignal = new AbortController().signal) {
+    const resolved = this.resolveName(name)
     if (signal.aborted) throw new Error('cancelled')
-    if (!this.visible(name)) {
+    if (!this.visible(resolved)) {
       const mode = toolPolicyStorage.getStore()?.mode ?? this.mode
-      throw new Error(`tool not available in ${mode} mode: ${name}`)
+      throw new Error(`tool not available in ${mode} mode: ${resolved}`)
     }
-    let req: ToolRequest = { name, args }
+    let req: ToolRequest = { name: resolved, args }
     for (const guard of this.guards) req = await raceAbort(signal, Promise.resolve(guard(req)))
     req = this.ctx.waterfall('tools/pre-execute', req, () => req)
     if (req.deny) {
-      this.ctx.emit('tools/post-execute', { name, ok: false, detail: req.deny })
+      this.ctx.emit('tools/post-execute', { name: resolved, ok: false, detail: req.deny })
       throw new Error(req.deny)
     }
-    const tool = this.tools.get(name)
-    if (!tool) throw new Error(`unknown tool: ${name}`)
+    const tool = this.tools.get(resolved)
+    if (!tool) throw new Error(`unknown tool: ${resolved}`)
     try {
       const result = await raceAbort(signal, Promise.resolve(tool.execute(req.args, signal)))
-      this.ctx.emit('tools/post-execute', { name, ok: true, detail: stringify(result) })
+      this.ctx.emit('tools/post-execute', { name: resolved, ok: true, detail: stringify(result) })
       return result
     } catch (error) {
-      this.ctx.emit('tools/post-execute', { name, ok: false, detail: String(error) })
+      this.ctx.emit('tools/post-execute', { name: resolved, ok: false, detail: String(error) })
       throw error
     }
   }

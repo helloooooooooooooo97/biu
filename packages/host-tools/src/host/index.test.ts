@@ -182,3 +182,18 @@ test('report is ignored unless invoke is wrapped with progress', async () => {
   assert.deepEqual(result, { n: 3 })
   assert.deepEqual(seen, ['{"n":1}', '{"n":2}'])
 })
+
+test('Chinese tool names are registered as pinyin for OpenAI-style APIs', async () => {
+  const ctx = new Context()
+  await ctx.plugin(tools)
+  ctx.tools.register({
+    name: '查天气',
+    description: '查天气',
+    parameters: { type: 'object', properties: {} },
+    execute: () => 'ok',
+  })
+  assert.deepEqual(ctx.tools.names(), ['cha_tian_qi'])
+  assert.equal(ctx.tools.schemas()[0]?.function.name, 'cha_tian_qi')
+  assert.equal(await ctx.tools.invoke('查天气'), 'ok')
+  assert.equal(await ctx.tools.invoke('cha_tian_qi'), 'ok')
+})
