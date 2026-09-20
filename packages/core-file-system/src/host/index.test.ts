@@ -651,6 +651,53 @@ test('editContent write accepts from a local file and rejects value+from togethe
   await assert.rejects(() => db.editContent('/docs/n1', { command: 'write', from: join(dir, 'nope.md') }), /cannot read from/)
 })
 
+test('editContent insert/str_replace/replace_lines accept from in place of new_str', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, Record<string, unknown>>([
+    ['n1', { id: 'n1', title: 'a', content: 'one\ntwo\nthree' }],
+  ])
+  db.register({
+    id: 'docs',
+    path: '/docs',
+    schema: {
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+        content: { type: 'file', writable: true },
+      },
+    },
+    list: () => [...rows.values()] as { id: string }[],
+    get: (id) => rows.get(id) as { id: string } | undefined,
+    records: { update: true },
+    update: (id, patch) => {
+      const next = { ...rows.get(id), ...patch, id }
+      rows.set(id, next)
+      return next as { id: string }
+    },
+  })
+  const dir = await mkdtemp(join(tmpdir(), 'db-content-from-edit-'))
+  const insertFile = join(dir, 'insert.md')
+  const replaceFile = join(dir, 'replace.md')
+  const linesFile = join(dir, 'lines.md')
+  await writeFile(insertFile, 'mid-from-file')
+  await writeFile(replaceFile, 'TWO')
+  await writeFile(linesFile, 'C\nD')
+  const inserted = await db.editContent('/docs/n1', { command: 'insert', insert_line: 1, from: insertFile })
+  assert.equal(inserted.ok, true)
+  assert.equal((await db.content('/docs/n1')).value, 'one\nmid-from-file\ntwo\nthree')
+  await assert.rejects(
+    () => db.editContent('/docs/n1', { command: 'insert', insert_line: 1, from: insertFile, new_str: 'x' }),
+    /either new_str or from/,
+  )
+  const replaced = await db.editContent('/docs/n1', { command: 'str_replace', old_str: 'two', from: replaceFile })
+  assert.equal((await db.content('/docs/n1')).value, 'one\nmid-from-file\nTWO\nthree')
+  const lined = await db.editContent('/docs/n1', { command: 'replace_lines', start_line: 4, end_line: 4, from: linesFile })
+  assert.equal((await db.content('/docs/n1')).value, 'one\nmid-from-file\nTWO\nC\nD')
+  assert.equal(lined.start_line, 4)
+  assert.equal(lined.end_line, 5)
+})
+
 test('editAsset views and writes referenced attachments as content-addressed files', async () => {
   const ctx = new Context()
   const db = new DatabaseService(ctx)
