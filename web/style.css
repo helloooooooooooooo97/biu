@@ -605,6 +605,118 @@ body {
   max-width: 420px;
 }
 
+.settings-pane-subtitle {
+  margin: 28px 0 6px;
+  color: var(--dsw-label);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.settings-page-prefs.fsdb-layout-menu {
+  position: static;
+  top: auto;
+  right: auto;
+  z-index: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: 420px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-page-prefs .fsdb-layout-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--dsw-label);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.settings-page-prefs .fsdb-layout-row:hover {
+  background: var(--dsw-hover);
+}
+
+.settings-page-prefs .fsdb-layout-scale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+.settings-page-prefs .fsdb-layout-scale > span {
+  color: var(--dsw-label-2);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.settings-page-prefs .fsdb-layout-pills {
+  display: flex;
+  gap: 2px;
+}
+
+.settings-page-prefs .fsdb-layout-opt {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-label-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.settings-page-prefs .fsdb-layout-opt:hover {
+  background: var(--dsw-hover);
+  color: var(--dsw-label);
+}
+
+.settings-page-prefs .fsdb-layout-opt.is-active {
+  color: var(--dsw-business);
+  background: color-mix(in srgb, var(--dsw-business) 10%, var(--dsw-input));
+}
+
+.settings-page-prefs .fsdb-boolbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid var(--dsw-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--dsw-bg);
+  box-sizing: border-box;
+}
+
+.settings-page-prefs .fsdb-boolbox.is-on {
+  background: var(--dsw-pick, #2383e2);
+  border-color: transparent;
+  color: var(--dsw-bg);
+}
+
 .settings-theme-card {
   display: flex;
   flex-direction: column;

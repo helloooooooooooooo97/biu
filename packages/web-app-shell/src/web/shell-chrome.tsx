@@ -17,6 +17,8 @@ import { applyNoticeClick, noticeIdOf } from './notice-open.ts'
 import { readMainDataRoute } from '@biu/core-file-system/main-data-route'
 import { persistTheme, readTheme, type ThemeMode } from './theme.ts'
 import { persistWorkspaceProfile, useWorkspaceProfile } from '@biu/public-ui'
+import { LayoutPrefsMenu } from '@biu/core-file-system/layout-prefs-menu'
+import { getPagePrefs, hydratePagePrefs, subscribePageWidth } from '@biu/core-file-system/page-width'
 
 async function readAvatarFile(file: File) {
   const url = URL.createObjectURL(file)
@@ -139,6 +141,12 @@ export function ShellSettingsAccount() {
 
 export function ShellSettingsAppearance() {
   const [theme, setTheme] = useState(readTheme)
+  const [pagePrefs, setPagePrefs] = useState(getPagePrefs)
+
+  useEffect(() => subscribePageWidth(() => setPagePrefs(getPagePrefs())), [])
+  useEffect(() => {
+    void hydratePagePrefs().then(() => setPagePrefs(getPagePrefs()))
+  }, [])
 
   const pick = (next: ThemeMode) => {
     persistTheme(next)
@@ -148,7 +156,7 @@ export function ShellSettingsAppearance() {
   return (
     <section data-testid="settings-appearance">
       <h3 className="settings-pane-title">外观</h3>
-      <p className="settings-muted settings-pane-lead">界面颜色。日间是浅色，夜间是深色。</p>
+      <p className="settings-muted settings-pane-lead">界面颜色。日间是浅色，夜间是深色。数据页宽屏、目录和正文字号也记在这里。</p>
       <div className="settings-theme-grid">
         <button
           type="button"
@@ -173,6 +181,9 @@ export function ShellSettingsAppearance() {
           夜间模式
         </button>
       </div>
+      <h4 className="settings-pane-subtitle">数据页</h4>
+      <p className="settings-muted settings-pane-lead">宽屏、悬浮目录和正文字号。重启后仍按上次选择。</p>
+      <LayoutPrefsMenu prefs={pagePrefs} testPrefix="settings-layout" className="settings-page-prefs" />
     </section>
   )
 }
