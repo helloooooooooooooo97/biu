@@ -28,6 +28,7 @@ test('live plugin no longer registers session_* tools', async () => {
     'db_update',
     'db_create',
     'db_delete',
+    'db_restore',
     'db_stat',
     'db_action',
     'db_content',

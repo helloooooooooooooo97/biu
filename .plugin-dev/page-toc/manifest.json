@@ -1,0 +1,10 @@
+{
+  "id": "page-toc",
+  "name": "页面目录",
+  "blurb": "在页面里用 / 插入目录块：列出当前页 h1–h3，点击跳转。建议放在文首。",
+  "tags": ["page", "editor"],
+  "author": "Biu",
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",
+  "createdAt": 1789890000000,
+  "headless": true
+}

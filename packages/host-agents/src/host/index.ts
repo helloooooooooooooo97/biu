@@ -1,7 +1,16 @@
 import { Service, type Context } from 'cordis'
 import type { LlmConfig } from '@biu/host-llm'
 import type { AgentTurn, ClaimedInput } from '@biu/type-agent-loop'
-import type { MessageSender, LiveUiContext } from '@biu/type-session'
+import type { MessageSender, LiveUiContext, SessionGoal } from '@biu/type-session'
+import { currentSessionId } from '@biu/host-sessions/scope'
+import {
+  continuationPrompt,
+  decideGoalContinuation,
+  goalFromConfig,
+  newGoalId,
+  parseGoalSlash,
+  type GoalSlash,
+} from './goal.ts'
 
 export type { AgentTurn, LlmConfig }
 
@@ -102,7 +111,11 @@ export class AgentsService extends Service {
       while (true) {
         const claimed = claim(live.inbox)
         this.emitInbox(id)
-        if (!claimed) break
+        if (!claimed) {
+          const queued = await this.queueGoalContinuation(id, live)
+          if (!queued) break
+          continue
+        }
         last = await this.ctx.agentLoop.create(this.resolveLlm(id), id, live.abort.signal).run(claimed)
       }
       return last
@@ -141,6 +154,15 @@ export class AgentsService extends Service {
         const trimmed = text.trim()
         const images = sanitizeImages(opts?.images)
         if (!trimmed && !images?.length) return { text: '请先输入内容。', steps: [] }
+        const slash = parseGoalSlash(trimmed)
+        if (slash) {
+          const control = await this.applyGoalSlash(id, slash)
+          if (control !== 'run') {
+            await this.ctx.sessions.append(id, { type: 'user/message', text: trimmed, kind: 'wake' })
+            await this.ctx.sessions.append(id, { type: 'assistant/message', text: control })
+            return { text: control, steps: [] }
+          }
+        }
         const extraTools = sanitizeExtraTools(opts?.extraTools)
         const wait = opts?.wait !== false
         const entry = {
@@ -213,6 +235,82 @@ export class AgentsService extends Service {
     return this.lives.get(sessionId)?.handle
   }
 
+  async controlGoal(sessionId: string, action: 'pause' | 'resume' | 'clear') {
+    if (!(await this.ctx.sessions.get(sessionId))) throw new Error(`unknown session: ${sessionId}`)
+    await this.create(sessionId)
+    const text = await this.applyGoalSlash(sessionId, { kind: action })
+    if (action === 'pause' || action === 'clear') {
+      this.get(sessionId)?.cancel()
+    } else if (text === 'run') {
+      const goal = this.peekGoal(sessionId)
+      if (goal) void this.get(sessionId)?.send(continuationPrompt(goal), { wait: false })
+    }
+    return {
+      ok: true as const,
+      goal: this.peekGoal(sessionId) ?? null,
+      text: text === 'run' ? '已继续 Goal' : text,
+    }
+  }
+
+  private peekGoal(sessionId: string): SessionGoal | undefined {
+    return goalFromConfig(this.ctx.sessions.peek(sessionId)?.config?.goal)
+  }
+
+  private async applyGoalSlash(sessionId: string, slash: GoalSlash): Promise<'run' | string> {
+    const existing = this.peekGoal(sessionId)
+    if (slash.kind === 'start') {
+      await this.ctx.sessions.patchConfig(sessionId, {
+        goal: { id: newGoalId(), objective: slash.objective, status: 'pursuing', turns: 0 },
+      })
+      return 'run'
+    }
+    if (slash.kind === 'resume') {
+      if (!existing) return '没有可恢复的 Goal。用 /goal <目标> 开始。'
+      if (existing.status === 'achieved') return '当前 Goal 已完成。用 /goal <目标> 开新的。'
+      await this.ctx.sessions.patchConfig(sessionId, { goal: { ...existing, status: 'pursuing' } })
+      return 'run'
+    }
+    if (slash.kind === 'pause') {
+      if (!existing || existing.status !== 'pursuing') return '没有正在推进的 Goal。'
+      await this.ctx.sessions.patchConfig(sessionId, { goal: { ...existing, status: 'paused' } })
+      return `已暂停 Goal：${existing.objective}`
+    }
+    if (slash.kind === 'clear') {
+      await this.ctx.sessions.patchConfig(sessionId, { goal: null })
+      return existing ? `已清除 Goal：${existing.objective}` : '当前没有 Goal。'
+    }
+    if (!existing) return '当前没有 Goal。输入 /goal <目标> 开始，会一直做到完成。'
+    return `Goal ${existing.status} · ${existing.objective}${existing.summary ? ` · ${existing.summary}` : ''} · goal_id=${existing.id}`
+  }
+
+  private async queueGoalContinuation(sessionId: string, live: LiveAgent) {
+    const goal = this.peekGoal(sessionId)
+    const decision = decideGoalContinuation({
+      goal,
+      aborted: live.abort.signal.aborted,
+      inboxLength: live.inbox.length,
+    })
+    if (decision === 'budget' && goal) {
+      await this.ctx.sessions.patchConfig(sessionId, {
+        goal: {
+          ...goal,
+          status: 'blocked',
+          summary: `达到 ${goal.turns} 回合上限，目标未完成`,
+        },
+      })
+      return false
+    }
+    if (decision !== 'continue' || !goal) return false
+    await this.ctx.sessions.patchConfig(sessionId, { goal: { ...goal, turns: goal.turns + 1 } })
+    live.inbox.push({
+      kind: 'wake',
+      text: continuationPrompt(goal),
+      id: nextInboxId(),
+    })
+    this.emitInbox(sessionId)
+    return true
+  }
+
   /** 兼容旧入口：把最后一条用户消息送进 session。 */
   async prompt(history: Array<{ role: string; content: string }>, llm: LlmConfig): Promise<AgentTurn> {
     this.configure(llm)
@@ -240,7 +338,7 @@ function sanitizeImages(raw: AgentSendOptions['images']): ClaimedInput['images']
 
 function sanitizeExtraTools(names: string[] | undefined): string[] {
   if (!Array.isArray(names) || !names.length) return []
-  return [...new Set(names.map((name) => String(name).trim()).filter(Boolean))]
+  return [...new Set(names.map((name) => String(name).trim()).filter((name) => name && name !== 'goal'))]
 }
 
 function claim(inbox: ClaimedInput[]): ClaimedInput[] | undefined {
@@ -254,11 +352,62 @@ function claim(inbox: ClaimedInput[]): ClaimedInput[] | undefined {
 }
 
 export const name = 'agents'
-export const inject = ['agentLoop', 'sessions']
+export const inject = ['agentLoop', 'sessions', 'tools']
 
 export function apply(ctx: Context) {
   const agents = new AgentsService(ctx)
   // 无循环依赖地把"按 session 取 AgentHandle"的能力装进 SessionsService：
   // agents 依赖 sessions（单向）；反向派工能力通过 sessions.installAgentFactory 回调注入。
   ctx.sessions.installAgentFactory((id) => agents.create(id))
+  registerGoalTools(ctx)
+}
+
+function registerGoalTools(ctx: Context) {
+  ctx.tools.register({
+    name: 'goal_complete',
+    description:
+      'Goal 模式：目标已用具体证据验证完成后调用。必须带当前 goal_id 与 summary。不要只在回复里声称完成。',
+    parameters: {
+      type: 'object',
+      properties: {
+        goal_id: { type: 'string', description: '当前会话正在推进的 goal_id' },
+        summary: { type: 'string', description: '完成证据：跑过的测试、改动的文件、验收结果' },
+      },
+      required: ['goal_id', 'summary'],
+    },
+    execute: async (args) => updateGoal(ctx, 'achieved', args),
+  })
+  ctx.tools.register({
+    name: 'goal_blocked',
+    description:
+      'Goal 模式：只有真正无法继续时才调用（缺密钥、缺权限、外部依赖、同一障碍反复出现）。必须带当前 goal_id。',
+    parameters: {
+      type: 'object',
+      properties: {
+        goal_id: { type: 'string' },
+        reason: { type: 'string' },
+        evidence: { type: 'string' },
+      },
+      required: ['goal_id', 'reason'],
+    },
+    execute: async (args) =>
+      updateGoal(ctx, 'blocked', {
+        goal_id: args.goal_id,
+        summary: [args.reason, args.evidence].filter(Boolean).map(String).join('\n'),
+      }),
+  })
+}
+
+async function updateGoal(ctx: Context, status: 'achieved' | 'blocked', args: Record<string, unknown>) {
+  const sessionId = currentSessionId()
+  if (!sessionId) throw new Error('goal tools need an active session')
+  const goal = goalFromConfig(ctx.sessions.peek(sessionId)?.config?.goal)
+  if (!goal) throw new Error('no active goal')
+  const goalId = String(args.goal_id ?? '').trim()
+  if (goalId !== goal.id) throw new Error('stale goal_id')
+  if (goal.status !== 'pursuing') throw new Error(`goal is ${goal.status}`)
+  const summary = String(args.summary ?? '').trim().slice(0, 4000)
+  if (status === 'achieved' && !summary) throw new Error('goal_complete needs summary evidence')
+  await ctx.sessions.patchConfig(sessionId, { goal: { ...goal, status, ...(summary ? { summary } : {}) } })
+  return { ok: true, status, goal_id: goal.id }
 }

@@ -1,5 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { Service, type Context } from 'cordis'
+import { toolNameForApi, stripToolApiName } from './tool-name.ts'
+
+export { toolNameForApi, stripToolApiName, TOOL_API_NAME } from './tool-name.ts'
 
 export interface ToolSpec {
   name: string
@@ -54,6 +57,7 @@ export const FILE_TOOL_NAMES = [
   'db_update',
   'db_create',
   'db_delete',
+  'db_restore',
   'db_stat',
   'db_action',
   'db_content',
@@ -101,6 +105,7 @@ export function runWithToolPolicy<T>(
 export class ToolsService extends Service {
   private tools = new Map<string, ToolSpec>()
   private origins = new Map<string, ToolOrigin>()
+  private aliases = new Map<string, string>()
   private guards: ToolGuard[] = []
   private mode: AgentToolMode = 'standard'
   /** 极简模式下常驻额外工具（配置面板勾选，跨回合生效）。 */
@@ -115,7 +120,7 @@ export class ToolsService extends Service {
   }
 
   originOf(name: string): ToolOrigin {
-    return this.origins.get(name) ?? 'core'
+    return this.origins.get(this.resolveName(name)) ?? 'core'
   }
 
   setMode(mode: AgentToolMode) {
@@ -154,22 +159,42 @@ export class ToolsService extends Service {
     if (mode === 'file') return (FILE_TOOL_NAMES as readonly string[]).includes(name)
     if ((MINIMAL_TOOL_NAMES as readonly string[]).includes(name)) return true
     if ((policy?.extras ?? new Set()).has(name)) return true
+    if ([...(policy?.extras ?? [])].some((item) => this.resolveName(item) === name)) return true
     if (!policy && this.pinnedExtras.includes(name)) return true
-    return extraToolsStorage.getStore()?.has(name) ?? false
+    if (!policy && this.pinnedExtras.some((item) => this.resolveName(item) === name)) return true
+    if (extraToolsStorage.getStore()?.has(name)) return true
+    return [...(extraToolsStorage.getStore() ?? [])].some((item) => this.resolveName(item) === name)
+  }
+
+  private resolveName(name: string) {
+    const raw = String(name ?? '').trim()
+    const aliased = this.aliases.get(raw)
+    if (aliased) return aliased
+    if (this.tools.has(raw)) return raw
+    const stripped = stripToolApiName(raw)
+    if (stripped && this.tools.has(stripped)) return stripped
+    return raw
   }
 
   register(spec: ToolSpec) {
+    const original = String(spec.name ?? '').trim()
+    const name = toolNameForApi(original, new Set(this.tools.keys()))
+    const next = { ...spec, name }
     return this.ctx.effect(() => {
-      if (this.tools.has(spec.name)) throw new Error(`tool already registered: ${spec.name}`)
-      this.tools.set(spec.name, spec)
-      this.origins.set(spec.name, toolOriginStorage.getStore() ?? 'core')
+      if (this.tools.has(name)) throw new Error(`tool already registered: ${name}`)
+      this.tools.set(name, next)
+      this.origins.set(name, toolOriginStorage.getStore() ?? 'core')
+      this.aliases.set(name, name)
+      if (original && original !== name) this.aliases.set(original, name)
       this.ctx.emit('hub/change')
       return () => {
-        this.tools.delete(spec.name)
-        this.origins.delete(spec.name)
+        this.tools.delete(name)
+        this.origins.delete(name)
+        this.aliases.delete(name)
+        if (original && original !== name) this.aliases.delete(original)
         this.ctx.emit('hub/change')
       }
-    }, `tools.register ${spec.name}`)
+    }, `tools.register ${name}`)
   }
 
   guard(fn: ToolGuard) {
@@ -226,26 +251,27 @@ export class ToolsService extends Service {
   }
 
   async invoke(name: string, args: Record<string, unknown> = {}, signal: AbortSignal = new AbortController().signal) {
+    const resolved = this.resolveName(name)
     if (signal.aborted) throw new Error('cancelled')
-    if (!this.visible(name)) {
+    if (!this.visible(resolved)) {
       const mode = toolPolicyStorage.getStore()?.mode ?? this.mode
-      throw new Error(`tool not available in ${mode} mode: ${name}`)
+      throw new Error(`tool not available in ${mode} mode: ${resolved}`)
     }
-    let req: ToolRequest = { name, args }
+    let req: ToolRequest = { name: resolved, args }
     for (const guard of this.guards) req = await raceAbort(signal, Promise.resolve(guard(req)))
     req = this.ctx.waterfall('tools/pre-execute', req, () => req)
     if (req.deny) {
-      this.ctx.emit('tools/post-execute', { name, ok: false, detail: req.deny })
+      this.ctx.emit('tools/post-execute', { name: resolved, ok: false, detail: req.deny })
       throw new Error(req.deny)
     }
-    const tool = this.tools.get(name)
-    if (!tool) throw new Error(`unknown tool: ${name}`)
+    const tool = this.tools.get(resolved)
+    if (!tool) throw new Error(`unknown tool: ${resolved}`)
     try {
       const result = await raceAbort(signal, Promise.resolve(tool.execute(req.args, signal)))
-      this.ctx.emit('tools/post-execute', { name, ok: true, detail: stringify(result) })
+      this.ctx.emit('tools/post-execute', { name: resolved, ok: true, detail: stringify(result) })
       return result
     } catch (error) {
-      this.ctx.emit('tools/post-execute', { name, ok: false, detail: String(error) })
+      this.ctx.emit('tools/post-execute', { name: resolved, ok: false, detail: String(error) })
       throw error
     }
   }

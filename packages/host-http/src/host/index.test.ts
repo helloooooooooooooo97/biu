@@ -70,6 +70,37 @@ test('occupied requested port falls back when enabled', async () => {
   }
 })
 
+test('occupied share port falls back when enabled', async () => {
+  const prevShare = process.env.SHARE_PORT
+  const blocker = createServer()
+  await new Promise<void>((resolve, reject) => {
+    blocker.once('error', reject)
+    blocker.listen(0, '127.0.0.1', () => resolve())
+  })
+  const address = blocker.address()
+  assert.ok(address && typeof address !== 'string')
+  const ctx = new Context()
+  const shareReady = new Promise<number>((resolve) => ctx.on('http/share-ready', ({ port }) => resolve(port)))
+  const fiber = await ctx.plugin(http, {
+    port: 0,
+    host: '127.0.0.1',
+    fallbackPort: false,
+    sharePort: address.port,
+    shareHost: '127.0.0.1',
+  })
+  try {
+    const port = await shareReady
+    assert.notEqual(port, address.port)
+    assert.ok(port > 0)
+    assert.equal(process.env.SHARE_PORT, String(port))
+  } finally {
+    await fiber.dispose()
+    await new Promise<void>((resolve, reject) => blocker.close((error) => (error ? reject(error) : resolve())))
+    if (prevShare === undefined) delete process.env.SHARE_PORT
+    else process.env.SHARE_PORT = prevShare
+  }
+})
+
 test('extra ws path does not abort the hub /ws handshake', async () => {
   const base = await mkdtemp(join(tmpdir(), 'cordis-http-ws-'))
   const publicDir = join(base, 'public')

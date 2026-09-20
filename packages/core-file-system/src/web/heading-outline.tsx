@@ -88,12 +88,12 @@ export function HeadingOutline({ enabled }: { enabled: boolean }) {
                 </button>
                 {open ? (
                   <HeadlessDismiss onDismiss={() => setOpen(false)} insideRef={sheetRef}>
-                    <nav className="fsdb-share-outline-panel" aria-label="标题大纲" data-testid="heading-outline">
+                    <nav className="chat-outline-panel" aria-label="标题大纲" data-testid="heading-outline">
                       {items.map((item) => (
                         <button
                           key={item.id}
                           type="button"
-                          className={`fsdb-share-outline-item${item.level ? ` is-h${item.level}` : ''}`}
+                          className={`chat-outline-item${item.level ? ` is-h${item.level}` : ''}`}
                           onClick={() => go(item.id)}
                         >
                           {item.text}

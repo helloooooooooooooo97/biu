@@ -612,6 +612,168 @@ body {
   font-weight: 650;
 }
 
+.settings-mcp-error {
+  margin: 0 0 16px;
+  color: var(--dsw-danger);
+}
+
+.settings-mcp-fields {
+  display: flex;
+  max-width: 560px;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-mcp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--dsw-label);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-mcp-field-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-mcp-input {
+  min-width: 0;
+  flex: 1;
+  height: 32px;
+  border: 1px solid var(--dsw-border);
+  border-radius: 6px;
+  background: var(--dsw-input);
+  padding: 0 10px;
+  color: var(--dsw-label);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+}
+
+.settings-mcp-icon-btn,
+.settings-mcp-rotate,
+.settings-mcp-enable,
+.settings-mcp-link {
+  margin: 0;
+  border: 1px solid var(--dsw-border);
+  border-radius: 6px;
+  background: var(--dsw-bg);
+  color: var(--dsw-label-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-mcp-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--dsw-icon);
+}
+
+.settings-mcp-icon-btn:hover:not(:disabled),
+.settings-mcp-rotate:hover:not(:disabled),
+.settings-mcp-enable:hover:not(:disabled),
+.settings-mcp-link:hover {
+  background: var(--dsw-hover);
+  color: var(--dsw-label);
+}
+
+.settings-mcp-icon-btn:disabled,
+.settings-mcp-rotate:disabled,
+.settings-mcp-enable:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.settings-mcp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.settings-mcp-rotate,
+.settings-mcp-link,
+.settings-mcp-enable {
+  height: 28px;
+  padding: 0 10px;
+}
+
+.settings-mcp-link {
+  border: 0;
+  background: transparent;
+  color: var(--dsw-label-3);
+}
+
+.settings-mcp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.settings-mcp-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--dsw-border);
+  border-radius: 10px;
+  background: var(--dsw-bg);
+}
+
+.settings-mcp-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--dsw-hover);
+  color: var(--dsw-label);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.settings-mcp-card-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-mcp-card-copy strong {
+  display: block;
+  color: var(--dsw-label);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.settings-mcp-card-copy p {
+  margin: 2px 0 0;
+  color: var(--dsw-label-3);
+  font-size: 12px;
+  font-weight: 450;
+  line-height: 1.4;
+}
+
+.settings-mcp-enable {
+  flex: none;
+  align-self: center;
+}
+
+@media (max-width: 720px) {
+  .settings-mcp-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .settings-page-prefs.fsdb-layout-menu {
   position: static;
   top: auto;
@@ -5663,6 +5825,39 @@ html:not(.dark) .chat-outline-item.is-active {
   white-space: nowrap;
 }
 
+/* 运行中：文字保持原色，高亮带从字上扫过 */
+.tool-call-head.is-running .tool-call-title,
+.tool-call-head.is-running .tool-call-summary {
+  background-image: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 38%,
+    color-mix(in srgb, currentColor 28%, transparent) 50%,
+    transparent 62%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: tool-call-text-pulse 1.6s linear infinite;
+}
+
+@keyframes tool-call-text-pulse {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -40% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-call-head.is-running .tool-call-title,
+  .tool-call-head.is-running .tool-call-summary {
+    animation: none;
+    background: none;
+  }
+}
+
 .tool-call-status {
   display: grid;
   flex-shrink: 0;
@@ -5724,28 +5919,33 @@ html:not(.dark) .chat-outline-item.is-active {
 
 .tool-call-copy,
 .chat-code-copy {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  z-index: 2;
   display: grid;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
   place-items: center;
-  width: 26px;
-  height: 26px;
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--dsw-sidebar) 88%, transparent);
+  border-radius: 6px;
+  background: transparent;
   color: var(--dsw-icon);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
 }
 
+.chat-code-copy {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+}
+
 .chat-reply-block:hover .tool-call-copy,
 .chat-reply-block:hover .chat-code-copy,
-.tool-call:hover .tool-call-copy,
+.tool-call-head:hover .tool-call-copy,
+.tool-call-head:focus-within .tool-call-copy,
 .chat-code:hover .chat-code-copy,
 .tool-call-copy:focus-visible,
 .chat-code-copy:focus-visible {
@@ -6503,6 +6703,60 @@ html.dark .composer-send:disabled {
   backdrop-filter: blur(8px);
 }
 
+.composer-goal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--dsw-border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--dsw-surface) 88%, transparent);
+}
+
+.composer-goal-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--dsw-icon-active);
+}
+
+.composer-goal-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--dsw-label);
+  font-size: var(--dsw-chat-ui-font-size);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-goal-actions {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
+
+.composer-goal-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  border: 1px solid var(--dsw-border);
+  border-radius: 999px;
+  padding: 0;
+  background: var(--dsw-bubble);
+  color: var(--dsw-icon-active);
+  cursor: pointer;
+}
+
+.composer-goal-btn:hover {
+  background: var(--dsw-hover);
+}
+
 .composer-inbox-head {
   margin-bottom: 6px;
   color: var(--dsw-label-3);
@@ -7071,6 +7325,12 @@ html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail) svg,
 html:not(.dark) .tool-call-inspect,
 html:not(.dark) .tool-call-inspect:hover,
 html:not(.dark) .tool-call-inspect svg,
+html:not(.dark) .tool-call-copy,
+html:not(.dark) .tool-call-copy:hover,
+html:not(.dark) .tool-call-copy svg,
+html:not(.dark) .chat-code-copy,
+html:not(.dark) .chat-code-copy:hover,
+html:not(.dark) .chat-code-copy svg,
 html:not(.dark) .tool-call-status.is-running,
 html:not(.dark) [data-testid="content-edits-table"] .content-edits-icon,
 html:not(.dark) [data-testid="content-edits-table"] .content-edits-icon svg {
@@ -7084,6 +7344,7 @@ html:not(.dark) .tool-call-head:hover .tool-call-title,
 html:not(.dark) .tool-call-toggle:hover .tool-call-title {
   color: #5f5e5a;
 }
+
 
 html:not(.dark) .fsdb-crumb-btn,
 html:not(.dark) .fsdb-crumb-btn:hover,

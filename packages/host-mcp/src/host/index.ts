@@ -1,6 +1,7 @@
 import { Service, type Context } from 'cordis'
 import { mcpCollection } from './collection.ts'
 import { McpConnection, type McpToolInfo } from './client.ts'
+import { applyHostServer } from './serve.ts'
 import {
   incompleteReason,
   mcpConfigPath,
@@ -408,6 +409,7 @@ export const inject = ['tools']
 export function apply(ctx: Context) {
   const mcp = new McpService(ctx)
   void mcp.restore()
+  ctx.inject(['http'], (inner) => applyHostServer(inner))
 
   ctx.tools.register({
     name: 'mcp_servers',

@@ -19,6 +19,7 @@ describe('code copy', () => {
     expect(button.title).toBe('复制')
     expect(button.getAttribute('aria-label')).toBe('复制代码')
     expect(button.textContent).toBe('')
+    expect(button.innerHTML).toContain('M5 6.5A1.5 1.5 0 0 1 6.5 5h6A1.5 1.5 0 0 1 14 6.5v6')
   })
 
   it('copies pre inner text and marks the icon as done', async () => {

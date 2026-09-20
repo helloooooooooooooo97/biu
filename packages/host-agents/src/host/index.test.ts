@@ -230,3 +230,106 @@ test('cancel unblocks a hung tool and clears busy', async () => {
   }
   assert.equal(ctx.agents.isBusy(agent.sessionId), false)
 })
+
+test('/goal wakes continuation until the goal is marked complete', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  await ctx.plugin(tools)
+  await ctx.plugin(systemPrompt)
+  await ctx.plugin(llm)
+  await ctx.plugin(agentLoop)
+  await ctx.plugin(agents)
+  ctx.agents.configure({ provider: 'deepseek', apiKey: '', model: 'x' })
+  const agent = await ctx.agents.create()
+  let runs = 0
+  const originalCreate = ctx.agentLoop.create.bind(ctx.agentLoop)
+  ctx.agentLoop.create = ((config, sessionId, signal) => {
+    const runner = originalCreate(config, sessionId, signal)
+    runner.run = async () => {
+      runs += 1
+      if (runs >= 2) {
+        const current = ctx.sessions.peek(agent.sessionId)?.config?.goal
+        if (current) {
+          await ctx.sessions.patchConfig(agent.sessionId, {
+            goal: { ...current, status: 'achieved', summary: 'verified' },
+          })
+        }
+        return { text: 'done', steps: [] }
+      }
+      return { text: 'working', steps: [] }
+    }
+    return runner
+  }) as typeof ctx.agentLoop.create
+
+  const turn = await agent.send('/goal 修好测试')
+  assert.equal(turn.text, 'done')
+  assert.equal(runs, 2)
+  assert.equal(ctx.sessions.peek(agent.sessionId)?.config?.goal?.status, 'achieved')
+  assert.equal(ctx.sessions.peek(agent.sessionId)?.config?.goal?.objective, '修好测试')
+})
+
+test('/goal pause does not start an agent turn', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  await ctx.plugin(tools)
+  await ctx.plugin(systemPrompt)
+  await ctx.plugin(llm)
+  await ctx.plugin(agentLoop)
+  await ctx.plugin(agents)
+  ctx.agents.configure({ provider: 'deepseek', apiKey: '', model: 'x' })
+  const agent = await ctx.agents.create()
+  await ctx.sessions.patchConfig(agent.sessionId, {
+    goal: { id: 'goal-x', objective: '修好测试', status: 'pursuing', turns: 0 },
+  })
+  const turn = await agent.send('/goal pause')
+  assert.match(turn.text, /已暂停/)
+  assert.equal(ctx.sessions.peek(agent.sessionId)?.config?.goal?.status, 'paused')
+  assert.equal(
+    (await ctx.sessions.require(agent.sessionId)).events.some((item) => item.type === 'turn/start'),
+    false,
+  )
+})
+
+test('controlGoal pause cancels the live turn so Goal cannot keep going', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  await ctx.plugin(tools)
+  await ctx.plugin(systemPrompt)
+  await ctx.plugin(llm)
+  await ctx.plugin(agentLoop)
+  await ctx.plugin(agents)
+  ctx.agents.configure({ provider: 'deepseek', apiKey: '', model: 'x' })
+  ctx.tools.register({
+    name: 'hang',
+    description: 'hang',
+    parameters: { type: 'object', properties: {} },
+    execute: () => new Promise(() => undefined),
+  })
+  const originalCreate = ctx.agentLoop.create.bind(ctx.agentLoop)
+  ctx.agentLoop.create = ((config, sessionId, signal) => {
+    const runner = originalCreate(config, sessionId, signal)
+    runner.run = async () => {
+      await ctx.tools.invoke('hang', {}, signal)
+      return { text: 'nope', steps: [] }
+    }
+    return runner
+  }) as typeof ctx.agentLoop.create
+  const agent = await ctx.agents.create()
+  await ctx.sessions.patchConfig(agent.sessionId, {
+    goal: { id: 'goal-x', objective: '修好测试', status: 'pursuing', turns: 0 },
+  })
+  void agent.send('go', { wait: false })
+  for (let i = 0; i < 20 && !ctx.agents.isBusy(agent.sessionId); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  assert.equal(ctx.agents.isBusy(agent.sessionId), true)
+  const result = await ctx.agents.controlGoal(agent.sessionId, 'pause')
+  assert.equal(result.goal?.status, 'paused')
+  for (let i = 0; i < 50 && ctx.agents.isBusy(agent.sessionId); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  assert.equal(ctx.agents.isBusy(agent.sessionId), false)
+})

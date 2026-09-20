@@ -613,9 +613,11 @@ async function startHost() {
     throw new Error(`packed host missing: ${entry}`)
   }
   const requestedPort = Number.isInteger(hostPort) && hostPort > 0 ? hostPort : 0
+  const shareHost = process.env.SHARE_HOST || '0.0.0.0'
   const requestedSharePort = Number(process.env.SHARE_PORT || 3142)
   const sharePort = await availablePort(
     Number.isInteger(requestedSharePort) && requestedSharePort > 0 ? requestedSharePort : 3142,
+    shareHost,
   )
   const home = app.getPath('userData')
   const workspace = process.env.CORDIS_WORKSPACE || join(home, 'workspace')
@@ -634,7 +636,7 @@ async function startHost() {
       HTTP_HOST: process.env.HTTP_HOST || '127.0.0.1',
       SHARE_PORT: String(sharePort),
       // 分享链接使用局域网 IP；只监听 loopback 会让其他设备收到 ERR_CONNECTION_REFUSED。
-      SHARE_HOST: process.env.SHARE_HOST || '0.0.0.0',
+      SHARE_HOST: shareHost,
       BIU_HOME: home,
       CORDIS_WORKSPACE: workspace,
       BIU_PLUGIN_DIR: pluginDir,

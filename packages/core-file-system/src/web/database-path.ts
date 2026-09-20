@@ -39,6 +39,7 @@ export const NOTICES_COLLECTION_PATH = '/notices'
 export const PAGE_BLOCKS_COLLECTION_PATH = '/page-blocks'
 export const PAGES_COLLECTION_PATH = '/pages'
 export const TASKS_COLLECTION_PATH = '/tasks'
+export const TRASH_COLLECTION_PATH = '/trash'
 
 /** 数据侧栏记录行按 parentId 嵌套：只有页面和任务。 */
 export function isRecordTreeCollection(path: string) {
@@ -46,7 +47,7 @@ export function isRecordTreeCollection(path: string) {
   return normalized === PAGES_COLLECTION_PATH || normalized === TASKS_COLLECTION_PATH
 }
 
-const SYSTEM_COLLECTION_ORDER = [VIEWS_COLLECTION_PATH, EVENTS_COLLECTION_PATH, NOTICES_COLLECTION_PATH, '/asset-gc'] as const
+const SYSTEM_COLLECTION_ORDER = [VIEWS_COLLECTION_PATH, EVENTS_COLLECTION_PATH, NOTICES_COLLECTION_PATH, TRASH_COLLECTION_PATH] as const
 
 /** 用户表侧栏顺序。组件是页面里嵌的块，紧挨页面下面。 */
 const USER_COLLECTION_ORDER = ['/sessions', '/tasks', '/pages', '/page-blocks', '/plugins', '/facets'] as const

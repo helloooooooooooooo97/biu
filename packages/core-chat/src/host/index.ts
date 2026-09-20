@@ -19,7 +19,7 @@ import {
   buildTrajectoryWindow,
   findEvent,
 } from '@biu/host-sessions/trajectory'
-import { estimateTokens } from '@biu/host-sessions'
+import { estimateTokens, liftToolImages } from '@biu/host-sessions'
 import { readArtifactFile } from '@biu/host-sessions/artifacts'
 import { collectLiveDispatchedTasks } from '@biu/host-live-sessions/usage'
 import { loadLiveDispatchTasks, registerChatInspectorRoutes } from './inspector.ts'
@@ -420,6 +420,20 @@ export class ChatService extends Service {
       }
       return this.config.systemPrompt
     })
+    ctx.systemPrompt.register('chat.goal', () => {
+      const sessionId = currentSessionId()
+      if (!sessionId) return ''
+      const goal = this.ctx.sessions.peek(sessionId)?.config?.goal
+      if (!goal || goal.status !== 'pursuing') return ''
+      return [
+        '用户用 /goal 挂上了当前目标。持续推进直到完成，不要停在计划或口头「差不多了」。',
+        `目标：${goal.objective}`,
+        `goal_id=${goal.id}`,
+        '完成后必须调用 goal_complete({ goal_id, summary })，summary 写具体证据（测试、文件、验收）。',
+        '只有真正卡住才调用 goal_blocked({ goal_id, reason, evidence })。',
+        '这与极简 / 标准 / 数据工具模式无关：Goal 是会话上的目标合同，工具集仍由当前 Agent 模式决定。',
+      ].join('\n')
+    })
     this.syncLlm()
     this.syncToolsMode()
   }
@@ -493,7 +507,14 @@ export class ChatService extends Service {
         })(),
       })),
       tools: this.ctx.tools.names(),
-      toolCatalog: this.ctx.tools.catalog(),
+      toolCatalog: [
+        {
+          name: 'goal',
+          description: '挂上目标并一直做到完成。/goal 目标；/goal pause、resume、clear',
+          origin: 'core' as const,
+        },
+        ...this.ctx.tools.catalog().filter((item) => item.name !== 'goal'),
+      ],
       extraTools: this.config.extraTools,
     }
   }
@@ -967,6 +988,21 @@ export function computeTurnStats(events: SessionEvent[], targetTurn?: number): R
 export const name = 'chat'
 export const inject = ['http', 'hub', 'agents', 'sessions', 'systemPrompt', 'tools', 'tasks']
 
+function databaseOf(ctx: Context) {
+  return ctx.get('database') as
+    | {
+        facets: { isDeleted: (collection: string, id: string) => boolean; deletedIds: (collection: string) => Set<string> }
+        remove: (path: string, query: { ids: string[] }) => Promise<unknown>
+      }
+    | undefined
+}
+
+function liveSessionItems<T extends { id: string }>(ctx: Context, items: T[]) {
+  const hidden = databaseOf(ctx)?.facets.deletedIds('/sessions')
+  if (!hidden?.size) return items
+  return items.filter((item) => !hidden.has(item.id))
+}
+
 declare module 'cordis' {
   interface Context {
     chat: ChatService
@@ -1094,7 +1130,11 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('GET', '/api/sessions', async (route) => {
     await ctx.sessions.ensureDefaultSession()
-    const items = await ctx.sessions.listSummaries()
+    let items = liveSessionItems(ctx, await ctx.sessions.listSummaries())
+    if (!items.length) {
+      await ctx.sessions.create()
+      items = liveSessionItems(ctx, await ctx.sessions.listSummaries())
+    }
     route.send(200, {
       sessions: items.map((item) => ({
         id: item.id,
@@ -1108,12 +1148,16 @@ export function apply(ctx: Context) {
         tags: item.config?.tags ?? [],
         pinned: Boolean(item.config?.pinned),
         ...(item.config?.inspector ? { inspector: item.config.inspector } : {}),
+        ...(item.config?.goal ? { goal: item.config.goal } : {}),
       })),
     })
   })
   ctx.http.route('GET', '/api/sessions/:id', async (route) => {
     const record = await ctx.sessions.get(route.params.id)
     if (!record) return route.send(404, { error: 'unknown session' })
+    if (databaseOf(ctx)?.facets.isDeleted('/sessions', record.id)) {
+      return route.send(404, { error: 'unknown session' })
+    }
     const turnsRaw = route.query.get('turns')
     const limitTurns =
       turnsRaw == null || turnsRaw === ''
@@ -1135,7 +1179,7 @@ export function apply(ctx: Context) {
       ...(record.mascot ? { mascot: record.mascot } : {}),
       ...(record.config ? { config: record.config } : {}),
     }
-    const summaries = await ctx.sessions.listSummaries()
+    const summaries = liveSessionItems(ctx, await ctx.sessions.listSummaries())
     const workers = []
     const titles = new Map<string, string>()
     const mascots = new Map<string, NonNullable<(typeof summaries)[number]['mascot']>>()
@@ -1295,7 +1339,7 @@ export function apply(ctx: Context) {
     route.send(200, {
       id: record.id,
       seq,
-      messages: buildRequestMessages(record.events, seq),
+      messages: await liftToolImages(buildRequestMessages(record.events, seq), record.id),
       toolsTokens: toolsSchemaTokens,
     })
   })
@@ -1344,7 +1388,16 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('DELETE', '/api/sessions/:id', async (route) => {
     const id = route.params.id
+    const record = await ctx.sessions.get(id)
+    if (!record) return route.send(404, { error: 'unknown session' })
+    const db = databaseOf(ctx)
+    if (db?.facets.isDeleted('/sessions', id)) return route.send(404, { error: 'unknown session' })
     ctx.agents.get(id)?.dispose()
+    if (db?.remove) {
+      await db.remove('/sessions', { ids: [id] })
+      route.send(200, { ok: true, id, trash: true })
+      return
+    }
     const ok = await ctx.sessions.delete(id)
     if (!ok) return route.send(404, { error: 'unknown session' })
     route.send(200, { ok: true, id })
@@ -1407,6 +1460,21 @@ export function apply(ctx: Context) {
     if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
     await ctx.agents.create(id)
     route.send(200, { sessionId: id, inbox: ctx.agents.listInbox(id) })
+  })
+  ctx.http.route('POST', '/api/sessions/:id/goal', async (route) => {
+    const id = route.params.id
+    if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
+    const payload = ((await route.json().catch(() => null)) ?? {}) as { action?: string }
+    const action = payload.action
+    if (action !== 'pause' && action !== 'resume' && action !== 'clear') {
+      return route.send(400, { error: 'action must be pause, resume, or clear' })
+    }
+    try {
+      const result = await ctx.agents.controlGoal(id, action)
+      route.send(200, result)
+    } catch (error) {
+      route.send(400, { error: String(error) })
+    }
   })
   ctx.http.route('POST', '/api/sessions/:id/cancel', async (route) => {
     const id = route.params.id

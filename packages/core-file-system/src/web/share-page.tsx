@@ -382,7 +382,9 @@ function SharePage({
               onPick={openShareTarget}
             />
           ) : (
-            <span className="chat-view-project-name">{snapshot.title}</span>
+            <div className="chat-view-project">
+              <span className="chat-view-project-name">{snapshot.title}</span>
+            </div>
           )}
         </div>
         <div className="chat-view-header-right">

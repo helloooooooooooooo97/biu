@@ -622,6 +622,10 @@ export type CollectionListQuery = {
   ids?: string[]
   q?: string
   filter?: Record<string, unknown>
+  /** 只看已进回收站的行。 */
+  trash?: boolean
+  /** 从回收站彻底删除，不再保留。 */
+  purge?: boolean
 }
 
 export function hasCollectionDeleteQuery(query?: CollectionListQuery | null): boolean {
@@ -712,6 +716,7 @@ export interface Database {
   update(path: string, content: unknown): Promise<unknown>
   create(path: string, records: unknown): Promise<unknown>
   remove(path: string, query: CollectionListQuery): Promise<unknown>
+  restore(path: string, query: CollectionListQuery): Promise<unknown>
   action(path: string, actionId: string, args?: Record<string, unknown>): Promise<unknown>
   stat(path: string): Promise<unknown>
   /** 单独读写记录正文（content 字段），不走 list/read。 */

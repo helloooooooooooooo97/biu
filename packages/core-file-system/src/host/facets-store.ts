@@ -103,6 +103,7 @@ export class FacetStore {
     this.db = openAndMigrateBiu(path)
     this.ensureCreatedAtColumn()
     this.ensurePersonMetaColumns()
+    this.ensureDeletedAtColumn()
     this.ensureBannerTable()
     return this
   }
@@ -122,6 +123,16 @@ export class FacetStore {
     const names = new Set(cols.map((col) => col.name))
     if (!names.has('created_by_json')) db.exec(`ALTER TABLE record_meta ADD COLUMN created_by_json TEXT`)
     if (!names.has('updated_by_json')) db.exec(`ALTER TABLE record_meta ADD COLUMN updated_by_json TEXT`)
+    if (!names.has('deleted_at')) db.exec(`ALTER TABLE record_meta ADD COLUMN deleted_at INTEGER`)
+  }
+
+  private ensureDeletedAtColumn() {
+    const db = this.db!
+    const cols = db.prepare('PRAGMA table_info(record_meta)').all() as Array<{ name: string }>
+    if (!cols.some((col) => col.name === 'deleted_at')) {
+      db.exec(`ALTER TABLE record_meta ADD COLUMN deleted_at INTEGER`)
+    }
+    db.exec('CREATE INDEX IF NOT EXISTS record_meta_deleted ON record_meta(collection, deleted_at)')
   }
 
   private ensureBannerTable() {
@@ -311,14 +322,16 @@ export class FacetStore {
     tags: string[] | null
     createdBy: PersonValue | null
     updatedBy: PersonValue[]
+    deletedAt: number | null
   } | null {
     const row = this.ensure()
-      .prepare('SELECT emoji, tags_json, created_by_json, updated_by_json FROM record_meta WHERE collection = ? AND record_id = ?')
+      .prepare('SELECT emoji, tags_json, created_by_json, updated_by_json, deleted_at FROM record_meta WHERE collection = ? AND record_id = ?')
       .get(collection, recordId) as {
         emoji: string | null
         tags_json: string | null
         created_by_json?: string | null
         updated_by_json?: string | null
+        deleted_at?: number | null
       } | undefined
     if (!row) return null
     let tags: string[] | null = null
@@ -353,6 +366,7 @@ export class FacetStore {
       tags,
       createdBy: parsePerson(row.created_by_json),
       updatedBy: parsePeople(row.updated_by_json),
+      deletedAt: Number(row.deleted_at) > 0 ? Number(row.deleted_at) : null,
     }
   }
 
@@ -441,7 +455,47 @@ export class FacetStore {
         patch.createdBy !== undefined ? JSON.stringify(patch.createdBy) : null,
         patch.updatedBy !== undefined ? JSON.stringify(asPersonList(patch.updatedBy)) : null,
       )
-    return this.recordMeta(collection, recordId) ?? { emoji: null, tags: null, createdBy: null, updatedBy: [] }
+    return this.recordMeta(collection, recordId) ?? { emoji: null, tags: null, createdBy: null, updatedBy: [], deletedAt: null }
+  }
+
+  deletedIds(collection: string) {
+    const rows = this.ensure()
+      .prepare('SELECT record_id FROM record_meta WHERE collection = ? AND deleted_at IS NOT NULL AND deleted_at > 0')
+      .all(collection) as Array<{ record_id: string }>
+    return new Set(rows.map((row) => row.record_id))
+  }
+
+  isDeleted(collection: string, recordId: string) {
+    const row = this.ensure()
+      .prepare('SELECT deleted_at FROM record_meta WHERE collection = ? AND record_id = ?')
+      .get(collection, recordId) as { deleted_at?: number | null } | undefined
+    return Number(row?.deleted_at) > 0
+  }
+
+  markDeleted(collection: string, recordId: string, at = Date.now()) {
+    this.ensure()
+      .prepare(
+        `INSERT INTO record_meta (collection, record_id, deleted_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(collection, record_id) DO UPDATE SET deleted_at = excluded.deleted_at`,
+      )
+      .run(collection, recordId, at)
+  }
+
+  restoreDeleted(collection: string, recordId: string) {
+    this.ensure()
+      .prepare('UPDATE record_meta SET deleted_at = NULL WHERE collection = ? AND record_id = ?')
+      .run(collection, recordId)
+  }
+
+  listDeleted() {
+    return this.ensure()
+      .prepare(
+        `SELECT collection, record_id, deleted_at FROM record_meta
+         WHERE deleted_at IS NOT NULL AND deleted_at > 0
+         ORDER BY deleted_at DESC`,
+      )
+      .all() as Array<{ collection: string; record_id: string; deleted_at: number }>
   }
 
   removeRecord(collection: string, recordId: string) {

@@ -209,6 +209,92 @@ export function hasImageContent(content: LlmMessageContent | undefined): boolean
   return content.some((part) => part.type === 'image_url')
 }
 
+function textFromContent(content: LlmMessageContent | undefined): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return content == null ? '' : String(content)
+  return content
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n')
+}
+
+function imagePartsFromContent(content: LlmMessageContent | undefined): LlmContentPart[] {
+  if (!Array.isArray(content)) return []
+  return content.filter((part): part is { type: 'image_url'; image_url: { url: string } } => part.type === 'image_url')
+}
+
+/**
+ * Chat Completions 的 tool 角色只接受字符串。成熟做法：工具文本留在 tool，
+ * 图像跟在该批 tool 消息之后的一条 user 多模态消息里（DeepSeek / GPT-4o 同款）。
+ */
+export function flattenToolImagesForChatCompletions(messages: LlmMessage[]): LlmMessage[] {
+  const out: LlmMessage[] = []
+  let pending: LlmContentPart[] = []
+  const flush = () => {
+    if (!pending.length) return
+    out.push({
+      role: 'user',
+      content: [{ type: 'text', text: '（工具返回的图像）' }, ...pending],
+    })
+    pending = []
+  }
+  for (const message of messages) {
+    if (message.role === 'tool') {
+      const images = imagePartsFromContent(message.content)
+      if (images.length) {
+        out.push({ ...message, content: textFromContent(message.content) })
+        pending.push(...images)
+        continue
+      }
+    }
+    flush()
+    out.push(message)
+  }
+  flush()
+  return out
+}
+
+function anthropicImageBlock(url: string): Record<string, unknown> | null {
+  const data = /^data:(image\/(?:png|jpeg|jpg|gif|webp));base64,([A-Za-z0-9+/=\s]+)$/i.exec(url)
+  if (data) {
+    const media = data[1]!.toLowerCase() === 'image/jpg' ? 'image/jpeg' : data[1]!.toLowerCase()
+    return {
+      type: 'image',
+      source: { type: 'base64', media_type: media, data: data[2]!.replace(/\s+/g, '') },
+    }
+  }
+  if (/^https?:\/\//i.test(url)) {
+    return { type: 'image', source: { type: 'url', url } }
+  }
+  return null
+}
+
+/** OpenAI image_url → Anthropic image / text 块；tool 角色包成 tool_result。 */
+export function toAnthropicContent(
+  content: LlmMessageContent | undefined,
+  toolCallId?: string,
+): unknown {
+  let blocks: unknown
+  if (typeof content === 'string' || content == null) {
+    blocks = content ?? ''
+  } else if (Array.isArray(content)) {
+    const parts: Record<string, unknown>[] = []
+    for (const part of content) {
+      if (part.type === 'text') {
+        if (part.text) parts.push({ type: 'text', text: part.text })
+      } else if (part.type === 'image_url') {
+        const image = anthropicImageBlock(part.image_url.url)
+        if (image) parts.push(image)
+      }
+    }
+    blocks = parts.length ? parts : ''
+  } else {
+    blocks = ''
+  }
+  if (!toolCallId) return blocks
+  return [{ type: 'tool_result', tool_use_id: toolCallId, content: blocks }]
+}
+
 /** OpenAI/DeepSeek：带 tool_calls 时 content 宜为 null，空字符串可能导致后续回合拒答。 */
 export function assistantContentForApi(text: string | undefined | null, hasToolCalls: boolean): string | null {
   if (hasToolCalls && !text) return null
@@ -411,14 +497,15 @@ export class OpenAiCompatLlm implements LlmClient {
   ): Promise<AssistantReply> {
     const url = resolveChatCompletionsUrl(this.config.baseUrl, this.config.provider)
     // 仅 deepseek provider 支持自动路由到视觉模型；openai/anthropic 保持配置原状。
-    const hasImage = messages.some((m) => hasImageContent(m.content))
+    const payload = flattenToolImagesForChatCompletions(messages)
+    const hasImage = payload.some((m) => hasImageContent(m.content))
     const model =
       this.config.provider === 'deepseek' && hasImage
         ? DEEPSEEK_VISION_MODEL
         : this.config.model
     const body: Record<string, unknown> = {
       model,
-      messages,
+      messages: payload,
       stream: true,
       stream_options: { include_usage: true },
     }
@@ -481,15 +568,9 @@ export class AnthropicLlm implements LlmClient {
       messages: messages
         .filter((m) => m.role !== 'system')
         .map((m) => ({
-          role: m.role,
-          ...(m.content ? { content: m.content } : {}),
-          ...(m.tool_call_id
-            ? {
-                content: [
-                  { type: 'tool_result' as const, tool_use_id: m.tool_call_id, content: m.content ?? '' },
-                ],
-              }
-            : {}),
+          role: m.role === 'tool' ? 'user' : m.role,
+          ...(m.content && !m.tool_call_id && !m.tool_calls?.length ? { content: toAnthropicContent(m.content) } : {}),
+          ...(m.tool_call_id ? { content: toAnthropicContent(m.content, m.tool_call_id) } : {}),
           ...(m.tool_calls?.length
             ? {
                 content: m.tool_calls.map((call) => ({
