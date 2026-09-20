@@ -95,20 +95,44 @@ export function rebuildHealedEvents(
     out.push({ ...body, seq: out.length, ts } as SessionEvent)
   }
 
+  /** 崩溃停在分片 result 时保留已流出的 detail，flush 时转成正式 tool/result。 */
+  const partials = new Map<string, { name: string; ok: boolean; detail: string; ts: number }>()
+
   const flushPending = () => {
     if (!pending.size) return
     changed = true
-    for (const body of orphanToolResultBodies(
-      [...pending.entries()].map(([id, name]) => ({ id, name })),
-    )) {
-      push(body, now)
+    for (const [id, name] of pending) {
+      const streamed = partials.get(id)
+      if (streamed) {
+        push(
+          {
+            type: 'tool/result',
+            id,
+            name: streamed.name || name,
+            ok: false,
+            detail: streamed.detail || INTERRUPTED_TOOL_DETAIL,
+          },
+          streamed.ts || now,
+        )
+      } else {
+        push(orphanToolResultBodies([{ id, name }])[0]!, now)
+      }
     }
     pending.clear()
+    partials.clear()
   }
 
   for (const event of events) {
     if (event.type === 'tool/result') {
       if (event.partial) {
+        if (pending.has(event.id)) {
+          partials.set(event.id, {
+            name: event.name || pending.get(event.id) || '',
+            ok: event.ok,
+            detail: event.detail,
+            ts: event.ts,
+          })
+        }
         changed = true
         continue
       }
@@ -117,6 +141,7 @@ export function rebuildHealedEvents(
         continue
       }
       pending.delete(event.id)
+      partials.delete(event.id)
       push(stripSeqTs(event), event.ts)
       continue
     }

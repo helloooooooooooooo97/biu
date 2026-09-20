@@ -71,8 +71,61 @@ test('partial tool/result does not close orphan tool calls', () => {
   assert.equal(finals.length, 1)
   if (finals[0]?.type === 'tool/result') {
     assert.equal(finals[0].ok, false)
-    assert.match(finals[0].detail, /interrupted/)
+    assert.equal(finals[0].detail, '{}')
+    assert.equal(finals[0].partial, undefined)
   }
+})
+
+test('stuck partial bash result is promoted with streamed detail before wake user', () => {
+  const events = [
+    ev({ type: 'turn/start', turn: 10, seq: 0 }),
+    ev({ type: 'user/message', text: '查一下', kind: 'wake', seq: 1 }),
+    ev({
+      type: 'assistant/message',
+      text: '',
+      tool_calls: [{ id: 'call_x', name: 'bash', arguments: '{"command":"ls"}' }],
+      seq: 2,
+    }),
+    ev({ type: 'tool/call', id: 'call_x', name: 'bash', arguments: '{"command":"ls"}', seq: 3 }),
+    ev({
+      type: 'tool/result',
+      id: 'call_x',
+      name: 'bash',
+      ok: true,
+      detail: 'a.txt\nb.txt\n',
+      partial: true,
+      seq: 4,
+    }),
+    ev({ type: 'step/end', turn: 10, step: 0, seq: 5 }),
+    ev({ type: 'turn/end', turn: 10, reason: 'host-restart', seq: 6 }),
+    ev({ type: 'turn/start', turn: 11, seq: 7 }),
+    ev({ type: 'user/message', text: '????', kind: 'wake', seq: 8 }),
+  ]
+
+  const rebuilt = rebuildHealedEvents(events, 99)
+  assert.ok(rebuilt)
+  const result = rebuilt!.find((item) => item.type === 'tool/result')
+  assert.equal(result?.type, 'tool/result')
+  if (result?.type === 'tool/result') {
+    assert.equal(result.id, 'call_x')
+    assert.equal(result.partial, undefined)
+    assert.equal(result.detail, 'a.txt\nb.txt\n')
+    assert.equal(result.ok, false)
+  }
+  const resultIdx = rebuilt!.findIndex((item) => item.type === 'tool/result')
+  const assistantIdx = rebuilt!.findIndex((item) => item.type === 'assistant/message')
+  const stepIdx = rebuilt!.findIndex((item) => item.type === 'step/end')
+  assert.ok(resultIdx > assistantIdx)
+  assert.ok(resultIdx < stepIdx)
+
+  const messages = deriveMessages(events)
+  const assistant = messages.find((item) => item.role === 'assistant' && item.tool_calls?.length)
+  const toolIdx = messages.findIndex((item) => item.role === 'tool' && item.tool_call_id === 'call_x')
+  const assistantAt = messages.findIndex((item) => item === assistant)
+  assert.equal(messages[assistantAt + 1]?.role, 'tool')
+  assert.equal(messages[assistantAt + 1]?.tool_call_id, 'call_x')
+  assert.equal(messages[toolIdx]?.content, 'a.txt\nb.txt\n')
+  assert.notEqual(String(messages[toolIdx]?.content), `interrupted: missing tool result for bash`)
 })
 
 test('findOrphanToolCalls ignores completed tool pairs', () => {
