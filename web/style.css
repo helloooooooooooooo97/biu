@@ -5663,23 +5663,19 @@ html:not(.dark) .chat-outline-item.is-active {
   white-space: nowrap;
 }
 
-/* 运行中：高亮带沿标题/摘要文字扫过 */
+/* 运行中：文字保持原色，高亮带从字上扫过 */
 .tool-call-head.is-running .tool-call-title,
 .tool-call-head.is-running .tool-call-summary {
-  color: transparent;
   background-image: linear-gradient(
     105deg,
-    var(--dsw-label-3) 0%,
-    var(--dsw-label-3) 36%,
-    var(--dsw-sidebar-fg) 50%,
-    var(--dsw-label-3) 64%,
-    var(--dsw-label-3) 100%
+    transparent 0%,
+    transparent 38%,
+    color-mix(in srgb, currentColor 28%, transparent) 50%,
+    transparent 62%,
+    transparent 100%
   );
   background-size: 220% 100%;
   background-repeat: no-repeat;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
   animation: tool-call-text-pulse 1.6s linear infinite;
 }
 
@@ -5697,9 +5693,6 @@ html:not(.dark) .chat-outline-item.is-active {
   .tool-call-head.is-running .tool-call-summary {
     animation: none;
     background: none;
-    color: var(--dsw-sidebar-fg);
-    -webkit-text-fill-color: unset;
-    opacity: 0.72;
   }
 }
 
@@ -5762,7 +5755,6 @@ html:not(.dark) .chat-outline-item.is-active {
   color: var(--dsw-icon);
 }
 
-.tool-call-copy,
 .chat-code-copy {
   position: absolute;
   right: 8px;
@@ -5783,9 +5775,27 @@ html:not(.dark) .chat-outline-item.is-active {
   pointer-events: none;
 }
 
+.tool-call-copy {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-icon);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .chat-reply-block:hover .tool-call-copy,
 .chat-reply-block:hover .chat-code-copy,
-.tool-call:hover .tool-call-copy,
+.tool-call-head:hover .tool-call-copy,
+.tool-call-head:focus-within .tool-call-copy,
 .chat-code:hover .chat-code-copy,
 .tool-call-copy:focus-visible,
 .chat-code-copy:focus-visible {
@@ -7111,6 +7121,9 @@ html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail) svg,
 html:not(.dark) .tool-call-inspect,
 html:not(.dark) .tool-call-inspect:hover,
 html:not(.dark) .tool-call-inspect svg,
+html:not(.dark) .tool-call-copy,
+html:not(.dark) .tool-call-copy:hover,
+html:not(.dark) .tool-call-copy svg,
 html:not(.dark) .tool-call-status.is-running,
 html:not(.dark) [data-testid="content-edits-table"] .content-edits-icon,
 html:not(.dark) [data-testid="content-edits-table"] .content-edits-icon svg {
@@ -7125,19 +7138,6 @@ html:not(.dark) .tool-call-toggle:hover .tool-call-title {
   color: #5f5e5a;
 }
 
-html:not(.dark) .tool-call-head.is-running .tool-call-title,
-html:not(.dark) .tool-call-head.is-running .tool-call-summary {
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  background-image: linear-gradient(
-    105deg,
-    #5f5e5a 0%,
-    #5f5e5a 36%,
-    #c4c2bb 50%,
-    #5f5e5a 64%,
-    #5f5e5a 100%
-  );
-}
 
 html:not(.dark) .fsdb-crumb-btn,
 html:not(.dark) .fsdb-crumb-btn:hover,
