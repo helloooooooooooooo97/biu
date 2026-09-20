@@ -24,6 +24,17 @@ test('share page uses matching side padding on small screens', () => {
   assert.doesNotMatch(src, /正在打开/)
 })
 
+test('share layout prefs follow host outline expand and nav pin', () => {
+  const css = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf8')
+  const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
+  assert.match(src, /LayoutPrefsMenu/)
+  assert.match(src, /chat-view-project/)
+  assert.match(css, /\.fsdb-share-page\{[^}]*color:var\(--dsw-label\)/)
+  assert.doesNotMatch(css, /\.fsdb-share-page\{[^}]*color:var\(--dsw-label,#2c2c2b\)/)
+  assert.doesNotMatch(css, /html\.share \.heading-outline-host:not\(\.is-sheet\) \.chat-outline\{opacity:1\}/)
+  assert.match(css, /html\[data-nav-pin="1"\] \.fsdb-detail-float-nav\{[^}]*opacity:1/)
+})
+
 test('share header crumbs use collectionLabel not the path id', () => {
   const src = readFileSync(resolve(import.meta.dirname, './share-page.tsx'), 'utf8')
   assert.match(src, /snapshot\.collectionLabel/)
