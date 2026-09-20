@@ -65,3 +65,22 @@ test('liftToolImages leaves plain tool text alone', async () => {
   const lifted = await liftToolImages(messages, 'sess')
   assert.equal(lifted[0]?.content, 'pong')
 })
+
+test('liftToolImages ignores image paths that are only mentioned in text', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'biu-lift-skip-'))
+  const path = join(dir, 'hero.png')
+  await writeFile(path, TINY_PNG)
+  const messages: LlmMessage[] = [
+    {
+      role: 'tool',
+      tool_call_id: '4',
+      content: JSON.stringify({
+        stdout: `wrote ${path}`,
+        images: ['https://cdn.example.com/hero.png'],
+        text: 'page has images',
+      }),
+    },
+  ]
+  const lifted = await liftToolImages(messages, 'sess-skip')
+  assert.equal(lifted[0]?.content, messages[0]?.content)
+})
