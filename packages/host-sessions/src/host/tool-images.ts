@@ -1,14 +1,8 @@
 import { readFile, stat } from 'node:fs/promises'
 import { basename, isAbsolute, resolve } from 'node:path'
 import { assetsRootPath, hashedAssetRel, isHashedAssetName } from '@biu/host-plugin-loader/data-dir'
-import { assetNameFromUrl } from '@biu/type-file-system'
 import type { LlmContentPart, LlmMessage } from '@biu/host-llm'
-import {
-  artifactMime,
-  extractImagePathCandidates,
-  isImagePath,
-  readArtifactFile,
-} from './artifacts.ts'
+import { artifactMime, isImagePath, readArtifactFile } from './artifacts.ts'
 
 /** 与用户贴图同一档：单次最多 6 张、单张 8MB。svg 视觉模型普遍不认。 */
 export const MAX_TOOL_IMAGES = 6
@@ -20,7 +14,6 @@ type ImageRef =
   | { key: string; kind: 'artifact'; name: string }
   | { key: string; kind: 'path'; path: string }
   | { key: string; kind: 'db'; name: string }
-  | { key: string; kind: 'data'; url: string }
 
 function isVisionMime(mime: string) {
   const base = mime.split(';')[0]?.trim().toLowerCase() ?? ''
@@ -40,65 +33,59 @@ function addRef(out: ImageRef[], seen: Set<string>, ref: ImageRef) {
   out.push(ref)
 }
 
-function collectImageRefs(detail: string, sessionId: string): ImageRef[] {
+function isImagePayload(mime: string, nameOrPath: string) {
+  if (mime.startsWith('image/') && isVisionMime(mime)) return isImagePath(nameOrPath) || Boolean(nameOrPath)
+  return !mime && isImagePath(nameOrPath)
+}
+
+/**
+ * Codex / Pi：只提升工具**声明**的图像产出，不扫 stdout / HTML 里出现的所有路径。
+ * - bash `artifacts[]`（本步收录的截图）
+ * - web_fetch `file`（本次下载的图像正文）
+ * - 顶层 `{ name|path, mime|type: image/* }`（读图工具）
+ */
+function collectImageRefs(detail: string): ImageRef[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(detail)
+  } catch {
+    return []
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
+  const rec = parsed as Record<string, unknown>
   const out: ImageRef[] = []
   const seen = new Set<string>()
 
-  const fromString = (value: string) => {
-    const text = value.trim()
-    if (!text) return
-    if (text.startsWith('data:image/') && !text.startsWith('data:image/svg')) {
-      addRef(out, seen, { key: `data:${text.slice(0, 48)}`, kind: 'data', url: text })
-      return
-    }
-    const artifact = text.match(/\/api\/sessions\/[^/]+\/artifacts\/([^/?#]+)/)
-    if (artifact?.[1]) {
-      const name = decodeURIComponent(artifact[1])
-      if (isImagePath(name)) addRef(out, seen, { key: `art:${name}`, kind: 'artifact', name })
-      return
-    }
-    const db = assetNameFromUrl(text)
-    if (db && isImagePath(db)) {
-      addRef(out, seen, { key: `db:${db}`, kind: 'db', name: db })
-      return
-    }
-    if (isImagePath(text.split('?')[0] ?? text) && !/^https?:\/\//i.test(text)) {
-      addRef(out, seen, { key: `path:${text}`, kind: 'path', path: text })
+  if (Array.isArray(rec.artifacts)) {
+    for (const item of rec.artifacts) {
+      if (!item || typeof item !== 'object') continue
+      const art = item as Record<string, unknown>
+      const name = typeof art.name === 'string' ? art.name : ''
+      const mime = String(art.mime ?? art.type ?? '')
+      if (name && isImagePayload(mime, name)) {
+        addRef(out, seen, { key: `art:${name}`, kind: 'artifact', name })
+      }
     }
   }
 
-  const walk = (value: unknown, depth: number) => {
-    if (depth > 8 || value == null || out.length >= MAX_TOOL_IMAGES) return
-    if (typeof value === 'string') {
-      fromString(value)
-      return
+  if (rec.file && typeof rec.file === 'object') {
+    const file = rec.file as Record<string, unknown>
+    const path = typeof file.path === 'string' ? file.path : ''
+    const mime = String(file.mime ?? file.type ?? '')
+    if (path && isImagePayload(mime, path)) {
+      addRef(out, seen, { key: `path:${path}`, kind: 'path', path })
     }
-    if (Array.isArray(value)) {
-      for (const item of value) walk(item, depth + 1)
-      return
-    }
-    if (typeof value !== 'object') return
-    const rec = value as Record<string, unknown>
-    const mime = String(rec.mime ?? rec.type ?? '')
-    if (typeof rec.name === 'string' && isImagePath(rec.name) && (mime.startsWith('image/') || !mime)) {
-      addRef(out, seen, { key: `art:${rec.name}`, kind: 'artifact', name: rec.name })
-    }
-    if (typeof rec.path === 'string' && (mime.startsWith('image/') || isImagePath(rec.path))) {
-      fromString(rec.path)
-    }
-    for (const nested of Object.values(rec)) walk(nested, depth + 1)
   }
 
-  try {
-    walk(JSON.parse(detail), 0)
-  } catch {
-    fromString(detail)
-    for (const path of extractImagePathCandidates(detail)) fromString(path)
-    const dbHits = detail.matchAll(/\/api\/(?:db|page|doc)\/file\/([^\s)"']+)/g)
-    for (const hit of dbHits) fromString(`/api/db/file/${hit[1]}`)
-    const artHits = detail.matchAll(/\/api\/sessions\/[^/]+\/artifacts\/([^/?#]+)/g)
-    for (const hit of artHits) fromString(`/api/sessions/${sessionId}/artifacts/${hit[1]}`)
+  const mime = String(rec.mime ?? rec.type ?? '')
+  if (!rec.artifacts && !rec.file && mime.startsWith('image/') && isVisionMime(mime)) {
+    if (typeof rec.name === 'string' && rec.name) {
+      addRef(out, seen, { key: `db:${basename(rec.name)}`, kind: 'db', name: basename(rec.name) })
+    } else if (typeof rec.path === 'string' && rec.path) {
+      addRef(out, seen, { key: `path:${rec.path}`, kind: 'path', path: rec.path })
+    }
   }
+
   return out
 }
 
@@ -139,12 +126,7 @@ async function readPathImage(path: string): Promise<{ mime: string; data: Buffer
   }
 }
 
-async function resolveRef(
-  ref: ImageRef,
-  sessionId: string,
-  baseDir?: string,
-): Promise<string | null> {
-  if (ref.kind === 'data') return ref.url.length > MAX_TOOL_IMAGE_BYTES * 1.4 ? null : ref.url
+async function resolveRef(ref: ImageRef, sessionId: string, baseDir?: string): Promise<string | null> {
   if (ref.kind === 'artifact') {
     const file = await readArtifactFile(sessionId, ref.name, baseDir)
     return file ? dataUrl(file.mime, file.data) : null
@@ -158,8 +140,8 @@ async function resolveRef(
 }
 
 /**
- * Claude Code / Cursor 一类做法：工具 JSON 里只留路径，发给模型前把能读到的图
- * 提升成 content 里的 image_url（data URL）。事件日志不改。
+ * 发给模型前：把该条工具结果里声明的图提升成 image_url。事件日志不改。
+ * 对齐 Codex（只转发工具返回的 ImageContent）和 Pi（read 到图像才附图，bash 不扫盘）。
  */
 export async function liftToolImages(
   messages: LlmMessage[],
@@ -173,7 +155,7 @@ export async function liftToolImages(
       out.push(message)
       continue
     }
-    const refs = collectImageRefs(message.content, sessionId)
+    const refs = collectImageRefs(message.content)
     if (!refs.length) {
       out.push(message)
       continue
