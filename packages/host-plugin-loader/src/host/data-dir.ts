@@ -1,12 +1,47 @@
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+export { BIU_SQLITE, EVENTS_SQLITE, adoptTwoSqlite } from './sqlite-two.ts'
+export {
+  contentAddressHash,
+  hashedAssetName,
+  hashedAssetRel,
+  isHashedAssetName,
+  writeContentAddressed,
+  readContentAddressed,
+  writeDocument,
+  readDocument,
+  AssetConflictError,
+  parseIfMatch,
+} from './asset-cas.ts'
+export { adoptCasAssets, listCasAssetFiles, listDocAssetFiles, rewriteAssetText, upsertAttachmentRow, replacePageBlockRefs, ensureRefTables } from './adopt-cas-assets.ts'
+export { openSqlite, configureSqlite, quoteSqlitePath, SQLITE_BUSY_TIMEOUT_MS, SQLITE_WAL_AUTOCHECKPOINT, getSchemaVersion, setSchemaVersion } from './sqlite-open.ts'
+export { ensureBiuAssetSchema, LATEST_BIU_SCHEMA, createLatestSchema } from './biu-schema.ts'
+export { migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
+export { migrateEvents, openAndMigrateEvents, LATEST_EVENTS_SCHEMA } from './events-migrate.ts'
+export { writeEditorContent, readEditorContent, rebuildContentRefs, replaceContentRefs } from './editor-content.ts'
+export {
+  liveAssetNames,
+  gcCasAssets,
+  previewGcCasAssets,
+  listGcCandidates,
+  ASSET_GC_GRACE_MS,
+  ASSET_GC_CANDIDATE_MS,
+  ASSET_GC_INTERVAL_MS,
+  workspaceFromSqlite,
+} from './gc-assets.ts'
+export { copyReferencedEditorAssets } from './pack-editor-assets.ts'
+import { adoptTwoSqlite } from './sqlite-two.ts'
+import { adoptCasAssets } from './adopt-cas-assets.ts'
+import { openAndMigrateBiu } from './biu-migrate.ts'
 
 export const DATA_DIR_NAME = '.biu'
 export const LEGACY_DATA_DIR_NAME = '.cordis'
 export const LEGACY_PAGE_ROOT = '.page'
 export const PAGE_ROOT = `${DATA_DIR_NAME}/page`
-export const PAGE_DB = `${DATA_DIR_NAME}/pages.sqlite`
+export const PAGE_DB = `${DATA_DIR_NAME}/biu.sqlite`
+/** Leftover page-only folder; new files go under `.biu/assets`. */
 export const PAGE_ASSETS = `${DATA_DIR_NAME}/page/assets`
+export const ASSETS_ROOT = `${DATA_DIR_NAME}/assets`
 
 function mergeDir(src: string, dest: string) {
   mkdirSync(dest, { recursive: true })
@@ -43,8 +78,6 @@ export function migrateLegacyPageDir(fromRoot: string, toRoot = fromRoot) {
   const src = join(fromRoot, LEGACY_PAGE_ROOT)
   if (!existsSync(src) || !statSync(src).isDirectory()) return
   mkdirSync(join(toRoot, PAGE_ROOT), { recursive: true })
-  mkdirSync(join(toRoot, PAGE_ASSETS), { recursive: true })
-  mkdirSync(join(toRoot, DATA_DIR_NAME, 'assets'), { recursive: true })
   for (const name of readdirSync(src)) {
     const from = join(src, name)
     if (name === 'assets' && statSync(from).isDirectory()) {
@@ -52,7 +85,7 @@ export function migrateLegacyPageDir(fromRoot: string, toRoot = fromRoot) {
       continue
     }
     if (name === 'pages.sqlite' || name.startsWith('pages.sqlite')) {
-      moveIfAbsent(from, join(toRoot, DATA_DIR_NAME, name))
+      moveIfAbsent(from, join(toRoot, DATA_DIR_NAME, name.replace(/^pages\.sqlite/, 'biu.sqlite')))
       continue
     }
     if (name.endsWith('.md')) {
@@ -75,13 +108,75 @@ export function migrateDataDir(parent: string): string {
     }
   }
   migrateLegacyPageDir(parent)
+  adoptTwoSqlite(dest)
+  adoptCasAssets(dest)
+  try {
+    const db = openAndMigrateBiu(join(dest, 'biu.sqlite'), { dataDir: dest, workspace: parent })
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+    db.close()
+  } catch {
+    /* dummy sqlite from tests */
+  }
   return dest
 }
 
-export function dataDir(parent = process.cwd()): string {
+/** Packaged Electron sets BIU_HOME to userData so replacing the .app does not wipe notes. */
+export function dataHome(): string {
+  return process.env.BIU_HOME || process.cwd()
+}
+
+export function dataDir(parent = dataHome()): string {
   return migrateDataDir(parent)
 }
 
-export function dataPath(parent = process.cwd(), ...parts: string[]): string {
+export function dataPath(parent = dataHome(), ...parts: string[]): string {
   return join(dataDir(parent), ...parts)
+}
+
+export function assetsRootPath(parent = dataHome()): string {
+  return dataPath(parent, 'assets')
+}
+
+function copyMerge(src: string, dest: string) {
+  if (!existsSync(src)) return
+  mkdirSync(dest, { recursive: true })
+  for (const name of readdirSync(src)) {
+    const from = join(src, name)
+    const to = join(dest, name)
+    if (!existsSync(to)) {
+      cpSync(from, to, { recursive: true })
+      continue
+    }
+    const fromStat = statSync(from)
+    const toStat = statSync(to)
+    if (fromStat.isDirectory() && toStat.isDirectory()) copyMerge(from, to)
+  }
+}
+
+/**
+ * Copy leftover pack-host / cwd data into the durable home.
+ * Destination already-present files win. Plugin trees are copied, never renamed out of the app bundle.
+ */
+export function adoptPackedUserData(fromRoot: string, dataRoot = dataHome(), workspace = join(dataRoot, 'workspace')) {
+  const from = resolve(fromRoot)
+  const dest = resolve(dataRoot)
+  migrateDataDir(from)
+  migrateDataDir(dest)
+  if (from === dest) {
+    migrateLegacyPageDir(from, dest)
+    return dest
+  }
+  copyMerge(join(from, DATA_DIR_NAME), join(dest, DATA_DIR_NAME))
+  migrateLegacyPageDir(from, dest)
+  for (const name of ['.plugin', '.plugin-dev', '.workspace']) {
+    copyMerge(join(from, name), join(workspace, name))
+  }
+  for (const name of [DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, LEGACY_PAGE_ROOT]) {
+    try {
+      rmSync(join(from, name), { recursive: true, force: true })
+    } catch {
+      /* signed / read-only pack-host */
+    }
+  }
+  return dest
 }

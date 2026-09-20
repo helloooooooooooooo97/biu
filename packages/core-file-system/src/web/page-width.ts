@@ -27,27 +27,48 @@ function asScale(value: unknown, fallback: BodyScale): BodyScale {
   return typeof value === 'string' && SCALES.has(value as BodyScale) ? (value as BodyScale) : fallback
 }
 
-function readPagePrefs(): PagePrefs {
+export function parsePagePrefs(value: unknown, fallback: PagePrefs = DEFAULT_PREFS): PagePrefs {
+  if (!value || typeof value !== 'object') return { ...fallback }
+  const rec = value as Partial<PagePrefs>
+  return {
+    wide: rec.wide === true,
+    outlineExpand: rec.outlineExpand !== false,
+    outlinePin: rec.outlinePin === true,
+    navPin: rec.navPin === true,
+    bodySize: asScale(rec.bodySize, fallback.bodySize),
+    bodyGap: asScale(rec.bodyGap, fallback.bodyGap),
+  }
+}
+
+function readCachedPagePrefs(): PagePrefs {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<PagePrefs>
-      return {
-        wide: parsed.wide === true,
-        outlineExpand: parsed.outlineExpand !== false,
-        outlinePin: parsed.outlinePin === true,
-        navPin: parsed.navPin === true,
-        bodySize: asScale(parsed.bodySize, 'md'),
-        bodyGap: asScale(parsed.bodyGap, 'md'),
-      }
-    }
+    if (raw) return parsePagePrefs(JSON.parse(raw) as unknown)
     return { ...DEFAULT_PREFS, wide: localStorage.getItem(LEGACY_WIDTH_KEY) === 'full' }
   } catch {
     return { ...DEFAULT_PREFS }
   }
 }
 
-let prefs: PagePrefs = readPagePrefs()
+function writeCachedPagePrefs(next: PagePrefs) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(next))
+    localStorage.setItem(LEGACY_WIDTH_KEY, next.wide ? 'full' : 'max')
+  } catch {
+    /* ignore */
+  }
+}
+
+function postPagePrefs(next: PagePrefs) {
+  if (typeof fetch === 'undefined') return
+  void fetch('/api/profile', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ pagePrefs: next }),
+  }).catch(() => undefined)
+}
+
+let prefs: PagePrefs = typeof localStorage === 'undefined' ? { ...DEFAULT_PREFS } : readCachedPagePrefs()
 let pageWidthVersion = 0
 const listeners = new Set<() => void>()
 
@@ -55,6 +76,15 @@ function emit() {
   pageWidthVersion += 1
   applyPagePrefs(prefs)
   for (const fn of listeners) fn()
+}
+
+function commit(next: PagePrefs, persistRemote: boolean) {
+  if (JSON.stringify(next) === JSON.stringify(prefs)) return
+  prefs = next
+  writeCachedPagePrefs(next)
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('biu:page-prefs'))
+  emit()
+  if (persistRemote) postPagePrefs(next)
 }
 
 export function getPagePrefs() {
@@ -88,21 +118,27 @@ export function applyPagePrefs(next = prefs) {
 }
 
 export function persistPagePrefs(patch: Partial<PagePrefs>) {
-  const next: PagePrefs = { ...prefs, ...patch }
-  if (JSON.stringify(next) === JSON.stringify(prefs)) return
-  prefs = next
-  try {
-    localStorage.setItem(KEY, JSON.stringify(next))
-    localStorage.setItem(LEGACY_WIDTH_KEY, next.wide ? 'full' : 'max')
-  } catch {
-    /* ignore */
-  }
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event('biu:page-prefs'))
-  emit()
+  commit(parsePagePrefs({ ...prefs, ...patch }, prefs), true)
 }
 
 export function persistPageWidth(next: PageWidth) {
   persistPagePrefs({ wide: next === 'full' })
+}
+
+export async function hydratePagePrefs() {
+  try {
+    const res = await fetch('/api/profile')
+    if (!res.ok) return getPagePrefs()
+    const data = (await res.json()) as { pagePrefs?: unknown }
+    if (data.pagePrefs && typeof data.pagePrefs === 'object') {
+      commit(parsePagePrefs(data.pagePrefs, prefs), false)
+      return prefs
+    }
+    postPagePrefs(prefs)
+    return prefs
+  } catch {
+    return getPagePrefs()
+  }
 }
 
 applyPagePrefs()

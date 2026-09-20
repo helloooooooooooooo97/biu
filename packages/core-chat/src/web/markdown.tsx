@@ -1,5 +1,6 @@
-import { memo } from 'react'
+import { memo, useLayoutEffect, useRef } from 'react'
 import 'highlight.js/styles/github-dark.css'
+import { bindCodeCopyClicks, enhanceCodeCopy } from './code-copy.ts'
 import { getCachedMarkdownHtml, parseMarkdownLive, parseMarkdownSync } from './markdown-render.ts'
 
 /**
@@ -19,23 +20,26 @@ export const MarkdownBody = memo(function MarkdownBody({
   /** 流式中：闭合代码块高亮，未闭合围栏轻量 parse */
   streaming?: boolean
 }) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const html = text
+    ? streaming
+      ? parseMarkdownLive(text)
+      : (getCachedMarkdownHtml(text) ?? parseMarkdownSync(text))
+    : ''
+
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    enhanceCodeCopy(root)
+    return bindCodeCopyClicks(root)
+  }, [html])
+
   if (!text) return null
-
-  if (streaming) {
-    const html = parseMarkdownLive(text)
-    return (
-      <div
-        className={`chat-md chat-md-stream ${className}`.trim()}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    )
-  }
-
-  const html = getCachedMarkdownHtml(text) ?? parseMarkdownSync(text)
 
   return (
     <div
-      className={`chat-md ${className}`.trim()}
+      ref={rootRef}
+      className={`chat-md${streaming ? ' chat-md-stream' : ''} ${className}`.trim()}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )

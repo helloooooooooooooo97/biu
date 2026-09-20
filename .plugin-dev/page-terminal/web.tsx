@@ -1325,6 +1325,7 @@ export function apply(ctx: {
     blockTypeLabel: '终端',
     hint: '可交互的真实终端，每块一个独立 shell',
     aliases: ['terminal', 'term', 'shell', '终端', '命令行'],
+    assets: [],
     defaults: DEFAULTS,
     View: PageTerminal,
   })

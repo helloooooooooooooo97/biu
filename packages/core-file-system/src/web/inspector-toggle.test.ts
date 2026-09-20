@@ -27,6 +27,12 @@ test('hydrating page-blocks prefers the route view over local 全部', () => {
   )
 })
 
+test('data sidebar hides the share section when nothing is shared', () => {
+  const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
+  assert.match(sidebar, /\{shareCount \? \(/)
+  assert.doesNotMatch(sidebar, /还没有分享/)
+})
+
 test('data sidebar brand sits left with a collapse control on the right', () => {
   const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
   assert.match(sidebar, /app-side-bar-head-brand/)
@@ -434,12 +440,16 @@ test('create record sits at the right of the toolbar with a blue label', () => {
   assert.match(css, /\.fsdb-check-slot:hover \.fsdb-row-check/)
   assert.match(browser, /paintCheckHover/)
   assert.match(browser, /CSS as DndCSS/)
-  assert.match(browser, /typeof CSS\.escape === 'function' \? CSS\.escape\(next\)/)
+  assert.match(browser, /el\.getAttribute\('data-check'\) === key/)
+  assert.match(browser, /tr\.offsetTop/)
+  assert.match(browser, /tr\.offsetHeight/)
   assert.doesNotMatch(browser, /setCheckHover/)
   assert.match(browser, /data-check=\{slot\.kind === 'head' \? 'head' : slot\.id\}/)
   assert.match(css, /fsdb-check-rail/)
   assert.match(css, /\.fsdb-page \.fsdb-check-rail\{[^}]*width:var\(--fsdb-check-gutter\)/)
   assert.match(css, /\.fsdb-page \.fsdb-check-stack\{[^}]*transform:none/)
+  assert.match(css, /\.fsdb-page \.fsdb-check-slot\.is-head\{[^}]*position:sticky/)
+  assert.match(css, /\.fsdb-page \.fsdb-check-slot\{[^}]*position:absolute/)
   assert.match(css, /\.fsdb-page \.tasks-table-wrap\{[^}]*overflow:auto/)
   assert.doesNotMatch(css, /overflow-clip-margin/)
   assert.doesNotMatch(css, /\.fsdb-page \.tasks-table-wrap\{[^}]*padding-left:var\(--fsdb-check-gutter\)/)
@@ -611,8 +621,10 @@ test('database extras sit after the record detail, not in the inspector', () => 
   assert.match(style, /\.fsdb-page-banner:hover \.fsdb-banner-title-actions/)
   assert.match(style, /\.fsdb-banner-right\{[^}]*right:80px/)
   assert.match(style, /\.fsdb-banner-right\{[^}]*flex-direction:column/)
-  assert.match(style, /\.fsdb-page-banner:not\(\.is-empty\) \.fsdb-banner-right\{[^}]*top:50%/)
-  assert.match(style, /\.fsdb-page-banner:not\(\.is-empty\) \.fsdb-banner-right\{[^}]*translateY\(-50%\)/)
+  assert.match(style, /\.fsdb-page-banner:not\(\.is-empty\) \.fsdb-banner-right\{[^}]*top:auto/)
+  assert.match(style, /\.fsdb-page-banner:not\(\.is-empty\) \.fsdb-banner-right\{[^}]*bottom:16px/)
+  assert.doesNotMatch(style, /\.fsdb-page-banner:not\(\.is-empty\) \.fsdb-banner-right\{[^}]*top:50%/)
+  assert.doesNotMatch(style, /\.fsdb-page-banner:not\(\.is-empty\) \.fsdb-banner-right\{[^}]*translateY\(-50%\)/)
   assert.match(style, /\.fsdb-banner-title-actions\{[^}]*opacity:0/)
   assert.match(style, /\.fsdb-banner-story\{/)
   assert.doesNotMatch(style, /\.fsdb-banner-title-actions\{[^}]*top:16px/)
@@ -747,9 +759,10 @@ test('pager keeps the current page when filter objects are only recreated', () =
   assert.doesNotMatch(inspector, /lockedFiltersFromSearch\?\.\(search\) \?\? \{\}/)
 })
 
-test('missing sort field falls back to title, not updatedAt', () => {
+test('missing sort field falls back to updatedAt, then title', () => {
+  assert.match(browser, /sortFields.find\(\(item\) => item.key === 'updatedAt'\)/)
   assert.match(browser, /sortFields.find\(\(item\) => item.key === 'title'\)/)
-  assert.doesNotMatch(browser, /item.kind === 'datetime' \? 'desc'/)
+  assert.match(browser, /fallback.key === 'updatedAt' \? 'desc' : 'asc'/)
   assert.match(browser, /<SortQueryMenu/)
   assert.match(browser, /<FilterQueryMenu/)
   assert.match(browser, /QUERY_NEST_IGNORE/)

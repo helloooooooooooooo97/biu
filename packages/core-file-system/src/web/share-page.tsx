@@ -37,24 +37,11 @@ function passwordKey(token: string) {
   return `fsdb.share.pw:${token}`
 }
 
-const SHARE_THEME_KEY = 'biu.theme'
-
 function readShareTheme(): 'light' | 'dark' {
-  try {
-    const stored = localStorage.getItem(SHARE_THEME_KEY)
-    if (stored === 'dark' || stored === 'light') return stored
-  } catch {
-    /* ignore */
-  }
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
 }
 
 function persistShareTheme(mode: 'light' | 'dark') {
-  try {
-    localStorage.setItem(SHARE_THEME_KEY, mode)
-  } catch {
-    /* ignore */
-  }
   const root = document.documentElement
   root.classList.toggle('dark', mode === 'dark')
   root.classList.toggle('light', mode === 'light')
@@ -88,7 +75,7 @@ async function loadSnapshot(token: string, password = ''): Promise<ShareSnapshot
 
 function rewriteAssetUrls(value: unknown, token: string, password: string): unknown {
   if (typeof value === 'string') {
-    return value.replace(/\/api\/(?:db|page)\/file\//g, `/api/share/${encodeURIComponent(token)}/file/`)
+    return value.replace(/\/api\/(?:db|page|doc)\/file\//g, `/api/share/${encodeURIComponent(token)}/file/`)
   }
   if (Array.isArray(value)) return value.map((item) => rewriteAssetUrls(item, token, password))
   if (value && typeof value === 'object') {

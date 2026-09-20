@@ -1,9 +1,9 @@
 import { type ReactNode, type Ref } from 'react'
 
 export const CHAT_STAGE_CENTER =
-  'chat-stage flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-[64px] py-3 pb-72'
+  'chat-stage flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-[64px] py-3 pb-72'
 export const CHAT_STAGE_PANE =
-  'chat-stage flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-1 py-1'
+  'chat-stage flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-1 py-1'
 export const CHAT_DOCK_STACK = 'pointer-events-auto w-full space-y-2 bg-transparent'
 
 export function ChatStage({

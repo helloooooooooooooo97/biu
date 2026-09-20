@@ -251,6 +251,7 @@ export function apply(ctx: {
     blockTypeLabel: '算法题',
     hint: '左右分栏：题面 + 代码，跟随页面主题',
     aliases: ['leetcode', 'algo', '算法', 'lc'],
+    assets: [],
     defaults: DEFAULTS,
     View: AlgorithmCard,
   })

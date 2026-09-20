@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { existsSync, readFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import type { Duplex } from 'node:stream'
@@ -20,7 +21,15 @@ const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.map': 'application/json',
 }
 
 function compile(pattern: string) {
@@ -58,6 +67,8 @@ export type HttpListenConfig = {
   port?: number
   host?: string
   publicDir?: string
+  /** 请求端口被占用时回退到系统分配端口。 */
+  fallbackPort?: boolean
   /** LAN listener that only serves share pages. 0 = off. */
   sharePort?: number
   shareHost?: string
@@ -70,12 +81,42 @@ function defaultSharePort() {
   return 3142
 }
 
+function defaultPublicDir() {
+  const env = String(process.env.BIU_PUBLIC_DIR ?? '').trim()
+  if (env) return env
+  const dist = join(process.cwd(), 'dist')
+  if (existsSync(join(dist, 'index.html'))) return dist
+  return join(process.cwd(), 'public')
+}
+
+function documentTheme(): 'light' | 'dark' {
+  try {
+    const file = process.env.BIU_PROFILE || join(process.env.BIU_HOME || process.cwd(), '.biu', 'profile.json')
+    const raw = JSON.parse(readFileSync(file, 'utf8')) as { theme?: unknown }
+    if (raw.theme === 'dark' || raw.theme === 'light') return raw.theme
+  } catch {
+    /* default light */
+  }
+  return 'light'
+}
+
+export function paintDocumentTheme(html: string, theme = documentTheme()) {
+  return html
+    .replace(/\bclass="(?:light|dark)"/, `class="${theme}"`)
+    .replace(/content="(?:light|dark)"/, `content="${theme}"`)
+}
+
+function asHtml(data: Buffer) {
+  return Buffer.from(paintDocumentTheme(data.toString('utf8')))
+}
+
 function resolveListenConfig(config?: HttpListenConfig) {
   const sharePortRaw = config?.sharePort ?? defaultSharePort()
   return {
     port: Number(config?.port ?? process.env.PORT ?? 3141),
     host: config?.host ?? process.env.HTTP_HOST ?? '127.0.0.1',
-    publicDir: config?.publicDir ?? join(process.cwd(), 'public'),
+    publicDir: config?.publicDir ?? defaultPublicDir(),
+    fallbackPort: config?.fallbackPort ?? process.env.BIU_PORT_FALLBACK === '1',
     sharePort: Number.isFinite(sharePortRaw) ? sharePortRaw : 0,
     shareHost: config?.shareHost ?? process.env.SHARE_HOST ?? '0.0.0.0',
   }
@@ -96,7 +137,7 @@ export class HttpService extends Service {
   /** 同一 HTTP server 上只能有一条 upgrade 路由；多挂几个 `ws.Server({ server })` 会互相 abort 握手。 */
   private wsServers = new Map<string, WebSocketServer>()
 
-  constructor(ctx: Context, public config: { port: number; host: string; publicDir: string; sharePort: number; shareHost: string }) {
+  constructor(ctx: Context, public config: { port: number; host: string; publicDir: string; fallbackPort: boolean; sharePort: number; shareHost: string }) {
     super(ctx, 'http')
     ctx.effect(() => {
       const server = createServer((req, res) => {
@@ -124,7 +165,13 @@ export class HttpService extends Service {
       ctx.on('session/event', (payload) => this.broadcast('session', payload))
       ctx.on('agent/status', (payload) => this.broadcast('agent', payload))
       ctx.on('agent/inbox', (payload) => this.broadcast('inbox', payload))
+      let portFallbackUsed = false
       server.on('error', (error: NodeJS.ErrnoException) => {
+        if (error.code === 'EADDRINUSE' && config.fallbackPort && config.port > 0 && !portFallbackUsed) {
+          portFallbackUsed = true
+          server.listen(0, config.host ?? '127.0.0.1')
+          return
+        }
         if (error.code === 'EADDRINUSE') {
           ctx.logger('http').error(
             `端口 ${config.port} 已被占用。请先结束旧进程：make stop  或  lsof -ti:${config.port} | xargs kill`,
@@ -136,8 +183,10 @@ export class HttpService extends Service {
       })
       const host = config.host ?? '127.0.0.1'
       server.listen(config.port, host, () => {
-        ctx.emit('http/ready', { port: config.port })
-        ctx.logger('http').info(`listening on http://${host}:${config.port}${host === '0.0.0.0' ? ' (内网可达，整站暴露)' : ''}`)
+        const address = server.address()
+        const port = address && typeof address !== 'string' ? address.port : config.port
+        ctx.emit('http/ready', { port })
+        ctx.logger('http').info(`listening on http://${host}:${port}${host === '0.0.0.0' ? ' (内网可达，整站暴露)' : ''}`)
       })
       return () =>
         new Promise<void>((resolve) => {
@@ -169,9 +218,11 @@ export class HttpService extends Service {
           }
         })
         shareServer.listen(sharePort, shareHost, () => {
-          ctx.emit('http/share-ready', { port: sharePort })
+          const address = shareServer.address()
+          const actualPort = address && typeof address !== 'string' ? address.port : sharePort
+          ctx.emit('http/share-ready', { port: actualPort })
           ctx.logger('http').info(
-            `share-only listening on http://${shareHost}:${sharePort} （仅 /share 与 /api/share，不暴露本机工作台）`,
+            `share-only listening on http://${shareHost}:${actualPort} （仅 /share 与 /api/share，不暴露本机工作台）`,
           )
         })
         return () =>
@@ -312,7 +363,7 @@ export class HttpService extends Service {
         const html = buf
           .toString('utf8')
           .replace(/<script\b[^>]*\bsrc=["']\/@vite\/client["'][^>]*><\/script>\s*/gi, '')
-        buf = Buffer.from(html)
+        buf = asHtml(Buffer.from(html))
       }
       res.writeHead(upstream.status, {
         'content-type': type,
@@ -328,8 +379,13 @@ export class HttpService extends Service {
   private async serveStatic(pathname: string, res: ServerResponse, shareOnly = false) {
     const relative = (pathname === '/' ? '/index.html' : pathname).replace(/\.\./g, '')
     try {
-      const data = await readFile(join(this.config.publicDir, relative))
-      res.writeHead(200, { 'content-type': MIME[extname(relative)] ?? 'application/octet-stream' })
+      let data = await readFile(join(this.config.publicDir, relative))
+      const type = MIME[extname(relative)] ?? 'application/octet-stream'
+      if (type.includes('text/html')) data = asHtml(data)
+      res.writeHead(200, {
+        'content-type': type,
+        ...(type.includes('text/html') ? { 'cache-control': 'no-store' } : {}),
+      })
       res.end(data)
     } catch {
       if (pathname.startsWith('/api/')) {
@@ -343,8 +399,8 @@ export class HttpService extends Service {
       }
       // SPA fallback：前端 History 路由（/s/:id… 或 /share/:token）回落到 index.html
       try {
-        const data = await readFile(join(this.config.publicDir, 'index.html'))
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+        const data = asHtml(await readFile(join(this.config.publicDir, 'index.html')))
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
         res.end(data)
       } catch {
         res.writeHead(404).end('not found')

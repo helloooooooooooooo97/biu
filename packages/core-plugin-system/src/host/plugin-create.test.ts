@@ -1,9 +1,11 @@
 /** @vitest-environment node */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { extname, join, resolve } from 'node:path'
 import { Context } from 'cordis'
 import { PluginStoreService } from './index.ts'
 import { compileStoreModule } from './plugin-create.ts'
@@ -105,6 +107,8 @@ test('sandbox then pack compiles host source into .plugin/<id>/', async () => {
     assert.match(readme, /^# Echo\n/)
     await store.writeReadme('store-echo', '# Echo\n\n自定义介绍\n')
     assert.equal(await store.readReadme('store-echo'), '# Echo\n\n自定义介绍\n')
+    assert.equal(await readFile(join(pluginDir, 'store-echo', 'README.md'), 'utf8'), '# Echo\n\n自定义介绍\n')
+    assert.equal(await readFile(join(dir, '.plugin-dev', 'store-echo', 'README.md'), 'utf8'), '# Echo\n\n自定义介绍\n')
     await store.initSandbox({ id: 'store-empty', name: 'Empty' })
     await assert.rejects(() => store.pack('store-empty'), /host\.ts/)
   } finally {
@@ -244,6 +248,14 @@ test('initSandbox writes source; pack bundles into .plugin/<id>/', async () => {
       hostJs: `export const name = 'store-echo'\nexport function apply(ctx: { ok: boolean }) { return ctx.ok }`,
     })
     assert.equal(result.sandboxPath, join(sandboxDir, 'store-echo'))
+    const sandboxPkg = JSON.parse(await readFile(join(sandboxDir, 'store-echo', 'package.json'), 'utf8')) as {
+      name: string
+      private: boolean
+      dependencies: Record<string, string>
+    }
+    assert.equal(sandboxPkg.name, 'store-echo')
+    assert.equal(sandboxPkg.private, true)
+    assert.deepEqual(sandboxPkg.dependencies, {})
     const sandboxReadme = await readFile(join(sandboxDir, 'store-echo', 'README.md'), 'utf8')
     assert.match(sandboxReadme, /回声/)
     const packed = await store.pack('store-echo')
@@ -319,7 +331,7 @@ test('sandbox/pack live on the plugins collection, not as tools', () => {
   assert.equal(sandbox?.allowMissing, true)
   assert.match(JSON.stringify(sandbox?.parameters), /listing\.shell/)
   assert.match(String(pack?.parameters?.description ?? ''), /host\.ts/)
-  assert.match(String(pack?.parameters?.description ?? ''), /沙箱 package.json/)
+  assert.match(String(pack?.parameters?.description ?? ''), /每个沙箱都有 package.json/)
 })
 
 test('pack web jsx uses globalThis.React instead of bundling npm react', async () => {
@@ -479,17 +491,100 @@ test('pack rejects @biu imports', async () => {
   }
 })
 
-test('compileStoreModule strips TypeScript in-process', async () => {
-  const code = await compileStoreModule(
-    `export const name = 'store-echo'\nexport function apply(ctx: { ok: boolean }) { return ctx.ok }`,
-    'host',
+test('compileStoreModule does not require node on PATH', async () => {
+  const path = process.env.PATH
+  process.env.PATH = '/path-without-node'
+  try {
+    const code = await compileStoreModule(
+      `export const name = 'store-echo'\nexport function apply(ctx: { ok: boolean }) { return ctx.ok }`,
+      'host',
+    )
+    assert.match(code, /\bapply\b/)
+    assert.doesNotMatch(code, /ctx: \{/)
+  } finally {
+    if (path === undefined) delete process.env.PATH
+    else process.env.PATH = path
+  }
+})
+
+test('native esbuild starts its platform binary without a PATH node executable', () => {
+  execFileSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '--eval',
+      `import('esbuild').then(({ transform }) => transform('const n: number = 1', { loader: 'ts' }))`,
+    ],
+    {
+      cwd: resolve(import.meta.dirname, '../../../..'),
+      env: { ...process.env, PATH: '/path-without-node' },
+      stdio: 'pipe',
+    },
   )
-  assert.match(code, /\bapply\b/)
-  assert.doesNotMatch(code, /ctx: \{/)
+})
+
+const HOST_PACKAGES = new Set(['react', 'react-dom', 'cordis'])
+
+function npmPackageName(spec: string) {
+  if (spec.startsWith('@')) return spec.split('/').slice(0, 2).join('/')
+  return spec.split('/')[0]
+}
+
+test('plugin-dev sandboxes declare every third-party import in package.json', async () => {
+  const root = resolve(import.meta.dirname, '../../../../.plugin-dev')
+  const sandboxes = (await readdir(root, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((id) => existsSync(join(root, id, 'manifest.json')))
+  assert.ok(sandboxes.length >= 8)
+
+  for (const id of sandboxes) {
+    const dir = join(root, id)
+    const files: string[] = []
+    const walk = async (base: string) => {
+      for (const entry of await readdir(base, { withFileTypes: true })) {
+        if (entry.name === 'node_modules' || entry.name.endsWith('.bak')) continue
+        const path = join(base, entry.name)
+        if (entry.isDirectory()) {
+          await walk(path)
+          continue
+        }
+        if (/\.test\.(ts|tsx|js)$/.test(entry.name)) continue
+        if (!['.ts', '.tsx', '.js', '.jsx', '.mjs', '.css'].includes(extname(entry.name))) continue
+        files.push(path)
+      }
+    }
+    await walk(dir)
+
+    const needed = new Set<string>()
+    for (const file of files) {
+      const src = (await readFile(file, 'utf8'))
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/`(?:\\.|[^`\\])*`/gs, '')
+        .replace(/\/\/.*$/gm, '')
+      for (const line of src.split('\n')) {
+        const match = line.match(/^\s*import\s+(?:type\s+)?(?:[\s\S]*?\sfrom\s+)?['"]([^'"]+)['"]/)
+        if (!match) continue
+        const spec = match[1]
+        if (spec.startsWith('.') || spec.startsWith('/') || spec.startsWith('node:')) continue
+        const name = npmPackageName(spec)
+        if (HOST_PACKAGES.has(name)) continue
+        needed.add(name)
+      }
+    }
+
+    const pkgFile = join(dir, 'package.json')
+    assert.ok(existsSync(pkgFile), `${id} must have package.json`)
+    const pkg = JSON.parse(await readFile(pkgFile, 'utf8')) as { name?: string; private?: boolean; dependencies?: Record<string, string> }
+    assert.equal(pkg.name, id)
+    assert.equal(pkg.private, true)
+    const declared = new Set(Object.keys(pkg.dependencies ?? {}))
+    const missing = [...needed].filter((name) => !declared.has(name))
+    assert.deepEqual(missing, [], `${id} missing package.json deps: ${missing.join(', ')}`)
+  }
 })
 
 test('excalidraw board onChange does not setState', async () => {
-  const { resolve } = await import('node:path')
   const src = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-excalidraw/web.tsx'), 'utf8')
   const onChange = src.match(/const onChange = useCallback\([\s\S]*?\}, \[file\]\)/)?.[0]
   assert.ok(onChange)
