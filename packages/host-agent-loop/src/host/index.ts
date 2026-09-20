@@ -236,57 +236,72 @@ export class AgentLoop implements AgentRunner {
         ...(usage ? { usage } : {}),
       })
 
-      for (const call of reply.toolCalls) {
+      const prepared = reply.toolCalls.map((call) => {
         let args: Record<string, unknown> = {}
         try {
           args = JSON.parse(call.arguments || '{}') as Record<string, unknown>
         } catch {
           args = {}
         }
+        return { call, args }
+      })
+      // 先把全部 tool/call 落库，UI 才能同时进入运行态；invoke 再并行。
+      for (const { call } of prepared) {
         await session.append(this.sessionId, { type: 'tool/call', id: call.id, name: call.name, arguments: call.arguments })
-        let detail = ''
-        let ok = true
-        try {
-          if (this.signal.aborted) throw new Error('cancelled')
-          let lastPartialAt = 0
-          detail = truncateToolResult(
-            stringify(
-              await runWithToolProgress((partial) => {
-                const now = Date.now()
-                if (now - lastPartialAt < 40) return
-                lastPartialAt = now
-                void session.append(this.sessionId, {
-                  type: 'tool/result',
-                  id: call.id,
-                  name: call.name,
-                  ok: true,
-                  detail: truncateToolResult(partial),
-                  partial: true,
-                })
-              }, () => this.ctx.tools.invoke(call.name, args, this.signal)),
-            ),
-          )
-        } catch (error) {
-          ok = false
-          detail = String(error)
-          steps.push({ name: call.name, ok, detail })
-          await session.append(this.sessionId, { type: 'tool/result', id: call.id, name: call.name, ok, detail })
-          if (this.signal.aborted || isCancelError(error)) {
-            await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
-            this.ctx.emit('agent/status', { sessionId: this.sessionId, status: 'idle' })
-            throw new Error('cancelled')
-          }
-          continue
-        }
-        steps.push({ name: call.name, ok, detail })
-        await session.append(this.sessionId, { type: 'tool/result', id: call.id, name: call.name, ok, detail })
-        if (this.signal.aborted) {
-          await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
-          this.ctx.emit('agent/status', { sessionId: this.sessionId, status: 'idle' })
-          throw new Error('cancelled')
-        }
       }
-      await session.append(this.sessionId, { type: 'step/end', turn, step })
+
+      let appendQueue = Promise.resolve()
+      const enqueueAppend = (body: Parameters<typeof session.append>[1]) => {
+        const next = appendQueue.then(() => session.append(this.sessionId, body))
+        appendQueue = next.then(
+          () => undefined,
+          () => undefined,
+        )
+        return next
+      }
+
+      const outcomes = await Promise.all(
+        prepared.map(async ({ call, args }) => {
+          try {
+            if (this.signal.aborted) throw new Error('cancelled')
+            let lastPartialAt = 0
+            const detail = truncateToolResult(
+              stringify(
+                await runWithToolProgress((partial) => {
+                  const now = Date.now()
+                  if (now - lastPartialAt < 40) return
+                  lastPartialAt = now
+                  void enqueueAppend({
+                    type: 'tool/result',
+                    id: call.id,
+                    name: call.name,
+                    ok: true,
+                    detail: truncateToolResult(partial),
+                    partial: true,
+                  })
+                }, () => this.ctx.tools.invoke(call.name, args, this.signal)),
+              ),
+            )
+            await enqueueAppend({ type: 'tool/result', id: call.id, name: call.name, ok: true, detail })
+            return { name: call.name, ok: true, detail, cancelled: false }
+          } catch (error) {
+            const detail = String(error)
+            const cancelled = this.signal.aborted || isCancelError(error)
+            await enqueueAppend({ type: 'tool/result', id: call.id, name: call.name, ok: false, detail })
+            return { name: call.name, ok: false, detail, cancelled }
+          }
+        }),
+      )
+
+      if (outcomes.some((item) => item.cancelled) || this.signal.aborted) {
+        await enqueueAppend({ type: 'turn/end', turn, reason: 'cancelled' })
+        this.ctx.emit('agent/status', { sessionId: this.sessionId, status: 'idle' })
+        throw new Error('cancelled')
+      }
+      for (const item of outcomes) {
+        steps.push({ name: item.name, ok: item.ok, detail: item.detail })
+      }
+      await enqueueAppend({ type: 'step/end', turn, step })
       final = steps.at(-1)?.detail ?? final
     }
   }
