@@ -470,6 +470,9 @@ export function ToolCard({
         >
           <MapIcon className="size-3.5" aria-hidden />
         </button>
+        {copyTextValue ? (
+          <CopyIconButton className="tool-call-copy" text={copyTextValue} label="复制工具输出" />
+        ) : null}
       </div>
       {!open && previewLines && previewLines.length > 0 ? (
         <div className="tool-call-body">
@@ -499,9 +502,6 @@ export function ToolCard({
           detail={node.result?.detail}
           onClose={() => setZoom(false)}
         />
-      ) : null}
-      {copyTextValue ? (
-        <CopyIconButton className="tool-call-copy" text={copyTextValue} label="复制工具输出" />
       ) : null}
     </div>
   )
