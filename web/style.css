@@ -2247,6 +2247,7 @@ html.dark .chat-overlay-panel {
 .chat-overlay-thread {
   position: relative;
   display: flex;
+  min-width: 0;
   min-height: 0;
   flex: 1;
 }
@@ -2335,6 +2336,7 @@ html.dark .chat-overlay-panel {
 
 .chat-pane .chat-composer-dock > * {
   width: 100%;
+  min-width: 0;
   max-width: none;
 }
 
@@ -4997,7 +4999,10 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
 .chat-stage {
   /* 把 sticky 用户消息的 z-index 关在滚动层内，避免压过底部输入栏/悬浮按钮 */
   isolation: isolate;
-  align-items: center;
+  align-items: stretch;
+  min-width: 0;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   font-family: var(--font-sans);
   font-size: var(--dsw-chat-font-size);
   line-height: var(--dsw-chat-line-height);
@@ -5006,7 +5011,9 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
 .chat-stage>* {
   box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   max-width: var(--dsw-chat-max-width);
+  margin-inline: auto;
 }
 
 /* 对话主列：预留 gutter，避免细滚动条出现时挤布局（样式走全局 * 规则） */
@@ -5038,23 +5045,22 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
   height: 16px;
 }
 
-.chat-stage {
-  scrollbar-gutter: stable;
-}
-
 /* 底部输入栏 + dock 悬浮控件：叠在对话内容之上 */
 .chat-composer-dock {
   z-index: 20;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
+  min-width: 0;
   font-size: var(--dsw-chat-ui-font-size);
 }
 
 .chat-composer-dock>* {
   box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   max-width: var(--dsw-chat-max-width);
+  margin-inline: auto;
 }
 
 .chat-outline {
@@ -5349,16 +5355,20 @@ html:not(.dark) .chat-outline-item.is-active {
 .chat-assistant-body {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .chat-reply-block {
   display: flex;
   width: 100%;
+  min-width: 0;
   flex-direction: column;
   background: transparent;
   border: 0;
   border-radius: 0;
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .chat-reply-block.is-streaming {
@@ -5641,6 +5651,8 @@ html:not(.dark) .chat-outline-item.is-active {
 /* Chat Markdown */
 .chat-md {
   max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   overflow-wrap: anywhere;
 }
 
@@ -5723,6 +5735,8 @@ html:not(.dark) .chat-outline-item.is-active {
 }
 
 .chat-md pre {
+  box-sizing: border-box;
+  max-width: 100%;
   overflow-x: auto;
   border-radius: 10px;
   border: 1px solid var(--dsw-border);
