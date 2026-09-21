@@ -17,6 +17,7 @@ export { registerShareOwnerExtra } from './share-owner-corner.tsx'
 import { parseSharePath, sharePublicPath, type ShareSnapshot } from '../share-snapshot.ts'
 import { parsePageBanner } from '../page-banner.ts'
 import { RecordDetail } from './record-detail.tsx'
+import { recordPickKind } from './pick-dom.ts'
 import { contentToMarkdown, markdownFileName, recordToMarkdown, zipMarkdownPack } from './export-markdown.ts'
 import { ensureFsdbStyle } from './fsdb-style.ts'
 import { CrumbTrail } from './crumb-trail.tsx'
@@ -517,6 +518,7 @@ function SharePage({
           schema={schema}
           chrome={detailChrome}
           collectionPath={snapshot.collection}
+          recordKind={recordPickKind(String(snapshot.collection || '').replace(/^\//, ''))}
           draft={{}}
           detailBody={rewriteAssetUrls(snapshot.contents[shown.id], token, password)}
           labelOf={(row) => crumbRecordLabel(row, schema.labelField)}
