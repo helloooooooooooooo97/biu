@@ -5876,20 +5876,23 @@ html:not(.dark) .chat-outline-item.is-active {
 }
 
 .tool-call-tools {
-  position: absolute;
-  top: 50%;
-  right: 6px;
-  z-index: 3;
-  display: none;
+  display: flex;
+  flex: none;
   align-items: center;
   gap: 2px;
-  transform: translateY(-50%);
+  z-index: 3;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .tool-call-head:hover .tool-call-tools,
 .tool-call-head:focus-within .tool-call-tools,
 .tool-call-tools:has(.tool-call-copy.is-done) {
-  display: flex;
+  width: auto;
+  overflow: visible;
+  pointer-events: auto;
 }
 
 .tool-call-inspect {
