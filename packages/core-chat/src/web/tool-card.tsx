@@ -446,9 +446,9 @@ export function ToolCard({
           <span className="tool-call-title">{title}</span>
           {open ? null : <span className="tool-call-summary">{summary}</span>}
         </button>
-        {parsed.kind === 'bash' || node.result?.streaming ? (
+        {parsed.kind === 'bash' || parsed.kind === 'create' || node.result?.streaming ? (
           <span className="tool-call-chars" title="输出字数" data-testid="tool-call-chars">
-            {toolOutputChars(node.result?.detail, parsed.kind)}
+            {parsed.kind === 'create' ? parsed.fileText.length : toolOutputChars(node.result?.detail, parsed.kind)}
           </span>
         ) : null}
         <div className="tool-call-tools">

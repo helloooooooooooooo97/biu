@@ -73,6 +73,47 @@ function parseJsonObject(raw: string): Record<string, unknown> | null {
   }
 }
 
+/** 流式 tool/call 参数还不是完整 JSON 时，抽出已经写出的字符串字段。 */
+export function extractPartialJsonString(raw: string, key: string): string | undefined {
+  const needle = `"${key}"`
+  const keyAt = raw.indexOf(needle)
+  if (keyAt < 0) return undefined
+  let i = keyAt + needle.length
+  while (i < raw.length && /\s/.test(raw[i]!)) i += 1
+  if (raw[i] !== ':') return undefined
+  i += 1
+  while (i < raw.length && /\s/.test(raw[i]!)) i += 1
+  if (raw[i] !== '"') return undefined
+  i += 1
+  let out = ''
+  while (i < raw.length) {
+    const ch = raw[i]!
+    if (ch === '\\') {
+      const next = raw[i + 1]
+      if (next == null) break
+      if (next === 'u' && raw.length >= i + 6) {
+        const code = Number.parseInt(raw.slice(i + 2, i + 6), 16)
+        if (Number.isFinite(code)) out += String.fromCharCode(code)
+        i += 6
+        continue
+      }
+      const escaped =
+        next === 'n' ? '\n' : next === 't' ? '\t' : next === 'r' ? '\r' : next === '"' ? '"' : next === '\\' ? '\\' : next
+      out += escaped
+      i += 2
+      continue
+    }
+    if (ch === '"') break
+    out += ch
+    i += 1
+  }
+  return out
+}
+
+function argString(args: Record<string, unknown> | null, raw: string, key: string): string | undefined {
+  return asString(args?.[key]) ?? extractPartialJsonString(raw, key)
+}
+
 function parseJsonValue(raw: string): unknown | undefined {
   const text = raw.trim()
   if (!text || (text[0] !== '{' && text[0] !== '[' && text[0] !== '"' && text !== 'true' && text !== 'false' && text !== 'null' && !/^-?\d/.test(text))) {
@@ -390,32 +431,33 @@ function asInt(value: unknown): number | undefined {
 
 export function parseToolCall(name: string, argumentsJson: string): ParsedToolCall {
   const args = parseJsonObject(argumentsJson)
+  const field = (key: string) => argString(args, argumentsJson, key)
 
   if (name === 'bash' || name === 'shell' || name === 'run_terminal_cmd') {
-    const command = asString(args?.command) ?? asString(args?.cmd) ?? argumentsJson.trim()
+    const command = field('command') ?? field('cmd') ?? argumentsJson.trim()
     return { kind: 'bash', command }
   }
 
   if (name === 'str_replace_editor' || name === 'StrReplace' || name === 'str_replace') {
-    const command = asString(args?.command) ?? (name === 'str_replace' || name === 'StrReplace' ? 'str_replace' : undefined)
-    const path = asString(args?.path) ?? asString(args?.file_path) ?? 'unknown'
-    if (command === 'str_replace' || (!command && asString(args?.old_str) != null)) {
+    const command = field('command') ?? (name === 'str_replace' || name === 'StrReplace' ? 'str_replace' : undefined)
+    const path = field('path') ?? field('file_path') ?? 'unknown'
+    if (command === 'str_replace' || (!command && field('old_str') != null)) {
       return {
         kind: 'str_replace',
         path,
-        oldStr: asString(args?.old_str) ?? asString(args?.old_string) ?? '',
-        newStr: asString(args?.new_str) ?? asString(args?.new_string) ?? '',
+        oldStr: field('old_str') ?? field('old_string') ?? '',
+        newStr: field('new_str') ?? field('new_string') ?? '',
       }
     }
     if (command === 'create') {
-      return { kind: 'create', path, fileText: asString(args?.file_text) ?? '' }
+      return { kind: 'create', path, fileText: field('file_text') ?? '' }
     }
     if (command === 'insert') {
       return {
         kind: 'insert',
         path,
-        insertLine: asInt(args?.insert_line) ?? 0,
-        newStr: asString(args?.new_str) ?? '',
+        insertLine: asInt(args?.insert_line) ?? asInt(extractPartialJsonString(argumentsJson, 'insert_line')) ?? 0,
+        newStr: field('new_str') ?? '',
       }
     }
     if (command === 'view') {
@@ -431,8 +473,8 @@ export function parseToolCall(name: string, argumentsJson: string): ParsedToolCa
   }
 
   if (name === 'fs_write' || name === 'Write') {
-    const path = asString(args?.path) ?? asString(args?.file_path) ?? 'unknown'
-    const fileText = asString(args?.contents) ?? asString(args?.content) ?? asString(args?.file_text) ?? ''
+    const path = field('path') ?? field('file_path') ?? 'unknown'
+    const fileText = field('contents') ?? field('content') ?? field('file_text') ?? ''
     return { kind: 'create', path, fileText }
   }
 

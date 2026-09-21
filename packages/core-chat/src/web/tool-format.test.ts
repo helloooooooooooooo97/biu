@@ -54,6 +54,17 @@ test('parseToolCall create/insert', () => {
   assert.equal(inserted.kind, 'insert')
 })
 
+test('parseToolCall create streams file_text before the JSON closes', () => {
+  const parsed = parseToolCall(
+    'str_replace_editor',
+    '{"command":"create","path":"n.ts","file_text":"export const n = 1\\nexp',
+  )
+  assert.equal(parsed.kind, 'create')
+  if (parsed.kind !== 'create') return
+  assert.equal(parsed.path, 'n.ts')
+  assert.equal(parsed.fileText, 'export const n = 1\nexp')
+})
+
 test('formatToolDetail unwraps bash stdout/stderr json', () => {
   const formatted = formatToolDetail(
     JSON.stringify({ code: 0, stdout: 'hello\nworld\n', stderr: '' }),
