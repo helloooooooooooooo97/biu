@@ -15,6 +15,7 @@ import { normalizeRecordEmoji, recordPreviewEmoji } from './sidebar-preview.ts'
 import { FOCUS_RECORD_CONTENT, FOCUS_RECORD_TITLE, shouldLeaveContentForTitle, shouldLeaveTitleForContent, focusRecordTitleNear } from './title-content-nav.ts'
 import { HeadingOutline } from './heading-outline.tsx'
 import { PageBanner } from './page-banner.tsx'
+import { fieldPickAttrs, recordSourcePath } from './pick-dom.ts'
 
 function DetailTitleIcon({
   emoji,
@@ -190,6 +191,7 @@ export function RecordDetail({
   toolbar,
   share,
   collectionPath,
+  recordKind = 'record',
   onDelete,
   readOnly = false,
 }: {
@@ -213,9 +215,19 @@ export function RecordDetail({
   toolbar?: ReactNode
   share?: ReactNode
   collectionPath?: string
+  recordKind?: string
   onDelete?: () => void
   readOnly?: boolean
 }) {
+  const title = labelOf(selected)
+  const recordPath = recordSourcePath(collectionPath, selected.id)
+  const propPick = (key: string, field?: FieldSpec, text?: string) =>
+    fieldPickAttrs(recordKind, selected.id, key, {
+      label: field?.label ?? key,
+      title,
+      path: recordPath,
+      text,
+    })
   const mainRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const onTitle = () => {
@@ -281,7 +293,12 @@ export function RecordDetail({
                 />
                 </div>
                 <div className="fsdb-detail-title-row">
-                <div className="fsdb-detail-title-block">
+                <div
+                  className="fsdb-detail-title-block"
+                  {...(schema.labelField
+                    ? propPick(schema.labelField, schema.fields[schema.labelField], title)
+                    : {})}
+                >
                 {schema.labelField && schema.fields[schema.labelField]?.writable && !readOnly ? (
                   <h1 className="fsdb-detail-title">
                     <LocalText
@@ -312,7 +329,7 @@ export function RecordDetail({
                 </div>
                 </div>
                 <div className="fsdb-detail-aside">
-                  <div className="fsdb-prop">
+                  <div className="fsdb-prop" {...propPick('id', { type: 'string', label: 'ID' }, selected.id)}>
                     <span>
                       <HashtagIcon aria-hidden className="size-[14px]" />
                       ID
@@ -334,6 +351,7 @@ export function RecordDetail({
                         collapsible={fold}
                         expanded={fold ? facetOpen : undefined}
                         onToggle={fold ? () => setFacetOpen((open) => !open) : undefined}
+                        pick={propPick(key, field, packFields ? undefined : formatField(field, selected[key]))}
                       >
                         <div className={fold ? 'fsdb-prop-val is-schema' : 'fsdb-prop-val'} title={packFields ? undefined : formatField(field, selected[key])}>
                           {packFields ? (

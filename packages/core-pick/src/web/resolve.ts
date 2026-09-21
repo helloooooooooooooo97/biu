@@ -7,6 +7,10 @@ const ID = 'data-biu-id'
 const ACTION = 'data-biu-action'
 const LABEL = 'data-biu-label'
 const PLUGIN = 'data-biu-plugin'
+const PATH = 'data-biu-path'
+const TITLE = 'data-biu-title'
+const TEXT = 'data-biu-text'
+const FIELD = 'data-biu-field'
 
 type ClientBox = { left: number; top: number; width: number; height: number }
 
@@ -54,6 +58,10 @@ export function resolvePickFromNode(
   let action: string | undefined
   let label: string | undefined
   let plugin: string | undefined
+  let path: string | undefined
+  let title: string | undefined
+  let text: string | undefined
+  let field: string | undefined
   let highlight: HTMLElement | null = null
   let node: Element | null = start
   while (node && node !== document.documentElement) {
@@ -64,12 +72,20 @@ export function resolvePickFromNode(
       const nextAction = read(node, ACTION)
       const nextLabel = read(node, LABEL)
       const nextPlugin = read(node, PLUGIN) || read(node, 'data-page-block-plugin') || read(node, 'data-plugin-id')
-      if (!highlight && (nextKind || nextId || nextAction || nextLabel || nextPlugin)) highlight = node
+      const nextPath = read(node, PATH)
+      const nextTitle = read(node, TITLE)
+      const nextText = read(node, TEXT)
+      const nextField = read(node, FIELD)
+      if (!highlight && (nextKind || nextId || nextAction || nextLabel || nextPlugin || nextPath || nextField)) highlight = node
       if (!kind) kind = nextKind
       if (!id) id = nextId
       if (!action) action = nextAction
       if (!label) label = nextLabel
       if (!plugin) plugin = nextPlugin
+      if (!path) path = nextPath
+      if (!title) title = nextTitle
+      if (!text) text = nextText
+      if (!field) field = nextField
     }
     if (kind && id && highlight) break
     node = node.parentElement
@@ -88,8 +104,11 @@ export function resolvePickFromNode(
         id,
         ...(action ? { action } : {}),
         ...(plugin ? { plugin } : {}),
+        ...(path ? { path } : {}),
+        ...(field ? { field } : {}),
+        ...(text ? { text } : {}),
         label: label || id,
-        title: label || id,
+        title: title || label || id,
         route,
       },
       highlight,
@@ -110,6 +129,10 @@ function stripPickMarks(root: HTMLElement) {
     node.removeAttribute('data-biu-id')
     node.removeAttribute('data-biu-label')
     node.removeAttribute('data-biu-plugin')
+    node.removeAttribute('data-biu-path')
+    node.removeAttribute('data-biu-title')
+    node.removeAttribute('data-biu-text')
+    node.removeAttribute('data-biu-field')
   }
 }
 
@@ -350,10 +373,17 @@ export function resolvePicksInRect(box: ClientBox, route: string, root: ParentNo
     if (!vis || !boxesOverlap(box, vis)) continue
     const hit = resolvePickFromNode(node, route)
     if (!hit) continue
-    const key = `${hit.ref.kind}:${hit.ref.id}`
+    const key = `${hit.ref.kind}:${hit.ref.id}:${hit.ref.field ?? ''}`
     if (seen.has(key)) continue
     seen.add(key)
     hits.push(hit)
   }
-  return hits
+  return dropAncestorPicks(hits)
+}
+
+/** 框选同时碰到行和格子时只留格子，避免整行把 cell 吃掉。 */
+function dropAncestorPicks(hits: { el: HTMLElement; ref: PickRef }[]) {
+  return hits.filter((hit, index) => {
+    return !hits.some((other, otherIndex) => otherIndex !== index && hit.el.contains(other.el) && hit.el !== other.el)
+  })
 }

@@ -23,6 +23,8 @@ test('registers pick instructions on the system prompt', async () => {
   assert.match(text, /action=view/)
   assert.match(text, /registerRowView/)
   assert.match(text, /db_update/)
+  assert.match(text, /带 field/)
+  assert.match(text, /表格单元格/)
   assert.match(text, /示例写法/)
   assert.match(text, /:::pageBlock/)
   assert.match(text, /db_content \/plugins/)

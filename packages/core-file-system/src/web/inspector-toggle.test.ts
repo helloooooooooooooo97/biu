@@ -206,6 +206,8 @@ test('table title opens record from the title-side button', () => {
   assert.doesNotMatch(browser, /<AddProperty/)
   assert.match(browser, /const lockedKind = String\(catalogLocks.blockKind/)
   assert.doesNotMatch(browser, /recordPick\(row\)\} onClick=\{\(\) => setDetailId\(row\.id\)\}/)
+  assert.match(browser, /cellPickOf\(row, col.key, col.field\)/)
+  assert.match(detail, /propPick\(key, field/)
 })
 
 test('title cell row tools skip the overflow action menu', () => {
