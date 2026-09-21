@@ -451,6 +451,7 @@ export function ToolCard({
             {toolOutputChars(node.result?.detail, parsed.kind)}
           </span>
         ) : null}
+        <div className="tool-call-tools">
         <button
           type="button"
           className="tool-call-inspect"
@@ -473,6 +474,7 @@ export function ToolCard({
         {copyTextValue ? (
           <CopyIconButton className="tool-call-copy" text={copyTextValue} label="复制工具输出" />
         ) : null}
+        </div>
       </div>
       {!open && previewLines && previewLines.length > 0 ? (
         <div className="tool-call-body">
