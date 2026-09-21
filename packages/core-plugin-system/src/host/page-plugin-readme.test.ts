@@ -38,3 +38,20 @@ test('development page blocks register under the 测试 slash group', () => {
     assert.doesNotMatch(src, /blockType:\s*'(basic|api|dev)'/, `${file} should not use a separate slash group`)
   }
 })
+
+test('page block playground UIs use design tokens instead of hardcoded light-theme colors', () => {
+  const files = [
+    'page-toc/web.tsx',
+    'api-playground/web.tsx',
+    'option-matrix/web.tsx',
+    'page-regression/web.tsx',
+    'plugin-doctor/web.tsx',
+  ]
+  for (const file of files) {
+    const src = readFileSync(join(sandbox, file), 'utf8')
+    assert.match(src, /var\(--dsw-border\)/, `${file} should use --dsw-border`)
+    assert.match(src, /var\(--dsw-label\)/, `${file} should use --dsw-label`)
+    assert.doesNotMatch(src, /background:\s*'?#fff/, `${file} should not hardcode white`)
+    assert.doesNotMatch(src, /#9ec1ff/, `${file} should not hardcode send-button blue`)
+  }
+})

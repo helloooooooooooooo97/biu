@@ -1,5 +1,5 @@
 const React = globalThis.React
-const { useState, useCallback } = React
+const { useState, useCallback, useEffect } = React
 
 export const name = 'page-regression'
 export const inject = ['pageEditor']
@@ -48,7 +48,39 @@ const TYPES = [
 
 const MAX_RUNS = 10
 const MAX_ACTUAL = 72
-const COLOR = { pass: '#3FB950', fail: '#F85149', fixed: '#58A6FF', broken: '#D29922' }
+const STYLE_ID = 'page-regression-style-v2'
+const STYLE_CSS = `
+.rg-root{border:1px solid var(--dsw-border);border-radius:8px;padding:10px 12px;font-family:var(--font-sans);font-size:14px;color:var(--dsw-label);background:var(--dsw-bg);user-select:text}
+.rg-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rg-title{font-size:13px;font-weight:650}
+.rg-meta{color:var(--dsw-label-3);font-family:var(--font-mono);font-size:12px}
+.rg-grow{flex:1}
+.rg-btn{flex:none;height:26px;padding:0 8px;border:1px solid var(--dsw-border);border-radius:6px;background:transparent;color:var(--dsw-label);font-size:13px;font-weight:650;cursor:pointer}
+.rg-btn:hover{background:var(--dsw-hover)}
+.rg-btn:disabled{opacity:.5;cursor:default}
+.rg-rows{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.rg-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rg-idx{flex:none;width:18px;color:var(--dsw-label-3);font-family:var(--font-mono);font-size:12px}
+.rg-input{min-width:0;flex:1 1 140px;box-sizing:border-box;height:26px;padding:0 8px;border:1px solid var(--dsw-border);border-radius:6px;background:var(--dsw-input);color:var(--dsw-label);font-family:var(--font-mono);font-size:12px}
+.rg-chip{flex:none;min-width:96px;padding:2px 6px;border:1px solid var(--dsw-border);border-radius:6px;font-family:var(--font-mono);font-size:11px;white-space:nowrap;color:var(--dsw-label)}
+.rg-chip.is-pass{color:var(--dsw-label);background:color-mix(in srgb,var(--dsw-ok,#3fb950) 14%,transparent)}
+.rg-chip.is-fail{color:var(--dsw-danger);background:color-mix(in srgb,var(--dsw-danger) 12%,transparent)}
+.rg-actual{flex:1 1 100%;padding-left:24px;color:var(--dsw-label-3);font-family:var(--font-mono);font-size:11px}
+.rg-actual.is-fail{color:var(--dsw-danger)}
+.rg-empty{color:var(--dsw-label-3);font-size:13px}
+.rg-hist{margin-top:8px;border-top:1px solid var(--dsw-border);padding-top:6px}
+.rg-hist-row{display:flex;gap:8px;font-family:var(--font-mono);font-size:12px;color:var(--dsw-label-2)}
+`
+
+function useRgStyle() {
+  useEffect(() => {
+    const existing = document.getElementById(STYLE_ID)
+    const el = existing instanceof HTMLStyleElement ? existing : document.createElement('style')
+    el.id = STYLE_ID
+    el.textContent = STYLE_CSS
+    if (el.parentNode !== document.head) document.head.appendChild(el)
+  }, [])
+}
 
 function newId() {
   return 'a' + Math.random().toString(36).slice(2, 7)
@@ -132,44 +164,19 @@ function fmtTime(at: number) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-const inputStyle = {
-  minWidth: 0,
-  flex: '1 1 140px',
-  boxSizing: 'border-box' as const,
-  padding: '4px 7px',
-  border: '1px solid var(--dsw-border)',
-  borderRadius: 6,
-  background: 'transparent',
-  color: 'inherit',
-  fontFamily: 'var(--font-mono, monospace)',
-  fontSize: 12,
-}
-
 function Chip({ item }: { item?: ItemResult }) {
-  if (!item) return <span style={{ ...chipStyle, color: 'var(--dsw-label)' }}>—</span>
+  if (!item) return <span className="rg-chip">—</span>
   const pass = item.status === 'pass'
   return (
-    <span style={{ ...chipStyle, color: pass ? COLOR.pass : COLOR.fail, borderColor: pass ? COLOR.pass : COLOR.fail }}>
+    <span className={pass ? 'rg-chip is-pass' : 'rg-chip is-fail'}>
       {pass ? '通过' : '失败'} {item.ms}ms
-      {item.delta ? (
-        <b style={{ marginLeft: 6, color: item.delta === 'fixed' ? COLOR.fixed : COLOR.broken }}>{item.delta}</b>
-      ) : null}
+      {item.delta ? <b style={{ marginLeft: 6 }}>{item.delta}</b> : null}
     </span>
   )
 }
 
-const chipStyle = {
-  flex: 'none',
-  minWidth: 96,
-  padding: '2px 6px',
-  border: '1px solid var(--dsw-border)',
-  borderRadius: 6,
-  fontFamily: 'var(--font-mono, monospace)',
-  fontSize: 11,
-  whiteSpace: 'nowrap' as const,
-}
-
 export function RegressionBlock({ data, update, writable }: BlockProps) {
+  useRgStyle()
   const asserts = Array.isArray(data.asserts) ? (data.asserts as Assert[]) : []
   const runs = Array.isArray(data.runs) ? (data.runs as Run[]) : []
   const [busy, setBusy] = useState(false)
@@ -211,59 +218,44 @@ export function RegressionBlock({ data, update, writable }: BlockProps) {
   const broken = last ? last.items.filter((item) => item.delta === 'broken').length : 0
 
   return (
-    <div
-      data-testid="regression-block"
-      style={{
-        border: '1px solid var(--dsw-border)',
-        borderRadius: 10,
-        padding: '10px 12px',
-        fontFamily: 'var(--font-sans, sans-serif)',
-        fontSize: 13,
-        userSelect: 'text',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <b style={{ fontSize: 13 }}>页面回归检查</b>
-        <span data-testid="regression-summary" style={{ color: 'var(--dsw-label)', fontFamily: 'var(--font-mono, monospace)', fontSize: 11 }}>
+    <div data-testid="regression-block" className="rg-root">
+      <div className="rg-head">
+        <b className="rg-title">页面回归检查</b>
+        <span data-testid="regression-summary" className="rg-meta">
           {last
             ? `${last.passed}/${last.total} 通过 · ${last.failed} 失败 · ${last.ms}ms · ${fmtTime(last.at)}${
                 fixed ? ` · fixed ${fixed}` : ''
               }${broken ? ` · broken ${broken}` : ''}`
             : `${asserts.length} 条断言 · 还没跑过`}
         </span>
-        <span style={{ flex: 1 }} />
+        <span className="rg-grow" />
         {writable ? (
-          <button type="button" data-testid="regression-add" onClick={() => update({ asserts: [...asserts, { id: newId(), type: 'exists', selector: '' }] })} style={btnStyle}>
-            ＋ 断言
+          <button type="button" data-testid="regression-add" onClick={() => update({ asserts: [...asserts, { id: newId(), type: 'exists', selector: '' }] })} className="rg-btn">
+            加断言
           </button>
         ) : null}
-        <button
-          type="button"
-          data-testid="regression-run"
-          disabled={busy}
-          onClick={() => void runAll()}
-          style={{ ...btnStyle, borderColor: COLOR.pass, color: busy ? 'var(--dsw-label)' : COLOR.pass }}
-        >
+        <button type="button" data-testid="regression-run" disabled={busy} onClick={() => void runAll()} className="rg-btn">
           {busy ? '跑…' : '跑一遍'}
         </button>
         {runs.length ? (
-          <button type="button" data-testid="regression-history" onClick={() => setShowHistory(!showHistory)} style={btnStyle}>
+          <button type="button" data-testid="regression-history" onClick={() => setShowHistory(!showHistory)} className="rg-btn">
             历史 {runs.length}
           </button>
         ) : null}
       </div>
 
-      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div className="rg-rows">
         {asserts.map((item, i) => {
           const result = resultOf(item.id)
           return (
-            <div key={item.id} data-testid="regression-row" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ flex: 'none', width: 18, color: 'var(--dsw-label)', fontFamily: 'var(--font-mono, monospace)', fontSize: 11 }}>{i + 1}</span>
+            <div key={item.id} data-testid="regression-row" className="rg-row">
+              <span className="rg-idx">{i + 1}</span>
               <select
                 value={item.type}
                 disabled={!writable}
                 onChange={(event) => patchAssert(item.id, { type: event.target.value })}
-                style={{ ...inputStyle, flex: '0 0 88px' }}
+                className="rg-input"
+                style={{ flex: '0 0 88px' }}
               >
                 {TYPES.map((type) => (
                   <option key={type.id} value={type.id}>
@@ -277,7 +269,8 @@ export function RegressionBlock({ data, update, writable }: BlockProps) {
                     value={String(item.method || 'GET')}
                     disabled={!writable}
                     onChange={(event) => patchAssert(item.id, { method: event.target.value })}
-                    style={{ ...inputStyle, flex: '0 0 74px' }}
+                    className="rg-input"
+                    style={{ flex: '0 0 74px' }}
                   >
                     {['GET', 'POST', 'PUT', 'DELETE'].map((method) => (
                       <option key={method} value={method}>
@@ -290,13 +283,15 @@ export function RegressionBlock({ data, update, writable }: BlockProps) {
                     disabled={!writable}
                     placeholder="/api/… 或 http://…"
                     onChange={(event) => patchAssert(item.id, { url: event.target.value })}
-                    style={{ ...inputStyle, flex: '1 1 200px' }}
+                    className="rg-input"
+                    style={{ flex: '1 1 200px' }}
                   />
                   <input
                     value={String(item.status ?? 200)}
                     disabled={!writable}
                     onChange={(event) => patchAssert(item.id, { status: event.target.value })}
-                    style={{ ...inputStyle, flex: '0 0 54px' }}
+                    className="rg-input"
+                    style={{ flex: '0 0 54px' }}
                   />
                 </>
               ) : (
@@ -306,7 +301,8 @@ export function RegressionBlock({ data, update, writable }: BlockProps) {
                     disabled={!writable}
                     placeholder="选择器，如 h1 / [data-testid=xxx]"
                     onChange={(event) => patchAssert(item.id, { selector: event.target.value })}
-                    style={{ ...inputStyle, flex: '1 1 180px' }}
+                    className="rg-input"
+                    style={{ flex: '1 1 180px' }}
                   />
                   {item.type === 'exists' ? null : (
                     <input
@@ -314,7 +310,8 @@ export function RegressionBlock({ data, update, writable }: BlockProps) {
                       disabled={!writable}
                       placeholder={item.type === 'count' ? '期望个数' : '期望文案（子串）'}
                       onChange={(event) => patchAssert(item.id, { expect: event.target.value })}
-                      style={{ ...inputStyle, flex: '0 0 130px' }}
+                      className="rg-input"
+                      style={{ flex: '0 0 130px' }}
                     />
                   )}
                 </>
@@ -324,39 +321,31 @@ export function RegressionBlock({ data, update, writable }: BlockProps) {
                 disabled={!writable}
                 placeholder="说明"
                 onChange={(event) => patchAssert(item.id, { note: event.target.value })}
-                style={{ ...inputStyle, flex: '0 0 96px', fontFamily: 'inherit' }}
+                className="rg-input"
+                style={{ flex: '0 0 96px', fontFamily: 'inherit' }}
               />
               <Chip item={result} />
               {writable ? (
-                <button
-                  type="button"
-                  title="删掉这条断言"
-                  onClick={() => update({ asserts: asserts.filter((a) => a.id !== item.id) })}
-                  style={{ ...btnStyle, flex: 'none', padding: '2px 6px' }}
-                >
-                  ✕
+                <button type="button" title="删掉这条断言" onClick={() => update({ asserts: asserts.filter((a) => a.id !== item.id) })} className="rg-btn">
+                  删除
                 </button>
               ) : null}
-              {result ? (
-                <span style={{ flex: '1 1 100%', paddingLeft: 24, color: result.status === 'pass' ? 'var(--dsw-label)' : COLOR.fail, fontFamily: 'var(--font-mono, monospace)', fontSize: 11 }}>
-                  {result.actual}
-                </span>
-              ) : null}
+              {result ? <span className={result.status === 'pass' ? 'rg-actual' : 'rg-actual is-fail'}>{result.actual}</span> : null}
             </div>
           )
         })}
-        {asserts.length ? null : <span style={{ color: 'var(--dsw-label)', fontSize: 12 }}>还没有断言，点右上「＋ 断言」加一条。</span>}
+        {asserts.length ? null : <span className="rg-empty">还没有断言，点右上「加断言」加一条。</span>}
       </div>
 
       {showHistory && runs.length ? (
-        <div data-testid="regression-history-list" style={{ marginTop: 8, borderTop: '1px solid var(--dsw-border)', paddingTop: 6 }}>
+        <div data-testid="regression-history-list" className="rg-hist">
           {runs
             .slice()
             .reverse()
             .map((run) => (
-              <div key={run.at} style={{ display: 'flex', gap: 8, fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--dsw-label)' }}>
+              <div key={run.at} className="rg-hist-row">
                 <span>{fmtTime(run.at)}</span>
-                <span style={{ color: run.failed ? COLOR.fail : COLOR.pass }}>
+                <span>
                   {run.passed}/{run.total}
                 </span>
                 <span>{run.ms}ms</span>
@@ -370,17 +359,6 @@ export function RegressionBlock({ data, update, writable }: BlockProps) {
       ) : null}
     </div>
   )
-}
-
-const btnStyle = {
-  flex: 'none',
-  padding: '3px 8px',
-  border: '1px solid var(--dsw-border)',
-  borderRadius: 6,
-  background: 'transparent',
-  color: 'inherit',
-  fontSize: 12,
-  cursor: 'pointer',
 }
 
 export function apply(ctx: {

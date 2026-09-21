@@ -113,11 +113,46 @@ function toMarkdown(data: Data): string {
       const cell = r.cells.find((x) => x.name === c.name)
       return cell ? (c.higherIsBetter === false ? `${cell.raw}（反向${cell.norm}）` : String(cell.raw)) : ''
     })
-    lines.push(`| ${r.option} | ${cells.join(' | ')} | ${r.total.toFixed(1)} | ${r.rank === 1 ? '✅ 推荐' : `#${r.rank}`} |`)
+    lines.push(`| ${r.option} | ${cells.join(' | ')} | ${r.total.toFixed(1)} | ${r.rank === 1 ? '推荐' : `#${r.rank}`} |`)
   })
   lines.push('')
   lines.push('> 算法：总分 = Σ(权重 × 归一化分)；越低越好的维度归一化分 = scale+1 − 原分。')
   return lines.join('\n')
+}
+
+const STYLE_ID = 'option-matrix-style-v2'
+const STYLE_CSS = `
+.om-root{border:1px solid var(--dsw-border);border-radius:8px;padding:10px 12px;margin:0;background:var(--dsw-bg);color:var(--dsw-label);font-family:var(--font-sans);font-size:14px;line-height:1.5}
+.om-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.om-title{font-weight:650;font-size:14px}
+.om-meta{color:var(--dsw-label-3);font-size:12px;font-weight:500}
+.om-grow{flex:1}
+.om-btn{height:26px;font:inherit;font-size:13px;font-weight:650;padding:0 8px;border-radius:6px;border:1px solid var(--dsw-border);background:transparent;color:var(--dsw-label);cursor:pointer}
+.om-btn:hover{background:var(--dsw-hover)}
+.om-field{height:26px;font:inherit;font-size:13px;padding:0 6px;border:1px solid var(--dsw-border);border-radius:6px;background:var(--dsw-input);color:var(--dsw-label)}
+.om-table-wrap{overflow-x:auto}
+.om-table{border-collapse:collapse;width:100%;font-size:13px}
+.om-cell{border:1px solid var(--dsw-border);padding:6px 8px;text-align:center;white-space:nowrap;vertical-align:middle}
+.om-score{width:46px;height:26px;padding:0 4px;text-align:center;font:inherit;font-variant-numeric:tabular-nums;border:1px solid var(--dsw-border);border-radius:6px;background:var(--dsw-input);color:var(--dsw-label)}
+.om-winner{background:color-mix(in srgb,var(--dsw-ok,#3fb950) 12%,transparent)}
+.om-best{background:color-mix(in srgb,var(--dsw-pick) 14%,transparent);font-weight:650}
+.om-muted{background:var(--dsw-hover)}
+.om-tools{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.om-rationale{margin-top:8px;padding:8px 10px;border-radius:6px;background:var(--dsw-hover);font-size:13px;line-height:1.55;color:var(--dsw-label-2)}
+.om-md{margin-top:8px}
+.om-md textarea{width:100%;min-height:130px;font-family:var(--font-mono);font-size:12px;padding:8px;border-radius:6px;border:1px solid var(--dsw-border);background:var(--dsw-input);color:var(--dsw-label)}
+.om-ghost{border:0;background:transparent;color:var(--dsw-label-3);cursor:pointer;font:inherit}
+.om-ghost:hover{color:var(--dsw-label)}
+`
+
+function useOmStyle() {
+  useEffect(() => {
+    const existing = document.getElementById(STYLE_ID)
+    const el = existing instanceof HTMLStyleElement ? existing : document.createElement('style')
+    el.id = STYLE_ID
+    el.textContent = STYLE_CSS
+    if (el.parentNode !== document.head) document.head.appendChild(el)
+  }, [])
 }
 
 function ScoreInput({ value, max, onChange, readOnly }: { value: number; max: number; onChange: (v: number) => void; readOnly: boolean }) {
@@ -127,22 +162,13 @@ function ScoreInput({ value, max, onChange, readOnly }: { value: number; max: nu
     min: 0,
     max,
     value,
+    className: 'om-score',
     onChange: (e: { target: { value: string } }) => onChange(Math.max(0, Math.min(max, num(e.target.value, 0)))),
-    style: {
-      width: 46,
-      padding: '2px 4px',
-      textAlign: 'center',
-      font: 'inherit',
-      fontVariantNumeric: 'tabular-nums',
-      border: '1px solid rgba(127,127,127,.35)',
-      borderRadius: 6,
-      background: 'transparent',
-      color: 'inherit',
-    },
   })
 }
 
 function OptionMatrix({ data, update, writable }: { data: Data; update: (patch: Record<string, unknown>) => void; writable: boolean }) {
+  useOmStyle()
   const [showMd, setShowMd] = useState(false)
   const [copied, setCopied] = useState(false)
   const [draftTitle, setDraftTitle] = useState(data.title ?? '')
@@ -190,53 +216,27 @@ function OptionMatrix({ data, update, writable }: { data: Data; update: (patch: 
     update({ options: next, scores: ns })
   }
 
-  const cellStyle: Record<string, unknown> = {
-    border: '1px solid rgba(127,127,127,.22)',
-    padding: '6px 8px',
-    textAlign: 'center',
-    whiteSpace: 'nowrap',
-  }
-  const btn = (extra?: Record<string, unknown>): Record<string, unknown> => ({
-    font: 'inherit',
-    padding: '3px 10px',
-    borderRadius: 6,
-    border: '1px solid rgba(127,127,127,.35)',
-    background: 'transparent',
-    color: 'inherit',
-    cursor: 'pointer',
-    ...(extra ?? {}),
-  })
-  const field = (extra?: Record<string, unknown>): Record<string, unknown> => ({
-    font: 'inherit',
-    padding: '2px 4px',
-    border: '1px solid rgba(127,127,127,.35)',
-    borderRadius: 6,
-    background: 'transparent',
-    color: 'inherit',
-    ...(extra ?? {}),
-  })
-
   const md = useMemo(() => toMarkdown(data), [key])
   const h = React.createElement
 
   const headCells = [
-    h('th', { key: 'corner', style: { ...cellStyle, textAlign: 'left', opacity: 0.7 } }, '方案 \\ 维度'),
+    h('th', { key: 'corner', className: 'om-cell', style: { textAlign: 'left', color: 'var(--dsw-label-3)' } }, '方案 \\ 维度'),
     ...criteria.map((c, ci) =>
       h(
         'th',
-        { key: `c${ci}`, style: { ...cellStyle, verticalAlign: 'top' } },
+        { key: `c${ci}`, className: 'om-cell', style: { verticalAlign: 'top' } },
         readOnly
-          ? h('div', null, h('div', { style: { fontWeight: 700 } }, c.name), h('div', { style: { fontSize: '0.78em', opacity: 0.6 } }, `权重 ${c.weight} · ${c.higherIsBetter === false ? '↓越低越好' : '↑越高越好'}`))
+          ? h('div', null, h('div', { style: { fontWeight: 650 } }, c.name), h('div', { className: 'om-meta' }, `权重 ${c.weight} · ${c.higherIsBetter === false ? '越低越好' : '越高越好'}`))
           : h(
               'div',
               { style: { display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' } },
-              h('input', { value: c.name, onChange: (e: { target: { value: string } }) => renameCriterion(ci, e.target.value), style: field({ fontWeight: 700, textAlign: 'center', width: 96 }) }),
+              h('input', { value: c.name, onChange: (e: { target: { value: string } }) => renameCriterion(ci, e.target.value), className: 'om-field', style: { fontWeight: 650, textAlign: 'center', width: 96 } }),
               h('div', { style: { display: 'flex', gap: 4, alignItems: 'center' } },
-                h('span', { style: { opacity: 0.6, fontSize: '0.8em' } }, '权重'),
-                h('input', { type: 'number', min: 0, max: 9, value: c.weight, onChange: (e: { target: { value: string } }) => setCriteria(criteria.map((x, i) => (i === ci ? { ...x, weight: num(e.target.value, 0) } : x))), style: field({ width: 40, textAlign: 'center' }) }),
+                h('span', { className: 'om-meta' }, '权重'),
+                h('input', { type: 'number', min: 0, max: 9, value: c.weight, onChange: (e: { target: { value: string } }) => setCriteria(criteria.map((x, i) => (i === ci ? { ...x, weight: num(e.target.value, 0) } : x))), className: 'om-field', style: { width: 44, textAlign: 'center' } }),
               ),
-              h('button', { type: 'button', title: '点击切换维度方向', onClick: () => setCriteria(criteria.map((x, i) => (i === ci ? { ...x, higherIsBetter: x.higherIsBetter === false } : x))), style: field({ fontSize: '0.78em', padding: '1px 6px', borderRadius: 999 }) }, c.higherIsBetter === false ? '↓ 越低越好' : '↑ 越高越好'),
-              h('button', { type: 'button', style: { font: 'inherit', fontSize: '0.75em', opacity: 0.6, border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer' }, onClick: () => {
+              h('button', { type: 'button', className: 'om-btn', title: '点击切换维度方向', onClick: () => setCriteria(criteria.map((x, i) => (i === ci ? { ...x, higherIsBetter: x.higherIsBetter === false } : x))) }, c.higherIsBetter === false ? '越低越好' : '越高越好'),
+              h('button', { type: 'button', className: 'om-ghost', onClick: () => {
                 const ns: Scores = { ...scores }
                 options.forEach((o) => {
                   if (ns[o]) {
@@ -250,22 +250,22 @@ function OptionMatrix({ data, update, writable }: { data: Data; update: (patch: 
             ),
       ),
     ),
-    h('th', { key: 'total', style: { ...cellStyle, background: 'rgba(127,127,127,.08)' } }, '加权总分'),
+    h('th', { key: 'total', className: 'om-cell om-muted' }, '加权总分'),
   ]
 
   const bodyRows = m.rows.map((row, ri) => {
     const isWinner = !!m.winner && m.winner.option === row.option
     return h(
       'tr',
-      { key: `r${ri}`, style: isWinner ? { background: 'rgba(46,160,120,.10)' } : {} },
+      { key: `r${ri}`, className: isWinner ? 'om-winner' : undefined },
       h(
         'th',
-        { style: { ...cellStyle, textAlign: 'left' } },
+        { className: 'om-cell', style: { textAlign: 'left' } },
         readOnly
-          ? h('span', { style: { fontWeight: isWinner ? 700 : 500 } }, `${isWinner ? '✅ ' : ''}${row.option}`)
+          ? h('span', { style: { fontWeight: isWinner ? 650 : 500 } }, `${isWinner ? '推荐 · ' : ''}${row.option}`)
           : h('div', { style: { display: 'flex', gap: 4, alignItems: 'center' } },
-              h('input', { value: row.option, onChange: (e: { target: { value: string } }) => renameOption(ri, e.target.value), style: field({ width: 130 }) }),
-              h('button', { type: 'button', style: { border: 'none', background: 'transparent', color: 'inherit', opacity: 0.5, cursor: 'pointer', font: 'inherit' }, onClick: () => {
+              h('input', { value: row.option, onChange: (e: { target: { value: string } }) => renameOption(ri, e.target.value), className: 'om-field', style: { width: 130 } }),
+              h('button', { type: 'button', className: 'om-ghost', onClick: () => {
                 const ns: Scores = { ...scores }
                 delete ns[row.option]
                 update({ options: options.filter((_, i) => i !== ri), scores: ns })
@@ -276,76 +276,77 @@ function OptionMatrix({ data, update, writable }: { data: Data; update: (patch: 
         const cell = row.cells[ci]
         return h(
           'td',
-          { key: `d${ci}`, style: { ...cellStyle, background: cell && cell.best ? 'rgba(255,196,0,.22)' : undefined, fontWeight: cell && cell.best ? 700 : 400 } },
+          { key: `d${ci}`, className: cell && cell.best ? 'om-cell om-best' : 'om-cell' },
           h(ScoreInput, { value: (cell && cell.raw) || 0, max: scale, readOnly, onChange: (v: number) => setCell(row.option, c.name, v) }),
-          c.higherIsBetter === false ? h('span', { style: { opacity: 0.5, fontSize: '0.78em' } }, ` →${(cell && cell.norm) || 0}`) : null,
+          c.higherIsBetter === false ? h('span', { className: 'om-meta' }, ` →${(cell && cell.norm) || 0}`) : null,
         )
       }),
-      h('td', { key: 't', style: { ...cellStyle, background: 'rgba(127,127,127,.08)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' } },
+      h('td', { key: 't', className: 'om-cell om-muted', style: { fontWeight: 650, fontVariantNumeric: 'tabular-nums' } },
         row.total.toFixed(1),
-        h('div', { style: { fontWeight: 400, fontSize: '0.78em', opacity: 0.65 } }, `${(row.percent * 100).toFixed(1)}%`),
+        h('div', { className: 'om-meta', style: { fontWeight: 500 } }, `${(row.percent * 100).toFixed(1)}%`),
       ),
     )
   })
 
   const toolbar = !readOnly
-    ? h('div', { style: { display: 'flex', gap: 8, marginTop: 10 } },
-        h('button', { type: 'button', style: btn({ border: '1px dashed rgba(127,127,127,.5)', fontSize: '0.85em' }), onClick: () => {
+    ? h('div', { className: 'om-tools' },
+        h('button', { type: 'button', className: 'om-btn', onClick: () => {
           const nm = `方案 ${String.fromCharCode(65 + options.length)}`
           const ns: Scores = { ...scores, [nm]: {} }
           criteria.forEach((c) => { ns[nm][c.name] = 3 })
           update({ options: [...options, nm], scores: ns })
-        } }, '+ 加方案'),
-        h('button', { type: 'button', style: btn({ border: '1px dashed rgba(127,127,127,.5)', fontSize: '0.85em' }), onClick: () => {
+        } }, '加方案'),
+        h('button', { type: 'button', className: 'om-btn', onClick: () => {
           const nm = `维度 ${criteria.length + 1}`
           const ns: Scores = { ...scores }
           options.forEach((o) => { ns[o] = { ...(ns[o] ?? {}), [nm]: 3 } })
           update({ criteria: [...criteria, { name: nm, weight: 1, higherIsBetter: true }], scores: ns })
-        } }, '+ 加维度'),
-        h('button', { type: 'button', style: btn({ fontSize: '0.85em' }), onClick: () => update({ scale: scale >= 10 ? 5 : scale + 1 }) }, `满分制 ${scale} → ${scale >= 10 ? 5 : scale + 1}`),
+        } }, '加维度'),
+        h('button', { type: 'button', className: 'om-btn', onClick: () => update({ scale: scale >= 10 ? 5 : scale + 1 }) }, `满分制 ${scale} → ${scale >= 10 ? 5 : scale + 1}`),
       )
     : null
 
   const mdPanel = showMd
-    ? h('div', { style: { marginTop: 10 } },
-        h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 } },
-          h('span', { style: { fontSize: '0.82em', opacity: 0.7 } }, 'Markdown（agent 可直接读）'),
-          h('button', { type: 'button', style: btn({ fontSize: '0.82em', padding: '2px 8px' }), onClick: () => {
+    ? h('div', { className: 'om-md' },
+        h('div', { className: 'om-head' },
+          h('span', { className: 'om-meta' }, 'Markdown（agent 可直接读）'),
+          h('button', { type: 'button', className: 'om-btn', onClick: () => {
             const nav = globalThis.navigator
             if (nav && nav.clipboard && nav.clipboard.writeText) void nav.clipboard.writeText(md)
             setCopied(true)
           } }, copied ? '已复制' : '复制'),
         ),
-        h('textarea', { readOnly: true, value: md, style: { width: '100%', minHeight: 130, font: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '0.8em', padding: 8, borderRadius: 8, border: '1px solid rgba(127,127,127,.35)', background: 'rgba(127,127,127,.06)', color: 'inherit' } }),
+        h('textarea', { readOnly: true, value: md }),
       )
     : null
 
   return h(
     'div',
-    { 'data-testid': 'option-matrix', style: { border: '1px solid rgba(127,127,127,.28)', borderRadius: 12, padding: 14, margin: '10px 0', font: 'inherit' } },
-    h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' } },
+    { 'data-testid': 'option-matrix', className: 'om-root' },
+    h('div', { className: 'om-head' },
       readOnly
-        ? h('strong', { style: { fontSize: '1.05em' } }, data.title || '方案对比')
+        ? h('strong', { className: 'om-title' }, data.title || '方案对比')
         : h('input', {
             value: draftTitle,
             placeholder: '对比标题',
+            className: 'om-field om-title',
+            style: { minWidth: 180 },
             onChange: (e: { target: { value: string } }) => { titleTouched.current = true; setDraftTitle(e.target.value) },
             onBlur: () => { titleTouched.current = false; update({ title: draftTitle }) },
-            style: field({ fontWeight: 700, fontSize: '1.05em', minWidth: 180 }),
           }),
-      h('span', { style: { opacity: 0.6, fontSize: '0.85em' } }, `${options.length} 方案 × ${criteria.length} 维度 · 满分 ${m.maxTotal.toFixed(1)}`),
-      h('span', { style: { flex: 1 } }),
-      h('button', { type: 'button', style: btn({ fontSize: '0.85em', padding: '2px 8px' }), onClick: () => setShowMd((v) => !v) }, showMd ? '隐藏 Markdown' : '导出 Markdown'),
+      h('span', { className: 'om-meta' }, `${options.length} 方案 × ${criteria.length} 维度 · 满分 ${m.maxTotal.toFixed(1)}`),
+      h('span', { className: 'om-grow' }),
+      h('button', { type: 'button', className: 'om-btn', onClick: () => setShowMd((v) => !v) }, showMd ? '隐藏 Markdown' : '导出 Markdown'),
     ),
-    h('div', { style: { overflowX: 'auto' } },
-      h('table', { 'data-testid': 'option-matrix-table', style: { borderCollapse: 'collapse', width: '100%', fontSize: '0.92em' } },
+    h('div', { className: 'om-table-wrap' },
+      h('table', { 'data-testid': 'option-matrix-table', className: 'om-table' },
         h('thead', null, h('tr', null, ...headCells)),
         h('tbody', null, ...bodyRows),
       ),
     ),
     toolbar,
     m.rationale
-      ? h('div', { 'data-testid': 'option-matrix-rationale', style: { marginTop: 10, padding: '8px 10px', borderRadius: 8, background: 'rgba(127,127,127,.08)', fontSize: '0.9em', lineHeight: 1.55 } }, `💡 ${m.rationale}`)
+      ? h('div', { 'data-testid': 'option-matrix-rationale', className: 'om-rationale' }, m.rationale)
       : null,
     mdPanel,
   )

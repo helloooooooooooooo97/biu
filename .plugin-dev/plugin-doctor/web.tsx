@@ -1,5 +1,5 @@
 const React = globalThis.React
-const { useState } = React
+const { useState, useEffect } = React
 
 export const name = 'plugin-doctor'
 export const inject = ['pageEditor']
@@ -34,15 +34,39 @@ type BlockProps = {
   writable: boolean
 }
 
-const TONE: Record<string, { bg: string; fg: string }> = {
-  '合规': { bg: '#e6f6ec', fg: '#1a7f45' },
-  '缺 README 示例': { bg: '#fdf3dd', fg: '#9a6a06' },
-  '缺引擎': { bg: '#fde8e6', fg: '#b0362a' },
-  '空插件': { bg: '#eee9f6', fg: '#6b4fa1' },
-}
+const STYLE_ID = 'plugin-doctor-style-v2'
+const STYLE_CSS = `
+.pd-root{border:1px solid var(--dsw-border);border-radius:8px;padding:10px 12px;font-family:var(--font-sans);font-size:14px;line-height:1.5;background:var(--dsw-bg);color:var(--dsw-label)}
+.pd-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pd-title{font-size:13px;font-weight:650}
+.pd-btn{height:26px;padding:0 8px;border-radius:6px;border:1px solid var(--dsw-border);background:transparent;color:var(--dsw-label);font-size:13px;font-weight:650;cursor:pointer}
+.pd-btn:hover{background:var(--dsw-hover)}
+.pd-btn:disabled{opacity:.5;cursor:default}
+.pd-meta{font-size:12px;color:var(--dsw-label-3)}
+.pd-err{margin-top:8px;color:var(--dsw-danger);font-size:13px}
+.pd-empty{margin-top:8px;color:var(--dsw-label-3);font-size:13px}
+.pd-table-wrap{margin-top:8px;overflow-x:auto}
+.pd-table{border-collapse:collapse;width:100%;font-size:13px}
+.pd-table th{padding:4px 10px 4px 0;font-weight:650;color:var(--dsw-label-3);text-align:left}
+.pd-table td{padding:6px 10px 6px 0;vertical-align:top;border-top:1px solid var(--dsw-border)}
+.pd-id{font-family:var(--font-mono);font-size:12px}
+.pd-name{color:var(--dsw-label-3)}
+.pd-chip{display:inline-block;margin-right:4px;padding:1px 6px;border-radius:6px;font-size:11px;line-height:16px;border:1px solid var(--dsw-border);background:var(--dsw-hover);color:var(--dsw-label-3);white-space:nowrap}
+.pd-chip.is-on{color:var(--dsw-label);background:var(--dsw-input)}
+.pd-tone{padding:1px 8px;border-radius:6px;white-space:nowrap;border:1px solid var(--dsw-border);background:var(--dsw-hover);color:var(--dsw-label)}
+.pd-tone.warn{color:var(--dsw-label)}
+.pd-tone.bad{color:var(--dsw-danger)}
+`
 
-const th: Record<string, string | number> = { padding: '4px 10px 4px 0', fontWeight: 600 }
-const td: Record<string, string | number> = { padding: '6px 10px 6px 0', verticalAlign: 'top' }
+function usePdStyle() {
+  useEffect(() => {
+    const existing = document.getElementById(STYLE_ID)
+    const el = existing instanceof HTMLStyleElement ? existing : document.createElement('style')
+    el.id = STYLE_ID
+    el.textContent = STYLE_CSS
+    if (el.parentNode !== document.head) document.head.appendChild(el)
+  }, [])
+}
 
 function kb(bytes: number) {
   if (!bytes) return '0 B'
@@ -69,26 +93,14 @@ function clock(ts: number) {
 
 function Chip(props: { label: string; on?: boolean; title?: string }) {
   return (
-    <span
-      title={props.title}
-      style={{
-        display: 'inline-block',
-        marginRight: 4,
-        padding: '1px 6px',
-        borderRadius: 999,
-        fontSize: 11,
-        lineHeight: '16px',
-        background: props.on ? '#e6f0fb' : '#f1f1f1',
-        color: props.on ? '#1d64b5' : '#999',
-        whiteSpace: 'nowrap',
-      }}
-    >
+    <span title={props.title} className={props.on ? 'pd-chip is-on' : 'pd-chip'}>
       {props.label}
     </span>
   )
 }
 
 function DoctorBlock(props: BlockProps) {
+  usePdStyle()
   const report = (props.data && props.data.report ? props.data.report : null) as ScanResult | null
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -110,100 +122,68 @@ function DoctorBlock(props: BlockProps) {
   }
 
   return (
-    <div
-      data-testid="plugin-doctor-block"
-      style={{
-        border: '1px solid #e3e3e3',
-        borderRadius: 10,
-        padding: '12px 14px',
-        font: '13px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
-        background: '#fff',
-        color: '#222',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <strong style={{ fontSize: 14 }}>{'\u{1FA7A}'} 插件体检</strong>
+    <div data-testid="plugin-doctor-block" className="pd-root">
+      <div className="pd-head">
+        <strong className="pd-title">插件体检</strong>
         {props.writable ? (
-          <button
-            data-testid="plugin-doctor-run"
-            onClick={run}
-            disabled={busy}
-            style={{
-              padding: '4px 12px',
-              borderRadius: 6,
-              border: '1px solid #1d64b5',
-              background: busy ? '#cfe0f5' : '#1d64b5',
-              color: '#fff',
-              fontSize: 12,
-              cursor: busy ? 'default' : 'pointer',
-            }}
-          >
+          <button data-testid="plugin-doctor-run" onClick={run} disabled={busy} className="pd-btn">
             {busy ? '扫描中…' : '体检'}
           </button>
         ) : (
-          <span style={{ fontSize: 12, color: '#888' }}>只读态 · 展示上次结果</span>
+          <span className="pd-meta">只读态 · 展示上次结果</span>
         )}
         {report ? (
-          <span style={{ fontSize: 12, color: '#666' }}>
+          <span className="pd-meta">
             共 {report.total} 个插件 · 合规 {report.summary.ok} · 待修 {report.summary.warn} · 坏 {report.summary.broken} · 合计 {kb(report.summary.bytes)} · 扫描于 {clock(report.scannedAt)}
           </span>
         ) : null}
       </div>
 
-      {error ? <div style={{ marginTop: 8, color: '#b0362a', fontSize: 12 }}>{error}</div> : null}
+      {error ? <div className="pd-err">{error}</div> : null}
 
       {!report ? (
-        <div style={{ marginTop: 8, color: '#888', fontSize: 12 }}>
+        <div className="pd-empty">
           还没有体检结果{props.writable ? '，点「体检」扫一遍 .plugin。' : '。'}
         </div>
       ) : (
-        <div style={{ marginTop: 10, overflowX: 'auto' }}>
-          <table data-testid="plugin-doctor-table" style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+        <div className="pd-table-wrap">
+          <table data-testid="plugin-doctor-table" className="pd-table">
             <thead>
-              <tr style={{ color: '#666', textAlign: 'left' }}>
-                <th style={th}>插件</th>
-                <th style={th}>headless</th>
-                <th style={th}>host / web</th>
-                <th style={th}>大小</th>
-                <th style={th}>最近运行</th>
-                <th style={th}>README 示例</th>
-                <th style={th}>体检结论</th>
+              <tr>
+                <th>插件</th>
+                <th>headless</th>
+                <th>host / web</th>
+                <th>大小</th>
+                <th>最近运行</th>
+                <th>README 示例</th>
+                <th>体检结论</th>
               </tr>
             </thead>
             <tbody>
               {report.plugins.map((item) => {
-                const tone = TONE[item.conclusion] || { bg: '#f1f1f1', fg: '#666' }
+                const tone = item.conclusion === '合规' ? 'pd-tone' : item.conclusion === '缺引擎' || item.conclusion === '空插件' ? 'pd-tone bad' : 'pd-tone warn'
                 return (
-                  <tr key={item.id} style={{ borderTop: '1px solid #f0f0f0' }}>
-                    <td style={td}>
-                      <code style={{ fontSize: 11 }}>{item.id}</code>
-                      <div style={{ color: '#777' }}>{item.name}</div>
+                  <tr key={item.id}>
+                    <td>
+                      <code className="pd-id">{item.id}</code>
+                      <div className="pd-name">{item.name}</div>
                     </td>
-                    <td style={td}>
+                    <td>
                       <Chip label={item.headless ? '是' : '否'} on={item.headless} />
                     </td>
-                    <td style={td}>
+                    <td>
                       <Chip label="host" on={item.hasHost} />
                       <Chip label="web" on={item.hasWeb} />
                     </td>
-                    <td style={td}>{kb(item.bytes)}</td>
-                    <td style={td} title={item.lastRunAt ? clock(item.lastRunAt) : '没有运行记录'}>
+                    <td>{kb(item.bytes)}</td>
+                    <td title={item.lastRunAt ? clock(item.lastRunAt) : '没有运行记录'}>
                       {when(item.lastRunAt)}
                     </td>
-                    <td style={td}>
+                    <td>
                       {item.readmeExample ? <Chip label="有" on /> : <Chip label={item.readme ? '缺' : '无 README'} />}
                     </td>
-                    <td style={td}>
-                      <span
-                        title={(item.problems || []).join('；')}
-                        style={{
-                          padding: '1px 8px',
-                          borderRadius: 999,
-                          background: tone.bg,
-                          color: tone.fg,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
+                    <td>
+                      <span title={(item.problems || []).join('；')} className={tone}>
                         {item.conclusion}
                       </span>
                     </td>
@@ -212,7 +192,7 @@ function DoctorBlock(props: BlockProps) {
               })}
             </tbody>
           </table>
-          <div style={{ marginTop: 6, fontSize: 11, color: '#999' }}>扫描根目录：{report.root}</div>
+          <div className="pd-meta" style={{ marginTop: 6 }}>扫描根目录：{report.root}</div>
         </div>
       )}
     </div>

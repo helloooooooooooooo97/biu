@@ -6,25 +6,27 @@ const { useEffect, useRef, useState } = React
 export const name = 'page-toc'
 export const inject = ['pageEditor']
 
-const STYLE_ID = 'page-toc-style-v1'
+const STYLE_ID = 'page-toc-style-v2'
 const STYLE_CSS = `
 .page-toc{
   border:1px solid var(--dsw-border);
-  border-radius:12px;
+  border-radius:8px;
   background:var(--dsw-bg);
   color:var(--dsw-label);
-  font:13px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;
-  padding:12px 14px 10px;
+  font-family:var(--font-sans);
+  font-size:14px;
+  line-height:1.5;
+  padding:8px 10px;
 }
 .page-toc-kicker{
-  margin:0 0 8px;
-  font-size:11px;
+  margin:0 0 4px;
+  padding:2px 8px;
+  font-size:12px;
   font-weight:650;
-  letter-spacing:.06em;
   color:var(--dsw-label-3);
 }
 .page-toc-list{margin:0;padding:0;list-style:none}
-.page-toc-empty{margin:0;color:var(--dsw-label-3);font-size:12px}
+.page-toc-empty{margin:0;padding:4px 8px;color:var(--dsw-label-3);font-size:13px}
 .page-toc-item{margin:0}
 .page-toc-link{
   display:block;
@@ -34,14 +36,16 @@ const STYLE_CSS = `
   border-radius:6px;
   padding:4px 8px;
   background:transparent;
-  color:inherit;
+  color:var(--dsw-label);
   font:inherit;
+  font-size:14px;
+  font-weight:500;
   text-align:left;
   cursor:pointer;
 }
-.page-toc-link:hover{background:var(--dsw-hover)}
-.page-toc-l2{padding-left:20px}
-.page-toc-l3{padding-left:32px}
+.page-toc-link:hover{background:var(--dsw-hover);color:var(--dsw-sidebar-fg-active)}
+.page-toc-l2{padding-left:22px}
+.page-toc-l3{padding-left:36px}
 `
 
 function useTocStyle() {
