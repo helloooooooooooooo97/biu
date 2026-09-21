@@ -386,14 +386,14 @@ const CSS = `
 .fsdb-detail-float-btn:hover:not(:disabled){background:var(--dsw-hover);color:var(--dsw-icon-active)}
 .fsdb-detail-float-btn:disabled{opacity:.35;cursor:default;color:var(--dsw-icon)}
 .fsdb-detail-more-menu{min-width:168px;padding:4px;display:flex;flex-direction:column;gap:1px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:10px;box-shadow:var(--dsw-shadow)}
-.fsdb-detail-more-menu.has-share{padding:0 0 4px;gap:1px;overflow:auto;max-height:min(70vh,640px)}
-.fsdb-detail-more-menu.has-share .fsdb-detail-more-item{width:auto;margin:0 4px}
+.fsdb-detail-more-menu.has-share{padding:0;overflow:auto;max-height:min(70vh,640px)}
 .fsdb-detail-more-menu .fsdb-share-panel.is-embedded{position:static;top:auto;right:auto;z-index:auto;width:100%;max-height:none;box-shadow:none;border:0;border-radius:10px}
 .fsdb-detail-more-item{display:flex;align-items:center;gap:8px;width:100%;margin:0;border:0;border-radius:6px;padding:7px 8px;background:transparent;color:var(--dsw-label);font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer}
 .fsdb-detail-more-item:hover,.fsdb-detail-more-item[aria-pressed=true]{background:var(--dsw-hover)}
 .fsdb-detail-more-item.is-danger{color:var(--dsw-danger)}
 .fsdb-detail-more-item.is-danger:hover{background:color-mix(in srgb,var(--dsw-danger) 16%,transparent)}
 .fsdb-detail-more-item svg{flex:none;width:16px;height:16px;color:var(--dsw-icon)}
+.fsdb-detail-more-item .fsdb-detail-more-caret{margin-left:auto}
 .fsdb-detail-more-item.is-danger svg{color:var(--dsw-danger)}
 .fsdb-detail-split{display:flex;flex-direction:column;flex:none;width:100%;min-height:min-content;overflow:visible}
 .fsdb-detail-main{box-sizing:border-box;width:100%;max-width:none;margin-inline:0;display:flex;flex-direction:column;gap:8px;padding:0 0 24px;min-width:0}

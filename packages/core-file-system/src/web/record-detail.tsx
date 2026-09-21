@@ -1,7 +1,7 @@
 import { cloneElement, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode, type Dispatch, type SetStateAction } from 'react'
 import type { CollectionChrome } from '@biu/type-file-system/ui'
 import type { CollectionSchema, DbRecord, FieldSpec } from '@biu/type-file-system'
-import { ChevronDownIcon, ChevronUpIcon, EllipsisHorizontalIcon, HashtagIcon } from '@heroicons/react/16/solid'
+import { ChevronDownIcon, ChevronLeftIcon, ChevronUpIcon, EllipsisHorizontalIcon, HashtagIcon, ShareIcon } from '@heroicons/react/16/solid'
 import { AnchorMenu, RecordEmojiBoard } from '@biu/public-ui'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import { contentFieldKey, fieldHasValue, formatField, resolveFieldType } from './fields.ts'
@@ -112,6 +112,7 @@ function DetailMore({
   onDelete,
   deleteLabel,
   share,
+  shareLabel,
 }: {
   record: DbRecord
   Tools?: CollectionChrome['DetailTools']
@@ -119,9 +120,14 @@ function DetailMore({
   onDelete?: () => void
   deleteLabel: string
   share?: ReactNode
+  shareLabel?: string
 }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
-  const close = () => setAnchor(null)
+  const [shareItem, setShareItem] = useState<HTMLElement | null>(null)
+  const close = () => {
+    setAnchor(null)
+    setShareItem(null)
+  }
   const actionMenu =
     actions && isValidElement(actions)
       ? cloneElement(actions as ReactElement<{ onDone?: () => void }>, { onDone: close })
@@ -144,14 +150,32 @@ function DetailMore({
         <AnchorMenu
           anchor={anchor}
           onClose={close}
-          className={`fsdb-detail-more-menu${share ? ' has-share' : ''}`}
+          className="fsdb-detail-more-menu"
           role="menu"
-          minWidth={share ? 360 : 168}
+          minWidth={168}
           placement="left"
+          inside={(node) => node instanceof Element && Boolean(node.closest('.fsdb-detail-more-menu.has-share'))}
         >
-          {share}
           {Tools ? <Tools record={record} onDone={close} /> : null}
           {actionMenu}
+          {share ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="fsdb-detail-more-item"
+              aria-haspopup="dialog"
+              aria-expanded={Boolean(shareItem)}
+              data-testid="fsdb-detail-share"
+              onClick={(event) => {
+                const btn = event.currentTarget
+                setShareItem((prev) => (prev ? null : btn))
+              }}
+            >
+              <ShareIcon aria-hidden />
+              {shareLabel || '分享'}
+              <ChevronLeftIcon aria-hidden className="fsdb-detail-more-caret" />
+            </button>
+          ) : null}
           {onDelete ? (
             <button
               type="button"
@@ -167,6 +191,20 @@ function DetailMore({
               {deleteLabel}
             </button>
           ) : null}
+        </AnchorMenu>
+      ) : null}
+      {anchor && share && shareItem ? (
+        <AnchorMenu
+          anchor={shareItem}
+          onClose={() => setShareItem(null)}
+          className="fsdb-detail-more-menu has-share"
+          role="dialog"
+          minWidth={360}
+          placement="left"
+          zIndex={210}
+          inside={(node) => Boolean(anchor.contains(node))}
+        >
+          {share}
         </AnchorMenu>
       ) : null}
     </>
@@ -484,6 +522,7 @@ export function RecordDetail({
                   onDelete={onDelete}
                   deleteLabel={collectionPath === '/pages' ? '删除页面' : '删除记录'}
                   share={share}
+                  shareLabel={collectionPath === '/pages' ? '分享页面' : '分享记录'}
                 />
               ) : null}
               {onPrev || onNext ? (

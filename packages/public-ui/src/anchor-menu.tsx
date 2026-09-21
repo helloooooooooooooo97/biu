@@ -12,6 +12,7 @@ export function AnchorMenu({
   zIndex = 200,
   minWidth = 220,
   placement = 'bottom',
+  inside,
   ...rest
 }: {
   anchor: HTMLElement | null
@@ -22,6 +23,7 @@ export function AnchorMenu({
   zIndex?: number
   minWidth?: number
   placement?: 'bottom' | 'right' | 'left'
+  inside?: (node: Node) => boolean
 } & Omit<HTMLAttributes<HTMLDivElement>, 'role' | 'className' | 'children'>) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState({ top: 0, left: 0, width: 200 })
@@ -56,7 +58,7 @@ export function AnchorMenu({
 
   if (!anchor) return null
   return createPortal(
-    <HeadlessDismiss onDismiss={onClose} inside={(node) => Boolean(anchor.contains(node))}>
+    <HeadlessDismiss onDismiss={onClose} inside={(node) => Boolean(anchor.contains(node) || inside?.(node))}>
       <div
         ref={menuRef}
         className={className}
