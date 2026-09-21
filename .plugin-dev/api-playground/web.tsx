@@ -592,8 +592,8 @@ export function apply(ctx: {
     kind: 'api-play',
     plugin: name,
     label: 'API 调试块',
-    blockType: 'api',
-    blockTypeLabel: 'API 调试',
+    blockType: 'test',
+    blockTypeLabel: '测试',
     hint: '填 method / url / headers / body，点发送，host 侧真发 HTTP 请求，状态码 / 耗时 / 响应头 / 响应体都显示在块里；历史存进块数据',
     aliases: ['api', 'http', 'request', 'curl', 'postman', '接口', '调试'],
     defaults: () => ({

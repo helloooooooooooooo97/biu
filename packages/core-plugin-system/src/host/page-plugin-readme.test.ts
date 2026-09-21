@@ -23,3 +23,18 @@ test('every page plugin README includes a pageBlock example', () => {
     assert.match(readme, new RegExp(`plugin=${id}`), `${id} README must name its plugin id`)
   }
 })
+
+test('development page blocks register under the 测试 slash group', () => {
+  const files = [
+    'api-playground/web.tsx',
+    'option-matrix/web.tsx',
+    'page-regression/web.tsx',
+    'plugin-doctor/web.tsx',
+  ]
+  for (const file of files) {
+    const src = readFileSync(join(sandbox, file), 'utf8')
+    assert.match(src, /blockType:\s*'test'/, `${file} should use blockType test`)
+    assert.match(src, /blockTypeLabel:\s*'测试'/, `${file} should use blockTypeLabel 测试`)
+    assert.doesNotMatch(src, /blockType:\s*'(basic|api|dev)'/, `${file} should not use a separate slash group`)
+  }
+})
