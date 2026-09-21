@@ -298,6 +298,7 @@ export class SessionViewService extends Service {
   private busyHoldUntil = 0
   /** 切会话时画面还是上一段：ingest 不能往旧 events 上叠新 session */
   private holdPreviousThread = false
+  private sessionsRefreshTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(ctx: Context) {
     super(ctx, 'sessionView')
@@ -494,7 +495,7 @@ export class SessionViewService extends Service {
     this.stashCurrent()
     // 检查器打开后 trajectoryLive=true：即使 URL 仍是 chat 也要刷新右侧轨迹
     if (this.wantsTrajectory()) void this.refreshTrajectoryIndex()
-    void this.refreshSessions()
+    this.scheduleRefreshSessions()
   }
 
   private ingestChunk(sessionId: string, event: Extract<SessionEvent, { type: 'assistant/chunk' }>) {
@@ -661,6 +662,14 @@ export class SessionViewService extends Service {
 
   removeApproval(id: string) {
     this.replace({ approvals: this.value.approvals.filter((row) => row.id !== id) })
+  }
+
+  private scheduleRefreshSessions() {
+    if (this.sessionsRefreshTimer != null) return
+    this.sessionsRefreshTimer = setTimeout(() => {
+      this.sessionsRefreshTimer = null
+      void this.refreshSessions()
+    }, 200)
   }
 
   async refreshSessions() {
@@ -1407,6 +1416,8 @@ export class SessionViewService extends Service {
             ...imagePayload,
           }
 
+    if (busy) this.enqueueLocalInbox(effectiveKind, content || '（图片）')
+
     if (effectiveKind === 'inject') {
       const res = await fetch(`/api/sessions/${sessionId}/messages`, {
         method: 'POST',
@@ -1425,7 +1436,7 @@ export class SessionViewService extends Service {
     this.markBusyHold()
     this.setAgentStatus('running', undefined, sessionId)
     this.replace({ error: undefined })
-    this.paintOutgoingUser(sessionId, content || '（图片）', pics)
+    if (!busy) this.paintOutgoingUser(sessionId, content || '（图片）', pics)
     try {
       const res = await fetch(`/api/sessions/${sessionId}/messages`, {
         method: 'POST',
@@ -1458,6 +1469,15 @@ export class SessionViewService extends Service {
     // 成功后不要在 finally 里强行 idle：agent 仍在跑，状态交给 WS agent/status
   }
 
+  private enqueueLocalInbox(kind: 'wake' | 'inject', text: string) {
+    const item = {
+      id: `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      kind,
+      text,
+    }
+    this.replace({ inbox: [...this.value.inbox, item] })
+  }
+
   private paintOutgoingUser(
     sessionId: string,
     text: string,
@@ -1482,7 +1502,18 @@ export class SessionViewService extends Service {
   setInbox(inbox: InboxQueueItem[], sessionId?: string) {
     const id = sessionId ?? this.value.sessionId
     if (id && this.value.sessionId && id !== this.value.sessionId) return
-    const next = Array.isArray(inbox) ? inbox : []
+    const server = Array.isArray(inbox) ? inbox : []
+    const used = new Set<string>()
+    const locals = this.value.inbox.filter((item) => item.id.startsWith('local-'))
+    const keep = locals.filter((local) => {
+      const hit = server.find((item) => item.kind === local.kind && item.text === local.text && !used.has(item.id))
+      if (hit) {
+        used.add(hit.id)
+        return false
+      }
+      return true
+    })
+    const next = keep.length ? [...server, ...keep] : server
     if (JSON.stringify(next) === JSON.stringify(this.value.inbox)) return
     this.replace({ inbox: next })
   }

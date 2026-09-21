@@ -1049,6 +1049,31 @@ test('send wake paints the user bubble before the host roundtrip', async () => {
   assert.equal(view.get().nodes.filter((node) => node.kind === 'user' && node.text === '立刻出现').length, 1)
 })
 
+test('busy send appears in the wake inbox before messages HTTP returns', async () => {
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes('/messages')) {
+      await new Promise(() => undefined)
+    }
+    if (url.includes('/api/sessions')) {
+      return { ok: true, status: 200, json: async () => ({ sessions: [] }) } as Response
+    }
+    if (url.includes('/api/approvals')) {
+      return { ok: true, status: 200, json: async () => ({ mode: 'auto', pending: [] }) } as Response
+    }
+    return { ok: false, status: 404, json: async () => ({}) } as Response
+  }) as typeof fetch
+  const ctx = new Context()
+  await ctx.plugin(sessionView)
+  const view = ctx.sessionView as SessionViewService
+  view.ingest('s1', { type: 'session/open', version: 1, seq: 0, ts: 1 })
+  view.setAgentStatus('running', 1)
+  void view.send('排队这句话')
+  await Promise.resolve()
+  assert.equal(view.get().inbox.some((item) => item.kind === 'wake' && item.text === '排队这句话'), true)
+  assert.equal(view.get().nodes.some((node) => node.kind === 'user' && node.text === '排队这句话'), false)
+})
+
 test('empty switching session still ingests the outgoing user bubble', async () => {
   mockFetch({
     '/api/sessions': () => ({ sessions: [] }),
