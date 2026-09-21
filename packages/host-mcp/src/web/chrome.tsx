@@ -93,29 +93,29 @@ function ToolsPane({ record }: FsDetailPaneProps) {
               <code className="mcp-tool-name">{tool.name}</code>
               {tool.description ? <span className="mcp-tool-desc">{tool.description}</span> : null}
             </div>
-            <div className="mcp-tool-flags">
-              <span className={`mcp-tool-state${tool.allowed ? ' is-on' : ''}`}>{tool.allowed ? '可用' : '不可用'}</span>
-              {locked ? null : (
-                <>
-                  <button
-                    type="button"
-                    className={`mcp-tool-toggle${allowOn ? ' is-on' : ''}`}
-                    aria-pressed={allowOn}
-                    onClick={() => void patchMcp(String(record.id), { allow: toggle(allow, tool.name, !allowOn) })}
-                  >
-                    仅允许
-                  </button>
-                  <button
-                    type="button"
-                    className={`mcp-tool-toggle is-deny${excluded ? ' is-on' : ''}`}
-                    aria-pressed={excluded}
-                    onClick={() => void patchMcp(String(record.id), { deny: toggle(deny, tool.name, !excluded) })}
-                  >
-                    禁用
-                  </button>
-                </>
-              )}
-            </div>
+            {tool.allowed ? (
+              <span className="mcp-tool-dot" title="可用" aria-label="可用" />
+            ) : null}
+            {locked ? null : (
+              <div className="mcp-tool-actions">
+                <button
+                  type="button"
+                  className={`mcp-tool-toggle${allowOn ? ' is-on' : ''}`}
+                  aria-pressed={allowOn}
+                  onClick={() => void patchMcp(String(record.id), { allow: toggle(allow, tool.name, !allowOn) })}
+                >
+                  仅允许
+                </button>
+                <button
+                  type="button"
+                  className={`mcp-tool-toggle is-deny${excluded ? ' is-on' : ''}`}
+                  aria-pressed={excluded}
+                  onClick={() => void patchMcp(String(record.id), { deny: toggle(deny, tool.name, !excluded) })}
+                >
+                  禁用
+                </button>
+              </div>
+            )}
           </li>
         )
       })}
