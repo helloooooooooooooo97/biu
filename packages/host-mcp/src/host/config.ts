@@ -96,7 +96,7 @@ export function normalizeServerConfig(id: string, value: unknown): McpServerConf
 /** 还不能连的草稿：stdio 缺命令，远端缺地址。空串表示配置已齐。 */
 export function incompleteReason(config: McpServerConfig) {
   if (config.transport === 'stdio') {
-    return config.command ? '' : '还没填命令（command），填好后点连接'
+    return config.command ? '' : '还没填命令（command），填好后启用'
   }
   return /^https?:\/\//i.test(config.url) ? '' : '还没填地址（url），需要 http(s) 开头'
 }

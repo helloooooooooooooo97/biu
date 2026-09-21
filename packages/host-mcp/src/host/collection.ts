@@ -2,17 +2,6 @@ import { recordBuiltinValues, REQUIRED_RECORD_FIELDS, type CollectionSpec, type 
 import { envToList, headersToList, listToEnv, listToHeaders, type McpServerConfig } from './config.ts'
 import type { McpServerRow, McpService } from './index.ts'
 
-const ADD_DESCRIPTION =
-  '挂载一台 MCP 服务器并写入 .biu/mcp.json（记录可以还不存在，id 就是这行的 id）。' +
-  'stdio 填 command + args（可选 env、cwd）；远端填 url，并把 transport 设为 http 或 sse。' +
-  'tools 可选，形如 {"allow":["read_*"],"deny":["write_file"]}，用来只允许这台服务器的一部分工具。' +
-  'enabled 缺省为 true，挂上即连接。'
-
-const SELECT_DESCRIPTION =
-  '设置这台服务器的工具选择：args 传 {"allow":[...],"deny":[...]}，两者都认 * 通配。' +
-  'deny 优先于 allow；allow 非空时只允许命中的工具。被禁用的工具不出现在 mcp_list 里，mcp_call 也会拒绝。' +
-  '先用 list_tools 动作看全量工具名，再决定填什么。清空过滤就传 {"allow":[],"deny":[]}。'
-
 function asRecord(
   row: McpServerRow,
   config?: McpServerConfig,
@@ -126,13 +115,10 @@ export function mcpCollection(mcp: McpService): CollectionSpec {
         'Biu 自己也作为 MCP 服务端对外：设置 → MCP 或本机 GET /api/mcp/info 拿局域网 url + Bearer token。' +
         'MCP 挂在分享口（默认 0.0.0.0），局域网其它电脑可以调；工作台 API 仍只在本机。' +
         '一行 = 一台服务器；它提供的工具不会各自变成独立工具，Agent 统一用 mcp_list 看清单、mcp_call 调用。' +
-        '新建一行会得到一台停用的 stdio 草稿（名字 new-server），把 command / args 填好再打开 enabled 即可；' +
+        '新建一行会得到一台停用的 stdio 草稿（名字 new-server），把 command / args 填好再打开「已启用」即可；' +
         'title 就是 .biu/mcp.json 的 key，改它等于重命名。远端服务器把 transport 改成 http 或 sse 并填 url。' +
-        'env 一项一个 KEY=VALUE，headers 一项一个 Name: Value。' +
-        '本表动作（db_action path=/mcp/<服务器id> action=…）：add=一次填好挂载新服务器（记录可以还不存在，比新建再逐字段改更省）；' +
-        'connect / disconnect=连接、断开但保留配置；enable / disable=改 .biu/mcp.json 里的开关；' +
-        'refresh=重新拉取工具清单；list_tools=看这台服务器的全量工具及是否可用；' +
-        'select=设置工具选择（allow / deny）；uninstall=从配置里删掉。' +
+        'env 一项一个 KEY=VALUE，headers 一项一个 Name: Value。工具选择改「仅允许 / 禁用」两列，或在详情清单里勾。' +
+        '本表动作只留启用 / 停用（改 enabled 并连上或断开）和删除。挂载用新建行或 mcp_add_stdio，清单用 mcp_list。' +
         'status=error 时看 error 列，stdio 服务器那里会带上子进程 stderr。builtin 的 echo 行只用于自检，不能改。',
       order: 40,
       icon: 'link',
@@ -218,44 +204,6 @@ export function mcpCollection(mcp: McpService): CollectionSpec {
     },
     actions: [
       {
-        id: 'add',
-        label: '挂载服务器',
-        for: 'agent',
-        placement: [],
-        allowMissing: true,
-        description: ADD_DESCRIPTION,
-        parameters: {
-          type: 'object',
-          description: ADD_DESCRIPTION,
-          properties: {
-            transport: { type: 'string', enum: ['stdio', 'http', 'sse'], description: '缺省按 url / command 推断' },
-            command: { type: 'string', description: 'stdio：可执行文件，例如 npx' },
-            args: { type: 'array', items: { type: 'string' } },
-            env: { type: 'object', description: 'stdio：追加的环境变量' },
-            cwd: { type: 'string', description: 'stdio：子进程工作目录' },
-            url: { type: 'string', description: 'http / sse：服务器地址' },
-            headers: { type: 'object', description: 'http / sse：请求头，例如 Authorization' },
-            enabled: { type: 'boolean' },
-            tools: { type: 'object', description: '工具选择 {"allow":[],"deny":[]}' },
-          },
-        },
-        run: (id, _record, args = {}) => mcp.upsert({ ...args, id }),
-      },
-      {
-        id: 'connect',
-        label: '连接',
-        when: { builtin: false },
-        description: '按配置连上这台服务器并拉取工具清单。已连着会先断开再连（等于重连）。',
-        run: (id) => mcp.connect(id),
-      },
-      {
-        id: 'disconnect',
-        label: '断开',
-        when: { builtin: false, status: 'ready' },
-        description: '断开连接但保留 .biu/mcp.json 里的配置与 enabled 开关。',
-        run: (id) => mcp.disconnect(id),
-      },
-      {
         id: 'enable',
         label: '启用',
         when: { builtin: false, enabled: false },
@@ -266,40 +214,8 @@ export function mcpCollection(mcp: McpService): CollectionSpec {
         id: 'disable',
         label: '停用',
         when: { builtin: false, enabled: true },
-        description: '把 enabled 置为 false 并断开；配置留着，之后 enable 就能回来。',
+        description: '把 enabled 置为 false 并断开；配置留着，之后启用就能回来。',
         run: (id) => mcp.setEnabled(id, false),
-      },
-      {
-        id: 'refresh',
-        label: '刷新工具',
-        when: { builtin: false },
-        description: '重新向服务器拉取工具清单；没连上时等同 connect。',
-        run: (id) => mcp.refresh(id),
-      },
-      {
-        id: 'list_tools',
-        label: '查看工具',
-        for: 'agent',
-        placement: [],
-        description:
-          '列出这台服务器的全量工具（含已禁用的），每项带 allowed 标记。改过滤前先用它确认工具名。',
-        parameters: { type: 'object', properties: {} },
-        run: (id) => mcp.catalog(id),
-      },
-      {
-        id: 'select',
-        label: '选择工具',
-        when: { builtin: false },
-        description: SELECT_DESCRIPTION,
-        parameters: {
-          type: 'object',
-          description: SELECT_DESCRIPTION,
-          properties: {
-            allow: { type: 'array', items: { type: 'string' }, description: '仅允许这些（空数组=不限制）' },
-            deny: { type: 'array', items: { type: 'string' }, description: '禁用这些，优先于 allow' },
-          },
-        },
-        run: (id, _record, args = {}) => mcp.setToolFilter(id, args),
       },
       {
         id: 'uninstall',
@@ -307,7 +223,7 @@ export function mcpCollection(mcp: McpService): CollectionSpec {
         tone: 'danger',
         confirm: '确定删除这台 MCP 服务器？配置会从 .biu/mcp.json 移除。',
         when: { builtin: false },
-        description: '断开连接并从 .biu/mcp.json 删掉这台服务器。只想临时停用请用 disable。',
+        description: '断开连接并从 .biu/mcp.json 删掉这台服务器。只想临时停用请用停用。',
         run: (id) => mcp.remove(id),
       },
     ],

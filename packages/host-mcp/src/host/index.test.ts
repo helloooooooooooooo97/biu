@@ -2,7 +2,7 @@ import { afterEach, beforeEach, test } from 'vitest'
 import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { Context } from 'cordis'
 import * as tools from '@biu/host-tools'
 import * as mcp from './index.ts'
@@ -74,7 +74,7 @@ test('config parses the Cursor mcpServers shape and infers transport', () => {
   // broken 缺 command，但不会被丢掉：它成为一行草稿，界面上能看到还差什么。
   assert.deepEqual(parsed.map((item) => item.id), ['broken', 'legacy', 'local', 'off', 'remote'])
   const byId = new Map(parsed.map((item) => [item.id, item]))
-  assert.equal(incompleteReason(byId.get('broken')!), '还没填命令（command），填好后点连接')
+  assert.equal(incompleteReason(byId.get('broken')!), '还没填命令（command），填好后启用')
   assert.equal(incompleteReason(byId.get('local')!), '')
   assert.equal(incompleteReason(byId.get('remote')!), '')
   assert.equal(byId.get('local')?.transport, 'stdio')
@@ -167,7 +167,7 @@ test('draft(): a new row lands disabled, persisted, and says what it needs', asy
   assert.equal(row.id, 'new-server')
   assert.equal(row.enabled, false)
   assert.equal(row.status, 'idle')
-  assert.equal(row.error, '还没填命令（command），填好后点连接')
+  assert.equal(row.error, '还没填命令（command），填好后启用')
   // 已经落盘，重启后这行草稿还在。
   assert.deepEqual(parseMcpConfig(JSON.parse(readFileSync(process.env.BIU_MCP_CONFIG!, 'utf8')) as unknown).map((c) => c.id), ['new-server'])
   // 连续新建不会撞名。
@@ -226,4 +226,14 @@ test('env / headers survive the round trip through their table form', () => {
   // token 里带逗号不能被当成分隔符切开。
   assert.deepEqual(listToEnv(['LIST=a,b,c']), { LIST: 'a,b,c' })
   assert.deepEqual(listToHeaders(['Authorization: Bearer x,y', 'Bad']), { Authorization: 'Bearer x,y' })
+})
+
+test('mcp table only keeps enable, disable, and uninstall actions', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './collection.ts'), 'utf8')
+  assert.match(src, /id: 'enable'/)
+  assert.match(src, /id: 'disable'/)
+  assert.match(src, /id: 'uninstall'/)
+  for (const id of ['add', 'connect', 'disconnect', 'refresh', 'list_tools', 'select']) {
+    assert.doesNotMatch(src, new RegExp(`id: '${id}'`), id)
+  }
 })
