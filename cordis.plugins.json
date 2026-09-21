@@ -12,7 +12,7 @@
     { "id": "subprocess", "package": "@biu/host-subprocess", "togglable": false, "enabled": true },
     { "id": "shell", "package": "@biu/host-shell", "togglable": false, "enabled": true },
     { "id": "jobs", "package": "@biu/host-jobs", "togglable": false, "enabled": true },
-    { "id": "mcp", "package": "@biu/host-mcp", "togglable": false, "enabled": true },
+    { "id": "mcp", "package": "@biu/host-mcp", "web": "@biu/host-mcp/web", "togglable": false, "enabled": true },
     { "id": "terminal", "package": "@biu/host-terminal", "togglable": false, "enabled": true },
     { "id": "lsp", "package": "@biu/host-lsp", "togglable": false, "enabled": true },
     { "id": "web", "package": "@biu/host-web", "togglable": false, "enabled": true },

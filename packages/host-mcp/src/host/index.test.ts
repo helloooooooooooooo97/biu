@@ -37,6 +37,10 @@ test('in-process mcp echo provider', async () => {
   assert.equal(ctx.tools.executionMode('mcp_call', { server: 'missing', name: 'unknown' }), 'exclusive')
   const result = (await ctx.tools.invoke('mcp_call', { server: 'echo', name: 'mcp_echo', arguments: { text: 'hi' } })) as { text: string }
   assert.equal(result.text, 'hi')
+  const catalog = ctx.mcp.catalog('echo')
+  assert.equal(catalog.length, 1)
+  assert.equal(catalog[0]?.name, 'mcp_echo')
+  assert.equal(catalog[0]?.allowed, true)
 })
 
 test('mcp_remove refuses built-in echo and exposes add/remove tools', async () => {

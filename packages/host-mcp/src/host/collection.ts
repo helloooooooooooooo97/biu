@@ -13,7 +13,11 @@ const SELECT_DESCRIPTION =
   'deny 优先于 allow；allow 非空时只放出命中的工具。被排除的工具不出现在 mcp_list 里，mcp_call 也会拒绝。' +
   '先用 list_tools 动作看全量工具名，再决定填什么。清空过滤就传 {"allow":[],"deny":[]}。'
 
-function asRecord(row: McpServerRow, config?: McpServerConfig): DbRecord {
+function asRecord(
+  row: McpServerRow,
+  config?: McpServerConfig,
+  catalog: Array<{ name: string; description?: string; allowed: boolean }> = [],
+): DbRecord {
   return {
     id: row.id,
     title: row.id,
@@ -34,8 +38,15 @@ function asRecord(row: McpServerRow, config?: McpServerConfig): DbRecord {
     allow: row.allow,
     deny: row.deny,
     error: row.error,
+    catalog,
     ...recordBuiltinValues({ createdAt: row.connectedAt, updatedAt: row.connectedAt }),
   }
+}
+
+export function clipFilterToCatalog(list: unknown, names: Set<string>) {
+  const items = Array.isArray(list) ? list.map((item) => String(item).trim()).filter(Boolean) : []
+  if (!names.size) return items
+  return items.filter((item) => item.includes('*') || names.has(item))
 }
 
 /**
@@ -54,11 +65,12 @@ async function applyPatch(mcp: McpService, id: string, patch: Record<string, unk
   }
   const dial = connectionPatch(patch)
   if (Object.keys(dial).length) await mcp.patchConfig(current, dial)
-  if ('allow' in patch || 'deny' in patch) {
+  if (('allow' in patch || 'deny' in patch) && !mcp.listServers().find((item) => item.id === current)?.builtin) {
+    const names = new Set(mcp.catalog(current).map((item) => item.name))
     const config = mcp.configOf(current)
     mcp.setToolFilter(current, {
-      allow: 'allow' in patch ? patch.allow : config.tools.allow,
-      deny: 'deny' in patch ? patch.deny : config.tools.deny,
+      allow: 'allow' in patch ? clipFilterToCatalog(patch.allow, names) : config.tools.allow,
+      deny: 'deny' in patch ? clipFilterToCatalog(patch.deny, names) : config.tools.deny,
     })
   }
   if ('enabled' in patch) {
@@ -70,7 +82,7 @@ async function applyPatch(mcp: McpService, id: string, patch: Record<string, unk
   }
   const row = mcp.listServers().find((item) => item.id === current)
   if (!row) throw new Error(`unknown mcp server: ${current}`)
-  return asRecord(row, row.builtin ? undefined : mcp.configOf(current))
+  return asRecord(row, row.builtin ? undefined : mcp.configOf(current), mcp.catalog(current))
 }
 
 /** 表格单元格 → 配置字段。title 单独处理（它是 id）。 */
@@ -94,7 +106,7 @@ function connectionPatch(patch: Record<string, unknown>) {
 
 export function mcpCollection(mcp: McpService): CollectionSpec {
   const list = () =>
-    mcp.listServers().map((row) => asRecord(row, row.builtin ? undefined : mcp.configOf(row.id)))
+    mcp.listServers().map((row) => asRecord(row, row.builtin ? undefined : mcp.configOf(row.id), mcp.catalog(row.id)))
   const find = (id: string) => list().find((row) => row.id === id) ?? null
   const require = (id: string) => {
     const row = find(id)
@@ -167,8 +179,18 @@ export function mcpCollection(mcp: McpService): CollectionSpec {
         serverVersion: { type: 'string', label: '版本' },
         toolCount: { type: 'number', label: '已放出工具' },
         totalToolCount: { type: 'number', label: '工具总数' },
-        allow: { type: 'string[]', label: '只放出', writable: true, description: '工具选择白名单，认 * 通配；留空表示不限制' },
-        deny: { type: 'string[]', label: '排除', writable: true, description: '工具选择黑名单，优先于「只放出」' },
+        allow: {
+          type: 'string[]',
+          label: '只放出',
+          writable: true,
+          description: '白名单：从下方工具清单勾选。留空表示不限制（仍扣掉「排除」）',
+        },
+        deny: {
+          type: 'string[]',
+          label: '排除',
+          writable: true,
+          description: '黑名单：从下方工具清单勾选，优先于「只放出」',
+        },
         error: { type: 'string', label: '错误' },
       },
     },
