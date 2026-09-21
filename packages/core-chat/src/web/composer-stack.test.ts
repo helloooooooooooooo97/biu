@@ -238,6 +238,8 @@ describe('composer dock stacking above sticky user', () => {
     expect(css).not.toMatch(/\.tool-call-head\.is-open\.is-fail::before/)
     expect(css).toMatch(/\.tool-call-tools\s*\{[^}]*width:\s*0/s)
     expect(css).toMatch(/\.tool-call-head:hover \.tool-call-tools[\s\S]*width:\s*auto/)
+    expect(css).toMatch(/\.tool-call-inspect\s*\{[^}]*color:\s*#9C9B98/s)
+    expect(css).toMatch(/\.tool-call-head:hover \.tool-call-chars[\s\S]*display:\s*none/)
     expect(css).toMatch(/\.traj-usage-ring\.is-cache\s*\{[^}]*color:\s*#448361/s)
     expect(css).toMatch(/\.traj-usage-ring\.is-hist\s*\{[^}]*color:\s*#d9730d/s)
     expect(css).toMatch(/:root \{[^}]*--dsw-usage-track-cache: color-mix\(in srgb, #448361 22%, #ffffff\)/)

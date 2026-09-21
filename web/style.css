@@ -5875,6 +5875,12 @@ html:not(.dark) .chat-outline-item.is-active {
   line-height: 24px;
 }
 
+.tool-call-head:hover .tool-call-chars,
+.tool-call-head:focus-within .tool-call-chars,
+.tool-call-head:has(.tool-call-copy.is-done) .tool-call-chars {
+  display: none;
+}
+
 .tool-call-tools {
   display: flex;
   flex: none;
@@ -5904,13 +5910,18 @@ html:not(.dark) .chat-outline-item.is-active {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-icon);
+  color: #9C9B98;
   cursor: pointer;
 }
 
 .tool-call-inspect:hover {
   background: var(--dsw-hover);
-  color: var(--dsw-icon);
+}
+
+.tool-call-inspect,
+.tool-call-inspect:hover,
+.tool-call-inspect svg {
+  color: #9C9B98;
 }
 
 .tool-call-copy,
@@ -5927,6 +5938,13 @@ html:not(.dark) .chat-outline-item.is-active {
   background: transparent;
   color: var(--dsw-icon);
   cursor: pointer;
+}
+
+.tool-call-copy,
+.tool-call-copy:hover,
+.tool-call-copy.is-done,
+.tool-call-copy svg {
+  color: #9C9B98;
 }
 
 .chat-code-copy {
@@ -5948,12 +5966,19 @@ html:not(.dark) .chat-outline-item.is-active {
 .tool-call-copy:hover,
 .chat-code-copy:hover {
   background: var(--dsw-hover);
+}
+
+.chat-code-copy:hover {
   color: var(--dsw-icon-active);
 }
 
-.tool-call-copy.is-done,
 .chat-code-copy.is-done {
   color: var(--dsw-ok);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tool-call-copy.is-done {
   opacity: 1;
   pointer-events: auto;
 }
@@ -7340,12 +7365,6 @@ html.pick-mode .chat-overlay-panel * {
 /* 日间：工具图标固定 #91918e；数据改动/文件名/工具名用 #5f5e5a */
 html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail),
 html:not(.dark) .tool-call-chevron:not(.is-ok):not(.is-fail) svg,
-html:not(.dark) .tool-call-inspect,
-html:not(.dark) .tool-call-inspect:hover,
-html:not(.dark) .tool-call-inspect svg,
-html:not(.dark) .tool-call-copy,
-html:not(.dark) .tool-call-copy:hover,
-html:not(.dark) .tool-call-copy svg,
 html:not(.dark) .chat-code-copy,
 html:not(.dark) .chat-code-copy:hover,
 html:not(.dark) .chat-code-copy svg,
