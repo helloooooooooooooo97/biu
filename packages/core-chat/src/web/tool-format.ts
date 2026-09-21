@@ -478,6 +478,52 @@ export function parseToolCall(name: string, argumentsJson: string): ParsedToolCa
     return { kind: 'create', path, fileText }
   }
 
+  if (name === 'db_content') {
+    const path = field('path') ?? 'unknown'
+    const command =
+      field('command') ?? (field('value') != null || field('from') != null ? 'write' : 'view')
+    if (command === 'write') {
+      return { kind: 'create', path, fileText: field('value') ?? '' }
+    }
+    if (command === 'str_replace' || command === 'find_replace') {
+      return {
+        kind: 'str_replace',
+        path,
+        oldStr: field('old_str') ?? '',
+        newStr: field('new_str') ?? '',
+      }
+    }
+    if (command === 'insert' || command === 'replace_lines') {
+      return {
+        kind: 'insert',
+        path,
+        insertLine: asInt(args?.insert_line) ?? asInt(args?.start_line) ?? 0,
+        newStr: field('new_str') ?? '',
+      }
+    }
+    if (command === 'view') {
+      const range = Array.isArray(args?.view_range) ? args.view_range : undefined
+      const start = range ? asInt(range[0]) : undefined
+      const end = range && range.length > 1 ? asInt(range[1]) : start
+      return {
+        kind: 'view',
+        path,
+        viewRange: start != null && end != null ? [start, end] : undefined,
+      }
+    }
+  }
+
+  if (name === 'db_doc' || name === 'db_asset') {
+    const path = [field('path'), field('name')].filter(Boolean).join('/') || 'unknown'
+    const command = field('command') ?? (field('value') != null || field('from') != null ? 'write' : 'view')
+    if (command === 'write') {
+      return { kind: 'create', path, fileText: field('value') ?? '' }
+    }
+    if (command === 'view') {
+      return { kind: 'view', path }
+    }
+  }
+
   if (name === 'mcp_call' || name === 'execute_tools') {
     const gateway = asString(args?.name) ?? asString(args?.tool_name) ?? name
     const inner = asRecord(args?.arguments)
