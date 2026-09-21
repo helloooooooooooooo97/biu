@@ -1029,3 +1029,40 @@ test('sessions record routes do not switch the live session', async () => {
   })
   assert.equal(view.get().sessionId, 'new')
 })
+
+test('send wake paints the user bubble before the host roundtrip', async () => {
+  mockFetch({
+    '/api/sessions': () => ({ sessions: [{ id: 's1', title: 'a', eventCount: 1, updatedAt: 1 }] }),
+    '/api/approvals': () => ({ mode: 'auto', pending: [] }),
+    '/api/sessions/s1/messages': () => ({ sessionId: 's1', text: 'ok', queued: true }),
+  })
+  const ctx = new Context()
+  await ctx.plugin(sessionView)
+  const view = ctx.sessionView as SessionViewService
+  view.ingest('s1', { type: 'session/open', version: 1, seq: 0, ts: 1 })
+  await view.send('立刻出现')
+  assert.equal(
+    view.get().nodes.some((node) => node.kind === 'user' && node.text === '立刻出现'),
+    true,
+  )
+  view.ingest('s1', { type: 'user/message', text: '立刻出现', kind: 'wake', seq: 2, ts: 9 })
+  assert.equal(view.get().nodes.filter((node) => node.kind === 'user' && node.text === '立刻出现').length, 1)
+})
+
+test('empty switching session still ingests the outgoing user bubble', async () => {
+  mockFetch({
+    '/api/sessions': () => ({ sessions: [] }),
+    '/api/sessions/empty?turns=': () => new Promise(() => undefined),
+    '/api/approvals': () => ({ mode: 'auto', pending: [] }),
+  })
+  const ctx = new Context()
+  await ctx.plugin(sessionView)
+  const view = ctx.sessionView as SessionViewService
+  await view.load('empty', { view: 'chat' })
+  assert.equal(view.get().switchingSession, true)
+  view.ingest('empty', { type: 'user/message', text: 'hello', seq: 1, ts: 2 })
+  assert.equal(
+    view.get().nodes.some((node) => node.kind === 'user' && node.text === 'hello'),
+    true,
+  )
+})

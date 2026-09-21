@@ -558,8 +558,10 @@ export class SessionsService extends Service {
       this.ctx.emit('session/event', { sessionId: id, event })
       return event
     } else {
+      this.ctx.emit('session/event', { sessionId: id, event })
       this.clearPersistTimer(id)
       await this.persist(record)
+      return event
     }
     this.ctx.emit('session/event', { sessionId: id, event })
     return event

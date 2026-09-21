@@ -334,6 +334,57 @@ test('controlGoal pause cancels the live turn so Goal cannot keep going', async 
   assert.equal(ctx.agents.isBusy(agent.sessionId), false)
 })
 
+test('controlGoal pause aborts the live turn before patchConfig returns', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  await ctx.plugin(tools)
+  await ctx.plugin(systemPrompt)
+  await ctx.plugin(llm)
+  await ctx.plugin(agentLoop)
+  await ctx.plugin(agents)
+  ctx.agents.configure({ provider: 'deepseek', apiKey: '', model: 'x' })
+  ctx.tools.register({
+    name: 'hang',
+    description: 'hang',
+    parameters: { type: 'object', properties: {} },
+    execute: () => new Promise(() => undefined),
+  })
+  const originalCreate = ctx.agentLoop.create.bind(ctx.agentLoop)
+  ctx.agentLoop.create = ((config, sessionId, signal) => {
+    const runner = originalCreate(config, sessionId, signal)
+    runner.run = async () => {
+      await ctx.tools.invoke('hang', {}, signal)
+      return { text: 'nope', steps: [] }
+    }
+    return runner
+  }) as typeof ctx.agentLoop.create
+  const originalPatch = ctx.sessions.patchConfig.bind(ctx.sessions)
+  let patchDone = false
+  ctx.sessions.patchConfig = (async (id: string, patch: Parameters<typeof originalPatch>[1]) => {
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    patchDone = true
+    return originalPatch(id, patch)
+  }) as typeof ctx.sessions.patchConfig
+  const agent = await ctx.agents.create()
+  await originalPatch(agent.sessionId, {
+    goal: { id: 'goal-x', objective: '修好测试', status: 'pursuing', turns: 0 },
+  })
+  void agent.send('go', { wait: false })
+  for (let i = 0; i < 20 && !ctx.agents.isBusy(agent.sessionId); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  assert.equal(ctx.agents.isBusy(agent.sessionId), true)
+  const paused = ctx.agents.controlGoal(agent.sessionId, 'pause')
+  for (let i = 0; i < 30 && ctx.agents.isBusy(agent.sessionId); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  assert.equal(ctx.agents.isBusy(agent.sessionId), false)
+  assert.equal(patchDone, false)
+  await paused
+  assert.equal(patchDone, true)
+})
+
 test('dropInbox and patchInbox edit queued wakes before they are claimed', async () => {
   const ctx = new Context()
   await ctx.plugin(sessionStore, { driver: 'memory' })

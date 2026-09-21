@@ -145,6 +145,15 @@ export class AgentsService extends Service {
     }
 
     const startKick = (wait: boolean): Promise<AgentTurn> => {
+      if (live.running) {
+        if (!wait) return Promise.resolve({ text: '', steps: [] })
+        return live.running.then(() => ({ text: '', steps: [] })).catch((error) => {
+          if (/cancelled|AbortError|aborted/i.test(String(error))) {
+            return { text: '', steps: [] }
+          }
+          throw error
+        })
+      }
       live.abort = new AbortController()
       let result: AgentTurn = { text: '', steps: [] }
       const running = kick()
@@ -261,10 +270,11 @@ export class AgentsService extends Service {
   async controlGoal(sessionId: string, action: 'pause' | 'resume' | 'clear') {
     if (!(await this.ctx.sessions.get(sessionId))) throw new Error(`unknown session: ${sessionId}`)
     await this.create(sessionId)
-    const text = await this.applyGoalSlash(sessionId, { kind: action })
     if (action === 'pause' || action === 'clear') {
       this.get(sessionId)?.cancel()
-    } else if (text === 'run') {
+    }
+    const text = await this.applyGoalSlash(sessionId, { kind: action })
+    if (text === 'run' && action === 'resume') {
       const goal = this.peekGoal(sessionId)
       if (goal) void this.get(sessionId)?.send(continuationPrompt(goal), { wait: false })
     }

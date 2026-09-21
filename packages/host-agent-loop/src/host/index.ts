@@ -74,8 +74,13 @@ export class AgentLoop implements AgentRunner {
     )
   }
 
+  private throwIfAborted() {
+    if (this.signal.aborted) throw new Error('cancelled')
+  }
+
   private async runInSession(claimed: ClaimedInput[]): Promise<AgentTurn> {
     const session = this.ctx.sessions
+    this.throwIfAborted()
     // turn = 已有 turn/start 数 + 1，即「回合」序号（每次用户输入=一个回合）。
     // 不用 deriveMessages 的 user 数：会受上下文压缩影响而回跳；也不用 user/message 数：
     // 一个回合可能 append 多条 user/message（多段输入/派工），不等价于回合数。
@@ -98,6 +103,10 @@ export class AgentLoop implements AgentRunner {
     }
 
     for (const item of req.messages) {
+      if (this.signal.aborted) {
+        await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
+        throw new Error('cancelled')
+      }
       await session.append(this.sessionId, {
         type: 'user/message',
         text: item.text,
@@ -107,6 +116,10 @@ export class AgentLoop implements AgentRunner {
       })
     }
 
+    if (this.signal.aborted) {
+      await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
+      throw new Error('cancelled')
+    }
     // 分段 prompt 只在 turn 开头写入一次，避免每 step 污染权威日志；derive 取最后一条 system/prompt。
     const live = [...claimed].reverse().find((item) => item.liveContext)?.liveContext
     await session.append(this.sessionId, { type: 'system/prompt', text: this.ctx.systemPrompt.assemble(live) })
@@ -192,10 +205,22 @@ export class AgentLoop implements AgentRunner {
       }
       this.ctx.emit('agent/status', { sessionId: this.sessionId, status: 'running', step })
       await session.append(this.sessionId, { type: 'step/start', turn, step })
+      if (this.signal.aborted) {
+        await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
+        throw new Error('cancelled')
+      }
       // 让 step/start 先从 WS 出去，再去做可能很重的 derive / 等首 token
       await new Promise<void>((resolve) => setImmediate(resolve))
+      if (this.signal.aborted) {
+        await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
+        throw new Error('cancelled')
+      }
 
       const rawMessages = await liftToolImages(session.deriveMessages(this.sessionId), this.sessionId)
+      if (this.signal.aborted) {
+        await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
+        throw new Error('cancelled')
+      }
       const inputComp = session.statInputComposition(this.sessionId)
       const attachUsage = (usage?: LlmUsage) =>
         usage !== undefined

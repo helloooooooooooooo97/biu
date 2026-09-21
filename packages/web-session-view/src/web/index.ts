@@ -296,6 +296,8 @@ export class SessionViewService extends Service {
   private trajFetchSessionId: string | null = null
   private dispatchedPoll: ReturnType<typeof setInterval> | null = null
   private busyHoldUntil = 0
+  /** 切会话时画面还是上一段：ingest 不能往旧 events 上叠新 session */
+  private holdPreviousThread = false
 
   constructor(ctx: Context) {
     super(ctx, 'sessionView')
@@ -463,17 +465,26 @@ export class SessionViewService extends Service {
       void this.refreshSessions()
       return
     }
-    // 切会话过渡期仍挂着上一段 nodes，勿把新 session 的流式事件混进去
+    // 切会话过渡期仍挂着上一段 nodes，勿把新 session 的流式事件混进去。
+    // 空壳（还没套上旧画面）可以立刻吃本 session 的事件，否则发送后要等 revalidate 才出现用户气泡。
     if (this.value.switchingSession) {
       void this.refreshSessions()
-      return
+      if (this.value.sessionId !== sessionId) return
+      if (this.holdPreviousThread) return
     }
     if (event.type === 'assistant/chunk') {
       this.ingestChunk(sessionId, event)
       return
     }
     this.flushChunkFrame()
-    const events = upsertEvent(this.value.sessionId === sessionId ? this.value.events : [], event)
+    const base = this.value.sessionId === sessionId ? this.value.events : []
+    const withoutOptimistic =
+      event.type === 'user/message'
+        ? base.filter(
+            (item) => !(item.type === 'user/message' && item.seq < 0 && item.text === event.text),
+          )
+        : base
+    const events = upsertEvent(withoutOptimistic, event)
     this.replace({
       sessionId,
       events,
@@ -786,6 +797,7 @@ export class SessionViewService extends Service {
         this.trajGen += 1
         // 有上一段内容时先保留画面，只换 sessionId；无缓存清空会闪 EmptyHero
         if (this.value.sessionId && (this.value.nodes.length > 0 || this.value.events.length > 0)) {
+          this.holdPreviousThread = true
           this.replace({
             sessionId,
             trajectory: [],
@@ -801,6 +813,7 @@ export class SessionViewService extends Service {
             ...this.pendingInspector(),
           })
         } else {
+          this.holdPreviousThread = false
           this.replace({
             sessionId,
             events: [],
@@ -834,6 +847,7 @@ export class SessionViewService extends Service {
         this.touchCache(sessionId)
         this.applyCached(sessionId, cached, view)
       } else if (this.value.sessionId && (this.value.nodes.length > 0 || this.value.events.length > 0)) {
+        this.holdPreviousThread = true
         this.replace({
           sessionId,
           trajectory: [],
@@ -849,6 +863,7 @@ export class SessionViewService extends Service {
           ...this.pendingInspector(),
         })
       } else {
+        this.holdPreviousThread = false
         this.replace({
           sessionId,
           events: [],
@@ -939,6 +954,7 @@ export class SessionViewService extends Service {
         error: undefined,
         ...this.rememberSessionInspector(sessionId, this.inspectorFromPayload(body), body.config?.goal),
       })
+      this.holdPreviousThread = false
       this.syncDispatchedPoll()
       if (this.wantsTrajectory(view)) void this.ensureTrajectory()
       void this.refreshInbox(sessionId)
@@ -948,6 +964,7 @@ export class SessionViewService extends Service {
   }
 
   private applyCached(sessionId: string, cached: SessionCacheEntry, view: ConversationView) {
+    this.holdPreviousThread = false
     this.replace({
       sessionId,
       events: cached.events,
@@ -1408,6 +1425,7 @@ export class SessionViewService extends Service {
     this.markBusyHold()
     this.setAgentStatus('running', undefined, sessionId)
     this.replace({ error: undefined })
+    this.paintOutgoingUser(sessionId, content || '（图片）', pics)
     try {
       const res = await fetch(`/api/sessions/${sessionId}/messages`, {
         method: 'POST',
@@ -1438,6 +1456,27 @@ export class SessionViewService extends Service {
       throw error
     }
     // 成功后不要在 finally 里强行 idle：agent 仍在跑，状态交给 WS agent/status
+  }
+
+  private paintOutgoingUser(
+    sessionId: string,
+    text: string,
+    images: Array<{ name: string; mime: string; url: string }>,
+  ) {
+    if (this.value.sessionId !== sessionId) return
+    if (this.holdPreviousThread) return
+    const exists = this.value.events.some(
+      (item) => item.type === 'user/message' && item.text === text && item.ts > Date.now() - 8000,
+    )
+    if (exists) return
+    this.ingest(sessionId, {
+      type: 'user/message',
+      text,
+      kind: 'wake',
+      seq: -Date.now(),
+      ts: Date.now(),
+      ...(images.length ? { images } : {}),
+    })
   }
 
   setInbox(inbox: InboxQueueItem[], sessionId?: string) {
@@ -1511,11 +1550,9 @@ export class SessionViewService extends Service {
     const sessionId = this.value.sessionId
     if (!sessionId) return
     const goal = this.value.sessions.find((item) => item.id === sessionId)?.goal
-    if (goal?.status === 'pursuing') {
-      await this.controlGoal('pause')
-      return
-    }
-    await fetch(`/api/sessions/${sessionId}/cancel`, { method: 'POST' })
+    const aborting = fetch(`/api/sessions/${sessionId}/cancel`, { method: 'POST' }).catch(() => undefined)
+    if (goal?.status === 'pursuing') void this.controlGoal('pause')
+    await aborting
     this.setAgentStatus('idle', undefined, sessionId)
   }
 

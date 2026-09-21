@@ -251,6 +251,22 @@ test('missing tool is a step failure, not a crash', async () => {
   assert.equal(turn.text, '没有这个工具')
 })
 
+test('pre-aborted signal never calls the model', async () => {
+  const { ctx, sessionId } = await spine()
+  const abort = new AbortController()
+  abort.abort()
+  let called = 0
+  const llm: LlmClient = {
+    chat: async () => {
+      called += 1
+      return { content: 'nope', toolCalls: [] }
+    },
+  }
+  const loop = new AgentLoop(ctx, llm, sessionId, abort.signal)
+  await assert.rejects(() => loop.run([{ kind: 'wake', text: 'x' }]), /cancelled/)
+  assert.equal(called, 0)
+})
+
 test('cancelled signal stops the turn', async () => {
   const { ctx, sessionId } = await spine()
   const abort = new AbortController()
