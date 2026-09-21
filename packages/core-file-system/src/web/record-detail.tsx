@@ -111,12 +111,14 @@ function DetailMore({
   actions,
   onDelete,
   deleteLabel,
+  share,
 }: {
   record: DbRecord
   Tools?: CollectionChrome['DetailTools']
   actions?: ReactNode
   onDelete?: () => void
   deleteLabel: string
+  share?: ReactNode
 }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const close = () => setAnchor(null)
@@ -142,11 +144,12 @@ function DetailMore({
         <AnchorMenu
           anchor={anchor}
           onClose={close}
-          className="fsdb-detail-more-menu"
+          className={`fsdb-detail-more-menu${share ? ' has-share' : ''}`}
           role="menu"
-          minWidth={168}
-          placement="right"
+          minWidth={share ? 360 : 168}
+          placement="left"
         >
+          {share}
           {Tools ? <Tools record={record} onDone={close} /> : null}
           {actionMenu}
           {onDelete ? (
@@ -455,10 +458,10 @@ export function RecordDetail({
           </div>
           <HeadingOutline enabled={headingOutline} />
           {(() => {
-            const showMore = !readOnly && Boolean(
+            const showMore = Boolean(share) || (!readOnly && Boolean(
               chrome?.DetailTools || onDelete || chrome?.Actions || placedActions(schema, 'detail').length,
-            )
-            if (!onPrev && !onNext && !showMore && !share) return null
+            ))
+            if (!onPrev && !onNext && !showMore) return null
             return (
             <nav className={`fsdb-detail-float-nav${share ? ' has-share' : ''}`} aria-label="按视图顺序切换记录">
               {onPrev || onNext ? (
@@ -480,9 +483,9 @@ export function RecordDetail({
                   actions={toolbar}
                   onDelete={onDelete}
                   deleteLabel={collectionPath === '/pages' ? '删除页面' : '删除记录'}
+                  share={share}
                 />
               ) : null}
-              {share}
               {onPrev || onNext ? (
                 <button
                   type="button"

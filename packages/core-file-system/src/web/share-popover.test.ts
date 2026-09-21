@@ -30,6 +30,7 @@ test('share panel uses a settings section and custom toggles', () => {
   assert.match(src, /链接设置/)
   assert.match(src, /fsdb-share-toggle/)
   assert.match(css, /\.fsdb-share-panel\{[^}]*width:min\(420px/)
+  assert.match(css, /\.fsdb-share-panel\.is-embedded\{position:static\}/)
   assert.match(css, /\.fsdb-share-toggle\.is-on/)
   assert.match(css, /\.fsdb-share-link-row/)
 })

@@ -120,7 +120,7 @@ export function ShareButton({
   )
 }
 
-function SharePanel({ target }: { target: ShareTarget }) {
+export function SharePanel({ target, embedded = false }: { target: ShareTarget; embedded?: boolean }) {
   const [share, setShare] = useState<ShareInfo | null>(null)
   const [resources, setResources] = useState<ShareResourceStats>({ pages: 0, plugins: 0, collections: 0, pluginIds: [] })
   const [pin, setPin] = useState('')
@@ -255,7 +255,7 @@ function SharePanel({ target }: { target: ShareTarget }) {
   const stats = shareStatsLine(resources)
 
   return (
-    <div className="fsdb-share-panel" role="dialog" aria-label="分享" data-testid="fsdb-share-panel">
+    <div className={`fsdb-share-panel${embedded ? ' is-embedded' : ''}`} role="dialog" aria-label="分享" data-testid="fsdb-share-panel">
       <header className="fsdb-share-head">
         <strong>分享</strong>
         <p>通过链接邀请他人查看此内容。</p>

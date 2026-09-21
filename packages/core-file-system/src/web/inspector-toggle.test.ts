@@ -9,13 +9,18 @@ const style = readFileSync(resolve(import.meta.dirname, './fsdb-style.ts'), 'utf
 
 test('embedded record details can share their explicit record target', () => {
   assert.match(browser, /share=\{\s*nested && detailId \?/)
-  assert.match(browser, /buttonClassName="fsdb-detail-float-btn"/)
+  assert.match(browser, /<SharePanel/)
+  assert.match(browser, /embedded/)
   assert.match(browser, /recordId: detailId/)
   assert.match(detail, /share\?: ReactNode/)
+  assert.match(detail, /share=\{share\}/)
+  assert.match(detail, /placement="left"/)
   assert.match(detail, /fsdb-detail-float-nav\$\{share \? ' has-share' : ''\}/)
-  assert.match(detail, /\{share\}/)
+  assert.doesNotMatch(detail, /\{share\}\s*\{onPrev/)
   assert.match(style, /\.inspector-database-page \.fsdb-detail-float-nav\.has-share\{opacity:1\}/)
+  assert.match(style, /\.fsdb-detail-more-menu\.has-share/)
   assert.doesNotMatch(browser, /\{nested \? null : \(\s*<ShareButton/)
+  assert.doesNotMatch(browser, /buttonClassName="fsdb-detail-float-btn"/)
 })
 
 test('hydrating page-blocks prefers the route view over local 全部', () => {

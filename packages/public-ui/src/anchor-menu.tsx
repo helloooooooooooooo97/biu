@@ -21,7 +21,7 @@ export function AnchorMenu({
   role?: string
   zIndex?: number
   minWidth?: number
-  placement?: 'bottom' | 'right'
+  placement?: 'bottom' | 'right' | 'left'
 } & Omit<HTMLAttributes<HTMLDivElement>, 'role' | 'className' | 'children'>) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState({ top: 0, left: 0, width: 200 })
@@ -31,8 +31,12 @@ export function AnchorMenu({
     const place = () => {
       const rect = anchor.getBoundingClientRect()
       const width = Math.max(minWidth, rect.width)
-      if (placement === 'right') {
-        const left = Math.min(rect.right + 8, Math.max(8, window.innerWidth - width - 8))
+      if (placement === 'right' || placement === 'left') {
+        const gap = 8
+        const left =
+          placement === 'left'
+            ? Math.max(8, Math.min(rect.left - width - gap, window.innerWidth - width - gap))
+            : Math.min(rect.right + gap, Math.max(8, window.innerWidth - width - gap))
         const top = Math.min(rect.top, Math.max(8, window.innerHeight - 8 - 120))
         setBox({ top, left, width })
         return

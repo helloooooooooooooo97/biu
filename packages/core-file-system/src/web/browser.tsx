@@ -99,7 +99,7 @@ import {
   visibleActions,
   placedActions,
 } from './fsdb-cells.tsx'
-import { ShareButton } from './share-popover.tsx'
+import { ShareButton, SharePanel } from './share-popover.tsx'
 import { ensureFsdbStyle } from './fsdb-style.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { PageBanner } from './page-banner.tsx'
@@ -3461,8 +3461,8 @@ export function CollectionBrowser({
           toolbar={<RecordActions row={selected} place="detail" />}
           share={
             nested && detailId ? (
-              <ShareButton
-                buttonClassName="fsdb-detail-float-btn"
+              <SharePanel
+                embedded
                 target={{
                   kind: 'record',
                   collection: collectionPath,
