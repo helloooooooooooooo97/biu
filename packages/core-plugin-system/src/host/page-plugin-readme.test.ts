@@ -55,3 +55,17 @@ test('page block playground UIs use design tokens instead of hardcoded light-the
     assert.doesNotMatch(src, /#9ec1ff/, `${file} should not hardcode send-button blue`)
   }
 })
+
+test('page block STYLE_CSS template strings are closed', () => {
+  const files = [
+    'page-toc/web.tsx',
+    'api-playground/web.tsx',
+    'option-matrix/web.tsx',
+    'page-regression/web.tsx',
+    'plugin-doctor/web.tsx',
+  ]
+  for (const file of files) {
+    const src = readFileSync(join(sandbox, file), 'utf8')
+    assert.match(src, /const STYLE_CSS = `[\s\S]+?`\s*\nfunction /, `${file} STYLE_CSS must close before the next function`)
+  }
+})

@@ -208,7 +208,7 @@ const STYLE_CSS = `
 .ap-hist-m { flex: 0 0 52px; font-weight: 650; color: var(--dsw-label-2); }
 .ap-hist-u { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ap-hist-t { flex: 0 0 auto; color: var(--dsw-label-3); }
-}
+`
 
 function useStyle() {
   useEffect(() => {
