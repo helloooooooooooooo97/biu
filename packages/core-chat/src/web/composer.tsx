@@ -836,6 +836,7 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
                 title="暂停"
                 aria-label="暂停 Goal"
                 onClick={() => void sessionView.controlGoal('pause')}
+                onMouseDown={(event) => event.preventDefault()}
               >
                 <PauseIcon className="size-4" aria-hidden />
               </button>
@@ -846,6 +847,7 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
                 title="继续"
                 aria-label="继续 Goal"
                 onClick={() => void sessionView.controlGoal('resume')}
+                onMouseDown={(event) => event.preventDefault()}
               >
                 <PlayIcon className="size-4" aria-hidden />
               </button>
@@ -856,6 +858,7 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
               title="清除"
               aria-label="清除 Goal"
               onClick={() => void sessionView.controlGoal('clear')}
+              onMouseDown={(event) => event.preventDefault()}
             >
               <XMarkIcon className="size-4" aria-hidden />
             </button>

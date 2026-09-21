@@ -6724,6 +6724,7 @@ html.dark .composer-send:disabled {
   display: flex;
   align-items: center;
   gap: 10px;
+  z-index: 2;
   border: 1px solid var(--dsw-border);
   border-radius: 12px;
   padding: 8px 10px;

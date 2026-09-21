@@ -1605,8 +1605,10 @@ export class SessionViewService extends Service {
     this.replace({
       sessions,
       ...(action === 'pause' || action === 'clear' ? { pending: false, agentStatus: 'idle' as const } : {}),
+      ...(action === 'resume' ? { pending: true, agentStatus: 'running' as const } : {}),
       error: undefined,
     })
+    if (action === 'resume') this.markBusyHold()
   }
 
   /** 空回车：abort 当前回合并立刻 claim 队列（需队列里有 wake） */

@@ -385,6 +385,51 @@ test('controlGoal pause aborts the live turn before patchConfig returns', async 
   assert.equal(patchDone, true)
 })
 
+test('controlGoal resume kicks again after a cancelled turn finishes draining', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  await ctx.plugin(tools)
+  await ctx.plugin(systemPrompt)
+  await ctx.plugin(llm)
+  await ctx.plugin(agentLoop)
+  await ctx.plugin(agents)
+  ctx.agents.configure({ provider: 'deepseek', apiKey: '', model: 'x' })
+  let runs = 0
+  const originalCreate = ctx.agentLoop.create.bind(ctx.agentLoop)
+  ctx.agentLoop.create = ((config, sessionId, signal) => {
+    const runner = originalCreate(config, sessionId, signal)
+    runner.run = async () => {
+      runs += 1
+      if (runs === 1) {
+        await new Promise<void>((_resolve, reject) => {
+          const fail = () => setTimeout(() => reject(new Error('cancelled')), 60)
+          if (signal.aborted) fail()
+          else signal.addEventListener('abort', fail, { once: true })
+        })
+      }
+      return { text: 'resumed', steps: [] }
+    }
+    return runner
+  }) as typeof ctx.agentLoop.create
+  const agent = await ctx.agents.create()
+  await ctx.sessions.patchConfig(agent.sessionId, {
+    goal: { id: 'goal-x', objective: '修好测试', status: 'paused', turns: 0 },
+  })
+  void agent.send('go', { wait: false })
+  for (let i = 0; i < 20 && !ctx.agents.isBusy(agent.sessionId); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  assert.equal(ctx.agents.isBusy(agent.sessionId), true)
+  agent.cancel()
+  const result = await ctx.agents.controlGoal(agent.sessionId, 'resume')
+  assert.equal(result.goal?.status, 'pursuing')
+  for (let i = 0; i < 40 && runs < 2; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  assert.equal(runs >= 2, true)
+})
+
 test('dropInbox and patchInbox edit queued wakes before they are claimed', async () => {
   const ctx = new Context()
   await ctx.plugin(sessionStore, { driver: 'memory' })
