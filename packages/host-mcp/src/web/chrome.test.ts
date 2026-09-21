@@ -21,9 +21,10 @@ test('asNameList keeps allow/deny as exact tool names', () => {
   assert.deepEqual(asNameList(['read_file', ' write_file ', '']), ['read_file', 'write_file'])
 })
 
-test('mcp chrome lists tools under the record detail', () => {
+test('mcp chrome lists tools under the record properties', () => {
   assert.equal(mcpChrome.panes?.[0]?.id, 'tools')
   assert.equal(mcpChrome.panes?.[0]?.label, '工具')
+  assert.equal(mcpChrome.panes?.[0]?.place, 'properties')
   assert.equal(mcpChrome.panes?.[0]?.badge?.({ id: 'fs', catalog: [{ name: 'a', allowed: true }] }), 1)
   assert.equal(typeof mcpChrome.cells?.allow, 'function')
   assert.equal(typeof mcpChrome.cells?.deny, 'function')

@@ -36,6 +36,8 @@ export type FsDetailPane = {
   id: string
   label: string
   badge?: (record: DbRecord) => number | string | undefined
+  /** properties：紧挨属性列表下方。默认跟在正文后面。 */
+  place?: 'properties' | 'body'
   Pane: ComponentType<FsDetailPaneProps>
 }
 

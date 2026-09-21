@@ -1,5 +1,5 @@
 import { cloneElement, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode, type Dispatch, type SetStateAction } from 'react'
-import type { CollectionChrome } from '@biu/type-file-system/ui'
+import type { CollectionChrome, FsDetailPane } from '@biu/type-file-system/ui'
 import type { CollectionSchema, DbRecord, FieldSpec } from '@biu/type-file-system'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronUpIcon, EllipsisHorizontalIcon, HashtagIcon, ShareIcon } from '@heroicons/react/16/solid'
 import { AnchorMenu, RecordEmojiBoard } from '@biu/public-ui'
@@ -16,6 +16,32 @@ import { FOCUS_RECORD_CONTENT, FOCUS_RECORD_TITLE, shouldLeaveContentForTitle, s
 import { HeadingOutline } from './heading-outline.tsx'
 import { PageBanner } from './page-banner.tsx'
 import { fieldPickAttrs, recordSourcePath } from './pick-dom.ts'
+
+function renderDetailPanes(
+  panes: FsDetailPane[] | undefined,
+  record: DbRecord,
+  openRecord: ((recordId: string, collection?: string) => void) | undefined,
+  className: string,
+) {
+  if (!panes?.length) return null
+  return (
+    <div className={className}>
+      {panes.map((pane) => {
+        const Pane = pane.Pane
+        const count = pane.badge?.(record)
+        return (
+          <section key={pane.id} className="fsdb-detail-extra" data-testid={`fsdb-pane-${pane.id}`}>
+            <h3 className="fsdb-detail-extra-title">
+              {pane.label}
+              {count ? <span className="fsdb-detail-extra-count">{count}</span> : null}
+            </h3>
+            <Pane record={record} openRecord={openRecord} />
+          </section>
+        )
+      })}
+    </div>
+  )
+}
 
 function DetailTitleIcon({
   emoji,
@@ -405,6 +431,7 @@ export function RecordDetail({
                     )
                   })}
                 </div>
+                {renderDetailPanes(chrome?.panes?.filter((pane) => pane.place === 'properties'), selected, onOpenRecord, 'fsdb-detail-prop-panes')}
                 {contentFieldKey(schema) && schema.fields[contentFieldKey(schema)!] ? (() => {
                   const key = contentFieldKey(schema)!
                   const spec = schema.fields[key]!
@@ -473,23 +500,7 @@ export function RecordDetail({
                     </div>
                   )
                 })() : null}
-                {chrome?.panes?.length ? (
-                  <div className="fsdb-detail-extras">
-                    {chrome.panes.map((pane) => {
-                      const Pane = pane.Pane
-                      const count = pane.badge?.(selected)
-                      return (
-                        <section key={pane.id} className="fsdb-detail-extra" data-testid={`fsdb-pane-${pane.id}`}>
-                          <h3 className="fsdb-detail-extra-title">
-                            {pane.label}
-                            {count ? <span className="fsdb-detail-extra-count">{count}</span> : null}
-                          </h3>
-                          <Pane record={selected} openRecord={onOpenRecord} />
-                        </section>
-                      )
-                    })}
-                  </div>
-                ) : null}
+                {renderDetailPanes(chrome?.panes?.filter((pane) => pane.place !== 'properties'), selected, onOpenRecord, 'fsdb-detail-extras')}
                 {chrome?.Board ? <chrome.Board record={selected} openRecord={onOpenRecord} /> : null}
               </div>
             </div>

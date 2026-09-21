@@ -691,6 +691,8 @@ test('database extras sit after the record detail, not in the inspector', () => 
   assert.match(browser, /<RecordEmojiBoard/)
   assert.match(browser, /writePatch\(row, \{ emoji: normalizeRecordEmoji\(next\) \}\)/)
   assert.match(detail, /data-testid=\{`fsdb-pane-\$\{pane\.id\}`\}/)
+  assert.match(detail, /fsdb-detail-prop-panes/)
+  assert.match(detail, /pane.place === 'properties'/)
   assert.match(style, /\.fsdb-fileview\{[^}]*min-height:0/)
   assert.match(style, /\.fsdb-fileview\{[^}]*max-height:none/)
   assert.match(style, /\.fsdb-fileview\{[^}]*overflow:visible/)

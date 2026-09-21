@@ -132,6 +132,7 @@ export const mcpChrome: CollectionChrome = {
     {
       id: 'tools',
       label: '工具',
+      place: 'properties',
       badge: (record) => catalogOf(record).length || undefined,
       Pane: ToolsPane,
     },
