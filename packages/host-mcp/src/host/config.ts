@@ -4,7 +4,7 @@ import { dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
 
 export type McpTransportKind = 'stdio' | 'http' | 'sse'
 
-/** 工具选择：allow 非空时只放这些，deny 始终排除。两者都认 `*` 通配。 */
+/** 工具选择：allow 非空时只允许这些，deny 始终禁用。两者都认 `*` 通配。 */
 export type McpToolFilter = {
   allow: string[]
   deny: string[]

@@ -94,7 +94,7 @@ function ToolsPane({ record }: FsDetailPaneProps) {
               {tool.description ? <span className="mcp-tool-desc">{tool.description}</span> : null}
             </div>
             <div className="mcp-tool-flags">
-              <span className={`mcp-tool-state${tool.allowed ? ' is-on' : ''}`}>{tool.allowed ? '已放出' : '未放出'}</span>
+              <span className={`mcp-tool-state${tool.allowed ? ' is-on' : ''}`}>{tool.allowed ? '可用' : '不可用'}</span>
               {locked ? null : (
                 <>
                   <button
@@ -103,7 +103,7 @@ function ToolsPane({ record }: FsDetailPaneProps) {
                     aria-pressed={allowOn}
                     onClick={() => void patchMcp(String(record.id), { allow: toggle(allow, tool.name, !allowOn) })}
                   >
-                    只放出
+                    仅允许
                   </button>
                   <button
                     type="button"
@@ -111,7 +111,7 @@ function ToolsPane({ record }: FsDetailPaneProps) {
                     aria-pressed={excluded}
                     onClick={() => void patchMcp(String(record.id), { deny: toggle(deny, tool.name, !excluded) })}
                   >
-                    排除
+                    禁用
                   </button>
                 </>
               )}

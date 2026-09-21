@@ -5,12 +5,12 @@ import type { McpServerRow, McpService } from './index.ts'
 const ADD_DESCRIPTION =
   '挂载一台 MCP 服务器并写入 .biu/mcp.json（记录可以还不存在，id 就是这行的 id）。' +
   'stdio 填 command + args（可选 env、cwd）；远端填 url，并把 transport 设为 http 或 sse。' +
-  'tools 可选，形如 {"allow":["read_*"],"deny":["write_file"]}，用来只放出这台服务器的一部分工具。' +
+  'tools 可选，形如 {"allow":["read_*"],"deny":["write_file"]}，用来只允许这台服务器的一部分工具。' +
   'enabled 缺省为 true，挂上即连接。'
 
 const SELECT_DESCRIPTION =
   '设置这台服务器的工具选择：args 传 {"allow":[...],"deny":[...]}，两者都认 * 通配。' +
-  'deny 优先于 allow；allow 非空时只放出命中的工具。被排除的工具不出现在 mcp_list 里，mcp_call 也会拒绝。' +
+  'deny 优先于 allow；allow 非空时只允许命中的工具。被禁用的工具不出现在 mcp_list 里，mcp_call 也会拒绝。' +
   '先用 list_tools 动作看全量工具名，再决定填什么。清空过滤就传 {"allow":[],"deny":[]}。'
 
 function asRecord(
@@ -131,7 +131,7 @@ export function mcpCollection(mcp: McpService): CollectionSpec {
         'env 一项一个 KEY=VALUE，headers 一项一个 Name: Value。' +
         '本表动作（db_action path=/mcp/<服务器id> action=…）：add=一次填好挂载新服务器（记录可以还不存在，比新建再逐字段改更省）；' +
         'connect / disconnect=连接、断开但保留配置；enable / disable=改 .biu/mcp.json 里的开关；' +
-        'refresh=重新拉取工具清单；list_tools=看这台服务器的全量工具及是否已被放出；' +
+        'refresh=重新拉取工具清单；list_tools=看这台服务器的全量工具及是否可用；' +
         'select=设置工具选择（allow / deny）；uninstall=从配置里删掉。' +
         'status=error 时看 error 列，stdio 服务器那里会带上子进程 stderr。builtin 的 echo 行只用于自检，不能改。',
       order: 40,
@@ -177,19 +177,19 @@ export function mcpCollection(mcp: McpService): CollectionSpec {
         cwd: { type: 'string', label: '工作目录', writable: true, description: 'stdio：子进程 cwd，留空则继承宿主' },
         serverName: { type: 'string', label: '服务器名' },
         serverVersion: { type: 'string', label: '版本' },
-        toolCount: { type: 'number', label: '已放出工具' },
+        toolCount: { type: 'number', label: '可用工具' },
         totalToolCount: { type: 'number', label: '工具总数' },
         allow: {
           type: 'string[]',
-          label: '只放出',
+          label: '仅允许',
           writable: true,
-          description: '白名单：从下方工具清单勾选。留空表示不限制（仍扣掉「排除」）',
+          description: '勾了才给 Agent 用；留空表示不限制（仍扣掉「禁用」）',
         },
         deny: {
           type: 'string[]',
-          label: '排除',
+          label: '禁用',
           writable: true,
-          description: '黑名单：从下方工具清单勾选，优先于「只放出」',
+          description: '这些工具不给 Agent 用，优先于「仅允许」',
         },
         error: { type: 'string', label: '错误' },
       },
@@ -282,7 +282,7 @@ export function mcpCollection(mcp: McpService): CollectionSpec {
         for: 'agent',
         placement: [],
         description:
-          '列出这台服务器的全量工具（含被工具选择排除的），每项带 allowed 标记。改过滤前先用它确认工具名。',
+          '列出这台服务器的全量工具（含已禁用的），每项带 allowed 标记。改过滤前先用它确认工具名。',
         parameters: { type: 'object', properties: {} },
         run: (id) => mcp.catalog(id),
       },
@@ -295,8 +295,8 @@ export function mcpCollection(mcp: McpService): CollectionSpec {
           type: 'object',
           description: SELECT_DESCRIPTION,
           properties: {
-            allow: { type: 'array', items: { type: 'string' }, description: '只放出这些（空数组=不限制）' },
-            deny: { type: 'array', items: { type: 'string' }, description: '排除这些，优先于 allow' },
+            allow: { type: 'array', items: { type: 'string' }, description: '仅允许这些（空数组=不限制）' },
+            deny: { type: 'array', items: { type: 'string' }, description: '禁用这些，优先于 allow' },
           },
         },
         run: (id, _record, args = {}) => mcp.setToolFilter(id, args),

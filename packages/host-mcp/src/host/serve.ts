@@ -74,7 +74,7 @@ export function createBiuMcpServer(ctx: Context) {
     capabilities: { tools: {} },
     instructions:
       'Biu 工作台的 MCP 入口。协议对各客户端一样；Cursor / Claude / ChatGPT 只是各自的接入向导不同。' +
-      '默认只放出文件系统 db_* 工具（文件模式）。请求必须带 Authorization: Bearer <token>。',
+      '默认只开放文件系统 db_* 工具（文件模式）。请求必须带 Authorization: Bearer <token>。',
   })
 
   server.setRequestHandler(ListToolsRequestSchema, async () =>
