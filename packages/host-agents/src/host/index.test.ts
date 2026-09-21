@@ -231,6 +231,49 @@ test('cancel unblocks a hung tool and clears busy', async () => {
   assert.equal(ctx.agents.isBusy(agent.sessionId), false)
 })
 
+test('cancel does not auto-kick a follow-up wake that was queued while running', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  await ctx.plugin(tools)
+  await ctx.plugin(systemPrompt)
+  await ctx.plugin(llm)
+  await ctx.plugin(agentLoop)
+  await ctx.plugin(agents)
+  ctx.agents.configure({ provider: 'deepseek', apiKey: '', model: 'x' })
+  ctx.tools.register({
+    name: 'hang',
+    description: 'hang',
+    parameters: { type: 'object', properties: {} },
+    execute: () => new Promise(() => undefined),
+  })
+  let runs = 0
+  const originalCreate = ctx.agentLoop.create.bind(ctx.agentLoop)
+  ctx.agentLoop.create = ((config, sessionId, signal) => {
+    const runner = originalCreate(config, sessionId, signal)
+    runner.run = async () => {
+      runs += 1
+      await ctx.tools.invoke('hang', {}, signal)
+      return { text: 'nope', steps: [] }
+    }
+    return runner
+  }) as typeof ctx.agentLoop.create
+  const agent = await ctx.agents.create()
+  void agent.send('go', { wait: false })
+  for (let i = 0; i < 20 && !ctx.agents.isBusy(agent.sessionId); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  await agent.send('follow-up', { wait: false })
+  assert.equal(ctx.agents.listInbox(agent.sessionId).some((item) => item.kind === 'wake'), true)
+  agent.cancel()
+  for (let i = 0; i < 50 && ctx.agents.isBusy(agent.sessionId); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  assert.equal(ctx.agents.isBusy(agent.sessionId), false)
+  assert.equal(runs, 1)
+  assert.equal(ctx.agents.listInbox(agent.sessionId).some((item) => item.text === 'follow-up'), true)
+})
+
 test('/goal wakes continuation until the goal is marked complete', async () => {
   const ctx = new Context()
   await ctx.plugin(sessionStore, { driver: 'memory' })

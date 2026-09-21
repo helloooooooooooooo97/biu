@@ -137,11 +137,18 @@ export class AgentsService extends Service {
         const claimed = claim(live.inbox)
         this.emitInbox(id)
         if (!claimed) {
+          if (live.abort.signal.aborted) break
           const queued = await this.queueGoalContinuation(id, live)
           if (!queued) break
           continue
         }
-        last = await this.ctx.agentLoop.create(this.resolveLlm(id), id, live.abort.signal).run(claimed)
+        try {
+          last = await this.ctx.agentLoop.create(this.resolveLlm(id), id, live.abort.signal).run(claimed)
+        } catch (error) {
+          if (/cancelled|AbortError|aborted/i.test(String(error))) break
+          throw error
+        }
+        if (live.abort.signal.aborted) break
       }
       return last
     }
@@ -260,7 +267,10 @@ export class AgentsService extends Service {
         await startKick(wait)
         return { flushed: true }
       },
-      cancel: () => live.abort.abort(),
+      cancel: () => {
+        live.restartWhenIdle = false
+        live.abort.abort()
+      },
       dispose: () => {
         live.abort.abort()
         this.lives.delete(id)

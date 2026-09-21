@@ -1046,6 +1046,7 @@ export const ChatComposer = memo(function ChatComposer(props: SlotProps) {
               title="停止"
               aria-label="停止生成"
               onClick={() => void sessionView.cancel()}
+              onMouseDown={(event) => event.preventDefault()}
             >
               <span className="composer-stop-square" aria-hidden />
             </button>
