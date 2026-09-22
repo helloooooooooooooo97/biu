@@ -16,10 +16,15 @@ export interface SessionSidebarGroup {
   kind: SidebarGroupKind
 }
 
+/** 有消息用最近一条消息的时间；还没发过消息的会话用 updatedAt。 */
+export function sessionActivityAt(item: SessionListItem) {
+  return item.lastMessageAt && item.lastMessageAt > 0 ? item.lastMessageAt : item.updatedAt
+}
+
 export function compareSessionRows(a: SessionListItem, b: SessionListItem) {
   const pin = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))
   if (pin) return pin
-  return b.updatedAt - a.updatedAt || a.id.localeCompare(b.id)
+  return sessionActivityAt(b) - sessionActivityAt(a) || a.id.localeCompare(b.id)
 }
 
 /** 悬浮聊天用：按更新时间取最近一条对话（忽略置顶；优先普通 chat）。 */
@@ -39,10 +44,10 @@ export function mostRecentSessionId(sessions: SessionListItem[]): string | undef
 
 function sortGroupSessions(group: SessionSidebarGroup) {
   group.sessions.sort(compareSessionRows)
-  group.updatedAt = group.sessions.reduce((max, item) => Math.max(max, item.updatedAt), 0)
+  group.updatedAt = group.sessions.reduce((max, item) => Math.max(max, sessionActivityAt(item)), 0)
 }
 
-/** 按绑定文件夹 path 分组；无 path 归入 Ungrouped。组内置顶优先，其余按 updatedAt 降序。 */
+/** 按绑定文件夹 path 分组；无 path 归入 Ungrouped。组内置顶优先，其余按最近一条消息的时间降序。 */
 export function groupSessionsByProject(sessions: SessionListItem[]): SessionSidebarGroup[] {
   const map = new Map<string, SessionSidebarGroup>()
   for (const item of sessions) {

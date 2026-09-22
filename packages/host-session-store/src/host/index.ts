@@ -4,11 +4,13 @@ import {
   type SessionRecord,
   type SessionStore,
   type SessionSummary,
+  lastSpokenAt,
   sessionDisplayTitle,
 } from '@biu/type-session'
 
 function toSummary(record: SessionRecord, updatedAt?: number): SessionSummary {
   const touched = updatedAt ?? record.events.at(-1)?.ts ?? 0
+  const spoken = lastSpokenAt(record.events)
   const createdAt = Number(record.config?.createdAt)
   const stamp = Number.isFinite(createdAt) && createdAt > 0 ? createdAt : (record.events[0]?.ts ?? touched)
   return {
@@ -17,6 +19,7 @@ function toSummary(record: SessionRecord, updatedAt?: number): SessionSummary {
     eventCount: record.events.length,
     title: sessionDisplayTitle(record),
     updatedAt: touched,
+    ...(spoken > 0 ? { lastMessageAt: spoken } : {}),
     ...(record.project ? { project: record.project } : {}),
     ...(record.mascot ? { mascot: record.mascot } : {}),
     ...(record.config || stamp
