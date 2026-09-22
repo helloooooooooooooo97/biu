@@ -17,17 +17,17 @@ import {
   SAMPLE_SCRIPT,
 } from './compose.ts'
 
-test('default sample is a frame-driven React advertisement', () => {
+test('default sample explains how to edit the block', () => {
   const result = compileSafe(SAMPLE_SCRIPT)
   assert.equal(result.ok, true, result.ok ? '' : result.error)
   if (!result.ok) return
   const project = result.project
   assert.match(SAMPLE_SCRIPT, /src=builtin:ad-scene/)
   assert.match(SAMPLE_SCRIPT, /src=builtin:ad-transition/)
-  assert.match(SAMPLE_SCRIPT, /React 逐帧文字与遮罩转场/)
-  assert.match(SAMPLE_SCRIPT, /BIU 视频块\|介绍/)
-  assert.match(SAMPLE_SCRIPT, /让创作\|即刻发生。/)
-  assert.match(SAMPLE_SCRIPT, /desc="品牌 Slogan 淡入"/)
+  assert.match(SAMPLE_SCRIPT, /视频块用法：插入后改字、加标题、接片段/)
+  assert.match(SAMPLE_SCRIPT, /输入 \/视频\|就能看到这段片子/)
+  assert.match(SAMPLE_SCRIPT, /换成你要说的话/)
+  assert.match(SAMPLE_SCRIPT, /desc="换成你的字"/)
   assert.equal(project.background, '#191919')
   assert.equal(project.tracks.length, 3)
   assert.equal(project.clips.length, 16)

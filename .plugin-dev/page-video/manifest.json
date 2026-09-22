@@ -1,7 +1,7 @@
 {
   "id": "page-video",
   "name": "视频编排",
-  "blurb": "Agent 用 <timeline> 声明式脚本剪辑：轨内串行、轨间并行，编译器给出重叠和空镜诊断，前端实时合成。",
+  "blurb": "在页面里插入一段能直接播放的视频。用 <timeline> 写画面：一条 <track> 是一层，里面按顺序放 <title>、<clip>、<transition>。改字或改时长，播放器马上更新。",
   "tags": ["page", "editor", "video", "timeline"],
   "author": "Biu",
   "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",

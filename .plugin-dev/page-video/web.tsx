@@ -1672,7 +1672,10 @@ function isLegacySampleScript(value: unknown) {
   const oldBgmSrc =
     value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
     (value.includes('src=builtin:ad-beat') || value.includes('src=/api/page-video/assets/bgm.mp3'))
-  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd || genericTimelineOpening || uniformTransitionAd || oldBgmSrc
+  const abstractAd =
+    value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
+    value.includes('一块内容，也能是一支可播放的视频')
+  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd || genericTimelineOpening || uniformTransitionAd || oldBgmSrc || abstractAd
 }
 
 function Editor({
@@ -1831,7 +1834,7 @@ export function apply(ctx: {
     label: '视频编排',
     blockType: 'video',
     blockTypeLabel: '视频',
-    hint: '标签时间轴，全屏编辑脚本',
+    hint: '插入后直接播放。全屏里改标题、时长和片段',
     aliases: ['video', 'timeline', 'remotion', 'openscreen', '影片'],
     assets: (data: Record<string, unknown>) => {
       const out: string[] = []

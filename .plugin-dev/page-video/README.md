@@ -1,8 +1,8 @@
 # 视频编排
 
-在页面里用 `/` 插入只读时间轴。Agent 用 **声明式标签**完成剪辑：`<timeline>` 里每条 `<track>` 是一层，轨内串行、轨间并行。前端只负责实时合成；不要手算绝对秒数去叠图层。
+在页面里输入 `/视频`，插入一段能直接播放的片子。默认片子逐句说明怎么改它：改标签里的字，画面就变；一条 `<track>` 是一层，同一层按顺序接，不同层同时播。
 
-改页面或代写块之前，先照下面「示例写法」写 `:::pageBlock` 围栏。围栏体就是 `<timeline>` 脚本，不要包 JSON，也不要再写旧的 `<video>` 根。
+代写时把下面的围栏写进页面正文。围栏体就是 `<timeline>`，不要包 JSON，也不要再写旧的 `<video>` 根。
 
 ## 结构
 
@@ -22,30 +22,29 @@
 
 时间：`4s`、`700ms`、`96f`（按 `fps` 换算，内部按帧吸附）。`at="q1.end + 0.7s"` 相对引用。`follow=q1 offset="-0.15s,+0.5s"` 把字幕绑到旁白。`desc` / `description` 是给人和 Agent 的备注，只出现在源码和时间轴上，**不渲染进画面**。
 
-## 示例
+## 示例写法
+
+两秒标题，接着四秒自己的视频文件。标题写在标签里，`dur` 是停留秒数。
 
 ```md
 :::pageBlock {kind=video plugin=page-video}
-<timeline fps=30 size=1920x1080 background=#191919 description="BIU 动态广告片">
-  <track name=scenes layer=3>
-    <component id=open src=builtin:ad-scene variant=hero motion=fade-up dur=2s color=#8B5CF6>BIU VIDEO BLOCK|01 / 02|BIU 视频块|介绍|一块内容，也能是一支可播放的视频</component>
-    <component id=end src=builtin:ad-scene variant=finale motion=fade dur=2s color=#A78BFA>BIU VIDEO BLOCK|02 / 02|让创作|即刻发生。|BIU 视频块 · 从想法到成片|hold</component>
-  </track>
-  <track name=transitions layer=6>
-    <component src=builtin:ad-transition variant=iris at="open.end - 26f" dur=26f color=#8B5CF6 />
+<timeline fps=30 size=1920x1080 background=#191919 description="产品介绍">
+  <track name=main layer=3>
+    <title id=open dur=2s>这是标题</title>
+    <clip src=片段.mp4 dur=4s />
   </track>
   <track name=music kind=audio>
-    <audio src=assets/bgm.mp3 at=0s dur=16s volume=.7 />
+    <audio src=assets/bgm.mp3 at=0s dur=6s volume=.7 />
   </track>
 </timeline>
 :::
 ```
 
-`builtin:ad-scene` 只渲染一幕逐帧 React 文字场景。版式 `variant` 可选 `hero`、`split`、`marquee`、`stagger`、`focus`、`code`、`stack`、`finale`；文字 `motion` 可选 `fade`、`fade-up`、`slide`、`type`、`reveal`、`scale`、`tracking`、`blur`。`builtin:ad-transition` 的 `variant` 可选 `wipe`、`iris`、`split`、`bars`、`flash`、`slide`、`shutter`。默认配乐跟 pack 产物一样写 `src=assets/bgm.mp3`。播放器认出插件包里的 `bgm.mp3` 就会去 `.plugin/page-video/assets/` 取。其它文件名仍走页面附件。`at`/`dur`/`volume`/`sourceIn`/`speed` 均可动画。
+`片段.mp4` 先放到这一页的附件里。`src=assets/bgm.mp3` 用插件自带的配乐，播放器会到 `.plugin/page-video/assets/` 去取；其它文件名走页面附件。
 
-顺序、时长、版式、文字动效、转场和配乐都由脚本编排。
+插入时的默认片子是八句用法说明，用的是内置文字场景 `builtin:ad-scene`（版式 `hero` `split` `marquee` `stagger` `focus` `code` `stack` `finale`）和转场 `builtin:ad-transition`（`wipe` `iris` `split` `bars` `flash` `slide` `shutter`）。自己写片子时优先用上面的 `<title>` 和 `<clip>`，不必再套这些内置场景。
 
-先跑 `video_script`：它会返回覆盖时长、重叠、空镜、follow 失效等诊断，再 `db_content` 写入围栏。
+写入前可以先跑 `video_script`，它会指出重叠、空镜和失效的 `follow`，再 `db_content` 写入围栏。
 
 ## React 组件与 AbsoluteFill
 
