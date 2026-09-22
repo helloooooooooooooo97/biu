@@ -1,7 +1,5 @@
 import type { ChatNode, ChatToolPart, TrajectoryUsage } from '@biu/web-session-view'
 
-export type LiveHudFlash = { kind: 'tool' | 'output'; text: string; key: string }
-
 export type LiveHudState = {
   turn: number
   step: number
@@ -84,16 +82,6 @@ export function setHudReplyId(id: string | null) {
   if (hudReplyId === id) return
   hudReplyId = id
   for (const listener of hudReplyListeners) listener()
-}
-
-export function stepHudReply(nodes: ChatNode[], dir: -1 | 1) {
-  const replies = listReplyNodes(nodes)
-  if (!replies.length) return
-  const currentId = hudReplyId ?? replies.at(-1)!.id
-  const index = replies.findIndex((row) => row.id === currentId)
-  const next = (index < 0 ? replies.length - 1 : index) + dir
-  if (next < 0 || next >= replies.length) return
-  setHudReplyId(replies[next]!.id)
 }
 
 export function clipHudText(text: string, max = 80) {

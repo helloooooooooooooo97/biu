@@ -1,5 +1,4 @@
 import {
-  DATA_DIR_NAME,
   openAndMigrateBiu,
   upsertAttachmentRow,
   writeEditorContent,
@@ -22,8 +21,6 @@ import { parsePageBanner, type PageBanner, type PageBannerKind } from '../page-b
 import { bannerGalleryId, isBannerPreset } from '../banner-presets.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
-
-export const FILE_SYSTEM_SQLITE = `${DATA_DIR_NAME}/biu.sqlite`
 
 export type FacetStamp = {
   collection: string

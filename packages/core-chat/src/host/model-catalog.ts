@@ -690,37 +690,14 @@ export function describeProvider(provider: ChatProvider): string {
   }
 }
 
-export function describeEndpointGroup(group: EndpointGroup): string {
-  switch (group) {
-    case 'official':
-      return '官方'
-    case 'relay':
-      return '中转站'
-    case 'local':
-      return '本地'
-    case 'custom':
-      return '自定义'
-    default:
-      return group
-  }
-}
-
 export function defaultModelFor(provider: ChatProvider): string {
   if (provider === 'deepseek') return 'deepseek-v4-flash'
   const first = LLM_MODEL_CATALOG.find((m) => m.provider === provider && m.endpointId === provider)
   return first?.model ?? LLM_MODEL_CATALOG.find((m) => m.provider === provider)?.model ?? 'deepseek-v4-flash'
 }
 
-export function modelsForEndpoint(endpointId: string): LlmModelDef[] {
-  return LLM_MODEL_CATALOG.filter((m) => m.endpointId === endpointId)
-}
-
 export function findEndpointPreset(id: string): LlmEndpointDef | undefined {
   return LLM_ENDPOINT_PRESETS.find((e) => e.id === id)
-}
-
-export function endpointProtocolProvider(endpoint: LlmEndpointDef): ChatProvider {
-  return endpoint.provider
 }
 
 export type ReasoningEffort = 'high' | 'max'
