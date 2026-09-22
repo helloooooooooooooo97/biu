@@ -65,6 +65,39 @@ test('parseToolCall create streams file_text before the JSON closes', () => {
   assert.equal(parsed.fileText, 'export const n = 1\nexp')
 })
 
+test('parseToolCall db_content write streams value before the JSON closes', () => {
+  const parsed = parseToolCall(
+    'db_content',
+    '{"path":"/pages/home","command":"write","value":"# 标题\\n正文还没',
+  )
+  assert.equal(parsed.kind, 'create')
+  if (parsed.kind !== 'create') return
+  assert.equal(parsed.path, '/pages/home')
+  assert.equal(parsed.fileText, '# 标题\n正文还没')
+})
+
+test('parseToolCall db_content str_replace streams new_str', () => {
+  const parsed = parseToolCall(
+    'db_content',
+    '{"path":"/pages/home","command":"str_replace","old_str":"foo","new_str":"bar baz',
+  )
+  assert.equal(parsed.kind, 'str_replace')
+  if (parsed.kind !== 'str_replace') return
+  assert.equal(parsed.oldStr, 'foo')
+  assert.equal(parsed.newStr, 'bar baz')
+})
+
+test('parseToolCall db_doc write streams value', () => {
+  const parsed = parseToolCall(
+    'db_doc',
+    '{"path":"/pages/p","name":"board.json","command":"write","value":"{\\"nodes\\":[',
+  )
+  assert.equal(parsed.kind, 'create')
+  if (parsed.kind !== 'create') return
+  assert.equal(parsed.path, '/pages/p/board.json')
+  assert.equal(parsed.fileText, '{"nodes":[')
+})
+
 test('formatToolDetail unwraps bash stdout/stderr json', () => {
   const formatted = formatToolDetail(
     JSON.stringify({ code: 0, stdout: 'hello\nworld\n', stderr: '' }),
