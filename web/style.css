@@ -85,9 +85,6 @@ html.dark {
   --dsw-input: var(--dsw-bg);
   --dsw-tool: var(--dsw-bg);
   --dsw-surface: var(--dsw-bg);
-  --dsw-danger: #cf2d56;
-  --dsw-danger-soft: rgba(207, 45, 86, 0.14);
-  --dsw-ok: #1f8a65;
   --dsw-pick: #5b9fd6;
   --dsw-pick-fill: color-mix(in srgb, #5b9fd6 22%, transparent);
   --dsw-pick-stroke: color-mix(in srgb, #5b9fd6 40%, transparent);
@@ -98,8 +95,11 @@ html.dark {
   --dsw-icon: #bcbab6;
   --dsw-icon-active: #bcbab6;
   --dsw-sidebar-icon: var(--dsw-icon);
-  --dsw-usage-track-cache: color-mix(in srgb, #448361 22%, #191919);
-  --dsw-usage-track-hist: color-mix(in srgb, #d9730d 22%, #191919);
+  --dsw-ok: #6dffb5;
+  --dsw-danger: #ffb4ad;
+  --dsw-danger-soft: rgba(255, 180, 173, 0.18);
+  --dsw-usage-track-cache: color-mix(in srgb, #6dffb5 28%, #191919);
+  --dsw-usage-track-hist: color-mix(in srgb, #ffd084 28%, #191919);
   --dsw-tag-ink: #ffffff;
   --dsw-muted-fill: rgba(242, 241, 237, 0.04);
   --dsw-overlay: rgba(25, 25, 25, 0.72);
@@ -2467,6 +2467,30 @@ body {
 html.dark .chat-pane,
 html.dark .chat-overlay-panel {
   --dsw-icon: #91918e;
+  --dsw-ok: #6dffb5;
+  --dsw-danger: #ffb4ad;
+  --dsw-danger-soft: color-mix(in srgb, #ffb4ad 18%, transparent);
+}
+
+html.dark .session-inspector {
+  --dsw-ok: #6dffb5;
+  --dsw-danger: #ffb4ad;
+  --dsw-danger-soft: color-mix(in srgb, #ffb4ad 18%, transparent);
+}
+
+html.dark .traj-usage-ring.is-cache,
+html.dark .tool-call-chevron.is-ok,
+html.dark .tool-call-status.is-ok {
+  color: #6dffb5;
+}
+
+html.dark .traj-usage-ring.is-hist {
+  color: #ffd084;
+}
+
+html.dark .tool-call-chevron.is-fail,
+html.dark .tool-call-status.is-fail {
+  color: #ffb4ad;
 }
 
 .chat-pane-embed {
