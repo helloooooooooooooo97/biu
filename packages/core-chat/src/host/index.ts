@@ -1095,6 +1095,7 @@ export function apply(ctx: Context) {
         extraTools?: string[]
         tags?: string[]
         pinned?: boolean
+        autoCompactInputTokens?: number | null
         inspector?: SessionConfig['inspector'] | null
       } = {}
       if (typeof payload.title === 'string' || payload.title === null) patch.title = payload.title as string | null
@@ -1109,6 +1110,9 @@ export function apply(ctx: Context) {
       if (Array.isArray(payload.extraTools)) patch.extraTools = payload.extraTools.map((name) => String(name))
       if (Array.isArray(payload.tags)) patch.tags = payload.tags.map((name) => String(name))
       if (typeof payload.pinned === 'boolean') patch.pinned = payload.pinned
+      if (payload.autoCompactInputTokens === null || typeof payload.autoCompactInputTokens === 'number') {
+        patch.autoCompactInputTokens = payload.autoCompactInputTokens as number | null
+      }
       if (payload.inspector === null) patch.inspector = null
       else if (payload.inspector && typeof payload.inspector === 'object' && !Array.isArray(payload.inspector)) {
         patch.inspector = payload.inspector as SessionConfig['inspector']

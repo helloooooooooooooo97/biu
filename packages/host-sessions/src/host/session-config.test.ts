@@ -65,3 +65,14 @@ test('session config stores inspector bind', async () => {
   const cleared = await ctx.sessions.require(record.id)
   assert.equal(cleared.config?.inspector, undefined)
 })
+
+test('session config stores and clears the auto compact token threshold', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  const record = await ctx.sessions.create()
+  await ctx.sessions.patchConfig(record.id, { autoCompactInputTokens: 80000.8 })
+  assert.equal((await ctx.sessions.require(record.id)).config?.autoCompactInputTokens, 80000)
+  await ctx.sessions.patchConfig(record.id, { autoCompactInputTokens: 0 })
+  assert.equal((await ctx.sessions.require(record.id)).config?.autoCompactInputTokens, undefined)
+})

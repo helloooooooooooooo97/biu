@@ -1,4 +1,4 @@
-import type { InboxKind, MessageSender, LiveUiContext } from '@biu/type-session'
+import type { InboxKind, MessageSender, LiveUiContext, SessionConfig } from '@biu/type-session'
 
 export interface AgentTurn {
   text: string
@@ -20,6 +20,21 @@ export interface PreStepReq {
   sessionId: string
   messages: ClaimedInput[]
   reject?: string
+}
+
+/**
+ * 一步模型回复落成 assistant/message 之前。
+ * 和 agent/pre-step 一样走 waterfall：钩子调用 next() 拿到当前文本，只改 text 做追加。
+ * toolCalls / inputTokens / config 是这一步的事实，钩子不要改它们。
+ */
+export interface PostStepReq {
+  sessionId: string
+  turn: number
+  step: number
+  text: string
+  inputTokens?: number
+  toolCalls: Array<{ id: string; name: string; arguments: string }>
+  config?: SessionConfig
 }
 
 export interface AgentRunner {

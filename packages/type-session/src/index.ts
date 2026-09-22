@@ -139,6 +139,11 @@ export interface SessionConfig {
   createdAt?: number
   /** 右侧检查器页签与各栏库路径，跟这条 session 走。 */
   inspector?: SessionInspectorBind
+  /**
+   * 单步输入 token 超过这个数时，在该步 assistant/message 末尾追加一句，
+   * 要求调用 sessions 的 compact。未设或 ≤0 表示关闭。
+   */
+  autoCompactInputTokens?: number
 }
 
 /** 检查器打开的页签和各栏库路径，跟这条 session 走。开合/宽度/跟随只记本机。 */
@@ -175,6 +180,12 @@ export function normalizeInspectorBind(value: unknown): SessionInspectorBind | u
     next.dbPaths = dbPaths
   }
   return Object.keys(next).length ? next : undefined
+}
+
+function normalizeAutoCompactInputTokens(value: unknown): number | undefined {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN
+  if (!Number.isFinite(n) || n <= 0) return undefined
+  return Math.min(10_000_000, Math.floor(n))
 }
 
 export function mergeInspectorBind(
@@ -231,6 +242,8 @@ export function normalizeSessionConfig(value: unknown): SessionConfig | undefine
   }
   const inspector = normalizeInspectorBind(raw.inspector)
   if (inspector) next.inspector = inspector
+  const autoCompact = normalizeAutoCompactInputTokens(raw.autoCompactInputTokens)
+  if (autoCompact) next.autoCompactInputTokens = autoCompact
   return Object.keys(next).length ? next : undefined
 }
 
@@ -298,6 +311,11 @@ export function mergeSessionConfig(
       if (inspector) next.inspector = inspector
       else delete next.inspector
     }
+  }
+  if ('autoCompactInputTokens' in patch) {
+    const autoCompact = normalizeAutoCompactInputTokens(patch.autoCompactInputTokens)
+    if (autoCompact) next.autoCompactInputTokens = autoCompact
+    else delete next.autoCompactInputTokens
   }
   return Object.keys(next).length ? next : undefined
 }

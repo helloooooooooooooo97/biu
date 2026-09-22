@@ -33,6 +33,7 @@ interface SessionConfigFields {
   extraTools?: string[]
   tags?: string[]
   pinned?: boolean
+  autoCompactInputTokens?: number
 }
 
 interface InspectorPayload {
@@ -70,8 +71,10 @@ export const SessionConfigDialog = memo(function SessionConfigDialog({
   const [titleDraft, setTitleDraft] = useState('')
   const [promptDraft, setPromptDraft] = useState('')
   const [tagInput, setTagInput] = useState('')
+  const [compactDraft, setCompactDraft] = useState('')
   const titleFocusedRef = useRef(false)
   const promptFocusedRef = useRef(false)
+  const compactFocusedRef = useRef(false)
 
   const refresh = useCallback(async () => {
     if (!sessionId || !open) return
@@ -87,6 +90,10 @@ export const SessionConfigDialog = memo(function SessionConfigDialog({
             ? body.config.systemPrompt
             : (body.defaults?.systemPrompt ?? ''),
         )
+      }
+      if (!compactFocusedRef.current) {
+        const tokens = body.config?.autoCompactInputTokens
+        setCompactDraft(tokens && tokens > 0 ? String(tokens) : '')
       }
       setError('')
     } catch (err) {
@@ -265,6 +272,30 @@ export const SessionConfigDialog = memo(function SessionConfigDialog({
                     void patchSessionConfig({ systemPrompt: promptDraft })
                   }}
                 />
+              </label>
+
+              <label className="flex flex-col gap-1 text-[11px] text-(--dsw-label-3)">
+                <span>自动压缩（输入 token）</span>
+                <input
+                  className={fieldClass}
+                  inputMode="numeric"
+                  value={compactDraft}
+                  placeholder="留空则关闭"
+                  disabled={busy}
+                  data-testid="config-auto-compact"
+                  onChange={(event) => setCompactDraft(event.target.value.replace(/[^\d]/g, ''))}
+                  onFocus={() => {
+                    compactFocusedRef.current = true
+                  }}
+                  onBlur={() => {
+                    compactFocusedRef.current = false
+                    const prev = data?.config?.autoCompactInputTokens
+                    const next = compactDraft.trim() ? Number(compactDraft) : null
+                    if ((prev && prev > 0 ? prev : null) === next) return
+                    void patchSessionConfig({ autoCompactInputTokens: next })
+                  }}
+                />
+                <span>某一步输入 token 超过这个数时，把 compact 提示追加进该步的 assistant 回复。</span>
               </label>
 
               <div className="flex flex-col gap-px">
