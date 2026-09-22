@@ -158,7 +158,3 @@ export async function loadRaw(
   }
   return fetchRaw(url, init)
 }
-
-export async function loadBytes(url: string, signal?: AbortSignal) {
-  return loadRaw(url, { signal, headers: { Accept: 'image/*,*/*;q=0.8' } })
-}

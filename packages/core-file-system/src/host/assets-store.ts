@@ -1,6 +1,5 @@
 import { basename, join } from 'node:path'
 import {
-  ASSETS_ROOT,
   assetsRootPath,
   dataHome,
   isHashedAssetName,
@@ -14,9 +13,7 @@ import { collectAssetNames, isAssetFileName } from '../asset-refs.ts'
 export { collectAssetNames, isAssetFileName, assetNamesFromMarkdown, assetNamesFromHtml } from '../asset-refs.ts'
 export { isHashedAssetName, AssetConflictError, parseIfMatch } from '@biu/host-plugin-loader/data-dir'
 
-export const FILE_SYSTEM_ASSETS = ASSETS_ROOT
 export const FILE_SYSTEM_ASSET_PREFIX = '/api/db/file/'
-export const ASSET_CHANGED_EVENT = 'biu:asset-changed'
 
 export function assetHref(name: string) {
   return `${FILE_SYSTEM_ASSET_PREFIX}${encodeURIComponent(name)}`

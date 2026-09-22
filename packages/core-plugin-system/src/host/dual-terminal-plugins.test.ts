@@ -32,7 +32,7 @@ describe('page terminal store plugin', () => {
     if (process.platform === 'win32') return
     const { chmodSync, existsSync: exists, statSync } = await import('node:fs')
     const sandbox = resolve(root, '.plugin-dev', 'page-terminal')
-    ensureSandboxNpm(sandbox)
+    await ensureSandboxNpm(sandbox)
     const helper = resolve(sandbox, 'node_modules/node-pty/prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
     if (!exists(helper)) return
     if ((statSync(helper).mode & 0o111) === 0) chmodSync(helper, 0o755)
@@ -84,14 +84,14 @@ describe('page terminal store plugin', () => {
     assert.ok(pagePkg.dependencies?.['@xterm/addon-fit'])
     assert.ok(pagePkg.dependencies?.['node-pty'])
     if (process.platform === 'linux') {
-      ensureSandboxNpm(resolve(root, '.plugin-dev', 'page-terminal'))
+      await ensureSandboxNpm(resolve(root, '.plugin-dev', 'page-terminal'))
       assert.ok(existsSync(pluginFile('page-terminal', 'node_modules/node-pty/build/Release/pty.node')))
     }
   })
 
   it('packs native dependencies inside the plugin and prunes other platforms', async () => {
     const sandbox = resolve(root, '.plugin-dev', 'page-terminal')
-    ensureSandboxNpm(sandbox)
+    await ensureSandboxNpm(sandbox)
     const dest = await mkdtemp(resolve(tmpdir(), 'biu-plugin-pack-'))
     try {
       assert.deepEqual(copyPluginRuntimeDependencies(sandbox, dest), ['node-pty'])

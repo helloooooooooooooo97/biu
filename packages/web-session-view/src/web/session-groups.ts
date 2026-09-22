@@ -174,6 +174,3 @@ export function folderNameFromPath(path: string) {
   const parts = cleaned.split(/[\\/]/).filter(Boolean)
   return parts.at(-1) || path
 }
-
-/** @deprecated 使用 SessionSidebarGroup */
-export type SessionProjectGroup = SessionSidebarGroup

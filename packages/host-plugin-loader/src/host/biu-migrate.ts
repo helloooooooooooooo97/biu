@@ -8,7 +8,7 @@ import {
   quoteSqlitePath,
   setSchemaVersion,
 } from './sqlite-open.ts'
-import { BIU_TABLES, CREATE_CORE_SQL, LATEST_BIU_SCHEMA, createLatestSchema, dropLegacyEditorColumns, indexNames, rebuildPageBlockCollectionKeys, tableColumnNames, tableNames } from './biu-schema.ts'
+import { CREATE_CORE_SQL, LATEST_BIU_SCHEMA, createLatestSchema, dropLegacyEditorColumns, rebuildPageBlockCollectionKeys, tableColumnNames, tableNames } from './biu-schema.ts'
 import { copyLegacyBodies, rebuildContentRefs } from './editor-content.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
@@ -259,23 +259,6 @@ function snapshotBefore(db: DatabaseSync, ctx: MigrateCtx, nextVersion: number) 
   }
 }
 
-export function listBiuSchema(db: DatabaseSync) {
-  const tables: Record<string, { columns: string[]; indexes: string[] }> = {}
-  const indexes = indexNames(db)
-  for (const name of tableNames(db).sort()) {
-    tables[name] = {
-      columns: tableColumnNames(db, name),
-      indexes: indexes.filter((index) => {
-        const sql = (
-          db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?`).get(index) as { sql?: string } | undefined
-        )?.sql
-        return Boolean(sql && sql.includes(` ${name}(`) || sql?.includes(` ${name} (`))
-      }),
-    }
-  }
-  return tables
-}
-
 export function migrateBiu(db: DatabaseSync, ctx: MigrateCtx = {}, target = LATEST_BIU_SCHEMA) {
   const from = getSchemaVersion(db)
   if (from > target) {
@@ -325,8 +308,4 @@ export function openAndMigrateBiu(path: string, opts?: { foreignKeys?: boolean; 
   const workspace = opts?.workspace ?? (dataDir ? dirname(dataDir) : undefined)
   migrateBiu(db, { sqlitePath: path, dataDir, workspace })
   return db
-}
-
-export function expectedTableColumns() {
-  return Object.fromEntries(Object.entries(BIU_TABLES).map(([name, spec]) => [name, [...spec.columns].sort()]))
 }
