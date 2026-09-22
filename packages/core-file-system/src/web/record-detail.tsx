@@ -243,6 +243,7 @@ export function RecordDetail({
   chrome,
   draft,
   detailBody,
+  contentPhase = 'ready',
   labelOf,
   renderCell,
   setDraft,
@@ -267,6 +268,8 @@ export function RecordDetail({
   chrome?: CollectionChrome
   draft: Record<string, string>
   detailBody: unknown
+  /** 正文还在请求时不要渲染空编辑器。 */
+  contentPhase?: 'loading' | 'ready' | 'error'
   labelOf: (row: DbRecord) => string
   renderCell: (row: DbRecord, key: string, field: FieldSpec) => ReactNode
   setDraft: Dispatch<SetStateAction<Record<string, string>>>
@@ -435,6 +438,15 @@ export function RecordDetail({
                 {contentFieldKey(schema) && schema.fields[contentFieldKey(schema)!] ? (() => {
                   const key = contentFieldKey(schema)!
                   const spec = schema.fields[key]!
+                  if (contentPhase !== 'ready') {
+                    return (
+                      <div className="fsdb-fileview">
+                        <p className="fsdb-content-loading" role="status" data-testid="fsdb-content-loading">
+                          {contentPhase === 'error' ? '正文没有加载出来' : '加载中'}
+                        </p>
+                      </div>
+                    )
+                  }
                   const ContentView = chrome?.Content
                   if (ContentView) {
                     return (

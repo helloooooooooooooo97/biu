@@ -538,6 +538,7 @@ export function CollectionBrowser({
   const [openDetailId, setOpenDetailId] = useState<string | null>(routeRecordId)
   const [detailRow, setDetailRow] = useState<DbRecord | null>(null)
   const [detailBody, setDetailBody] = useState<unknown>(null)
+  const [contentPhase, setContentPhase] = useState<'loading' | 'ready' | 'error'>('loading')
   const [draft, setDraft] = useState<Record<string, string>>({})
   const actingRef = useRef(false)
   const initialView = viewForPath(collectionPath, routeViewId)
@@ -890,21 +891,30 @@ export function CollectionBrowser({
   detailIdRef.current = detailId
   const contentGen = useRef(0)
   const recordGen = useRef(0)
-  const pullDetailBody = useCallback(() => {
+  const pullDetailBody = useCallback((mode: 'switch' | 'refresh' = 'switch') => {
     const id = detailIdRef.current
     if (!id) {
       setDetailBody(null)
+      setContentPhase('ready')
       return
     }
     const gen = ++contentGen.current
+    if (mode === 'switch') {
+      setContentPhase('loading')
+      setDetailBody(null)
+    }
     void readJson<{ value?: unknown }>(`/api/db/content?path=${encodeURIComponent(`${dataPath}/${id}`)}`)
       .then((data) => {
         if (gen !== contentGen.current) return
         setDetailBody(data.value ?? null)
+        setContentPhase('ready')
       })
       .catch(() => {
         if (gen !== contentGen.current) return
-        setDetailBody(null)
+        if (mode === 'switch') {
+          setDetailBody(null)
+          setContentPhase('error')
+        }
       })
   }, [dataPath])
   const pullDetailRecord = useCallback(() => {
@@ -1003,7 +1013,7 @@ export function CollectionBrowser({
         pendingViews = false
         void reloadRef.current()
         if (detailIdRef.current) {
-          pullDetailBody()
+          pullDetailBody('refresh')
           pullDetailRecord()
         }
         if (viewsTouched) void syncViewsRef.current()
@@ -1387,13 +1397,14 @@ export function CollectionBrowser({
     setDraft((prev) => (prev[bodyKey] === formatted ? prev : { ...prev, [bodyKey]: formatted }))
   }, [bodyKey, detailBody, detailId, schema])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!detailId) {
       contentGen.current += 1
       setDetailBody(null)
+      setContentPhase('ready')
       return
     }
-    pullDetailBody()
+    pullDetailBody('switch')
   }, [collectionPath, dataPath, detailId, pullDetailBody])
 
   useEffect(() => {
@@ -3452,6 +3463,7 @@ export function CollectionBrowser({
           chrome={chrome}
           draft={draft}
           detailBody={detailBody}
+          contentPhase={contentPhase}
           labelOf={labelOf}
           renderCell={renderCell}
           setDraft={setDraft}
