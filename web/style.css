@@ -95,11 +95,11 @@ html.dark {
   --dsw-icon: #bcbab6;
   --dsw-icon-active: #bcbab6;
   --dsw-sidebar-icon: var(--dsw-icon);
-  --dsw-ok: #6dffb5;
-  --dsw-danger: #ffb4ad;
-  --dsw-danger-soft: rgba(255, 180, 173, 0.18);
-  --dsw-usage-track-cache: color-mix(in srgb, #6dffb5 28%, #191919);
-  --dsw-usage-track-hist: color-mix(in srgb, #ffd084 28%, #191919);
+  --dsw-ok: #1fac60;
+  --dsw-danger: #ff5949;
+  --dsw-danger-soft: rgba(255, 89, 73, 0.18);
+  --dsw-usage-track-cache: color-mix(in srgb, #1fac60 28%, #191919);
+  --dsw-usage-track-hist: color-mix(in srgb, #ff8000 28%, #191919);
   --dsw-tag-ink: #ffffff;
   --dsw-muted-fill: rgba(242, 241, 237, 0.04);
   --dsw-overlay: rgba(25, 25, 25, 0.72);
@@ -2467,30 +2467,30 @@ body {
 html.dark .chat-pane,
 html.dark .chat-overlay-panel {
   --dsw-icon: #91918e;
-  --dsw-ok: #6dffb5;
-  --dsw-danger: #ffb4ad;
-  --dsw-danger-soft: color-mix(in srgb, #ffb4ad 18%, transparent);
+  --dsw-ok: #1fac60;
+  --dsw-danger: #ff5949;
+  --dsw-danger-soft: color-mix(in srgb, #ff5949 18%, transparent);
 }
 
 html.dark .session-inspector {
-  --dsw-ok: #6dffb5;
-  --dsw-danger: #ffb4ad;
-  --dsw-danger-soft: color-mix(in srgb, #ffb4ad 18%, transparent);
+  --dsw-ok: #1fac60;
+  --dsw-danger: #ff5949;
+  --dsw-danger-soft: color-mix(in srgb, #ff5949 18%, transparent);
 }
 
 html.dark .traj-usage-ring.is-cache,
 html.dark .tool-call-chevron.is-ok,
 html.dark .tool-call-status.is-ok {
-  color: #6dffb5;
+  color: #1fac60;
 }
 
 html.dark .traj-usage-ring.is-hist {
-  color: #ffd084;
+  color: #ff8000;
 }
 
 html.dark .tool-call-chevron.is-fail,
 html.dark .tool-call-status.is-fail {
-  color: #ffb4ad;
+  color: #ff5949;
 }
 
 .chat-pane-embed {
