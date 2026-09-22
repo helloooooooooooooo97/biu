@@ -723,6 +723,180 @@ body {
   margin-top: 4px;
 }
 
+.session-config-float {
+  width: min(760px, calc(100vw - 32px));
+  height: min(76vh, 680px);
+}
+
+.session-config-row {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 8px 16px;
+  align-items: center;
+  min-height: 36px;
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.session-config-row.is-stack {
+  align-items: start;
+}
+
+.session-config-row.is-stack .session-config-k {
+  padding-top: 8px;
+}
+
+.session-config-row:hover {
+  background: color-mix(in srgb, var(--dsw-hover) 72%, transparent);
+}
+
+.session-config-k {
+  color: var(--dsw-label-2);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.session-config-v {
+  min-width: 0;
+}
+
+.session-config-input,
+.session-config-textarea {
+  width: 100%;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-label);
+  font: inherit;
+  outline: none;
+}
+
+.session-config-input {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.session-config-textarea {
+  min-height: 108px;
+  padding: 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.session-config-input:hover,
+.session-config-textarea:hover,
+.session-config-input:focus,
+.session-config-textarea:focus {
+  border-color: var(--dsw-border);
+  background: var(--dsw-input);
+}
+
+.session-config-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--dsw-label-3);
+  font-size: 12px;
+  font-weight: 450;
+  line-height: 1.45;
+}
+
+.session-config-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.session-config-tag {
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dsw-hover) 90%, transparent);
+  padding: 2px 8px;
+  color: var(--dsw-label-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.session-config-tag:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--dsw-danger) 14%, transparent);
+  color: var(--dsw-danger);
+}
+
+.session-config-seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--dsw-hover) 80%, transparent);
+}
+
+.session-config-seg button {
+  flex: 1;
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 6px 10px;
+  color: var(--dsw-label-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.session-config-seg button.is-on {
+  background: var(--dsw-float);
+  color: var(--dsw-label);
+  box-shadow: 0 0 0 1px var(--dsw-border);
+}
+
+.session-config-tool {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 8px;
+  margin: 0 -8px;
+  border-radius: 6px;
+  color: var(--dsw-label-2);
+  font-size: 13px;
+}
+
+.session-config-tool:hover {
+  background: color-mix(in srgb, var(--dsw-hover) 72%, transparent);
+  color: var(--dsw-label);
+}
+
+.session-config-tool.is-on {
+  color: var(--dsw-label);
+}
+
+.session-config-tool-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.session-config-tool-meta {
+  color: var(--dsw-label-3);
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .settings-mcp-rotate,
 .settings-mcp-link,
 .settings-mcp-enable {
