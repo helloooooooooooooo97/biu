@@ -9,8 +9,20 @@ import {
 } from '@biu/host-plugin-loader/data-dir'
 type DatabaseSync = import('node:sqlite').DatabaseSync
 
+export type NoticeFileCard = {
+  name: string
+  href: string
+  image: boolean
+}
+
 export type AssetGcNoticeSink = {
-  push: (input: { kind: 'session'; title: string; body: string; sourceKey: string }) => unknown
+  push: (input: {
+    kind: 'session'
+    title: string
+    body: string
+    sourceKey: string
+    content?: NoticeFileCard[]
+  }) => unknown
 }
 
 export type AssetGcHooks = {
@@ -28,8 +40,14 @@ function assetGcContext(hooks: AssetGcHooks) {
   }
 }
 
-function notify(hooks: AssetGcHooks, title: string, body: string, sourceKey: string) {
-  hooks.notices?.push({ kind: 'session', title, body, sourceKey })
+function notify(
+  hooks: AssetGcHooks,
+  title: string,
+  body: string,
+  sourceKey: string,
+  content?: NoticeFileCard[],
+) {
+  hooks.notices?.push({ kind: 'session', title, body, sourceKey, ...(content?.length ? { content } : {}) })
 }
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'])
@@ -43,15 +61,16 @@ function assetMime(db: DatabaseSync, name: string) {
   }
 }
 
-/** 通知正文：一句人话，然后每个文件一行。图片用 Markdown，打开通知能直接看到。 */
-export function assetNoticeBody(db: DatabaseSync, names: string[], lead: string) {
-  const lines = names.map((name) => {
-    const url = `/api/db/file/${encodeURIComponent(name)}`
+/** 详情区卡片用的附件清单。摘要只放一句话，文件不进 body。 */
+export function assetNoticeFiles(db: DatabaseSync, names: string[]): NoticeFileCard[] {
+  return names.map((name) => {
     const mime = assetMime(db, name)
-    if (mime.startsWith('image/') || IMAGE_EXT.has(extname(name).toLowerCase())) return `![${name}](${url})`
-    return `[${name}](${url})`
+    return {
+      name,
+      href: `/api/db/file/${encodeURIComponent(name)}`,
+      image: mime.startsWith('image/') || IMAGE_EXT.has(extname(name).toLowerCase()),
+    }
   })
-  return [lead, ...lines].filter(Boolean).join('\n')
 }
 
 const CANDIDATE_DAYS = Math.round(ASSET_GC_CANDIDATE_MS / (24 * 60 * 60 * 1000))
@@ -78,20 +97,18 @@ export async function runWorkspaceAssetGc(hooks: AssetGcHooks, opts?: { now?: nu
     notify(
       hooks,
       `删了 ${result.deleted.length} 个没人用的附件`,
-      assetNoticeBody(hooks.db, result.deleted, `这些文件已经 ${CANDIDATE_DAYS} 天没有被页面用到。`),
+      `这些文件已经 ${CANDIDATE_DAYS} 天没有被页面用到。`,
       'asset-gc:deleted',
+      assetNoticeFiles(hooks.db, result.deleted),
     )
   }
   if (candidates.length) {
     notify(
       hooks,
       `有 ${candidates.length} 个附件没人用了`,
-      assetNoticeBody(
-        hooks.db,
-        candidates.map((row) => row.name),
-        `页面和记录都不再用到下面这些文件。还会再留 ${CANDIDATE_DAYS} 天，到时才删。`,
-      ),
+      `页面和记录都不再用到下面这些文件。还会再留 ${CANDIDATE_DAYS} 天，到时才删。`,
       'asset-gc:candidates',
+      assetNoticeFiles(hooks.db, candidates.map((row) => row.name)),
     )
   }
   return { ...result, candidates }

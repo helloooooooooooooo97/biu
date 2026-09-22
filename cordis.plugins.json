@@ -92,6 +92,7 @@
       "layer": "core",
       "blurb": "通知表 /notices。给人看的收件箱，JSON 持久化。列表 db_list /notices。未读 read=false。不要 db_create。",
       "package": "@biu/core-notices/host",
+      "web": "@biu/core-notices/web",
       "togglable": false,
       "enabled": true
     },
