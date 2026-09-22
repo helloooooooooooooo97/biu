@@ -3770,26 +3770,6 @@ html.dark .app-side-bar .chat-session-row-star:not(.is-on) svg {
   color: #d9730d;
 }
 
-.project-chip-hist {
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: inherit;
-}
-
-.project-chip-hist-bar {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  transform-origin: bottom;
-  --biu-tag: #d9730d;
-  background: color-mix(in srgb, var(--biu-tag, #d9730d) 22%, transparent);
-  transition: height 0.2s ease;
-}
-
 .project-chip.project-chip-pick-toggle:hover:not(:disabled),
 .project-chip.project-chip-pick-toggle.is-active,
 .project-chip.project-chip-pick-toggle.is-active:hover:not(:disabled),
