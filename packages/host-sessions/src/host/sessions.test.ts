@@ -50,6 +50,43 @@ test('tool_calls assistant uses null content for API history', async () => {
   ])
 })
 
+test('lastMessageAt stays on the user message while the agent keeps writing', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  const older = await ctx.sessions.create('older')
+  const newer = await ctx.sessions.create('newer')
+  await ctx.sessions.append(older.id, { type: 'user/message', text: '先问', kind: 'wake' })
+  const spoken = (await ctx.sessions.require(older.id)).events.find((event) => event.type === 'user/message')
+  assert.ok(spoken && spoken.type === 'user/message')
+  await ctx.sessions.append(newer.id, { type: 'user/message', text: '后问', kind: 'wake' })
+  await ctx.sessions.append(older.id, {
+    type: 'assistant/message',
+    text: '',
+    tool_calls: [{ id: '1', name: 'clock_now', arguments: '{}' }],
+  })
+  await ctx.sessions.append(older.id, { type: 'tool/result', id: '1', name: 'clock_now', ok: true, detail: 'now' })
+  await ctx.sessions.append(older.id, { type: 'assistant/message', text: '答完了' })
+  const listed = await ctx.sessions.listSummaries()
+  const row = listed.find((item) => item.id === older.id)
+  assert.equal(row?.lastMessageAt, spoken.ts)
+  assert.ok((row?.updatedAt ?? 0) >= spoken.ts)
+  const dir = await mkdtemp(join(tmpdir(), 'cordis-spoken-'))
+  const path = join(dir, 'sessions.sqlite')
+  const sql = new Context()
+  await sql.plugin(sessionStore, { driver: 'sqlite', path })
+  await sql.plugin(sessions)
+  const sqlOlder = await sql.sessions.create('sql-older')
+  await sql.sessions.append(sqlOlder.id, { type: 'user/message', text: '先问', kind: 'wake' })
+  const sqlSpoken = (await sql.sessions.require(sqlOlder.id)).events.find((event) => event.type === 'user/message')
+  assert.ok(sqlSpoken && sqlSpoken.type === 'user/message')
+  await sql.sessions.append(sqlOlder.id, { type: 'assistant/message', text: '还在干活' })
+  await sql.sessions.append(sqlOlder.id, { type: 'tool/call', id: '2', name: 'bash', arguments: '{}' })
+  const sqlRow = (await sql.sessions.listSummaries()).find((item) => item.id === sqlOlder.id)
+  assert.equal(sqlRow?.lastMessageAt, sqlSpoken.ts)
+  assert.ok((sqlRow?.updatedAt ?? 0) >= sqlSpoken.ts)
+})
+
 test('sqlite session store round-trips and listSummaries skips full reload', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'cordis-sqlite-'))
   const path = join(dir, 'sessions.sqlite')

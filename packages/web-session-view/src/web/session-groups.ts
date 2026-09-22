@@ -16,7 +16,7 @@ export interface SessionSidebarGroup {
   kind: SidebarGroupKind
 }
 
-/** 有消息用最近一条消息的时间；还没发过消息的会话用 updatedAt。 */
+/** 有用户消息用那条消息的时间；还没发过消息的会话用 updatedAt。 */
 export function sessionActivityAt(item: SessionListItem) {
   return item.lastMessageAt && item.lastMessageAt > 0 ? item.lastMessageAt : item.updatedAt
 }
@@ -47,7 +47,7 @@ function sortGroupSessions(group: SessionSidebarGroup) {
   group.updatedAt = group.sessions.reduce((max, item) => Math.max(max, sessionActivityAt(item)), 0)
 }
 
-/** 按绑定文件夹 path 分组；无 path 归入 Ungrouped。组内置顶优先，其余按最近一条消息的时间降序。 */
+/** 按绑定文件夹 path 分组；无 path 归入 Ungrouped。组内置顶优先，其余按最近一次用户发消息的时间降序。 */
 export function groupSessionsByProject(sessions: SessionListItem[]): SessionSidebarGroup[] {
   const map = new Map<string, SessionSidebarGroup>()
   for (const item of sessions) {
