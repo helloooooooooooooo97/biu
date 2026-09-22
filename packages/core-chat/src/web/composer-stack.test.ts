@@ -160,7 +160,7 @@ describe('composer dock stacking above sticky user', () => {
     const node = readFileSync(resolve(root, 'packages/core-chat/src/web/composer-pick-node.tsx'), 'utf8')
     const approvals = readFileSync(resolve(root, 'packages/core-chat/src/web/approvals.tsx'), 'utf8')
     expect(css).toMatch(/\.project-chip\.project-chip-clear-ctx:hover:not\(:disabled\)\s*\{[^}]*color:\s*#d9730d/s)
-    expect(css).toMatch(/\.project-chip-hist-bar\s*\{[^}]*color-mix\(in srgb, var\(--biu-tag, #d9730d\) 22%, transparent\)/s)
+    expect(css).not.toMatch(/\.project-chip-hist-bar/)
     expect(css).toMatch(/\.composer-plus\s*\{[^}]*background:\s*var\(--dsw-bubble\)/s)
     // 加号 / 模型入口 / 芯片 / dock 按钮与项目文件夹同一套底和字色。
     expect(css).toMatch(/\.composer-plus\s*\{[^}]*color:\s*var\(--dsw-icon-active\)/s)
@@ -172,8 +172,7 @@ describe('composer dock stacking above sticky user', () => {
     expect(css).toMatch(/\.dock-icon-btn\.is-active\s*\{[^}]*background:\s*var\(--dsw-pick-fill\)/s)
     expect(approvals).toMatch(/<BrandCornerMascot[\s\S]*size=\{28\}/)
     expect(approvals).toMatch(/project-chip-clear-ctx/)
-    expect(approvals).toMatch(/project-chip-hist-bar/)
-    expect(approvals).toMatch(/histRatio \* 100/)
+    expect(approvals).not.toMatch(/project-chip-hist-bar/)
     expect(css).toMatch(/\.project-chip\s*\{[^}]*border:\s*1px solid var\(--dsw-border\)/s)
     expect(css).not.toMatch(/\.project-chip\.project-chip-clear-ctx\s*\{[^}]*border:\s*1px solid #d9730d/s)
     // 选取开关只靠文字色表达状态，不要额外描一圈强调色的边。
@@ -226,8 +225,8 @@ describe('composer dock stacking above sticky user', () => {
   it('uses facet orange fill on clear-context only when there is history', () => {
     const css = readFileSync(resolve(root, 'web/style.css'), 'utf8')
     const approvals = readFileSync(resolve(root, 'packages/core-chat/src/web/approvals.tsx'), 'utf8')
-    expect(css).toMatch(/\.project-chip-hist-bar\s*\{[^}]*color-mix\(in srgb, var\(--biu-tag, #d9730d\) 22%, transparent\)/s)
-    expect(approvals).toMatch(/project-chip-hist-bar/)
+    expect(css).not.toMatch(/\.project-chip-hist-bar/)
+    expect(approvals).not.toMatch(/project-chip-hist-bar/)
     expect(css).toMatch(/\.chat-pane\s*\{[^}]*--dsw-ok:\s*#448361/s)
     expect(css).toMatch(/\.chat-pane\s*\{[^}]*--dsw-danger:\s*#c4554d/s)
     expect(css).toMatch(/\.tool-call-status\.is-ok\s*\{[^}]*color:\s*#448361/s)
