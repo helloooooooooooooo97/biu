@@ -356,9 +356,32 @@ body {
 }
 
 .shell-notify-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
   color: var(--dsw-label-3);
   font-size: 12px;
   line-height: 1.35;
+}
+
+.shell-notify-body > span:first-child {
+  flex: 1 0 100%;
+}
+
+.shell-notify-asset {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--dsw-hover);
+}
+
+.shell-notify-file {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .shell-notify-badge {

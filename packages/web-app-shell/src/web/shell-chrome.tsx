@@ -564,6 +564,29 @@ function noticeIsForSession(row: NoticeRow, sessionId: string) {
   return href === `/s/${sessionId}` || href === `/s/${encodeURIComponent(sessionId)}`
 }
 
+function NoticeBody({ body }: { body: string }) {
+  const lines = body.split('\n').map((line) => line.trim()).filter(Boolean)
+  return (
+    <span className="shell-notify-body">
+      {lines.map((line, index) => {
+        const image = line.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/)
+        if (image) {
+          return <img key={index} className="shell-notify-asset" src={image[2]} alt={image[1] || '附件'} />
+        }
+        const link = line.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/)
+        if (link) {
+          return (
+            <span key={index} className="shell-notify-file">
+              {link[1]}
+            </span>
+          )
+        }
+        return <span key={index}>{line}</span>
+      })}
+    </span>
+  )
+}
+
 function noticeKindLabel(kind?: string) {
   if (kind === 'approval') return '审批'
   if (kind === 'task') return '任务'
@@ -699,7 +722,7 @@ function NoticeBell({
                     >
                       {kind ? <span className="shell-notify-kind">{kind}</span> : null}
                       <span className="shell-notify-title">{row.title || '通知'}</span>
-                      {row.body ? <span className="shell-notify-body">{row.body}</span> : null}
+                      {row.body ? <NoticeBody body={row.body} /> : null}
                     </button>
                   </li>
                 )
