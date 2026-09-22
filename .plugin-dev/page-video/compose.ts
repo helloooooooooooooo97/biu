@@ -124,16 +124,16 @@ export type Project = {
 
 export type Camera = { scale: number; cx: number; cy: number; rx: number; ry: number; rz: number }
 
-export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919 description="视频块用法：插入后改字、加标题、接片段">
+export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919 description="这段片子说明：视频块是嵌在页面里的视频，点全屏改字就能换成你的内容">
   <track name=scenes layer=3>
-    <component id=open src=builtin:ad-scene variant=hero motion=fade-up dur=2s color=#8B5CF6 desc="片头">页面里的视频|01 / 08|输入 /视频|就能看到这段片子|改标签里的字，画面马上变</component>
-    <component id=describe src=builtin:ad-scene variant=split motion=slide dur=2s color=#38BDF8 desc="一条轨">一条轨是一层|02 / 08|同一层按顺序接|第一段结束才播下一段|&lt;track&gt; 里面依次写画面</component>
-    <component id=type src=builtin:ad-scene variant=marquee motion=type dur=2s color=#F472B6 desc="标题">字写在标签里|03 / 08|&lt;title dur=2s&gt;|标题&lt;/title&gt;|dur 就是这段停几秒</component>
-    <component id=transition src=builtin:ad-scene variant=stagger motion=reveal dur=2s color=#FACC15 desc="转场">转场夹在两段中间|04 / 08|&lt;transition dur=0.4s /&gt;|总时长不变|两边各让出一半时间</component>
-    <component id=focus src=builtin:ad-scene variant=focus motion=scale dur=2s color=#34D399 desc="素材">要放自己的文件|05 / 08|&lt;clip src=片段.mp4|dur=4s /&gt;|先把文件放进这一页的附件</component>
-    <component id=react src=builtin:ad-scene variant=code motion=tracking dur=2s color=#FB7185 desc="叠层">两层可以同时播|06 / 08|上面的盖住下面的|layer 数字大的在上|字幕单独放一条轨</component>
-    <component id=sync src=builtin:ad-scene variant=stack motion=blur dur=2s color=#60A5FA desc="改完即看">改完脚本立刻能看|07 / 08|点全屏编辑时间轴|不用先导出成片|保存后这一页就更新</component>
-    <component id=end src=builtin:ad-scene variant=finale motion=fade dur=2s color=#A78BFA desc="换成你的字">从这里改字|08 / 08|换成你要说的话|这段示例就可以删|hold</component>
+    <component id=open src=builtin:ad-scene variant=hero motion=fade-up dur=3s color=#8B5CF6 desc="这是什么">这是什么|01 / 08|页面里的|一段视频|插进来就能播，不用先导出</component>
+    <component id=describe src=builtin:ad-scene variant=split motion=slide dur=3s color=#38BDF8 desc="怎么改">怎么改|02 / 08|点全屏|改里面的字|字一改，画面跟着变</component>
+    <component id=type src=builtin:ad-scene variant=marquee motion=type dur=3s color=#F472B6 desc="顺序">怎么排|03 / 08|先播这段|再播下一段|写在同一层里，按顺序接</component>
+    <component id=transition src=builtin:ad-scene variant=stagger motion=reveal dur=3s color=#FACC15 desc="标题">加标题|04 / 08|直接写|你要说的话|停几秒，就写 dur=2s</component>
+    <component id=focus src=builtin:ad-scene variant=focus motion=scale dur=3s color=#34D399 desc="自己的片">加视频|05 / 08|接上|你的文件|先把文件放进这一页的附件</component>
+    <component id=react src=builtin:ad-scene variant=code motion=tracking dur=3s color=#FB7185 desc="叠层">加字幕|06 / 08|另起一层|盖在上面|上面的字盖住下面的画面</component>
+    <component id=sync src=builtin:ad-scene variant=stack motion=blur dur=3s color=#60A5FA desc="在哪看">在哪看|07 / 08|就在这一页|点全屏细看|拖时间轴，改完立刻能看</component>
+    <component id=end src=builtin:ad-scene variant=finale motion=fade dur=3s color=#A78BFA desc="下一步">下一步|08 / 08|换成你的字|删掉这段介绍|hold</component>
   </track>
   <track name=transitions layer=6>
     <component id=transition-1 src=builtin:ad-transition variant=wipe at="open.end - 26f" dur=26f color=#8B5CF6 desc="斜切" />
@@ -145,7 +145,7 @@ export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919
     <component id=transition-7 src=builtin:ad-transition variant=shutter at="sync.end - 26f" dur=26f color=#60A5FA desc="快门" />
   </track>
   <track name=music kind=audio layer=0>
-    <audio id=bgm src=assets/bgm.mp3 at=0s dur=16s volume=.7 desc="背景音乐" />
+    <audio id=bgm src=assets/bgm.mp3 at=0s dur=24s volume=.7 desc="背景音乐" />
   </track>
 </timeline>
 `

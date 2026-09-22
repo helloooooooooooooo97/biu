@@ -1675,7 +1675,10 @@ function isLegacySampleScript(value: unknown) {
   const abstractAd =
     value.includes('description="BIU 动态广告片：React 逐帧文字与遮罩转场"') &&
     value.includes('一块内容，也能是一支可播放的视频')
-  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd || genericTimelineOpening || uniformTransitionAd || oldBgmSrc || abstractAd
+  const tagCheatSheet =
+    value.includes('description="视频块用法：插入后改字、加标题、接片段"') &&
+    value.includes('输入 /视频')
+  return shortFeatureList || multicolorNewcomerTour || titleCardNewcomerTour || singleComponentAd || longTimelineAd || genericTimelineOpening || uniformTransitionAd || oldBgmSrc || abstractAd || tagCheatSheet
 }
 
 function Editor({
