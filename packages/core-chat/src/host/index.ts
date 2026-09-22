@@ -553,6 +553,17 @@ export class ChatService extends Service {
     return { defaults: defaultsView, config, effective }
   }
 
+  /** 这条会话当前模型实际用的上下文窗口。 */
+  contextWindowFor(sessionId?: string | null): ContextWindow {
+    const { effective } = this.resolveEffective(sessionId)
+    const provider = effective.provider as ChatProvider
+    const caps = inferModelCapabilities(effective.model, provider)
+    const endpointId = (effective as { endpointId?: string }).endpointId ?? this.config.endpointId
+    const prefs = this.config.modelPrefs[prefKey(endpointId, effective.model)]
+    if (hasKnob(caps, 'context')) return prefs?.contextWindow ?? this.config.contextWindow
+    return '200k'
+  }
+
   resolverKey(provider: ChatProvider): string {
     return this.config.apiKeys[provider] ?? ''
   }
@@ -1095,6 +1106,7 @@ export function apply(ctx: Context) {
         extraTools?: string[]
         tags?: string[]
         pinned?: boolean
+        autoCompactInputTokens?: number | null
         inspector?: SessionConfig['inspector'] | null
       } = {}
       if (typeof payload.title === 'string' || payload.title === null) patch.title = payload.title as string | null
@@ -1109,6 +1121,10 @@ export function apply(ctx: Context) {
       if (Array.isArray(payload.extraTools)) patch.extraTools = payload.extraTools.map((name) => String(name))
       if (Array.isArray(payload.tags)) patch.tags = payload.tags.map((name) => String(name))
       if (typeof payload.pinned === 'boolean') patch.pinned = payload.pinned
+      if (typeof payload.autoCompactInputTokens === 'number') {
+        const cap = chat.contextWindowFor(route.params.id) === '1m' ? 1_000_000 : 200_000
+        patch.autoCompactInputTokens = Math.min(Math.max(1, Math.floor(payload.autoCompactInputTokens)), cap)
+      }
       if (payload.inspector === null) patch.inspector = null
       else if (payload.inspector && typeof payload.inspector === 'object' && !Array.isArray(payload.inspector)) {
         patch.inspector = payload.inspector as SessionConfig['inspector']

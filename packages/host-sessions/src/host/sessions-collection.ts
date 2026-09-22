@@ -51,6 +51,7 @@ function asRecord(row: SessionSummary): DbRecord {
     systemPrompt: row.config?.systemPrompt ?? '',
     agentMode: row.config?.agentMode ?? '',
     extraTools: Array.isArray(row.config?.extraTools) ? row.config.extraTools.map(String) : [],
+    autoCompactInputTokens: row.config?.autoCompactInputTokens ?? 0,
     mascot,
     mascotName: nameFromSessionMascot(mascot),
     mascotShape: mascot.shape,
@@ -140,7 +141,7 @@ export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
       route: '/db-sessions',
       title: '会话',
       inspector: true,
-      blurb: '这张表的每一行是一个会话，也就是一个代理（agent）。一个代理 = 一个 session，id 就是会话 id。用户说「再开一个 agent / 叫另一个代理去做」= 在本表 db_create 新建一行（caps.create 为真时），不要去建插件、不要去建任务。你自己也是其中一个会话。列表 db_list /sessions。改标题/置顶/标签/emoji/合集/模型/服务商/系统提示/模式/额外工具/项目路径：db_update /sessions/<id>。聊天记录不在这张表，不能用 db_update 写对话。删除 db_delete 进回收站（记录还在）；彻底删除用 purge=true 或 db_action /trash/sessions::<id> action=delete。本表动作（db_action path=/sessions/<会话id> action=…）：inspect=看这个代理的配置和最近几句对话（可选 args.limit）；progress=看它当前回合忙不忙、在用什么工具、刚说了什么（轮询时把上次返回的 newestSeq 当作 afterSeq）；status=看它上下文 token 用了多少；compact=压缩它的旧上下文（第一次不传 text 会返回该怎么写摘要，第二次把摘要放进 args.text）；clear=丢掉摘要、硬切压缩点；retrieve=按关键词找回被压缩的旧内容（必填 args.query）。',
+      blurb: '这张表的每一行是一个会话，也就是一个代理（agent）。一个代理 = 一个 session，id 就是会话 id。用户说「再开一个 agent / 叫另一个代理去做」= 在本表 db_create 新建一行（caps.create 为真时），不要去建插件、不要去建任务。你自己也是其中一个会话。列表 db_list /sessions。改标题/置顶/标签/emoji/合集/模型/服务商/系统提示/模式/额外工具/自动压缩输入 token/项目路径：db_update /sessions/<id>。聊天记录不在这张表，不能用 db_update 写对话。删除 db_delete 进回收站（记录还在）；彻底删除用 purge=true 或 db_action /trash/sessions::<id> action=delete。本表动作（db_action path=/sessions/<会话id> action=…）：inspect=看这个代理的配置和最近几句对话（可选 args.limit）；progress=看它当前回合忙不忙、在用什么工具、刚说了什么（轮询时把上次返回的 newestSeq 当作 afterSeq）；status=看它上下文 token 用了多少；compact=压缩它的旧上下文（第一次不传 text 会返回该怎么写摘要，第二次把摘要放进 args.text）；clear=丢掉摘要、硬切压缩点；retrieve=按关键词找回被压缩的旧内容（必填 args.query）。',
       order: 18,
       icon: 'chat-bubble',
     },
@@ -164,6 +165,7 @@ export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
         systemPrompt: { type: 'string', label: '系统提示', writable: true },
         agentMode: { type: 'select', label: '模式', enum: ['standard', 'file', 'minimal'], writable: true },
         extraTools: { type: 'multi-select', label: '额外工具', writable: true },
+        autoCompactInputTokens: { type: 'number', label: '自动压缩上限', writable: true },
         updatedAt: { type: 'datetime', label: '更新时间', sortable: true },
         mascotName: { type: 'string', label: '形象', computed: true },
         mascotShape: { type: 'select', label: '外形', enum: [...GROK_SHAPES], computed: true },
@@ -199,6 +201,10 @@ export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
       if (patch.agentMode === 'minimal' || patch.agentMode === 'file') config.agentMode = patch.agentMode
       if (patch.agentMode === 'standard' || patch.agentMode === 'create') config.agentMode = 'standard'
       if (Array.isArray(patch.extraTools)) config.extraTools = patch.extraTools.map((item) => String(item))
+      if ('autoCompactInputTokens' in patch) {
+        const n = Number(patch.autoCompactInputTokens)
+        config.autoCompactInputTokens = Number.isFinite(n) ? Math.floor(n) : 0
+      }
       if (Object.keys(config).length) await sessions.patchConfig(id, config)
       if ('projectPath' in patch && sessions.setProject) {
         const path = String(patch.projectPath ?? '').trim()

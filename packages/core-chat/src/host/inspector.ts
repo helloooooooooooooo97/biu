@@ -116,6 +116,8 @@ export function registerChatInspectorRoutes(ctx: Context) {
       effective: resolved.effective,
       sources: SOURCE_INFO,
       tools,
+      contextWindow: ctx.chat.contextWindowFor(id),
+      contextWindowTokens: ctx.chat.contextWindowFor(id) === '1m' ? 1_000_000 : 200_000,
     }
     const dispatched = await loadDispatchedUsage(ctx, id, record.events)
     const { titles, mascots, projects } = await sessionDecorations(ctx)

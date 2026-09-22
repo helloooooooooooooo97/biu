@@ -3,7 +3,7 @@ import type { HubService } from '@biu/host-hub'
 import type { ToolsService, ToolRequest } from '@biu/host-tools'
 import type { LlmService } from '@biu/host-llm'
 import type { AgentLoopService } from '@biu/host-agent-loop'
-import type { PreStepReq } from '@biu/type-agent-loop'
+import type { PreStepReq, PostStepReq } from '@biu/type-agent-loop'
 import type { AgentsService } from '@biu/host-agents'
 import type { ApprovalsService } from '@biu/host-approvals'
 import type { SessionsService } from '@biu/host-sessions'
@@ -69,6 +69,7 @@ declare module 'cordis' {
       inbox: Array<{ id: string; kind: 'wake' | 'inject'; text: string }>
     }): void
     'agent/pre-step'(req: PreStepReq, next: () => PreStepReq): PreStepReq
+    'agent/post-step'(req: PostStepReq, next: () => PostStepReq): PostStepReq
     'session/event'(payload: { sessionId: string; event: SessionEvent }): void
     'tools/pre-execute'(req: ToolRequest, next: () => ToolRequest): ToolRequest
     'tools/post-execute'(payload: { name: string; ok: boolean; detail: string }): void

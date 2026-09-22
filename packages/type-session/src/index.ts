@@ -139,6 +139,11 @@ export interface SessionConfig {
   createdAt?: number
   /** 右侧检查器页签与各栏库路径，跟这条 session 走。 */
   inspector?: SessionInspectorBind
+  /**
+   * 自动压缩的输入 token 上限。未设则用当前模型上下文窗口。
+   * 关不掉；写入时会夹到 1..模型上下文。
+   */
+  autoCompactInputTokens?: number
 }
 
 /** 检查器打开的页签和各栏库路径，跟这条 session 走。开合/宽度/跟随只记本机。 */
@@ -175,6 +180,12 @@ export function normalizeInspectorBind(value: unknown): SessionInspectorBind | u
     next.dbPaths = dbPaths
   }
   return Object.keys(next).length ? next : undefined
+}
+
+function normalizeAutoCompactInputTokens(value: unknown): number | undefined {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN
+  if (!Number.isFinite(n) || n <= 0) return undefined
+  return Math.min(10_000_000, Math.floor(n))
 }
 
 export function mergeInspectorBind(
@@ -231,6 +242,8 @@ export function normalizeSessionConfig(value: unknown): SessionConfig | undefine
   }
   const inspector = normalizeInspectorBind(raw.inspector)
   if (inspector) next.inspector = inspector
+  const autoCompact = normalizeAutoCompactInputTokens(raw.autoCompactInputTokens)
+  if (autoCompact) next.autoCompactInputTokens = autoCompact
   return Object.keys(next).length ? next : undefined
 }
 
@@ -298,6 +311,11 @@ export function mergeSessionConfig(
       if (inspector) next.inspector = inspector
       else delete next.inspector
     }
+  }
+  if ('autoCompactInputTokens' in patch) {
+    const autoCompact = normalizeAutoCompactInputTokens(patch.autoCompactInputTokens)
+    if (autoCompact) next.autoCompactInputTokens = autoCompact
+    else delete next.autoCompactInputTokens
   }
   return Object.keys(next).length ? next : undefined
 }
