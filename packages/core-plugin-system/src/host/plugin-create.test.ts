@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Context } from 'cordis'
 import { PluginStoreService } from './index.ts'
-import { compileStoreModule, withPluginPackLock } from './plugin-create.ts'
+import { withPluginPackLock } from './plugin-create.ts'
 import { pluginsCollection } from './collection.ts'
 import type { PluginStoreService as Store } from './store.ts'
 
@@ -488,22 +488,6 @@ test('pack rejects @biu imports', async () => {
     await assert.rejects(() => store.pack('store-biu'), /@biu\/web-slots/)
   } finally {
     await rm(dir, { recursive: true, force: true })
-  }
-})
-
-test('compileStoreModule does not require node on PATH', async () => {
-  const path = process.env.PATH
-  process.env.PATH = '/path-without-node'
-  try {
-    const code = await compileStoreModule(
-      `export const name = 'store-echo'\nexport function apply(ctx: { ok: boolean }) { return ctx.ok }`,
-      'host',
-    )
-    assert.match(code, /\bapply\b/)
-    assert.doesNotMatch(code, /ctx: \{/)
-  } finally {
-    if (path === undefined) delete process.env.PATH
-    else process.env.PATH = path
   }
 })
 

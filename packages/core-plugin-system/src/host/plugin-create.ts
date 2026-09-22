@@ -111,24 +111,6 @@ export function findEntry(dir: string, names: string[]) {
   return names.map((name) => join(dir, name)).find((path) => existsSync(path)) ?? null
 }
 
-/** 单文件 TS/TSX → ESM（无 bundle）。 */
-export async function compileStoreModule(source: string, kind: 'host' | 'web') {
-  const trimmed = source.trim()
-  if (!trimmed) throw new Error(`${kind} source is empty`)
-  const { transform } = await import('esbuild')
-  const result = await transform(trimmed, {
-    loader: kind === 'web' ? 'tsx' : 'ts',
-    format: 'esm',
-    target: 'es2022',
-    jsx: 'transform',
-    jsxFactory: 'React.createElement',
-    jsxFragment: 'React.Fragment',
-    tsconfigRaw: '{"compilerOptions":{"jsx":"react"}}',
-    sourcemap: false,
-  })
-  return finishBundle(result.code, kind)
-}
-
 function mimeForAsset(file: string) {
   const ext = extname(file).toLowerCase()
   if (ext === '.woff2') return 'font/woff2'
@@ -321,7 +303,6 @@ export async function ensureSandboxNpm(sandbox: string) {
   const options = {
     cwd: sandbox,
     encoding: 'utf8' as const,
-    timeout: 180_000,
     stdio: ['ignore', 'pipe', 'pipe'] as const,
     env: { ...process.env, npm_config_update_notifier: 'false' },
     shell: process.platform === 'win32',
@@ -476,10 +457,6 @@ function finishBundle(code: string, kind: 'host' | 'web') {
     out = `const React = globalThis.React\n${out}`
   }
   return out.endsWith('\n') ? out : `${out}\n`
-}
-
-export async function readSandboxManifest(dir: string) {
-  return persistStoreManifestCreatedAt(dir)
 }
 
 const CONTRACT = [
