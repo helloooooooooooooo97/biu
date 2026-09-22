@@ -1,6 +1,7 @@
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
-import { execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { dirname, extname, join, resolve } from 'node:path'
 import type { Plugin as EsbuildPlugin } from 'esbuild'
 import { declaredStoreShell, parseStoreShell, requireDeclaredShell, type StoreShell } from '../shell.ts'
@@ -282,8 +283,26 @@ export async function ensureSandboxPackageJson(dest: string, id: string) {
   await writeFile(pkgFile, sandboxPackageJson(id))
 }
 
+const execFileAsync = promisify(execFile)
+
+/**
+ * 插件 pack 共用一个 esbuild 服务，IPC 必须靠事件循环收。
+ * 多个 pack 同时跑时，同步 npm 会堵住循环，esbuild 管道写满后两边互相等。
+ * 整段 bundle（含 npm install）排成一条队列。
+ */
+let packTail: Promise<void> = Promise.resolve()
+
+export function withPluginPackLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = packTail.then(fn, fn)
+  packTail = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  return run
+}
+
 /** 沙箱自己的 npm 依赖：pack 时装进 .plugin-dev/<id>/node_modules，再打进 bundle。不走宿主 package.json。 */
-export function ensureSandboxNpm(sandbox: string) {
+export async function ensureSandboxNpm(sandbox: string) {
   const pkgFile = join(sandbox, 'package.json')
   if (!existsSync(pkgFile)) return
   let pkg: { dependencies?: Record<string, string> }
@@ -307,14 +326,16 @@ export function ensureSandboxNpm(sandbox: string) {
     env: { ...process.env, npm_config_update_notifier: 'false' },
     shell: process.platform === 'win32',
   }
+  const runNpm = (args: string[], timeout: number) =>
+    execFileAsync('npm', args, { ...options, timeout })
   try {
-    execFileSync('npm', ['install', '--omit=dev', '--no-audit', '--no-fund', '--ignore-scripts'], {
-      ...options,
-      timeout: 120_000,
-    })
+    await runNpm(
+      ['install', '--omit=dev', '--no-audit', '--no-fund', '--ignore-scripts', '--no-package-lock'],
+      120_000,
+    )
     for (const name of pluginExternalDependencies(sandbox)) {
       if (!nativeModuleReady(sandbox, name)) {
-        execFileSync('npm', ['rebuild', name, '--no-audit', '--no-fund'], options)
+        await runNpm(['rebuild', name, '--no-audit', '--no-fund'], 180_000)
       }
       if (!nativeModuleReady(sandbox, name)) {
         throw new Error(`native plugin dependency is not runnable: ${name}`)
@@ -413,8 +434,12 @@ export function copyPluginRuntimeDependencies(sandbox: string, dest: string) {
 
 /** 沙箱入口打包：相对 import + 沙箱 npm（react / @biu/* 除外）。 */
 export async function bundleStoreEntry(entryFile: string, kind: 'host' | 'web') {
+  return withPluginPackLock(() => bundleStoreEntryUnlocked(entryFile, kind))
+}
+
+async function bundleStoreEntryUnlocked(entryFile: string, kind: 'host' | 'web') {
   const sandbox = dirname(entryFile)
-  ensureSandboxNpm(sandbox)
+  await ensureSandboxNpm(sandbox)
   const { build } = await import('esbuild')
   const result = await build({
     absWorkingDir: dirname(entryFile),

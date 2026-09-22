@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { extname, join, resolve } from 'node:path'
 import { Context } from 'cordis'
 import { PluginStoreService } from './index.ts'
-import { compileStoreModule } from './plugin-create.ts'
+import { compileStoreModule, withPluginPackLock } from './plugin-create.ts'
 import { pluginsCollection } from './collection.ts'
 import type { PluginStoreService as Store } from './store.ts'
 
@@ -505,6 +505,50 @@ test('compileStoreModule does not require node on PATH', async () => {
     if (path === undefined) delete process.env.PATH
     else process.env.PATH = path
   }
+})
+
+test('concurrent pack of every sandbox plugin finishes', async () => {
+  const root = resolve(import.meta.dirname, '../../../..')
+  const sandboxDir = join(root, '.plugin-dev')
+  const ids = (await readdir(sandboxDir)).filter((name) => existsSync(join(sandboxDir, name, 'manifest.json'))).sort()
+  assert.ok(ids.length >= 8)
+  const dir = await mkdtemp(join(tmpdir(), 'plugin-pack-all-'))
+  const ctx = new Context()
+  stubHub(ctx)
+  const store = new PluginStoreService(ctx, join(dir, '.plugin'), join(dir, 'store.json'), sandboxDir).open()
+  try {
+    const results = await Promise.all(
+      ids.map(async (id) => {
+        try {
+          await store.pack(id)
+          return { id, ok: true as const }
+        } catch (error) {
+          return { id, ok: false as const, error: error instanceof Error ? error.message : String(error) }
+        }
+      }),
+    )
+    const failed = results.filter((item) => !item.ok)
+    assert.deepEqual(failed, [], failed.map((item) => `${item.id}: ${item.error}`).join('\n'))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}, 300_000)
+
+test('plugin pack lock runs one bundle at a time', async () => {
+  let current = 0
+  let max = 0
+  await Promise.all(
+    [0, 1, 2, 3].map(() =>
+      withPluginPackLock(async () => {
+        current += 1
+        max = Math.max(max, current)
+        await new Promise((resolve) => setTimeout(resolve, 30))
+        current -= 1
+      }),
+    ),
+  )
+  assert.equal(max, 1)
+  assert.equal(current, 0)
 })
 
 test('native esbuild starts its platform binary without a PATH node executable', () => {
