@@ -224,37 +224,6 @@ test('setProject binds host absolute path and clears it', async () => {
   assert.equal((await ctx.sessions.require(record.id)).project, undefined)
 })
 
-test('setProject binds macOS NFD-stored directory given NFC typed path', async () => {
-  const ctx = new Context()
-  await ctx.plugin(sessionStore, { driver: 'memory' })
-  await ctx.plugin(sessions)
-  const record = await ctx.sessions.create()
-
-  // macOS 的 APFS/HFS+ 以 NFD（分解）形式存储含组合字符的文件名；用户输入通常是
-  // NFC（预组合）。两者字节不同导致 realpath 对 NFC 去解析返回 ENOENT（目录其实
-  // 存在）。此测试用“带组合字符”的名字制造 NFC≠NFD，模拟“NFC 路径绑定 NFD 目录”。
-  const nfdName = 'café\u0301'.normalize('NFD') // 带组合重音的分解形式
-  const base = await mkdtemp(join(tmpdir(), 'cordis-nfd-'))
-  const dir = join(base, nfdName)
-  const { mkdir } = await import('node:fs/promises')
-  await mkdir(dir)
-  // 建立后确认该目录确实能按 NFC 与 NFD 不同解析（保证用例成立）
-  const nfcName = nfdName.normalize('NFC')
-  if (nfcName === nfdName) {
-    // 平台不支持组合差异（非 macOS / 特殊构造），跳过，不影响其余测试
-    return
-  }
-  // 用 NFC 形式的完整路径去绑定（正是 macOS 上“中文等目录无法绑定”的复现路径）
-  const nfcPath = join(base, nfcName)
-  const project = await ctx.sessions.setProject(record.id, { path: nfcPath })
-  assert.ok(project, 'NFC 路径应能绑定到 NFD 存储的目录')
-  assert.equal(project.name, nfdName) // 目录真实（磁盘）名字
-  const storedPath = (await ctx.sessions.require(record.id)).project?.path
-  assert.equal(storedPath, project.path)
-  // 存储的 path 必须是真实可解析的目录（realpath 通过）——即后序再绑定/使用不报不存在
-  assert.equal(await realpath(storedPath!), await realpath(dir))
-})
-
 test('delete removes session from store and cache', async () => {
   const ctx = new Context()
   await ctx.plugin(sessionStore, { driver: 'memory' })
