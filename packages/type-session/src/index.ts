@@ -318,18 +318,18 @@ export interface SessionSummary {
   eventCount: number
   title: string
   updatedAt: number
-  /** 最近一条 user/message 或 assistant/message 的时间。工具和流式片段不算。 */
+  /** 最近一条 user/message 的时间。助手回复、工具和流式片段不算。 */
   lastMessageAt?: number
   project?: SessionProject
   mascot?: SessionMascot
   config?: SessionConfig
 }
 
-/** 侧栏排序用：只认发出的消息，忽略工具、步骤和流式片段。 */
+/** 侧栏排序用：只认用户发出的消息。助手回复和工具调用不会改这个时间。 */
 export function lastSpokenAt(events: SessionEvent[]): number {
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const event = events[i]
-    if (event?.type === 'user/message' || event?.type === 'assistant/message') return event.ts
+    if (event?.type === 'user/message') return event.ts
   }
   return 0
 }

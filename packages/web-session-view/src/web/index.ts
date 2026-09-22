@@ -91,7 +91,7 @@ export interface SessionListItem {
   title: string
   eventCount: number
   updatedAt: number
-  /** 最近一条用户或助手消息的时间；没有消息时缺省，排序回退到 updatedAt */
+  /** 最近一次用户发消息的时间；没有消息时缺省，排序回退到 updatedAt */
   lastMessageAt?: number
   /** host 列表快照：该 session 的 agent 是否在跑 */
   busy?: boolean

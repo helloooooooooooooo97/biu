@@ -261,7 +261,7 @@ export class SqliteSessionStore implements SessionStore {
     const spokenBySession = new Map<string, number>()
     const spoken = this.sessions
       .prepare(
-        `SELECT session_id, MAX(ts) AS last_message_at FROM ${this.eventsTable()} WHERE type IN ('user/message', 'assistant/message') GROUP BY session_id`,
+        `SELECT session_id, MAX(ts) AS last_message_at FROM ${this.eventsTable()} WHERE type = 'user/message' GROUP BY session_id`,
       )
       .all() as Array<{ session_id: string; last_message_at: number }>
     for (const row of spoken) spokenBySession.set(row.session_id, Number(row.last_message_at) || 0)
