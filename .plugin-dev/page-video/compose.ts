@@ -124,16 +124,16 @@ export type Project = {
 
 export type Camera = { scale: number; cx: number; cy: number; rx: number; ry: number; rz: number }
 
-export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919 description="这段片子说明：视频块是嵌在页面里的视频，点全屏改字就能换成你的内容">
+export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919 description="BIU 动态广告片：React 逐帧文字与遮罩转场">
   <track name=scenes layer=3>
-    <component id=open src=builtin:ad-scene variant=hero motion=fade-up dur=3s color=#8B5CF6 desc="这是什么">这是什么|01 / 08|页面里的|一段视频|插进来就能播，不用先导出</component>
-    <component id=describe src=builtin:ad-scene variant=split motion=slide dur=3s color=#38BDF8 desc="怎么改">怎么改|02 / 08|点全屏|改里面的字|字一改，画面跟着变</component>
-    <component id=type src=builtin:ad-scene variant=marquee motion=type dur=3s color=#F472B6 desc="顺序">怎么排|03 / 08|先播这段|再播下一段|写在同一层里，按顺序接</component>
-    <component id=transition src=builtin:ad-scene variant=stagger motion=reveal dur=3s color=#FACC15 desc="标题">加标题|04 / 08|直接写|你要说的话|停几秒，就写 dur=2s</component>
-    <component id=focus src=builtin:ad-scene variant=focus motion=scale dur=3s color=#34D399 desc="自己的片">加视频|05 / 08|接上|你的文件|先把文件放进这一页的附件</component>
-    <component id=react src=builtin:ad-scene variant=code motion=tracking dur=3s color=#FB7185 desc="叠层">加字幕|06 / 08|另起一层|盖在上面|上面的字盖住下面的画面</component>
-    <component id=sync src=builtin:ad-scene variant=stack motion=blur dur=3s color=#60A5FA desc="在哪看">在哪看|07 / 08|就在这一页|点全屏细看|拖时间轴，改完立刻能看</component>
-    <component id=end src=builtin:ad-scene variant=finale motion=fade dur=3s color=#A78BFA desc="下一步">下一步|08 / 08|换成你的字|删掉这段介绍|hold</component>
+    <component id=open src=builtin:ad-scene variant=hero motion=fade-up dur=2s color=#8B5CF6 desc="柔和上移片头">BIU VIDEO BLOCK|01 / 08|BIU 视频块|介绍|一块内容，也能是一支可播放的视频</component>
+    <component id=describe src=builtin:ad-scene variant=split motion=slide dur=2s color=#38BDF8 desc="左右滑入">01 / DESCRIBE|02 / 08|写下结构|Agent 编排节奏|timeline · track · component</component>
+    <component id=type src=builtin:ad-scene variant=marquee motion=type dur=2s color=#F472B6 desc="逐字显现">02 / TYPE|03 / 08|文字不是出现|是登场|逐字、逐词、逐行，都跟着帧走</component>
+    <component id=transition src=builtin:ad-scene variant=stagger motion=reveal dur=2s color=#FACC15 desc="遮罩上升">03 / TRANSITION|04 / 08|切换画面|不必打断情绪|遮罩推进 · 双画面交叠 · 连续运动</component>
+    <component id=focus src=builtin:ad-scene variant=focus motion=scale dur=2s color=#34D399 desc="平滑缩放">04 / FOCUS|05 / 08|镜头跟着|重点走|缩放、光标与标注，让视线有方向</component>
+    <component id=react src=builtin:ad-scene variant=code motion=tracking dur=2s color=#FB7185 desc="字距收拢">05 / REACT|06 / 08|不够表达？|直接写组件|frame + spring + interpolate + AbsoluteFill</component>
+    <component id=sync src=builtin:ad-scene variant=stack motion=blur dur=2s color=#60A5FA desc="模糊聚焦">06 / SYNC|07 / 08|脚本、时间轴、播放|始终同步|改完一行，下一帧就能看到</component>
+    <component id=end src=builtin:ad-scene variant=finale motion=fade dur=2s color=#A78BFA desc="品牌 Slogan 淡入">BIU VIDEO BLOCK|08 / 08|让创作|即刻发生。|BIU 视频块 · 从想法到成片|hold</component>
   </track>
   <track name=transitions layer=6>
     <component id=transition-1 src=builtin:ad-transition variant=wipe at="open.end - 26f" dur=26f color=#8B5CF6 desc="斜切" />
@@ -145,7 +145,7 @@ export const SAMPLE_SCRIPT = `<timeline fps=30 size=1920x1080 background=#191919
     <component id=transition-7 src=builtin:ad-transition variant=shutter at="sync.end - 26f" dur=26f color=#60A5FA desc="快门" />
   </track>
   <track name=music kind=audio layer=0>
-    <audio id=bgm src=assets/bgm.mp3 at=0s dur=24s volume=.7 desc="背景音乐" />
+    <audio id=bgm src=assets/bgm.mp3 at=0s dur=16s volume=.7 desc="背景音乐" />
   </track>
 </timeline>
 `
