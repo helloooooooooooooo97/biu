@@ -46,6 +46,8 @@ interface InspectorPayload {
   effective?: SessionConfigFields & { agentMode: AgentMode; extraTools: string[]; provider: ChatProvider; model: string; systemPrompt: string }
   sources: InspectorSource[]
   tools: InspectorTool[]
+  contextWindow?: '200k' | '1m'
+  contextWindowTokens?: number
 }
 
 const fieldClass =
@@ -92,8 +94,9 @@ export const SessionConfigDialog = memo(function SessionConfigDialog({
         )
       }
       if (!compactFocusedRef.current) {
+        const cap = body.contextWindowTokens && body.contextWindowTokens > 0 ? body.contextWindowTokens : 200_000
         const tokens = body.config?.autoCompactInputTokens
-        setCompactDraft(tokens && tokens > 0 ? String(tokens) : '')
+        setCompactDraft(String(tokens && tokens > 0 ? Math.min(tokens, cap) : cap))
       }
       setError('')
     } catch (err) {
@@ -275,12 +278,11 @@ export const SessionConfigDialog = memo(function SessionConfigDialog({
               </label>
 
               <label className="flex flex-col gap-1 text-[11px] text-(--dsw-label-3)">
-                <span>自动压缩（输入 token）</span>
+                <span>自动压缩上限（输入 token）</span>
                 <input
                   className={fieldClass}
                   inputMode="numeric"
                   value={compactDraft}
-                  placeholder="留空则关闭"
                   disabled={busy}
                   data-testid="config-auto-compact"
                   onChange={(event) => setCompactDraft(event.target.value.replace(/[^\d]/g, ''))}
@@ -289,13 +291,18 @@ export const SessionConfigDialog = memo(function SessionConfigDialog({
                   }}
                   onBlur={() => {
                     compactFocusedRef.current = false
+                    const cap = data?.contextWindowTokens && data.contextWindowTokens > 0 ? data.contextWindowTokens : 200_000
+                    const raw = compactDraft.trim() ? Number(compactDraft) : cap
+                    const next = Number.isFinite(raw) ? Math.min(Math.max(1, Math.floor(raw)), cap) : cap
+                    setCompactDraft(String(next))
                     const prev = data?.config?.autoCompactInputTokens
-                    const next = compactDraft.trim() ? Number(compactDraft) : null
-                    if ((prev && prev > 0 ? prev : null) === next) return
+                    if (prev === next) return
                     void patchSessionConfig({ autoCompactInputTokens: next })
                   }}
                 />
-                <span>某一步输入 token 超过这个数时，把 compact 提示追加进该步的 assistant 回复。</span>
+                <span>
+                  关不掉，只能改上限。当前模型上下文 {data?.contextWindowTokens ?? 200000} token，上限不能超过它。
+                </span>
               </label>
 
               <div className="flex flex-col gap-px">

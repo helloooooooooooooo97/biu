@@ -33,6 +33,8 @@ export interface PostStepReq {
   step: number
   text: string
   inputTokens?: number
+  /** 当前模型上下文窗口（token）。自动压缩上限不能超过它。 */
+  contextWindowTokens?: number
   toolCalls: Array<{ id: string; name: string; arguments: string }>
   config?: SessionConfig
 }

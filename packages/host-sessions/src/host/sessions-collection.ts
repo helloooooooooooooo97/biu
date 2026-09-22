@@ -165,7 +165,7 @@ export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
         systemPrompt: { type: 'string', label: '系统提示', writable: true },
         agentMode: { type: 'select', label: '模式', enum: ['standard', 'file', 'minimal'], writable: true },
         extraTools: { type: 'multi-select', label: '额外工具', writable: true },
-        autoCompactInputTokens: { type: 'number', label: '自动压缩输入 token', writable: true },
+        autoCompactInputTokens: { type: 'number', label: '自动压缩上限', writable: true },
         updatedAt: { type: 'datetime', label: '更新时间', sortable: true },
         mascotName: { type: 'string', label: '形象', computed: true },
         mascotShape: { type: 'select', label: '外形', enum: [...GROK_SHAPES], computed: true },

@@ -140,8 +140,8 @@ export interface SessionConfig {
   /** 右侧检查器页签与各栏库路径，跟这条 session 走。 */
   inspector?: SessionInspectorBind
   /**
-   * 单步输入 token 超过这个数时，在该步 assistant/message 末尾追加一句，
-   * 要求调用 sessions 的 compact。未设或 ≤0 表示关闭。
+   * 自动压缩的输入 token 上限。未设则用当前模型上下文窗口。
+   * 关不掉；写入时会夹到 1..模型上下文。
    */
   autoCompactInputTokens?: number
 }

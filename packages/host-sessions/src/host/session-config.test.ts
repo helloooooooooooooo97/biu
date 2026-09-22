@@ -66,7 +66,7 @@ test('session config stores inspector bind', async () => {
   assert.equal(cleared.config?.inspector, undefined)
 })
 
-test('session config stores and clears the auto compact token threshold', async () => {
+test('session config stores the auto compact token cap', async () => {
   const ctx = new Context()
   await ctx.plugin(sessionStore, { driver: 'memory' })
   await ctx.plugin(sessions)
