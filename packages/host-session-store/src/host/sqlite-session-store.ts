@@ -258,6 +258,13 @@ export class SqliteSessionStore implements SessionStore {
         'SELECT id, version, project_json, mascot_json, config_json, event_count, title, updated_at FROM sessions ORDER BY updated_at DESC',
       )
       .all() as SessionRow[]
+    const spokenBySession = new Map<string, number>()
+    const spoken = this.sessions
+      .prepare(
+        `SELECT session_id, MAX(ts) AS last_message_at FROM ${this.eventsTable()} WHERE type IN ('user/message', 'assistant/message') GROUP BY session_id`,
+      )
+      .all() as Array<{ session_id: string; last_message_at: number }>
+    for (const row of spoken) spokenBySession.set(row.session_id, Number(row.last_message_at) || 0)
     const firstBySession = new Map<string, number>()
     const mins = this.sessions
       .prepare(`SELECT session_id, MIN(ts) AS first_event_at FROM ${this.eventsTable()} GROUP BY session_id`)
@@ -286,6 +293,7 @@ export class SqliteSessionStore implements SessionStore {
               ? nameFromSessionMascot(mascot)
               : row.title || row.id.slice(0, 8),
         updatedAt: row.updated_at,
+        ...((spokenBySession.get(row.id) ?? 0) > 0 ? { lastMessageAt: spokenBySession.get(row.id) } : {}),
         ...(project ? { project } : {}),
         ...(mascot ? { mascot } : {}),
         ...(config || stamp ? { config: { ...(config ?? {}), createdAt: stamp } } : {}),

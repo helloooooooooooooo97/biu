@@ -318,9 +318,20 @@ export interface SessionSummary {
   eventCount: number
   title: string
   updatedAt: number
+  /** 最近一条 user/message 或 assistant/message 的时间。工具和流式片段不算。 */
+  lastMessageAt?: number
   project?: SessionProject
   mascot?: SessionMascot
   config?: SessionConfig
+}
+
+/** 侧栏排序用：只认发出的消息，忽略工具、步骤和流式片段。 */
+export function lastSpokenAt(events: SessionEvent[]): number {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i]
+    if (event?.type === 'user/message' || event?.type === 'assistant/message') return event.ts
+  }
+  return 0
 }
 
 export function deriveEventTitle(events: SessionEvent[], fallbackId: string): string {

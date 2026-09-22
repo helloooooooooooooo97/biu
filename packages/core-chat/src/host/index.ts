@@ -1142,6 +1142,7 @@ export function apply(ctx: Context) {
         eventCount: item.eventCount,
         title: item.title,
         updatedAt: item.updatedAt,
+        ...(item.lastMessageAt ? { lastMessageAt: item.lastMessageAt } : {}),
         busy: ctx.agents.isBusy(item.id),
         ...(item.project ? { project: item.project } : {}),
         ...(item.mascot ? { mascot: item.mascot } : {}),

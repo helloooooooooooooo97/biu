@@ -91,6 +91,8 @@ export interface SessionListItem {
   title: string
   eventCount: number
   updatedAt: number
+  /** 最近一条用户或助手消息的时间；没有消息时缺省，排序回退到 updatedAt */
+  lastMessageAt?: number
   /** host 列表快照：该 session 的 agent 是否在跑 */
   busy?: boolean
   project?: { name: string; path?: string; boundAt: number }
@@ -254,6 +256,7 @@ function sessionsEqual(a: SessionListItem[], b: SessionListItem[]): boolean {
       left.title !== right.title ||
       left.eventCount !== right.eventCount ||
       left.updatedAt !== right.updatedAt ||
+      (left.lastMessageAt ?? 0) !== (right.lastMessageAt ?? 0) ||
       left.project?.path !== right.project?.path ||
       left.project?.name !== right.project?.name ||
       left.mascot?.shape !== right.mascot?.shape ||

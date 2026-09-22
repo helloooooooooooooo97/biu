@@ -62,6 +62,18 @@ test('groupSessionsByProject groups by path and puts bare chats in Ungrouped', (
   )
 })
 
+test('sidebar order follows the latest user or assistant message, not later tool saves', () => {
+  const groups = groupSessionsByProject([
+    item({ id: 'tooling', title: '工具中', updatedAt: 90, lastMessageAt: 10 }),
+    item({ id: 'just-sent', title: '刚发', updatedAt: 20, lastMessageAt: 40 }),
+    item({ id: 'empty', title: '还没说话', updatedAt: 30 }),
+  ])
+  assert.deepEqual(
+    groups[0]?.sessions.map((row) => row.id),
+    ['just-sent', 'empty', 'tooling'],
+  )
+})
+
 test('pinned rows sort first inside a project group', () => {
   const groups = groupSessionsByProject([
     item({ id: 'old', updatedAt: 10, project: { name: 'a', path: '/a', boundAt: 1 } }),
