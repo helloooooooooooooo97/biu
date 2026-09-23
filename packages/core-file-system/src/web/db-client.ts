@@ -1,9 +1,20 @@
 import type { CollectionSchema, DbRecord } from '@biu/type-file-system'
 
+export class HttpError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public body: { error?: string; code?: string },
+  ) {
+    super(message)
+    this.name = 'HttpError'
+  }
+}
+
 export async function readJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init)
-  const body = (await res.json()) as T & { error?: string }
-  if (!res.ok) throw new Error(body.error || res.statusText)
+  const body = (await res.json()) as T & { error?: string; code?: string }
+  if (!res.ok) throw new HttpError(body.error || res.statusText, res.status, body)
   return body
 }
 

@@ -79,7 +79,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     indexes: [],
   },
   editor_content: {
-    columns: ['collection', 'record_id', 'body', 'updated_at'],
+    columns: ['collection', 'record_id', 'body', 'updated_at', 'version'],
     indexes: ['editor_content_record'],
   },
   shares: {
@@ -135,7 +135,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 16
+export const LATEST_BIU_SCHEMA = 17
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -321,6 +321,7 @@ CREATE TABLE IF NOT EXISTS editor_content (
   record_id TEXT NOT NULL,
   body TEXT NOT NULL DEFAULT '',
   updated_at INTEGER NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (collection, record_id)
 );
 CREATE INDEX IF NOT EXISTS editor_content_record ON editor_content(collection, record_id);

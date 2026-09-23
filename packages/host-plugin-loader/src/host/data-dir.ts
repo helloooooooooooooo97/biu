@@ -18,7 +18,14 @@ export { openSqlite, configureSqlite, quoteSqlitePath, SQLITE_BUSY_TIMEOUT_MS, S
 export { ensureBiuAssetSchema, LATEST_BIU_SCHEMA, createLatestSchema } from './biu-schema.ts'
 export { migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
 export { migrateEvents, openAndMigrateEvents, LATEST_EVENTS_SCHEMA } from './events-migrate.ts'
-export { writeEditorContent, readEditorContent, rebuildContentRefs, replaceContentRefs } from './editor-content.ts'
+export {
+  EditorContentConflictError,
+  writeEditorContent,
+  readEditorContent,
+  readEditorContentRecord,
+  rebuildContentRefs,
+  replaceContentRefs,
+} from './editor-content.ts'
 export {
   liveAssetNames,
   gcCasAssets,

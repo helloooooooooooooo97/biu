@@ -488,6 +488,35 @@ test('content is omitted from list/read and served on its own path', async () =>
   assert.equal((await db.content('/docs/n1')).value, '')
 })
 
+test('editor content exposes a version and rejects stale writes', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const row = { id: 'p1', title: 'Page', content: '' }
+  db.register({
+    id: 'pages',
+    path: '/pages',
+    schema: {
+      contentField: 'content',
+      contentBackend: 'editorContent',
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        content: { type: 'file', writable: true },
+      },
+    },
+    list: () => [row],
+    get: () => row,
+    update: (_id, patch) => Object.assign(row, patch),
+  })
+  const initial = await db.content('/pages/p1')
+  assert.equal(initial.version, 0)
+  const first = await db.writeContent('/pages/p1', 'one', initial.version)
+  assert.equal(first.version, 1)
+  await assert.rejects(() => db.writeContent('/pages/p1', 'stale', initial.version), /正文版本冲突/)
+  const current = await db.content('/pages/p1')
+  assert.equal(current.value, 'one')
+  assert.equal(current.version, 1)
+})
+
 test('writeContent string fields keep JSON objects instead of [object Object]', async () => {
   const ctx = new Context()
   const db = new DatabaseService(ctx)

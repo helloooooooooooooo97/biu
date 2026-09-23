@@ -91,6 +91,8 @@ export const SlashList = forwardRef(function SlashList(
   const activeRef = useRef(0)
   const listRef = useRef<HTMLDivElement>(null)
   const keyNav = useRef(false)
+  const groups = useMemo(() => slashGroups(items), [items])
+  const flat = useMemo(() => groups.flatMap((group) => group.items.map((item) => ({ group: group.id, item }))), [groups])
   activeRef.current = active
 
   useEffect(() => {
@@ -107,28 +109,25 @@ export const SlashList = forwardRef(function SlashList(
 
   useImperativeHandle(ref, () => ({
     onKeyDown({ event }: { event: KeyboardEvent }) {
-      if (!items.length) return false
+      if (!flat.length) return false
       if (event.key === 'ArrowUp') {
         keyNav.current = true
-        setActive((index) => (index + items.length - 1) % items.length)
+        setActive((index) => (index + flat.length - 1) % flat.length)
         return true
       }
       if (event.key === 'ArrowDown') {
         keyNav.current = true
-        setActive((index) => (index + 1) % items.length)
+        setActive((index) => (index + 1) % flat.length)
         return true
       }
       if (event.key === 'Enter' || event.key === 'Tab') {
-        const item = items[activeRef.current]
+        const item = flat[activeRef.current]?.item
         if (item) command(item)
         return true
       }
       return false
     },
   }))
-
-  const groups = useMemo(() => slashGroups(items), [items])
-  const flat = useMemo(() => groups.flatMap((group) => group.items.map((item) => ({ group: group.id, item }))), [groups])
 
   return (
     <div className="page-slash" id="slash-command" role="listbox" aria-label="插入模块" data-testid="page-slash">
