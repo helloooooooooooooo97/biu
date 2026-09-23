@@ -214,6 +214,9 @@ export const BIU_MIGRATIONS: Migration[] = [
     addColumn(db, 'record_meta', 'deleted_at', 'deleted_at INTEGER')
     db.exec('CREATE INDEX IF NOT EXISTS record_meta_deleted ON record_meta(collection, deleted_at)')
   } },
+  { version: 17, module: 'core-file-system', name: 'editor_content.version', up: (db) => {
+    addColumn(db, 'editor_content', 'version', 'version INTEGER NOT NULL DEFAULT 1')
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

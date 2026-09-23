@@ -28,6 +28,7 @@ test('empty database fast path matches upgraded v1 fixture', () => {
   assert.equal(tableColumnNames(fast, 'pages').includes('notes'), false)
   assert.equal(tableColumnNames(fast, 'tasks').includes('description'), false)
   assert.equal(tableColumnNames(fast, 'facets').includes('notes'), false)
+  assert.equal(tableColumnNames(fast, 'editor_content').includes('version'), true)
   assert.equal(tableColumnNames(fast, 'page_block_index').includes('collection'), true)
   assert.equal(tableColumnNames(fast, 'gc_candidates').includes('name'), true)
   assert.deepEqual(tableColumnNames(fast, 'page_block_index').sort(), tableColumnNames(staged, 'page_block_index').sort())
@@ -43,7 +44,7 @@ test('empty database fast path matches upgraded v1 fixture', () => {
 test('BIU_MIGRATIONS versions are unique and increasing', () => {
   assertBiuMigrationLog()
   assert.equal(BIU_MIGRATIONS.at(-1)?.version, LATEST_BIU_SCHEMA)
-  assert.equal(BIU_MIGRATIONS.at(-1)?.name, 'record.meta.deleted_at')
+  assert.equal(BIU_MIGRATIONS.at(-1)?.name, 'editor_content.version')
   assert.throws(() => assertBiuMigrationLog([{ version: 2 }, { version: 2 }]), /重复/)
   assert.throws(() => assertBiuMigrationLog([{ version: 3 }, { version: 1 }]), /单调递增/)
 })

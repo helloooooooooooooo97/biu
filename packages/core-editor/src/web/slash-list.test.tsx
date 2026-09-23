@@ -43,6 +43,24 @@ test('slash list keeps overflow-y auto', () => {
   style.remove()
 })
 
+test('enter runs the visually active item after groups reorder results', () => {
+  const ref = createRef<{ onKeyDown: (props: { event: KeyboardEvent }) => boolean }>()
+  const base = SLASH_ITEMS[0]!
+  const picked: string[] = []
+  const items = [
+    { ...base, id: 'browser', label: '浏览器', blockType: 'browser', blockTypeLabel: '浏览器' },
+    { ...base, id: 'websql', label: 'WebSQL', blockType: 'basic', blockTypeLabel: '基础模块' },
+  ]
+  const { container } = render(
+    <SlashList ref={ref} items={items} command={(item) => picked.push(item.id)} />,
+  )
+  assert.equal(container.querySelector('.page-slash-item.is-active')?.textContent?.trim(), '+WebSQL')
+  act(() => {
+    ref.current?.onKeyDown({ event: new KeyboardEvent('keydown', { key: 'Enter' }) })
+  })
+  assert.deepEqual(picked, ['websql'])
+})
+
 test('slash list uses svg icons for toc and playground blocks', () => {
   const src = readFileSync(resolve(import.meta.dirname, './slash-list.tsx'), 'utf8')
   for (const id of ['toc', 'option-matrix', 'run', 'api-play', 'plugin-doctor']) {

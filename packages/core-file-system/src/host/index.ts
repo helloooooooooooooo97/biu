@@ -1,7 +1,15 @@
 import { readFile } from 'node:fs/promises'
 import type { IncomingMessage } from 'node:http'
 import { isAbsolute, resolve } from 'node:path'
-import { dataHome, dataPath, readEditorContent, writeEditorContent, ASSET_GC_INTERVAL_MS } from '@biu/host-plugin-loader/data-dir'
+import {
+  dataHome,
+  dataPath,
+  EditorContentConflictError,
+  readEditorContent,
+  readEditorContentRecord,
+  writeEditorContent,
+  ASSET_GC_INTERVAL_MS,
+} from '@biu/host-plugin-loader/data-dir'
 import { asPublicProfile, readWorkspaceProfile, writeWorkspaceProfile } from '@biu/host-workspace'
 import { Service, type Context } from 'cordis'
 import {
@@ -542,6 +550,7 @@ export function clampPage(limit?: number, offset?: number) {
 
 export class DatabaseService extends Service implements Database {
   private collections = new Map<string, CollectionSpec>()
+  private contentWrites = new Map<string, Promise<void>>()
   facets = new FacetStore()
   shares = new SharesStore()
   assets = new FileSystemAssets()
@@ -551,6 +560,23 @@ export class DatabaseService extends Service implements Database {
 
   constructor(ctx: Context) {
     super(ctx, 'database')
+  }
+
+  private async serializeContentWrite<T>(path: string, run: () => Promise<T>): Promise<T> {
+    const previous = this.contentWrites.get(path) ?? Promise.resolve()
+    let release = () => {}
+    const current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const queued = previous.then(() => current)
+    this.contentWrites.set(path, queued)
+    await previous
+    try {
+      return await run()
+    } finally {
+      release()
+      if (this.contentWrites.get(path) === queued) this.contentWrites.delete(path)
+    }
   }
 
   register(spec: CollectionSpec) {
@@ -1222,18 +1248,25 @@ export class DatabaseService extends Service implements Database {
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
     this.assertLiveRecord(spec, record.id)
-    const value = isEditorContentSpec(spec)
-      ? readEditorContent(this.facets.ensure(), spec.path, record.id)
-      : (record[field] ?? null)
+    const editorContent = isEditorContentSpec(spec)
+      ? readEditorContentRecord(this.facets.ensure(), spec.path, record.id)
+      : null
+    const value = editorContent ? editorContent.body : (record[field] ?? null)
     return {
       kind: 'content' as const,
       path: `${spec.path}/${record.id}`,
       field,
       value,
+      ...(editorContent ? { version: editorContent.version } : {}),
     }
   }
 
-  async writeContent(path: string, value: unknown) {
+  async writeContent(path: string, value: unknown, expectedVersion?: number) {
+    const normalized = normalizeCollectionPath(path)
+    return this.serializeContentWrite(normalized, () => this.writeContentNow(path, value, expectedVersion))
+  }
+
+  private async writeContentNow(path: string, value: unknown, expectedVersion?: number) {
     const parts = splitPath(path)
     if (parts.length !== 2) throw new Error(`cannot write content: ${normalizeCollectionPath(path)}`)
     const spec = this.collection(`/${parts[0]}`)
@@ -1246,7 +1279,7 @@ export class DatabaseService extends Service implements Database {
     if (!existing) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
     this.assertLiveRecord(spec, existing.id)
     if (isEditorContentSpec(spec)) {
-      writeEditorContent(this.facets.ensure(), spec.path, parts[1]!, String(value ?? ''))
+      writeEditorContent(this.facets.ensure(), spec.path, parts[1]!, String(value ?? ''), { expectedVersion })
     }
     const patch = this.collectionCanUpdate(spec)
       ? pickWritablePatch(schema, { [field]: value })
@@ -1255,11 +1288,15 @@ export class DatabaseService extends Service implements Database {
     await this.stampActor(spec.path, record.id)
     this.refreshContentRefs(spec, this.withBanner(spec, record))
     this.bump()
+    const editorContent = isEditorContentSpec(spec)
+      ? readEditorContentRecord(this.facets.ensure(), spec.path, record.id)
+      : null
     return {
       kind: 'content' as const,
       path: `${spec.path}/${record.id}`,
       field,
-      value: record[field] ?? null,
+      value: editorContent ? editorContent.body : (record[field] ?? null),
+      ...(editorContent ? { version: editorContent.version } : {}),
     }
   }
 
@@ -1307,7 +1344,7 @@ export class DatabaseService extends Service implements Database {
       replaced = next.replaced
     }
     const nextText = typeof next === 'object' ? next.text : next
-    await this.writeContent(path, nextText)
+    await this.writeContent(path, nextText, current.version)
     const locus = mutationLocus(command === 'find_replace' ? 'str_replace' : command, text, nextText, patch)
     const written = await this.content(current.path)
     const after = asContentText(written.value)
@@ -2100,9 +2137,19 @@ export function apply(ctx: Context) {
   ctx.http.route('GET', '/api/db/content', (route) => send(route, () => db.content(route.query.get('path') || '/')))
   ctx.http.route('POST', '/api/db/content', async (route) => {
     try {
-      const body = (await route.json()) as { path?: string; value?: unknown }
-      route.send(200, await db.writeContent(String(body?.path ?? ''), body?.value))
+      const body = (await route.json()) as { path?: string; value?: unknown; version?: unknown }
+      const version = typeof body?.version === 'number' && Number.isInteger(body.version) ? body.version : undefined
+      route.send(200, await db.writeContent(String(body?.path ?? ''), body?.value, version))
     } catch (error) {
+      if (error instanceof EditorContentConflictError) {
+        route.send(409, {
+          error: error.message,
+          code: error.code,
+          expectedVersion: error.expectedVersion,
+          actualVersion: error.actualVersion,
+        })
+        return
+      }
       route.send(400, { error: String(error) })
     }
   })
