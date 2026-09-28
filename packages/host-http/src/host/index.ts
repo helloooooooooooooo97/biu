@@ -340,7 +340,13 @@ export class HttpService extends Service {
         const bearerToken = /^Bearer\s+(\S+)$/i.exec(header)?.[1] ?? ''
         const cookie = String(req.headers.cookie ?? '')
         const encoded = cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith('biu_account='))
-        const token = bearerToken || (encoded ? decodeURIComponent(encoded.slice('biu_account='.length)) : '')
+        const legacyEncoded = cookie
+          .split(';')
+          .map((part) => part.trim())
+          .find((part) => part.startsWith('biu_legacy_account='))
+        const accountToken = encoded ? decodeURIComponent(encoded.slice('biu_account='.length)) : ''
+        const legacyToken = legacyEncoded ? decodeURIComponent(legacyEncoded.slice('biu_legacy_account='.length)) : ''
+        const token = bearerToken || accountToken || legacyToken
         let accountId = ''
         if (token) {
           try {
@@ -349,6 +355,12 @@ export class HttpService extends Service {
           } catch {
             accountId = ''
           }
+        }
+        if (accountId && legacyToken && !accountToken) {
+          res.setHeader('set-cookie', [
+            `biu_account=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict`,
+            'biu_legacy_account=; Path=/; SameSite=Strict; Max-Age=0',
+          ])
         }
         const hasAccountSystem = Boolean(
           (this.ctx.get('account') as { store?: { accountByToken?: unknown } } | undefined)?.store?.accountByToken,

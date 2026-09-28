@@ -124,7 +124,10 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   })
 
   ctx.http.route('POST', '/api/account/logout', async (route) => {
-    route.res.setHeader('set-cookie', 'biu_account=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0')
+    route.res.setHeader('set-cookie', [
+      'biu_account=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0',
+      'biu_legacy_account=; Path=/; SameSite=Strict; Max-Age=0',
+    ])
     route.send(200, { ok: true })
   })
 

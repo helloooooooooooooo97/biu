@@ -151,6 +151,12 @@ export class AuthorizationService {
         ? { allowed: true, effectiveRole, source: 'workspace-default' }
         : { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
     }
+    if (resource.collection === '/views') {
+      const effectiveRole: ResourceRole = membership === 'owner' ? 'owner' : 'manager'
+      return ROLE_RANK[effectiveRole] >= ROLE_RANK[requiredRole(action)]
+        ? { allowed: true, effectiveRole, source: 'workspace-default' }
+        : { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
+    }
 
     const resolved = this.effectiveRole(actor.accountId, resource, new Set(), 0)
     if (!resolved) return { allowed: false, reason: 'PRIVATE_RESOURCE' }

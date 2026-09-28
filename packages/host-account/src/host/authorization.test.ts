@@ -61,6 +61,19 @@ test('workspace member directory is readable by members but managed by owners', 
   assert.equal(auth.authorize(actor(ada.id), 'resource:delete', member).allowed, true)
 })
 
+test('saved views remain workspace system metadata for all members', () => {
+  const { auth, bob, workspace, actor } = setup()
+  const view = {
+    type: 'record' as const,
+    workspaceId: workspace.id,
+    collection: '/views',
+    recordId: 'sessions::recent',
+  }
+  assert.equal(auth.authorize(actor(bob.id), 'resource:read', view).allowed, true)
+  assert.equal(auth.authorize(actor(bob.id), 'resource:update', view).allowed, true)
+  assert.equal(auth.authorize(actor(bob.id), 'resource:delete', view).allowed, true)
+})
+
 test('a group grant applies dynamically to its workspace members', () => {
   const { store, auth, ada, bob, actor, page, workspace } = setup()
   auth.attach(actor(ada.id), page('roadmap'), { ownership: 'workspace', accessMode: 'restricted' })

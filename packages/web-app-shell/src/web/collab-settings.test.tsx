@@ -37,6 +37,11 @@ test('the app stays on the login gate until a token exists', async () => {
   cleanup()
 })
 
+test('primary navigation does not call the removed chat overlay setter', () => {
+  const source = readFileSync(resolve(import.meta.dirname, './shell-chrome.tsx'), 'utf8')
+  assert.doesNotMatch(source, /setChatOverlay/)
+})
+
 test('collab settings uses the account row chrome and can create a workspace', async () => {
   localStorage.clear()
   localStorage.setItem('biu.account.token', 'tok')

@@ -169,6 +169,14 @@ export function ShellSettingsAccount() {
 const ACCOUNT_KEY = 'biu.account.token'
 const ACCOUNT_EVENT = 'biu:account-token'
 
+function bridgeLegacyAccountCookie() {
+  if (typeof localStorage === 'undefined' || typeof document === 'undefined') return
+  const token = localStorage.getItem(ACCOUNT_KEY) ?? ''
+  if (token) document.cookie = `biu_legacy_account=${encodeURIComponent(token)}; Path=/; SameSite=Strict`
+}
+
+bridgeLegacyAccountCookie()
+
 export function readAccountToken() {
   if (typeof localStorage === 'undefined') return ''
   return localStorage.getItem(ACCOUNT_KEY) ?? ''
@@ -1144,7 +1152,6 @@ function NoticeBell({
       .catch(() => load())
     onOpenChange(false)
     if (!href) return
-    setChatOverlay(false)
     navigate(href)
   }
 
@@ -1265,7 +1272,6 @@ export function ShellSidePlaces({
         testId="chrome-chat-panel"
         icon={<ChatBubbleLeftRightIcon {...chromeIcon} />}
         onClick={() => {
-          setChatOverlay(false)
           navigate(agentHref)
         }}
       />
@@ -1275,7 +1281,6 @@ export function ShellSidePlaces({
         testId="chrome-data-panel"
         icon={<CircleStackIcon {...chromeIcon} />}
         onClick={() => {
-          setChatOverlay(false)
           navigate(readMainDataRoute() || '/database')
         }}
       />
