@@ -41,6 +41,7 @@ import { UsageInline } from './usage-inline.tsx'
 import {
   bumpRevealStart,
   captureChatScroll,
+  didRevealOlderTurns,
   firstPaintStartIndex,
   groupNodesIntoTurns,
   distanceFromChatBottom,
@@ -799,6 +800,7 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
   const holdOlderRef = useRef(false)
   const maxScrollRef = useRef(0)
   const prependHeightRef = useRef(0)
+  const previousRevealStartRef = useRef(revealStart)
   const prefetchingRef = useRef(false)
   const [scrollEpoch, setScrollEpoch] = useState(0)
 
@@ -862,6 +864,7 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
     stickToBottomRef.current = !mem || mem.kind === 'bottom'
     restoredForRef.current = null
     prependHeightRef.current = 0
+    previousRevealStartRef.current = revealStart
     holdOlderRef.current = mem?.kind === 'pin'
     maxScrollRef.current = 0
     followedUserRef.current = ''
@@ -1028,23 +1031,27 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
         restoredForRef.current = sessionId
         stickToBottomRef.current = false
         prependHeightRef.current = parent.scrollHeight
+        previousRevealStartRef.current = revealStart
         return
       }
+      previousRevealStartRef.current = revealStart
       return
     }
     if (sessionId) restoredForRef.current = sessionId
+    const revealedOlder = didRevealOlderTurns(previousRevealStartRef.current, revealStart)
     if (stickToBottomRef.current) {
       if (skipNextLayoutPinRef.current) {
         skipNextLayoutPinRef.current = false
       } else if (mountedNodes.length > 0) {
         pinChatToLatest(parent)
       }
-    } else if (prependHeightRef.current) {
+    } else if (revealedOlder && prependHeightRef.current) {
       const delta = parent.scrollHeight - prependHeightRef.current
       // 钉在顶上看更早内容时不要把 scrollTop 往下拽，否则会和上滑抢位置、抖死。
       if (delta && parent.scrollTop > PIN_TOP_SLACK_PX) parent.scrollTop += delta
     }
     prependHeightRef.current = parent.scrollHeight
+    previousRevealStartRef.current = revealStart
   }, [stickKey, mountedNodes.length, revealStart, sessionId])
 
   if (nodes.length === 0 && !pending && !error && !switchingSession) {
