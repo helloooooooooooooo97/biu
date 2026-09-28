@@ -6,6 +6,7 @@ import {
   bumpRevealStart,
   captureChatScroll,
   CHAT_FIRST_PAINT_TURNS,
+  didRevealOlderTurns,
   firstPaintStartIndex,
   groupNodesIntoTurns,
   isChatStuckToLatest,
@@ -85,6 +86,12 @@ describe('thread reveal (visible first, then older)', () => {
     expect(
       shouldRevealFast({ scrollTop: 40, scrollHeight: 4000, clientHeight: 800 }),
     ).toBe(true)
+  })
+
+  it('distinguishes prepended history from streaming growth at the tail', () => {
+    expect(didRevealOlderTurns(8, 4)).toBe(true)
+    expect(didRevealOlderTurns(4, 4)).toBe(false)
+    expect(didRevealOlderTurns(4, 5)).toBe(false)
   })
 })
 
@@ -229,5 +236,6 @@ describe('thread follows the latest message', () => {
     expect(src).toContain('event.deltaY < 0')
     expect(src).toContain('nextY > lastTouchY + 0.5')
     expect(src).toContain('nextStickToLatest')
+    expect(src).toContain('revealedOlder && prependHeightRef.current')
   })
 })

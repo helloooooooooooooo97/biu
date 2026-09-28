@@ -142,6 +142,11 @@ export function pinChatToLatest(parent: HTMLElement) {
   parent.scrollTop = parent.scrollHeight
 }
 
+/** 只有向上揭示了更早回合时才补偿高度；尾部流式增长绝不能推动阅读位置。 */
+export function didRevealOlderTurns(previousStart: number, nextStart: number): boolean {
+  return nextStart < previousStart
+}
+
 export function restoreChatScroll(parent: HTMLElement, memory: ChatScrollMemory): boolean {
   if (memory.kind === 'bottom') {
     pinChatToLatest(parent)
