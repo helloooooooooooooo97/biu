@@ -4,6 +4,7 @@ import { readWorkspaceProfile } from '@biu/host-workspace'
 import type { RouteContext } from '@biu/type-http'
 import { CollabError, CollabStore } from './store.ts'
 import type { AuthorizationService, ResourceRole } from './authorization.ts'
+import { workspaceMembersCollection } from './workspace-members-collection.ts'
 
 export type { Actor, Action, ResourceRef, ResourceRole, Decision } from './authorization.ts'
 
@@ -23,6 +24,7 @@ export class AccountService extends Service {
     this.db = db
     this.store = new CollabStore(db)
     this.authorization = this.store.authorization
+    ctx.inject(['database'], (inner) => inner.database.register(workspaceMembersCollection(this.store)))
     const profile = readWorkspaceProfile()
     this.store.bootstrapLocal({ accountName: profile.name || '我', workspaceName: '本机' })
     ctx.on('dispose', () => db.close())

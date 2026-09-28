@@ -40,6 +40,7 @@ export const PAGE_BLOCKS_COLLECTION_PATH = '/page-blocks'
 export const PAGES_COLLECTION_PATH = '/pages'
 export const TASKS_COLLECTION_PATH = '/tasks'
 export const TRASH_COLLECTION_PATH = '/trash'
+export const WORKSPACE_MEMBERS_COLLECTION_PATH = '/workspace-members'
 
 /** 数据侧栏记录行按 parentId 嵌套：只有页面和任务。 */
 export function isRecordTreeCollection(path: string) {
@@ -47,12 +48,18 @@ export function isRecordTreeCollection(path: string) {
   return normalized === PAGES_COLLECTION_PATH || normalized === TASKS_COLLECTION_PATH
 }
 
-const SYSTEM_COLLECTION_ORDER = [VIEWS_COLLECTION_PATH, EVENTS_COLLECTION_PATH, NOTICES_COLLECTION_PATH, TRASH_COLLECTION_PATH] as const
+const SYSTEM_COLLECTION_ORDER = [
+  WORKSPACE_MEMBERS_COLLECTION_PATH,
+  VIEWS_COLLECTION_PATH,
+  EVENTS_COLLECTION_PATH,
+  NOTICES_COLLECTION_PATH,
+  TRASH_COLLECTION_PATH,
+] as const
 
 /** 用户表侧栏顺序。组件是页面里嵌的块，紧挨页面下面。 */
 const USER_COLLECTION_ORDER = ['/sessions', '/tasks', '/pages', '/page-blocks', '/plugins', '/facets'] as const
 
-/** 视图、事件、回收站由系统自己记下，侧栏归在系统数据。分面跨所有表，排在插件后面。 */
+/** 成员、视图、事件、回收站由系统维护，侧栏归在系统数据。分面跨所有表，排在插件后面。 */
 export function isSystemCollection(path: string) {
   const normalized = normalizeCollectionPath(path)
   return (SYSTEM_COLLECTION_ORDER as readonly string[]).includes(normalized)

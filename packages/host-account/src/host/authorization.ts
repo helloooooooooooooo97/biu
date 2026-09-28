@@ -123,6 +123,13 @@ export class AuthorizationService {
     }
 
     if (resource.type === 'collection') {
+      if (resource.collection === '/workspace-members') {
+        const effectiveRole: ResourceRole =
+          membership === 'owner' ? 'owner' : membership === 'admin' ? 'manager' : 'viewer'
+        return ROLE_RANK[effectiveRole] >= ROLE_RANK[requiredRole(action)]
+          ? { allowed: true, effectiveRole, source: 'workspace-default' }
+          : { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
+      }
       const managing =
         action === 'resource:share' ||
         action === 'resource:manage-permissions' ||
@@ -135,6 +142,14 @@ export class AuthorizationService {
         effectiveRole: membership === 'owner' || membership === 'admin' ? 'manager' : 'editor',
         source: 'workspace-default',
       }
+    }
+
+    if (resource.collection === '/workspace-members') {
+      const effectiveRole: ResourceRole =
+        membership === 'owner' ? 'owner' : membership === 'admin' ? 'manager' : 'viewer'
+      return ROLE_RANK[effectiveRole] >= ROLE_RANK[requiredRole(action)]
+        ? { allowed: true, effectiveRole, source: 'workspace-default' }
+        : { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
     }
 
     const resolved = this.effectiveRole(actor.accountId, resource, new Set(), 0)

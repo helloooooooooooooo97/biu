@@ -549,6 +549,7 @@ export function withBuiltinFields(
 export type CollectionActionAudience = 'both' | 'agent' | 'user'
 export type CollectionPermissionAction =
   | 'resource:read'
+  | 'resource:create'
   | 'resource:update'
   | 'resource:delete'
   | 'resource:share'

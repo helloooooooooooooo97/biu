@@ -47,6 +47,20 @@ test('private resources require a direct grant and roles gate actions', () => {
   assert.equal(auth.authorize(actor(bob.id), 'resource:update', page('private')).allowed, false)
 })
 
+test('workspace member directory is readable by members but managed by owners', () => {
+  const { auth, ada, bob, workspace, actor } = setup()
+  const member = {
+    type: 'record' as const,
+    workspaceId: workspace.id,
+    collection: '/workspace-members',
+    recordId: bob.id,
+  }
+  assert.equal(auth.authorize(actor(bob.id), 'resource:read', member).allowed, true)
+  assert.equal(auth.authorize(actor(bob.id), 'resource:update', member).allowed, false)
+  assert.equal(auth.authorize(actor(ada.id), 'resource:update', member).allowed, true)
+  assert.equal(auth.authorize(actor(ada.id), 'resource:delete', member).allowed, true)
+})
+
 test('a group grant applies dynamically to its workspace members', () => {
   const { store, auth, ada, bob, actor, page, workspace } = setup()
   auth.attach(actor(ada.id), page('roadmap'), { ownership: 'workspace', accessMode: 'restricted' })

@@ -244,7 +244,55 @@ export class CollabStore {
          WHERE m.workspace_id = ?
          ORDER BY m.created_at`,
       )
-      .all(workspaceId) as Array<{ id: string; name: string; role: string; created_at: number }>
+      .all(workspaceId) as Array<{ id: string; name: string; email: string; role: string; created_at: number }>
+  }
+
+  currentMembers() {
+    const actorId = currentAccountId()
+    const workspaceId = this.activeWorkspaceId()
+    if (!actorId || !workspaceId) return []
+    return this.members(actorId, workspaceId)
+  }
+
+  updateMemberRole(actorId: string, workspaceId: string, accountId: string, role: 'admin' | 'member') {
+    this.requireRole(actorId, workspaceId, 'owner')
+    const target = this.db
+      .prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
+      .get(workspaceId, accountId) as { role: string } | undefined
+    if (!target) throw new CollabError('成员不存在', 404)
+    if (target.role === 'owner') throw new CollabError('不能修改工作区所有者角色', 400)
+    this.db
+      .prepare('UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND account_id = ?')
+      .run(role, workspaceId, accountId)
+    return this.members(actorId, workspaceId).find((row) => row.id === accountId)!
+  }
+
+  removeMember(actorId: string, workspaceId: string, accountId: string) {
+    this.requireRole(actorId, workspaceId, 'owner')
+    const target = this.db
+      .prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
+      .get(workspaceId, accountId) as { role: string } | undefined
+    if (!target) throw new CollabError('成员不存在', 404)
+    if (target.role === 'owner') throw new CollabError('不能移除工作区所有者', 400)
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      this.db.prepare(
+        `DELETE FROM workspace_group_members
+         WHERE account_id = ? AND group_id IN (SELECT id FROM workspace_groups WHERE workspace_id = ?)`,
+      ).run(accountId, workspaceId)
+      this.db.prepare(
+        `DELETE FROM record_grants
+         WHERE workspace_id = ? AND subject_type = 'account' AND subject_id = ?`,
+      ).run(workspaceId, accountId)
+      this.db
+        .prepare('DELETE FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
+        .run(workspaceId, accountId)
+      this.db.exec('COMMIT')
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
+    return { id: accountId }
   }
 
   createGroup(actorId: string, workspaceId: string, name: string, now = Date.now()) {

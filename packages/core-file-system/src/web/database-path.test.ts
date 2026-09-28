@@ -66,7 +66,8 @@ test('views catalog source is a query filter', () => {
   assert.equal(viewsCatalogSource(''), '')
 })
 
-test('views and events are system collections; tags sort with user tables', () => {
+test('members, views and events are system collections; tags sort with user tables', () => {
+  assert.equal(isSystemCollection('/workspace-members'), true)
   assert.equal(isSystemCollection('/views'), true)
   assert.equal(isSystemCollection('/facets'), false)
   assert.equal(isSystemCollection('/events'), true)
@@ -74,6 +75,7 @@ test('views and events are system collections; tags sort with user tables', () =
   assert.equal(isSystemCollection('/trash'), true)
   assert.equal(isSystemCollection('/sessions'), false)
   const { user, system } = sortDataCollections([
+    { path: '/workspace-members' },
     { path: '/events' },
     { path: '/plugins' },
     { path: '/views' },
@@ -91,6 +93,6 @@ test('views and events are system collections; tags sort with user tables', () =
   )
   assert.deepEqual(
     system.map((item) => item.path),
-    ['/views', '/events', '/notices', '/trash'],
+    ['/workspace-members', '/views', '/events', '/notices', '/trash'],
   )
 })

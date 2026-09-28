@@ -543,7 +543,7 @@ function sortRecords(rows: DbRecord[], field: string, dir: 'asc' | 'desc', sorts
 
 export const DEFAULT_PAGE_SIZE = 50
 export const MAX_PAGE_SIZE = 200
-const HARD_DELETE_PATHS = new Set(['/events', '/trash'])
+const HARD_DELETE_PATHS = new Set(['/events', '/trash', '/workspace-members'])
 
 type WorkspaceMembership = {
   active: string | null
