@@ -145,9 +145,33 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     columns: ['workspace_id', 'account_id', 'role', 'created_at', 'display_name', 'avatar'],
     indexes: ['workspace_members_account'],
   },
+  workspace_groups: {
+    columns: ['id', 'workspace_id', 'name', 'created_by', 'created_at'],
+    indexes: ['workspace_groups_workspace'],
+  },
+  workspace_group_members: {
+    columns: ['group_id', 'account_id', 'created_at'],
+    indexes: ['workspace_group_members_account'],
+  },
+  resource_policies: {
+    columns: [
+      'workspace_id',
+      'collection',
+      'record_id',
+      'ownership',
+      'owner_account_id',
+      'access_mode',
+      'member_default_role',
+      'parent_collection',
+      'parent_record_id',
+      'created_by',
+      'created_at',
+    ],
+    indexes: ['resource_policies_parent'],
+  },
   record_grants: {
-    columns: ['workspace_id', 'collection', 'record_id', 'account_id', 'role', 'created_at'],
-    indexes: [],
+    columns: ['workspace_id', 'collection', 'record_id', 'subject_type', 'subject_id', 'role', 'granted_by', 'created_at'],
+    indexes: ['record_grants_subject'],
   },
   record_owners: {
     columns: ['workspace_id', 'collection', 'record_id', 'owner_id', 'version', 'updated_at'],
@@ -171,7 +195,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 24
+export const LATEST_BIU_SCHEMA = 25
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -376,6 +400,21 @@ CREATE TABLE IF NOT EXISTS workspace_members (
   PRIMARY KEY (workspace_id, account_id)
 );
 CREATE INDEX IF NOT EXISTS workspace_members_account ON workspace_members(account_id);
+CREATE TABLE IF NOT EXISTS workspace_groups (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS workspace_groups_workspace ON workspace_groups(workspace_id);
+CREATE TABLE IF NOT EXISTS workspace_group_members (
+  group_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (group_id, account_id)
+);
+CREATE INDEX IF NOT EXISTS workspace_group_members_account ON workspace_group_members(account_id);
 CREATE TABLE IF NOT EXISTS record_owners (
   workspace_id TEXT NOT NULL,
   collection TEXT NOT NULL,
@@ -397,15 +436,35 @@ CREATE TABLE IF NOT EXISTS sync_ops (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS sync_ops_ws ON sync_ops(workspace_id, id);
+CREATE TABLE IF NOT EXISTS resource_policies (
+  workspace_id TEXT NOT NULL,
+  collection TEXT NOT NULL,
+  record_id TEXT NOT NULL,
+  ownership TEXT NOT NULL,
+  owner_account_id TEXT NOT NULL,
+  access_mode TEXT NOT NULL,
+  member_default_role TEXT NOT NULL DEFAULT 'viewer',
+  parent_collection TEXT NOT NULL DEFAULT '',
+  parent_record_id TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, collection, record_id)
+);
+CREATE INDEX IF NOT EXISTS resource_policies_parent
+  ON resource_policies(workspace_id, parent_collection, parent_record_id);
 CREATE TABLE IF NOT EXISTS record_grants (
   workspace_id TEXT NOT NULL,
   collection TEXT NOT NULL,
   record_id TEXT NOT NULL,
-  account_id TEXT NOT NULL,
+  subject_type TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
   role TEXT NOT NULL,
+  granted_by TEXT NOT NULL,
   created_at INTEGER NOT NULL,
-  PRIMARY KEY (workspace_id, collection, record_id, account_id)
+  PRIMARY KEY (workspace_id, collection, record_id, subject_type, subject_id)
 );
+CREATE INDEX IF NOT EXISTS record_grants_subject
+  ON record_grants(workspace_id, subject_type, subject_id);
 CREATE TABLE IF NOT EXISTS edit_locks (
   workspace_id TEXT NOT NULL,
   collection TEXT NOT NULL,

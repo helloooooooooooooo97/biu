@@ -7,7 +7,8 @@
   "description": "账号、工作区成员、按版本同步记录和单记录编辑锁",
   "exports": {
     ".": "./src/host/index.ts",
-    "./store": "./src/host/store.ts"
+    "./store": "./src/host/store.ts",
+    "./authorization": "./src/host/authorization.ts"
   },
   "peerDependencies": {
     "cordis": "4.0.0-rc.8"

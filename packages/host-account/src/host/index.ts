@@ -3,6 +3,9 @@ import { biuSqlitePath, openAndMigrateBiu } from '@biu/host-plugin-loader/data-d
 import { readWorkspaceProfile } from '@biu/host-workspace'
 import type { RouteContext } from '@biu/type-http'
 import { CollabError, CollabStore } from './store.ts'
+import type { AuthorizationService, ResourceRole } from './authorization.ts'
+
+export type { Actor, Action, ResourceRef, ResourceRole, Decision } from './authorization.ts'
 
 export const name = 'account'
 export const inject = ['http']
@@ -11,6 +14,7 @@ type AccountConfig = { sqlitePath?: string }
 
 export class AccountService extends Service {
   store: CollabStore
+  authorization: AuthorizationService
   private db: { close(): void }
 
   constructor(ctx: Context, config: AccountConfig = {}) {
@@ -18,6 +22,7 @@ export class AccountService extends Service {
     const db = openAndMigrateBiu(config.sqlitePath ?? biuSqlitePath())
     this.db = db
     this.store = new CollabStore(db)
+    this.authorization = this.store.authorization
     const profile = readWorkspaceProfile()
     this.store.bootstrapLocal({ accountName: profile.name || '我', workspaceName: '本机' })
     ctx.on('dispose', () => db.close())
@@ -180,6 +185,45 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     }
   })
 
+  ctx.http.route('GET', '/api/account/workspaces/:id/groups', async (route) => {
+    try {
+      const me = actor(route)
+      route.send(200, { groups: account.store.groups(me.id, route.params.id!) })
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/account/workspaces/:id/groups', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as { name?: string }
+      route.send(201, account.store.createGroup(me.id, route.params.id!, String(body.name ?? '')))
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/account/workspaces/:id/groups/:groupId/members', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as { email?: string }
+      route.send(
+        200,
+        {
+          members: account.store.addGroupMemberByEmail(
+            me.id,
+            route.params.id!,
+            route.params.groupId!,
+            String(body.email ?? ''),
+          ),
+        },
+      )
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
   ctx.http.route('GET', '/api/account/access', async (route) => {
     try {
       const me = actor(route)
@@ -195,10 +239,22 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   ctx.http.route('POST', '/api/account/access', async (route) => {
     try {
       const me = actor(route)
-      const body = (await route.json()) as { collection?: string; recordId?: string; email?: string }
+      const body = (await route.json()) as {
+        collection?: string
+        recordId?: string
+        email?: string
+        groupId?: string
+        role?: ResourceRole
+      }
+      const collection = String(body.collection ?? '')
+      const recordId = String(body.recordId ?? '')
+      const role: ResourceRole =
+        body.role === 'viewer' || body.role === 'manager' || body.role === 'owner' ? body.role : 'editor'
       route.send(
         200,
-        account.store.shareWithEmail(me.id, String(body.collection ?? ''), String(body.recordId ?? ''), String(body.email ?? '')),
+        body.groupId
+          ? account.store.grantGroup(me.id, collection, recordId, String(body.groupId), role)
+          : account.store.shareWithEmail(me.id, collection, recordId, String(body.email ?? '')),
       )
     } catch (error) {
       fail(route, error)

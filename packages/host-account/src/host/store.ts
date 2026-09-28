@@ -1,6 +1,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { currentAccountId } from '@biu/host-plugin-loader/data-dir'
+import { AuthorizationService, type ResourcePolicyInput, type ResourceRole } from './authorization.ts'
 
 export const PRESENCE_STALE_MS = 30_000
 export const DEFAULT_LOCK_MS = 60_000
@@ -72,7 +73,11 @@ function verifyPassword(password: string, stored: string) {
 }
 
 export class CollabStore {
-  constructor(private db: DatabaseSync) {}
+  readonly authorization: AuthorizationService
+
+  constructor(private db: DatabaseSync) {
+    this.authorization = new AuthorizationService(db, (accountId) => this.accountActiveWorkspace(accountId))
+  }
 
   bootstrapLocal(input: { accountName?: string; workspaceName?: string; now?: number } = {}) {
     const now = input.now ?? Date.now()
@@ -242,6 +247,103 @@ export class CollabStore {
       .all(workspaceId) as Array<{ id: string; name: string; role: string; created_at: number }>
   }
 
+  createGroup(actorId: string, workspaceId: string, name: string, now = Date.now()) {
+    this.requireRole(actorId, workspaceId, 'owner')
+    const trimmed = name.trim()
+    if (!trimmed) throw new CollabError('组名不能为空', 400)
+    const group = { id: id('grp'), workspaceId, name: trimmed, createdBy: actorId, createdAt: now }
+    this.db
+      .prepare('INSERT INTO workspace_groups (id, workspace_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(group.id, workspaceId, group.name, actorId, now)
+    return group
+  }
+
+  groups(actorId: string, workspaceId: string) {
+    this.requireMember(actorId, workspaceId)
+    const rows = this.db
+      .prepare(
+        `SELECT g.id, g.name, g.created_by, g.created_at, COUNT(gm.account_id) AS member_count
+         FROM workspace_groups g
+         LEFT JOIN workspace_group_members gm ON gm.group_id = g.id
+         WHERE g.workspace_id = ?
+         GROUP BY g.id
+         ORDER BY g.created_at`,
+      )
+      .all(workspaceId) as Array<{
+        id: string
+        name: string
+        created_by: string
+        created_at: number
+        member_count: number
+      }>
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      memberCount: Number(row.member_count),
+    }))
+  }
+
+  addGroupMemberByEmail(actorId: string, workspaceId: string, groupId: string, email: string, now = Date.now()) {
+    this.requireRole(actorId, workspaceId, 'owner')
+    const group = this.db
+      .prepare('SELECT id FROM workspace_groups WHERE id = ? AND workspace_id = ?')
+      .get(groupId, workspaceId) as { id: string } | undefined
+    if (!group) throw new CollabError('成员组不存在', 404)
+    const account = this.db
+      .prepare('SELECT id FROM accounts WHERE email = ?')
+      .get(email.trim().toLowerCase()) as { id: string } | undefined
+    if (!account) throw new CollabError('没有这个邮箱，对方需要先注册', 404)
+    this.requireMember(account.id, workspaceId)
+    this.db
+      .prepare(
+        `INSERT INTO workspace_group_members (group_id, account_id, created_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(group_id, account_id) DO NOTHING`,
+      )
+      .run(groupId, account.id, now)
+    return this.groupMembers(actorId, workspaceId, groupId)
+  }
+
+  groupMembers(actorId: string, workspaceId: string, groupId: string) {
+    this.requireMember(actorId, workspaceId)
+    return this.db
+      .prepare(
+        `SELECT a.id, COALESCE(NULLIF(m.display_name, ''), '未设置') AS name, COALESCE(a.email, '') AS email
+         FROM workspace_group_members gm
+         JOIN workspace_groups g ON g.id = gm.group_id AND g.workspace_id = ?
+         JOIN accounts a ON a.id = gm.account_id
+         LEFT JOIN workspace_members m ON m.workspace_id = g.workspace_id AND m.account_id = a.id
+         WHERE gm.group_id = ?
+         ORDER BY gm.created_at`,
+      )
+      .all(workspaceId, groupId)
+  }
+
+  grantGroup(
+    actorId: string,
+    collection: string,
+    recordId: string,
+    groupId: string,
+    role: ResourceRole,
+  ) {
+    const workspaceId = this.activeWorkspaceId()
+    if (!workspaceId) throw new CollabError('没有工作区', 400)
+    const group = this.db
+      .prepare('SELECT id FROM workspace_groups WHERE id = ? AND workspace_id = ?')
+      .get(groupId, workspaceId) as { id: string } | undefined
+    if (!group) throw new CollabError('成员组不存在', 404)
+    this.authorization.grant(
+      actorId,
+      { type: 'record', workspaceId, collection, recordId },
+      'group',
+      groupId,
+      role,
+    )
+    return this.accessRows(workspaceId, collection, recordId)
+  }
+
   workspaceProfile(actorId: string) {
     const workspaceId = this.activeWorkspaceId()
     if (!workspaceId) throw new CollabError('没有工作区', 400)
@@ -334,6 +436,12 @@ export class CollabStore {
     const now = input.now ?? Date.now()
     this.requireMember(input.actorId, input.workspaceId)
     const key = this.recordKey(input.collection, input.recordId)
+    const decision = this.authorization.authorize(
+      { type: 'account', accountId: input.actorId, workspaceId: input.workspaceId },
+      'resource:update',
+      { type: 'record', workspaceId: input.workspaceId, collection: key.collection, recordId: key.recordId },
+    )
+    if (!decision.allowed) throw new CollabError('没有权限', 403)
     const field = input.field.trim()
     if (!field) throw new CollabError('字段不能为空', 400)
     this.db.exec('BEGIN IMMEDIATE')
@@ -443,6 +551,12 @@ export class CollabStore {
   ): EditLock {
     this.requireMember(actorId, workspaceId)
     const key = this.recordKey(collection, recordId)
+    const decision = this.authorization.authorize(
+      { type: 'account', accountId: actorId, workspaceId },
+      'resource:update',
+      { type: 'record', workspaceId, collection: key.collection, recordId: key.recordId },
+    )
+    if (!decision.allowed) throw new CollabError('没有权限', 403)
     const expiresAt = now + Math.max(1000, ttlMs)
     this.db.exec('BEGIN IMMEDIATE')
     try {
@@ -588,7 +702,13 @@ export class CollabStore {
     return new Set(rows.map((row) => row.record_id))
   }
 
-  attach(workspaceId: string, collection: string, recordId: string, now = Date.now()) {
+  attach(
+    workspaceId: string,
+    collection: string,
+    recordId: string,
+    now = Date.now(),
+    policy: ResourcePolicyInput = {},
+  ) {
     const owner = this.db.prepare('SELECT owner_id FROM workspaces WHERE id = ?').get(workspaceId) as
       | { owner_id: string }
       | undefined
@@ -601,17 +721,28 @@ export class CollabStore {
       )
       .run(workspaceId, collection, recordId, owner.owner_id, now)
     const caller = currentAccountId()
-    if (caller) this.grant(workspaceId, collection, recordId, caller, 'owner', now)
+    if (caller) {
+      this.authorization.attach(
+        { type: 'account', accountId: caller, workspaceId },
+        { type: 'record', workspaceId, collection, recordId },
+        policy,
+        now,
+      )
+    }
   }
 
   grantMap(workspaceId: string, collection: string) {
     const rows = this.db
-      .prepare('SELECT record_id, account_id FROM record_grants WHERE workspace_id = ? AND collection = ?')
-      .all(workspaceId, collection) as Array<{ record_id: string; account_id: string }>
+      .prepare(
+        `SELECT record_id, subject_id
+         FROM record_grants
+         WHERE workspace_id = ? AND collection = ? AND subject_type = 'account'`,
+      )
+      .all(workspaceId, collection) as Array<{ record_id: string; subject_id: string }>
     const map = new Map<string, Set<string>>()
     for (const row of rows) {
       const set = map.get(row.record_id) ?? new Set<string>()
-      set.add(row.account_id)
+      set.add(row.subject_id)
       map.set(row.record_id, set)
     }
     return map
@@ -621,9 +752,11 @@ export class CollabStore {
     const caller = currentAccountId()
     const workspaceId = this.activeWorkspaceId()
     if (!caller || !workspaceId) return true
-    const people = this.grantMap(workspaceId, collection).get(recordId)
-    if (!people || people.size === 0) return true
-    return people.has(caller)
+    return this.authorization.authorize(
+      { type: 'account', accountId: caller, workspaceId },
+      'resource:read',
+      { type: 'record', workspaceId, collection, recordId },
+    ).allowed
   }
 
   recordAccess(actorId: string, collection: string, recordId: string) {
@@ -647,21 +780,15 @@ export class CollabStore {
     const account = this.db.prepare('SELECT id FROM accounts WHERE email = ?').get(normalized) as { id: string } | undefined
     if (!account) throw new CollabError('没有这个邮箱，对方需要先注册', 404)
     this.requireMember(account.id, workspaceId)
-    const people = this.grantMap(workspaceId, collection).get(recordId)
-    if (people && people.size > 0 && !people.has(actorId)) throw new CollabError('没有权限', 403)
-    if (!people || !people.has(actorId)) this.grant(workspaceId, collection, recordId, actorId, 'owner', now)
-    this.grant(workspaceId, collection, recordId, account.id, 'edit', now)
+    const resource = { type: 'record' as const, workspaceId, collection, recordId }
+    const decision = this.authorization.authorize(
+      { type: 'account', accountId: actorId, workspaceId },
+      'resource:share',
+      resource,
+    )
+    if (!decision.allowed) throw new CollabError('没有权限', 403)
+    this.authorization.grant(actorId, resource, 'account', account.id, 'editor', now)
     return this.accessRows(workspaceId, collection, recordId)
-  }
-
-  private grant(workspaceId: string, collection: string, recordId: string, accountId: string, role: string, now = Date.now()) {
-    this.db
-      .prepare(
-        `INSERT INTO record_grants (workspace_id, collection, record_id, account_id, role, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(workspace_id, collection, record_id, account_id) DO NOTHING`,
-      )
-      .run(workspaceId, collection, recordId, accountId, role, now)
   }
 
   private accessRows(workspaceId: string, collection: string, recordId: string) {
@@ -669,9 +796,9 @@ export class CollabStore {
       .prepare(
         `SELECT a.id, COALESCE(NULLIF(m.display_name, ''), '未设置') AS name, COALESCE(a.email, '') AS email, g.role
          FROM record_grants g
-         JOIN accounts a ON a.id = g.account_id
-         LEFT JOIN workspace_members m ON m.workspace_id = g.workspace_id AND m.account_id = g.account_id
-         WHERE g.workspace_id = ? AND g.collection = ? AND g.record_id = ?
+         JOIN accounts a ON g.subject_type = 'account' AND a.id = g.subject_id
+         LEFT JOIN workspace_members m ON m.workspace_id = g.workspace_id AND m.account_id = g.subject_id
+         WHERE g.workspace_id = ? AND g.collection = ? AND g.record_id = ? AND g.subject_type = 'account'
          ORDER BY g.created_at`,
       )
       .all(workspaceId, collection, recordId) as Array<{ id: string; name: string; email: string; role: string }>

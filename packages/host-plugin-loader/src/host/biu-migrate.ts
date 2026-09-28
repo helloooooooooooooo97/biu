@@ -330,6 +330,67 @@ export const BIU_MIGRATIONS: Migration[] = [
       );
     `)
   } },
+  { version: 25, module: 'host-account', name: 'account.authorization-model', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS workspace_groups (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS workspace_groups_workspace ON workspace_groups(workspace_id);
+      CREATE TABLE IF NOT EXISTS workspace_group_members (
+        group_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (group_id, account_id)
+      );
+      CREATE INDEX IF NOT EXISTS workspace_group_members_account ON workspace_group_members(account_id);
+      CREATE TABLE IF NOT EXISTS resource_policies (
+        workspace_id TEXT NOT NULL,
+        collection TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        ownership TEXT NOT NULL,
+        owner_account_id TEXT NOT NULL,
+        access_mode TEXT NOT NULL,
+        member_default_role TEXT NOT NULL DEFAULT 'viewer',
+        parent_collection TEXT NOT NULL DEFAULT '',
+        parent_record_id TEXT NOT NULL DEFAULT '',
+        created_by TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, collection, record_id)
+      );
+      CREATE INDEX IF NOT EXISTS resource_policies_parent
+        ON resource_policies(workspace_id, parent_collection, parent_record_id);
+    `)
+    const columns = tableColumnNames(db, 'record_grants')
+    if (columns.includes('account_id')) {
+      db.exec(`
+        ALTER TABLE record_grants RENAME TO record_grants_v24;
+        CREATE TABLE record_grants (
+          workspace_id TEXT NOT NULL,
+          collection TEXT NOT NULL,
+          record_id TEXT NOT NULL,
+          subject_type TEXT NOT NULL,
+          subject_id TEXT NOT NULL,
+          role TEXT NOT NULL,
+          granted_by TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          PRIMARY KEY (workspace_id, collection, record_id, subject_type, subject_id)
+        );
+        INSERT INTO record_grants
+          (workspace_id, collection, record_id, subject_type, subject_id, role, granted_by, created_at)
+        SELECT workspace_id, collection, record_id, 'account', account_id, role, account_id, created_at
+        FROM record_grants_v24;
+        DROP TABLE record_grants_v24;
+      `)
+    }
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS record_grants_subject
+        ON record_grants(workspace_id, subject_type, subject_id);
+    `)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

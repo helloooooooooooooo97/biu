@@ -547,6 +547,12 @@ export function withBuiltinFields(
 
 /** 登记方可序列化的动作声明。图标与按钮长什么样由前端 decorate，不进这份契约。 */
 export type CollectionActionAudience = 'both' | 'agent' | 'user'
+export type CollectionPermissionAction =
+  | 'resource:read'
+  | 'resource:update'
+  | 'resource:delete'
+  | 'resource:share'
+  | 'resource:manage-permissions'
 
 export type CollectionActionInfo = {
   id: string
@@ -564,6 +570,8 @@ export type CollectionActionInfo = {
   parameters?: Record<string, unknown>
   /** 记录还不存在时也能跑（例如新建插件）。 */
   allowMissing?: boolean
+  /** 此动作要求的统一授权能力。缺省按修改记录处理。 */
+  requiredAction?: CollectionPermissionAction
 }
 
 export function actionVisibleToUser(action: { for?: CollectionActionAudience }) {

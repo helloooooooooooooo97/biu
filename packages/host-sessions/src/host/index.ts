@@ -30,6 +30,7 @@ import {
 import { rebuildHealedEvents } from './session-heal.ts'
 import { sessionsCollection } from './sessions-collection.ts'
 import { eventsCollection } from './events-collection.ts'
+import type { AuthorizationService } from '@biu/host-account/authorization'
 
 export type { SessionEvent, SessionEventBody, SessionProject, SessionRecord, SessionMascot, SessionConfig }
 export { SESSION_FORMAT_VERSION, normalizeSessionConfig, mergeSessionConfig }
@@ -622,6 +623,16 @@ export class SessionsService extends Service {
 
   /** 没有协同账号时全部可见；有当前工作区时只留下本区会话，未认领的旧会话只在「本机」出现。 */
   inWorkspace(id: string) {
+    const authorization = this.authorization()
+    const actor = authorization?.currentActor()
+    if (authorization && actor) {
+      return authorization.authorize(actor, 'resource:read', {
+        type: 'record',
+        workspaceId: actor.workspaceId,
+        collection: '/sessions',
+        recordId: id,
+      }).allowed
+    }
     const store = this.collabStore()
     if (!store?.activeWorkspaceId()) return true
     const membership = store.membership()
@@ -704,6 +715,14 @@ export class SessionsService extends Service {
             }
           | undefined
       )?.store
+    } catch {
+      return undefined
+    }
+  }
+
+  private authorization() {
+    try {
+      return (this.ctx.get('account') as { authorization?: AuthorizationService } | undefined)?.authorization
     } catch {
       return undefined
     }

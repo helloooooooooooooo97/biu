@@ -13,6 +13,7 @@ import {
   ASSET_GC_INTERVAL_MS,
 } from '@biu/host-plugin-loader/data-dir'
 import { asPublicProfile, readWorkspaceProfile, writeWorkspaceProfile } from '@biu/host-workspace'
+import type { Action as PermissionAction, AuthorizationService } from '@biu/host-account/authorization'
 import { Service, type Context } from 'cordis'
 import {
   DATABASE_CHANNEL,
@@ -555,7 +556,19 @@ type WorkspaceMembership = {
 type WorkspaceFiles = {
   activeWorkspaceId(): string | null
   membership(): WorkspaceMembership
-  attach(workspaceId: string, collection: string, recordId: string): void
+  attach(
+    workspaceId: string,
+    collection: string,
+    recordId: string,
+    now?: number,
+    policy?: {
+      ownership?: 'personal' | 'workspace'
+      accessMode?: 'inherit' | 'private' | 'members' | 'restricted'
+      memberDefaultRole?: 'viewer' | 'editor'
+      parentCollection?: string
+      parentRecordId?: string
+    },
+  ): void
   grantMap?(workspaceId: string, collection: string): Map<string, Set<string>>
 }
 
@@ -647,6 +660,14 @@ export class DatabaseService extends Service implements Database {
     }
   }
 
+  private authorization() {
+    try {
+      return (this.ctx.get('account') as { authorization?: AuthorizationService } | undefined)?.authorization
+    } catch {
+      return undefined
+    }
+  }
+
   private workspaceMembership() {
     const store = this.collabStore()
     if (!store?.activeWorkspaceId()) return null
@@ -689,7 +710,27 @@ export class DatabaseService extends Service implements Database {
   private visibleRecords<T extends { id?: unknown; pageId?: unknown; collection?: unknown; sessionId?: unknown; sourceId?: unknown; tablePath?: unknown }>(
     collection: string,
     rows: T[],
+    action: PermissionAction = 'resource:read',
   ) {
+    const authorization = this.authorization()
+    const actor = authorization?.currentActor()
+    if (authorization && actor) {
+      return authorization.filterCurrent(
+        action,
+        rows.map((row) => {
+          const target = this.scopeTarget(collection, String(row.id ?? ''), row)
+          return {
+            resource: {
+              type: 'record' as const,
+              workspaceId: actor.workspaceId,
+              collection: target.collection,
+              recordId: target.id,
+            },
+            value: row,
+          }
+        }),
+      )
+    }
     const membership = this.workspaceMembership()
     if (!membership) return rows
     const store = this.collabStore()
@@ -720,15 +761,38 @@ export class DatabaseService extends Service implements Database {
     return people.has(currentAccountId())
   }
 
-  private attachWorkspaceRecord(collection: string, recordId: string) {
+  private attachWorkspaceRecord(
+    collection: string,
+    recordId: string,
+    policy?: {
+      ownership?: 'personal' | 'workspace'
+      accessMode?: 'inherit' | 'private' | 'members' | 'restricted'
+      memberDefaultRole?: 'viewer' | 'editor'
+      parentCollection?: string
+      parentRecordId?: string
+    },
+  ) {
     const store = this.collabStore()
     const workspaceId = store?.activeWorkspaceId()
     if (!store || !workspaceId) return
-    store.attach(workspaceId, collection, recordId)
+    store.attach(workspaceId, collection, recordId, Date.now(), policy)
   }
 
-  private assertLiveRecord(spec: CollectionSpec, id: string) {
+  private assertLiveRecord(spec: CollectionSpec, id: string, action: PermissionAction = 'resource:read') {
     if (this.facets.isDeleted(spec.path, id)) throw new Error(`unknown record: ${spec.path}/${id}`)
+    const authorization = this.authorization()
+    const actor = authorization?.currentActor()
+    if (authorization && actor) {
+      const target = this.scopeTarget(spec.path, id)
+      const decision = authorization.authorize(actor, action, {
+        type: 'record',
+        workspaceId: actor.workspaceId,
+        collection: target.collection,
+        recordId: target.id,
+      })
+      if (!decision.allowed) throw new Error(`unknown record: ${spec.path}/${id}`)
+      return
+    }
     const membership = this.workspaceMembership()
     if (!membership) return
     const target = this.scopeTarget(spec.path, id)
@@ -1071,7 +1135,7 @@ export class DatabaseService extends Service implements Database {
     const raw = parseContent(content)
     const current = await spec.get(parts[1]!)
     if (!current) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    this.assertLiveRecord(spec, current.id)
+    this.assertLiveRecord(spec, current.id, 'resource:update')
     const bannerPatch = takeBannerPatch(raw)
     if ('facet' in raw && schema.fields.facet) {
       if (!schema.fields.facet.writable || schema.fields.facet.computed) throw new Error(`field not writable: facet`)
@@ -1133,7 +1197,20 @@ export class DatabaseService extends Service implements Database {
     }
     const patch = pickWritablePatch(schema, raw)
     await assertSameTableLinks(spec, patch, parts[1])
+    const authorization = this.authorization()
+    const actor = authorization?.currentActor()
+    const parentField = spec.schema.parentField
+    const moving = Boolean(parentField && parentField in patch && authorization && actor)
+    const parentRecordId = moving ? String(patch[parentField!] ?? '').trim() : ''
+    const resource = actor
+      ? { type: 'record' as const, workspaceId: actor.workspaceId, collection: spec.path, recordId: current.id }
+      : null
+    const parent = actor && parentRecordId
+      ? { type: 'record' as const, workspaceId: actor.workspaceId, collection: spec.path, recordId: parentRecordId }
+      : null
+    if (moving && resource) authorization!.validateMove(actor!, resource, parent)
     let record = Object.keys(patch).length ? await spec.update(parts[1]!, patch) : current
+    if (moving && resource) authorization!.move(actor!, resource, parent)
     await this.stampActor(spec.path, record.id)
     if ('emoji' in patch || 'tags' in patch) {
       const meta = this.facets.writeRecordMeta(spec.path, record.id, {
@@ -1174,6 +1251,15 @@ export class DatabaseService extends Service implements Database {
     const spec = this.collection(`/${parts[0]}`)
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     if (!spec.records?.create || !spec.create) throw new Error(`collection cannot create: ${spec.path}`)
+    const authorization = this.authorization()
+    const actor = authorization?.currentActor()
+    if (authorization && actor) {
+      authorization.requireCurrent('resource:create', {
+        type: 'collection',
+        workspaceId: actor.workspaceId,
+        collection: spec.path,
+      })
+    }
     const schema = schemaFor(spec)
     const rows = parseRecords(content)
     const records: Record<string, unknown>[] = []
@@ -1206,7 +1292,13 @@ export class DatabaseService extends Service implements Database {
       }
       this.indexFacetRecord(spec, this.decorateRecord(spec, record))
       this.refreshContentRefs(spec, this.withBanner(spec, record))
-      this.attachWorkspaceRecord(spec.path, record.id)
+      const parentField = spec.schema.parentField
+      const parentRecordId = parentField ? String(record[parentField] ?? '').trim() : ''
+      this.attachWorkspaceRecord(spec.path, record.id, {
+        ownership: parentRecordId ? 'workspace' : 'personal',
+        accessMode: parentRecordId ? 'inherit' : 'private',
+        ...(parentRecordId ? { parentCollection: spec.path, parentRecordId } : {}),
+      })
     }
     this.bump()
     const items = created.map((record) => ({
@@ -1247,6 +1339,7 @@ export class DatabaseService extends Service implements Database {
     const matched = this.visibleRecords(
       spec.path,
       query.purge ? (matchedTrash.length ? matchedTrash : matchedLive) : matchedLive,
+      'resource:delete',
     )
     const ids = [...new Set(matched.map((row) => row.id))]
     if (!ids.length) return { kind: 'deleted' as const, path: spec.path, ids }
@@ -1304,6 +1397,7 @@ export class DatabaseService extends Service implements Database {
         query.filter,
         query.q ?? '',
       ),
+      'resource:restore',
     )
     const ids = [...new Set(matched.map((row) => row.id))]
     for (const id of ids) this.facets.restoreDeleted(spec.path, id)
@@ -1344,7 +1438,9 @@ export class DatabaseService extends Service implements Database {
     const loaded = await spec.get(parts[1]!)
     const record = loaded ?? (action.allowMissing ? { id: parts[1]! } : null)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    if (loaded || !action.allowMissing) this.assertLiveRecord(spec, record.id)
+    if (loaded || !action.allowMissing) {
+      this.assertLiveRecord(spec, record.id, (action.requiredAction ?? 'resource:update') as PermissionAction)
+    }
     if (!matchActionWhen(record, action.when)) throw new Error(`action not available: ${actionId}`)
     const result = await action.run(parts[1]!, record, args)
     const next = (await spec.get(parts[1]!)) ?? record
@@ -1397,7 +1493,7 @@ export class DatabaseService extends Service implements Database {
     const field = schema.contentField ?? 'content'
     const existing = await spec.get(parts[1]!)
     if (!existing) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    this.assertLiveRecord(spec, existing.id)
+    this.assertLiveRecord(spec, existing.id, 'resource:update')
     if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
     if (isEditorContentSpec(spec)) {
       writeEditorContent(this.facets.ensure(), spec.path, parts[1]!, String(value ?? ''), { expectedVersion })
@@ -1489,7 +1585,9 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    this.assertLiveRecord(spec, record.id)
+    const from = String(args.from ?? '').trim()
+    const command = String(args.command ?? (args.value != null || from ? 'write' : 'view'))
+    this.assertLiveRecord(spec, record.id, command === 'view' ? 'resource:read' : 'resource:update')
     const names = new Set([
       ...collectAssetNames(record, this.facets.recordBanner(spec.path, record.id)?.html),
       ...this.facets.listedAttachmentNames(spec.path, record.id),
@@ -1498,8 +1596,6 @@ export class DatabaseService extends Service implements Database {
       .trim()
       .replace(/^assets\//, '')
       .replace(/^.*[/\\]/, '')
-    const from = String(args.from ?? '').trim()
-    const command = String(args.command ?? (args.value != null || from ? 'write' : 'view'))
     const recPath = `${spec.path}/${record.id}`
     if (command === 'view' && !file) {
       const assets = []
@@ -1578,7 +1674,9 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    this.assertLiveRecord(spec, record.id)
+    const from = String(args.from ?? '').trim()
+    const command = String(args.command ?? (args.value != null || from ? 'write' : 'view'))
+    this.assertLiveRecord(spec, record.id, command === 'view' ? 'resource:read' : 'resource:update')
     const names = new Set([
       ...collectAssetNames(record, this.facets.recordBanner(spec.path, record.id)?.html),
       ...this.facets.listedAttachmentNames(spec.path, record.id),
@@ -1587,8 +1685,6 @@ export class DatabaseService extends Service implements Database {
       .trim()
       .replace(/^assets\//, '')
       .replace(/^.*[/\\]/, '')
-    const from = String(args.from ?? '').trim()
-    const command = String(args.command ?? (args.value != null || from ? 'write' : 'view'))
     const recPath = `${spec.path}/${record.id}`
     if (command === 'view' && !file) {
       const assets = []
