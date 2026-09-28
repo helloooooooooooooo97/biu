@@ -739,7 +739,7 @@ test('agent view writes reload saved views without a full page refresh', () => {
   assert.match(browser, /SAVED_VIEW_EVENT/)
   assert.match(browser, /adoptViewRef/)
   assert.match(browser, /void syncViewsRef\.current\(\)/)
-  assert.match(browser, /await pullSavedViews\(\)/)
+  assert.match(browser, /await pullSavedViews\(\[collectionPath\]\)/)
   const page = readFileSync(resolve(import.meta.dirname, './index.tsx'), 'utf8')
   assert.match(page, /viewsTouched/)
   assert.match(page, /reveal\?\.viewId/)
