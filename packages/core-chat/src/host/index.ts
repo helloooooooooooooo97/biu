@@ -1172,7 +1172,7 @@ export function apply(ctx: Context) {
   ctx.http.route('GET', '/api/sessions/:id', async (route) => {
     const record = await ctx.sessions.get(route.params.id)
     if (!record) return route.send(404, { error: 'unknown session' })
-    if (databaseOf(ctx)?.facets.isDeleted('/sessions', record.id)) {
+    if (databaseOf(ctx)?.facets.isDeleted('/sessions', record.id) || !ctx.sessions.inWorkspace(record.id)) {
       return route.send(404, { error: 'unknown session' })
     }
     const turnsRaw = route.query.get('turns')

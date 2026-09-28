@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { Context } from 'cordis'
+import { Context, Service } from 'cordis'
 import * as sessionStore from '@biu/host-session-store'
 import * as sessions from './index.ts'
 import { SESSION_FORMAT_VERSION, deriveMessages, applyContextBudget, estimateTokens, statInputComposition } from './index.ts'
@@ -270,6 +270,53 @@ test('delete removes session from store and cache', async () => {
   assert.equal(await ctx.sessions.get(record.id), undefined)
   assert.equal((await ctx.sessions.list()).includes(record.id), false)
   assert.equal(await ctx.sessions.delete(record.id), false)
+})
+
+test('listSummaries only returns sessions of the active workspace', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  const kept = await ctx.sessions.create('kept')
+  const other = await ctx.sessions.create('other')
+  const mine = new Set([`/sessions\t${kept.id}`])
+  const any = new Set([`/sessions\t${kept.id}`, `/sessions\t${other.id}`])
+  let active = 'ws-a'
+  const home = 'ws-home'
+  class FakeAccount extends Service {
+    store = {
+      activeWorkspaceId: () => active,
+      membership: () => ({ active, home, mine, any }),
+      attach: (workspaceId: string, collection: string, recordId: string) => {
+        const key = `${collection}\t${recordId}`
+        any.add(key)
+        if (workspaceId === active) mine.add(key)
+      },
+    }
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(FakeAccount)
+  assert.deepEqual(
+    (await ctx.sessions.listSummaries()).map((item) => item.id),
+    [kept.id],
+  )
+  assert.equal(ctx.sessions.inWorkspace(other.id), false)
+  active = 'ws-b'
+  mine.clear()
+  const created = await ctx.sessions.create('fresh')
+  assert.equal(ctx.sessions.inWorkspace(created.id), true)
+  assert.deepEqual(
+    (await ctx.sessions.listSummaries()).map((item) => item.id),
+    [created.id],
+  )
+  active = home
+  mine.clear()
+  const legacy = await ctx.sessions.create('legacy')
+  any.delete(`/sessions\t${legacy.id}`)
+  mine.delete(`/sessions\t${legacy.id}`)
+  assert.equal(ctx.sessions.inWorkspace(legacy.id), true)
+  assert.equal(ctx.sessions.inWorkspace(other.id), false)
 })
 
 test('ensureDefaultSession creates exactly one session when the store is empty', async () => {
