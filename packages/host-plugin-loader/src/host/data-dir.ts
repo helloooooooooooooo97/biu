@@ -1,5 +1,6 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 export { BIU_SQLITE, EVENTS_SQLITE, adoptTwoSqlite } from './sqlite-two.ts'
 export {
   contentAddressHash,
@@ -127,17 +128,49 @@ export function migrateDataDir(parent: string): string {
   return dest
 }
 
+export type WorkspaceScope = { id: string; root: string }
+
+const workspaceScope = new AsyncLocalStorage<WorkspaceScope>()
+
+export function currentWorkspace() {
+  return workspaceScope.getStore()
+}
+
+/** 当前请求或任务里的工区。调用方不用把 workspaceId 逐层传下去。 */
+export function runWithWorkspace<T>(scope: WorkspaceScope, fn: () => T): T {
+  return workspaceScope.run(scope, fn)
+}
+
 /** Packaged Electron sets BIU_HOME to userData so replacing the .app does not wipe notes. */
 export function dataHome(): string {
-  return process.env.BIU_HOME || process.cwd()
+  return currentWorkspace()?.root || process.env.BIU_HOME || process.cwd()
 }
 
 export function dataDir(parent = dataHome()): string {
   return migrateDataDir(parent)
 }
 
+/**
+ * `dataPath(home, 'biu.sqlite')` 仍表示某个根下的文件。
+ * `dataPath('biu.sqlite')` 表示当前工区里的文件，避免把文件名当成根目录。
+ */
 export function dataPath(parent = dataHome(), ...parts: string[]): string {
+  if (parts.length === 0 && !isAbsolute(parent) && parent !== dataHome()) {
+    return join(dataDir(), parent)
+  }
   return join(dataDir(parent), ...parts)
+}
+
+export function biuSqlitePath(parent = dataHome()) {
+  return dataPath(parent, 'biu.sqlite')
+}
+
+export function eventsSqlitePath(parent = dataHome()) {
+  return dataPath(parent, 'events.sqlite')
+}
+
+export function profilePath(parent = dataHome()) {
+  return process.env.BIU_PROFILE || dataPath(parent, 'profile.json')
 }
 
 export function assetsRootPath(parent = dataHome()): string {

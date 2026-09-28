@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import { mkdirSync, writeFileSync, readFileSync, existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, LEGACY_PAGE_ROOT, PAGE_DB, PAGE_ROOT, adoptPackedUserData, dataDir, dataHome, dataPath, migrateDataDir, migrateLegacyPageDir } from './data-dir.ts'
+import { DATA_DIR_NAME, LEGACY_DATA_DIR_NAME, LEGACY_PAGE_ROOT, PAGE_DB, PAGE_ROOT, adoptPackedUserData, biuSqlitePath, dataDir, dataHome, dataPath, migrateDataDir, migrateLegacyPageDir, profilePath, runWithWorkspace } from './data-dir.ts'
 import { adoptCasAssets } from './adopt-cas-assets.ts'
 import { hashedAssetName, hashedAssetRel } from './asset-cas.ts'
 
@@ -65,6 +65,32 @@ test('migrateLegacyPageDir can move between workspace roots', () => {
   migrateLegacyPageDir(from, to)
   assert.equal(readFileSync(join(to, PAGE_ROOT, 'p001.md'), 'utf8'), 'body')
   assert.equal(existsSync(join(from, LEGACY_PAGE_ROOT)), false)
+})
+
+test('dataPath(file) stays inside the active workspace', () => {
+  const prevHome = process.env.BIU_HOME
+  const prevProfile = process.env.BIU_PROFILE
+  delete process.env.BIU_HOME
+  delete process.env.BIU_PROFILE
+  const home = mkdtempSync(join(tmpdir(), 'biu-scope-'))
+  const other = mkdtempSync(join(tmpdir(), 'biu-other-'))
+  try {
+    assert.equal(dataPath('biu.sqlite'), biuSqlitePath())
+    const scoped = runWithWorkspace({ id: 'ws', root: other }, () => ({
+      home: dataHome(),
+      sqlite: dataPath('biu.sqlite'),
+      profile: profilePath(),
+    }))
+    assert.equal(scoped.home, other)
+    assert.equal(scoped.sqlite, join(other, DATA_DIR_NAME, 'biu.sqlite'))
+    assert.equal(scoped.profile, join(other, DATA_DIR_NAME, 'profile.json'))
+    assert.equal(dataPath(home, 'biu.sqlite'), join(home, DATA_DIR_NAME, 'biu.sqlite'))
+  } finally {
+    if (prevHome === undefined) delete process.env.BIU_HOME
+    else process.env.BIU_HOME = prevHome
+    if (prevProfile === undefined) delete process.env.BIU_PROFILE
+    else process.env.BIU_PROFILE = prevProfile
+  }
 })
 
 test('dataHome prefers BIU_HOME over cwd', () => {

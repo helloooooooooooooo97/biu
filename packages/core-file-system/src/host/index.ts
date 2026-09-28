@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import type { IncomingMessage } from 'node:http'
 import { isAbsolute, resolve } from 'node:path'
 import {
+  biuSqlitePath,
   dataHome,
   dataPath,
   EditorContentConflictError,
@@ -1723,12 +1724,12 @@ export const inject = ['tools', 'http']
 
 export function apply(ctx: Context) {
   const db = new DatabaseService(ctx)
-  db.facets.open(dataPath(dataHome(), 'biu.sqlite'))
+  db.facets.open(biuSqlitePath())
   const assets = db.assets
   const savedViews = new SavedViewsStore()
-  savedViews.open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'biu.sqlite'))
+  savedViews.open(process.env.VITEST ? ':memory:' : biuSqlitePath())
   const shares = db.shares
-  shares.open(process.env.VITEST ? ':memory:' : dataPath(dataHome(), 'biu.sqlite'))
+  shares.open(process.env.VITEST ? ':memory:' : biuSqlitePath())
   const facets = db.facets
   db.register(viewsCollection(savedViews, () => db.collectionsList().map((item) => ({
     id: item.id,
@@ -1742,7 +1743,7 @@ export function apply(ctx: Context) {
     path: item.path,
     label: item.label ?? item.id,
   }))))
-  const sqlitePath = dataPath(dataHome(), 'biu.sqlite')
+  const sqlitePath = biuSqlitePath()
   const gcHooks = () => {
     let notices: { push: (input: { kind: 'session'; title: string; body: string; sourceKey: string }) => unknown } | undefined
     try {

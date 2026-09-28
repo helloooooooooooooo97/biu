@@ -7,6 +7,7 @@ import { Service, type Context } from 'cordis'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { HUB_CHANGE } from '@biu/type-http'
 import type { Method, RouteContext, RouteHandler } from '@biu/type-http'
+import { profilePath } from '@biu/host-plugin-loader/data-dir'
 import { isShareApiPath, isSharePublicPath } from './share-gate.ts'
 
 interface Route {
@@ -91,7 +92,7 @@ function defaultPublicDir() {
 
 function documentTheme(): 'light' | 'dark' {
   try {
-    const file = process.env.BIU_PROFILE || join(process.env.BIU_HOME || process.cwd(), '.biu', 'profile.json')
+    const file = profilePath()
     const raw = JSON.parse(readFileSync(file, 'utf8')) as { theme?: unknown }
     if (raw.theme === 'dark' || raw.theme === 'light') return raw.theme
   } catch {

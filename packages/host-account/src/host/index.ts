@@ -1,5 +1,5 @@
 import { Service, type Context } from 'cordis'
-import { dataHome, dataPath, openAndMigrateBiu } from '@biu/host-plugin-loader/data-dir'
+import { biuSqlitePath, openAndMigrateBiu } from '@biu/host-plugin-loader/data-dir'
 import { readWorkspaceProfile } from '@biu/host-workspace'
 import type { RouteContext } from '@biu/type-http'
 import { CollabError, CollabStore } from './store.ts'
@@ -15,7 +15,7 @@ export class AccountService extends Service {
 
   constructor(ctx: Context, config: AccountConfig = {}) {
     super(ctx, 'account')
-    const db = openAndMigrateBiu(config.sqlitePath ?? dataPath(dataHome(), 'biu.sqlite'))
+    const db = openAndMigrateBiu(config.sqlitePath ?? biuSqlitePath())
     this.db = db
     this.store = new CollabStore(db)
     const profile = readWorkspaceProfile()
