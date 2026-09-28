@@ -397,7 +397,9 @@ export function ShellSettingsCollab() {
     })
   }, [token, workspaceId, loadWorkspace])
 
-  const canManage = workspaces.find((row) => row.id === workspaceId)?.role === 'owner'
+  const workspaceRole = workspaces.find((row) => row.id === workspaceId)?.role
+  const canManage = workspaceRole === 'owner' || workspaceRole === 'admin'
+  const canChangeRoles = workspaceRole === 'owner'
 
   return (
     <section className="settings-account" data-testid="settings-collab">
@@ -491,13 +493,36 @@ export function ShellSettingsCollab() {
         <div className="settings-account-copy">
           <label className="settings-account-label" htmlFor="settings-collab-invite">空间成员</label>
           <p className="settings-muted settings-account-hint">
-            角色只有所有者和成员。{canManage ? '你可以邀请或移除成员。' : '只有所有者可以管理成员。'}
+            所有者管理管理员；管理员可以邀请、移除普通成员并维护成员组。
           </p>
           <ul className="settings-account-people" data-testid="settings-collab-members">
             {members.length ? members.map((row) => (
               <li key={row.id}>
-                {row.name}{row.email ? ` · ${row.email}` : ''} · {row.role === 'owner' ? '所有者' : '成员'}
-                {canManage && row.role !== 'owner' ? (
+                {row.name}{row.email ? ` · ${row.email}` : ''} · {
+                  row.role === 'owner' ? '所有者' : row.role === 'admin' ? '管理员' : '成员'
+                }
+                {canChangeRoles && row.role !== 'owner' ? (
+                  <select
+                    className="settings-account-input"
+                    aria-label={`修改 ${row.name || row.email} 的角色`}
+                    value={row.role === 'admin' ? 'admin' : 'member'}
+                    onChange={(event) => {
+                      void accountFetch(token, `/api/account/workspaces/${workspaceId}/members/${row.id}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ role: event.target.value }),
+                      })
+                        .then((body) => {
+                          setMembers(((body as { members?: CollabMember[] }).members) ?? [])
+                          setError('')
+                        })
+                        .catch((err) => setError(err instanceof Error ? err.message : '修改角色失败'))
+                    }}
+                  >
+                    <option value="member">成员</option>
+                    <option value="admin">管理员</option>
+                  </select>
+                ) : null}
+                {canManage && row.role !== 'owner' && (workspaceRole === 'owner' || row.role === 'member') ? (
                   <button
                     type="button"
                     className="settings-account-clear"

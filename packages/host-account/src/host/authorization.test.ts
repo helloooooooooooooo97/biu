@@ -47,8 +47,8 @@ test('private resources require a direct grant and roles gate actions', () => {
   assert.equal(auth.authorize(actor(bob.id), 'resource:update', page('private')).allowed, false)
 })
 
-test('workspace member directory is readable by members but managed by owners', () => {
-  const { auth, ada, bob, workspace, actor } = setup()
+test('workspace member directory is readable by members and managed by owners or admins', () => {
+  const { store, auth, ada, bob, workspace, actor } = setup()
   const member = {
     type: 'record' as const,
     workspaceId: workspace.id,
@@ -58,6 +58,13 @@ test('workspace member directory is readable by members but managed by owners', 
   assert.equal(auth.authorize(actor(bob.id), 'resource:read', member).allowed, true)
   assert.equal(auth.authorize(actor(bob.id), 'resource:update', member).allowed, false)
   assert.equal(auth.authorize(actor(ada.id), 'resource:delete', member).allowed, true)
+  store.updateMemberRole(ada.id, workspace.id, bob.id, 'admin')
+  assert.equal(auth.authorize(actor(bob.id), 'resource:create', {
+    type: 'collection',
+    workspaceId: workspace.id,
+    collection: '/workspace-members',
+  }).allowed, true)
+  assert.equal(auth.authorize(actor(bob.id), 'resource:delete', member).allowed, true)
 })
 
 test('saved views remain workspace system metadata for all members', () => {

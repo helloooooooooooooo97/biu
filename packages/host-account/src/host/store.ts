@@ -214,7 +214,7 @@ export class CollabStore {
   }
 
   addMember(actorId: string, workspaceId: string, accountId: string, now = Date.now()) {
-    this.requireRole(actorId, workspaceId, 'owner')
+    this.requireManager(actorId, workspaceId)
     this.requireAccount(accountId)
     this.db
       .prepare(
@@ -255,12 +255,13 @@ export class CollabStore {
   }
 
   removeMember(actorId: string, workspaceId: string, accountId: string) {
-    this.requireRole(actorId, workspaceId, 'owner')
+    const actorRole = this.requireManager(actorId, workspaceId)
     const target = this.db
       .prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
       .get(workspaceId, accountId) as { role: string } | undefined
     if (!target) throw new CollabError('成员不存在', 404)
     if (target.role === 'owner') throw new CollabError('不能移除工作区所有者', 400)
+    if (actorRole === 'admin' && target.role === 'admin') throw new CollabError('管理员不能移除其他管理员', 403)
     this.db.exec('BEGIN IMMEDIATE')
     try {
       this.db.prepare(
@@ -282,8 +283,21 @@ export class CollabStore {
     return { id: accountId }
   }
 
-  createGroup(actorId: string, workspaceId: string, name: string, now = Date.now()) {
+  updateMemberRole(actorId: string, workspaceId: string, accountId: string, role: 'admin' | 'member') {
     this.requireRole(actorId, workspaceId, 'owner')
+    const target = this.db
+      .prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
+      .get(workspaceId, accountId) as { role: string } | undefined
+    if (!target) throw new CollabError('成员不存在', 404)
+    if (target.role === 'owner') throw new CollabError('不能修改工作区所有者角色', 400)
+    this.db
+      .prepare('UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND account_id = ?')
+      .run(role, workspaceId, accountId)
+    return this.members(actorId, workspaceId).find((row) => row.id === accountId)!
+  }
+
+  createGroup(actorId: string, workspaceId: string, name: string, now = Date.now()) {
+    this.requireManager(actorId, workspaceId)
     const trimmed = name.trim()
     if (!trimmed) throw new CollabError('组名不能为空', 400)
     const group = { id: id('grp'), workspaceId, name: trimmed, createdBy: actorId, createdAt: now }
@@ -321,7 +335,7 @@ export class CollabStore {
   }
 
   addGroupMemberByEmail(actorId: string, workspaceId: string, groupId: string, email: string, now = Date.now()) {
-    this.requireRole(actorId, workspaceId, 'owner')
+    this.requireManager(actorId, workspaceId)
     const group = this.db
       .prepare('SELECT id FROM workspace_groups WHERE id = ? AND workspace_id = ?')
       .get(groupId, workspaceId) as { id: string } | undefined
@@ -951,6 +965,12 @@ export class CollabStore {
   private requireRole(accountId: string, workspaceId: string, role: string) {
     const actual = this.requireMember(accountId, workspaceId)
     if (actual !== role) throw new CollabError('只有所有者可以这样做', 403)
+  }
+
+  private requireManager(accountId: string, workspaceId: string) {
+    const actual = this.requireMember(accountId, workspaceId)
+    if (actual !== 'owner' && actual !== 'admin') throw new CollabError('只有所有者或管理员可以这样做', 403)
+    return actual
   }
 
   private recordKey(collection: string, recordId: string) {

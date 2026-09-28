@@ -215,6 +215,19 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     }
   })
 
+  ctx.http.route('PATCH', '/api/account/workspaces/:id/members/:accountId', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as { role?: string }
+      const role = String(body.role ?? '')
+      if (role !== 'admin' && role !== 'member') throw new CollabError('角色只能是 admin 或 member', 400)
+      account.store.updateMemberRole(me.id, route.params.id!, route.params.accountId!, role)
+      route.send(200, { members: account.store.members(me.id, route.params.id!) })
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
   ctx.http.route('GET', '/api/account/workspaces/:id/groups', async (route) => {
     try {
       const me = actor(route)
