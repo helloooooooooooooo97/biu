@@ -1628,3 +1628,55 @@ test('tables without records.create/delete reject create and delete', async () =
     /必须提供 create/,
   )
 })
+
+test('db tools follow the same workspace boundary as the file-system UI', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.register(notesCollection())
+  let active = 'ws-b'
+  const home = 'ws-home'
+  const mine = new Set<string>()
+  const any = new Set(['/notes\tn1'])
+  class FakeAccount extends Service {
+    store = {
+      activeWorkspaceId: () => active,
+      homeWorkspaceId: () => home,
+      membership: () => ({ active, home, mine, any }),
+      attach() {},
+    }
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(FakeAccount)
+
+  const hidden = await db.list('/notes')
+  assert.equal(hidden.kind, 'collection')
+  if (hidden.kind === 'collection') assert.deepEqual(hidden.items.map((item) => item.id), [])
+  for (const op of [
+    () => db.read('/notes/n1'),
+    () => db.update('/notes/n1', { status: 'done' }),
+    () => db.stat('/notes/n1'),
+    () => db.content('/notes/n1'),
+    () => db.editContent('/notes/n1', { command: 'view' }),
+    () => db.editAsset('/notes/n1'),
+    () => db.editDoc('/notes/n1'),
+    () => db.action('/notes/n1', 'pin'),
+  ]) {
+    await assert.rejects(op, /unknown record/)
+  }
+  mine.add('/notes\tn1')
+  const own = await db.read('/notes/n1')
+  assert.equal(own.kind, 'record')
+  mine.delete('/notes\tn1')
+  db.facets.markDeleted('/notes', 'n1')
+  const restored = await db.restore('/notes', { ids: ['n1'] })
+  assert.equal(restored.kind, 'restored')
+  if (restored.kind === 'restored') assert.deepEqual(restored.ids, [])
+  const bin = await db.listTrash()
+  assert.deepEqual(bin.items.map((item) => item.id), [])
+
+  active = home
+  const homeList = await db.list('/notes')
+  if (homeList.kind === 'collection') assert.deepEqual(homeList.items.map((item) => item.id), ['n2'])
+})

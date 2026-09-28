@@ -1270,11 +1270,14 @@ export class DatabaseService extends Service implements Database {
     const spec = this.collection(`/${parts[0]}`)
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     if (!hasCollectionDeleteQuery(query)) throw new Error('restore requires ids, q, or filter')
-    const matched = await this.matchCollectionRows(
-      spec,
-      { q: query.q ?? '', filter: query.filter, ids: query.ids, trash: true },
-      query.filter,
-      query.q ?? '',
+    const matched = this.visibleRecords(
+      spec.path,
+      await this.matchCollectionRows(
+        spec,
+        { q: query.q ?? '', filter: query.filter, ids: query.ids, trash: true },
+        query.filter,
+        query.q ?? '',
+      ),
     )
     const ids = [...new Set(matched.map((row) => row.id))]
     for (const id of ids) this.facets.restoreDeleted(spec.path, id)
@@ -1289,6 +1292,8 @@ export class DatabaseService extends Service implements Database {
       if (!spec) continue
       const record = await spec.get(row.record_id)
       if (!record) continue
+      const membership = this.workspaceMembership()
+      if (membership && !this.inWorkspace(membership, row.collection, row.record_id)) continue
       const decorated = this.decorateRecord(spec, record)
       const title = String(decorated.title ?? decorated.name ?? record.id).trim() || record.id
       items.push({
@@ -1310,9 +1315,10 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const action = spec.actions?.find((item) => item.id === actionId)
     if (!action) throw new Error(`unknown action: ${actionId}`)
-    const record = (await spec.get(parts[1]!)) ?? (action.allowMissing ? { id: parts[1]! } : null)
+    const loaded = await spec.get(parts[1]!)
+    const record = loaded ?? (action.allowMissing ? { id: parts[1]! } : null)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    if (!action.allowMissing) this.assertLiveRecord(spec, record.id)
+    if (loaded || !action.allowMissing) this.assertLiveRecord(spec, record.id)
     if (!matchActionWhen(record, action.when)) throw new Error(`action not available: ${actionId}`)
     const result = await action.run(parts[1]!, record, args)
     const next = (await spec.get(parts[1]!)) ?? record
@@ -1333,10 +1339,10 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const schema = schemaFor(spec)
     const field = schema.contentField ?? 'content'
-    if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
     this.assertLiveRecord(spec, record.id)
+    if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
     const editorContent = isEditorContentSpec(spec)
       ? readEditorContentRecord(this.facets.ensure(), spec.path, record.id)
       : null
@@ -1363,10 +1369,10 @@ export class DatabaseService extends Service implements Database {
     if (!spec.update) throw new Error(`collection cannot update: ${spec.path}`)
     const schema = schemaFor(spec)
     const field = schema.contentField ?? 'content'
-    if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
     const existing = await spec.get(parts[1]!)
     if (!existing) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
     this.assertLiveRecord(spec, existing.id)
+    if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
     if (isEditorContentSpec(spec)) {
       writeEditorContent(this.facets.ensure(), spec.path, parts[1]!, String(value ?? ''), { expectedVersion })
     }
@@ -1457,6 +1463,7 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    this.assertLiveRecord(spec, record.id)
     const names = new Set([
       ...collectAssetNames(record, this.facets.recordBanner(spec.path, record.id)?.html),
       ...this.facets.listedAttachmentNames(spec.path, record.id),
@@ -1545,6 +1552,7 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    this.assertLiveRecord(spec, record.id)
     const names = new Set([
       ...collectAssetNames(record, this.facets.recordBanner(spec.path, record.id)?.html),
       ...this.facets.listedAttachmentNames(spec.path, record.id),
