@@ -826,6 +826,32 @@ export class DatabaseService extends Service implements Database {
     this.assertLiveRecord(spec, record.id, action)
   }
 
+  requireAsset(name: string, action: 'resource:read' | 'resource:update') {
+    const authorization = this.authorization()
+    if (!authorization) return
+    const actor = authorization.currentActor()
+    if (!actor) throw new Error('permission denied: UNAUTHENTICATED')
+    const refs = this.facets.recordsReferencingAsset(name)
+    const allowed = refs.some((ref) =>
+      authorization.authorize(actor, action, {
+        type: 'record',
+        workspaceId: actor.workspaceId,
+        collection: ref.collection,
+        recordId: ref.record_id,
+      }).allowed,
+    )
+    if (allowed) return
+    if (action === 'resource:update' && refs.length === 0) {
+      authorization.requireCurrent('resource:create', {
+        type: 'collection',
+        workspaceId: actor.workspaceId,
+        collection: '/pages',
+      })
+      return
+    }
+    throw new Error('permission denied: INSUFFICIENT_PERMISSION')
+  }
+
   private async matchCollectionRows(
     spec: CollectionSpec,
     query: CollectionListQuery,
@@ -2761,24 +2787,7 @@ export function apply(ctx: Context) {
   const serveDbFile: Parameters<typeof ctx.http.route>[2] = async (route) => {
     try {
       const name = route.params.name ?? ''
-      const authorization = (ctx.get('account') as { authorization?: AuthorizationService } | undefined)?.authorization
-      const actor = authorization?.currentActor()
-      const refs = facets.recordsReferencingAsset(name)
-      if (
-        !authorization ||
-        !actor ||
-        !refs.some((ref) =>
-          authorization.authorize(actor, 'resource:read', {
-            type: 'record',
-            workspaceId: actor.workspaceId,
-            collection: ref.collection,
-            recordId: ref.record_id,
-          }).allowed,
-        )
-      ) {
-        route.send(404, { error: 'not found' })
-        return
-      }
+      db.requireAsset(name, 'resource:read')
       const { bytes, type, etag } = await assets.readAny(name)
       route.res.writeHead(200, {
         'content-type': type,

@@ -1169,10 +1169,14 @@ export function apply(ctx: Context) {
       })),
     })
   })
+  const visibleSession = async (id: string) => {
+    const record = await ctx.sessions.get(id)
+    return record && ctx.sessions.inWorkspace(id) ? record : null
+  }
   ctx.http.route('GET', '/api/sessions/:id', async (route) => {
-    const record = await ctx.sessions.get(route.params.id)
+    const record = await visibleSession(route.params.id)
     if (!record) return route.send(404, { error: 'unknown session' })
-    if (databaseOf(ctx)?.facets.isDeleted('/sessions', record.id) || !ctx.sessions.inWorkspace(record.id)) {
+    if (databaseOf(ctx)?.facets.isDeleted('/sessions', record.id)) {
       return route.send(404, { error: 'unknown session' })
     }
     const turnsRaw = route.query.get('turns')
@@ -1234,7 +1238,7 @@ export function apply(ctx: Context) {
     route.send(200, payload)
   })
   ctx.http.route('GET', '/api/sessions/:id/events', async (route) => {
-    const record = await ctx.sessions.get(route.params.id)
+    const record = await visibleSession(route.params.id)
     if (!record) return route.send(404, { error: 'unknown session' })
     const beforeSeq = Number(route.query.get('beforeSeq'))
     if (!Number.isFinite(beforeSeq)) return route.send(400, { error: 'beforeSeq required' })
@@ -1255,7 +1259,7 @@ export function apply(ctx: Context) {
     })
   })
   ctx.http.route('GET', '/api/sessions/:id/trajectory', async (route) => {
-    const record = await ctx.sessions.get(route.params.id)
+    const record = await visibleSession(route.params.id)
     if (!record) return route.send(404, { error: 'unknown session' })
     const beforeSeqRaw = route.query.get('beforeSeq')
     const turnsRaw = route.query.get('turns')
@@ -1281,7 +1285,7 @@ export function apply(ctx: Context) {
   })
   // 全量 usage 趋势：提取本会话所有 step（assistant/message 带 usage）的 input/output/cacheRead，供前端折线图。
   ctx.http.route('GET', '/api/sessions/:id/usage-trend', async (route) => {
-    const record = await ctx.sessions.get(route.params.id)
+    const record = await visibleSession(route.params.id)
     if (!record) return route.send(404, { error: 'unknown session' })
     const points: Array<{ seq: number; turn: number; input: number; output: number; cache: number }> = []
     const compactions: number[] = []
@@ -1306,7 +1310,7 @@ export function apply(ctx: Context) {
   // 按 turn 取跨 session 统计：给定某 turn，返回 step 数 / 起止 / 耗时 / token 与额度消耗。
   // 供任务面板在展示 task_report 回传条时定位到 report.sessionId 所属 session 的该 turn 运行统计。
   ctx.http.route('GET', '/api/sessions/:id/turn-stats', async (route) => {
-    const record = await ctx.sessions.get(route.params.id)
+    const record = await visibleSession(route.params.id)
     if (!record) return route.send(404, { error: 'unknown session' })
     const turnsRaw = route.query.get('turn')
     const targetTurn =
@@ -1319,7 +1323,7 @@ export function apply(ctx: Context) {
     route.send(200, { turns: result as Record<string, TurnStat> })
   })
   ctx.http.route('GET', '/api/sessions/:id/artifacts/:name', async (route) => {
-    const record = await ctx.sessions.get(route.params.id)
+    const record = await visibleSession(route.params.id)
     if (!record) return route.send(404, { error: 'unknown session' })
     const file = await readArtifactFile(route.params.id, route.params.name)
     if (!file) return route.send(404, { error: 'unknown artifact' })
@@ -1332,7 +1336,7 @@ export function apply(ctx: Context) {
     route.res.end(file.data)
   })
   ctx.http.route('GET', '/api/sessions/:id/events/:seq', async (route) => {
-    const record = await ctx.sessions.get(route.params.id)
+    const record = await visibleSession(route.params.id)
     if (!record) return route.send(404, { error: 'unknown session' })
     const seq = Number(route.params.seq)
     if (!Number.isFinite(seq)) return route.send(400, { error: 'invalid seq' })
@@ -1341,7 +1345,7 @@ export function apply(ctx: Context) {
     route.send(200, { id: record.id, event })
   })
   ctx.http.route('GET', '/api/sessions/:id/events/:seq/request', async (route) => {
-    const record = await ctx.sessions.get(route.params.id)
+    const record = await visibleSession(route.params.id)
     if (!record) return route.send(404, { error: 'unknown session' })
     const seq = Number(route.params.seq)
     if (!Number.isFinite(seq)) return route.send(400, { error: 'invalid seq' })
@@ -1361,6 +1365,7 @@ export function apply(ctx: Context) {
     })
   })
   ctx.http.route('PUT', '/api/sessions/:id/project', async (route) => {
+    if (!(await visibleSession(route.params.id))) return route.send(404, { error: 'unknown session' })
     const payload = (await route.json()) as { path?: string | null; name?: string | null }
     try {
       // path 优先；兼容旧客户端误传 name=null 解绑
@@ -1377,9 +1382,10 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('POST', '/api/sessions/:id/project/pick', async (route) => {
     try {
-      await ctx.sessions.require(route.params.id)
+      const record = await visibleSession(route.params.id)
+      if (!record) return route.send(404, { error: 'unknown session' })
       const { pickHostDirectory } = await import('@biu/host-fs/workspace-pick')
-      const current = (await ctx.sessions.get(route.params.id))?.project?.path
+      const current = record.project?.path
       const path = await pickHostDirectory(current)
       const project = await ctx.sessions.setProject(route.params.id, { path })
       route.send(200, { ok: true, project })
@@ -1392,6 +1398,7 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('POST', '/api/sessions/:id/fork', async (route) => {
     try {
+      if (!(await visibleSession(route.params.id))) return route.send(404, { error: 'unknown session' })
       const child = await ctx.sessions.fork(route.params.id)
       route.send(201, {
         id: child.id,
@@ -1405,7 +1412,7 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('DELETE', '/api/sessions/:id', async (route) => {
     const id = route.params.id
-    const record = await ctx.sessions.get(id)
+    const record = await visibleSession(id)
     if (!record) return route.send(404, { error: 'unknown session' })
     const db = databaseOf(ctx)
     if (db?.facets.isDeleted('/sessions', id)) return route.send(404, { error: 'unknown session' })
@@ -1428,6 +1435,7 @@ export function apply(ctx: Context) {
       images?: Array<{ name?: string; mime?: string; url?: string }>
       liveContext?: unknown
     }
+    if (!(await visibleSession(route.params.id))) return route.send(404, { error: 'unknown session' })
     const agent = await ctx.agents.create(route.params.id)
     // re-sync in-memory LLM without rewriting disk
     chat.patch({}, { persist: false })
@@ -1474,13 +1482,13 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('GET', '/api/sessions/:id/inbox', async (route) => {
     const id = route.params.id
-    if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
+    if (!(await visibleSession(id))) return route.send(404, { error: 'unknown session' })
     await ctx.agents.create(id)
     route.send(200, { sessionId: id, inbox: ctx.agents.listInbox(id) })
   })
   ctx.http.route('POST', '/api/sessions/:id/inbox/drop', async (route) => {
     const id = route.params.id
-    if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
+    if (!(await visibleSession(id))) return route.send(404, { error: 'unknown session' })
     await ctx.agents.create(id)
     const payload = ((await route.json().catch(() => null)) ?? {}) as { id?: string }
     const itemId = typeof payload.id === 'string' ? payload.id : ''
@@ -1491,7 +1499,7 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('POST', '/api/sessions/:id/inbox/patch', async (route) => {
     const id = route.params.id
-    if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
+    if (!(await visibleSession(id))) return route.send(404, { error: 'unknown session' })
     await ctx.agents.create(id)
     const payload = ((await route.json().catch(() => null)) ?? {}) as { id?: string; text?: string }
     const itemId = typeof payload.id === 'string' ? payload.id : ''
@@ -1503,7 +1511,7 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('POST', '/api/sessions/:id/goal', async (route) => {
     const id = route.params.id
-    if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
+    if (!(await visibleSession(id))) return route.send(404, { error: 'unknown session' })
     const payload = ((await route.json().catch(() => null)) ?? {}) as { action?: string }
     const action = payload.action
     if (action !== 'pause' && action !== 'resume' && action !== 'clear') {
@@ -1518,7 +1526,7 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('POST', '/api/sessions/:id/cancel', async (route) => {
     const id = route.params.id
-    if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
+    if (!(await visibleSession(id))) return route.send(404, { error: 'unknown session' })
     const agent = await ctx.agents.create(id)
     agent.cancel()
     route.send(200, { ok: true })
@@ -1526,7 +1534,7 @@ export function apply(ctx: Context) {
   // 清空上下文：不经过大模型，仅向会话事件日志插入一条 context_clear tool/call 记录（作为压缩点）。
   ctx.http.route('POST', '/api/sessions/:id/clear-context', async (route) => {
     const id = route.params.id
-    if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
+    if (!(await visibleSession(id))) return route.send(404, { error: 'unknown session' })
     const event = await ctx.sessions.append(id, {
       type: 'tool/call',
       id: crypto.randomUUID(),
@@ -1537,7 +1545,7 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('POST', '/api/sessions/:id/inbox/flush', async (route) => {
     const id = route.params.id
-    if (!(await ctx.sessions.get(id))) return route.send(404, { error: 'unknown session' })
+    if (!(await visibleSession(id))) return route.send(404, { error: 'unknown session' })
     const agent = await ctx.agents.create(id)
     chat.patch({}, { persist: false })
     try {

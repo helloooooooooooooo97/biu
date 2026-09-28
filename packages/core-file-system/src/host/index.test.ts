@@ -1715,4 +1715,22 @@ test('file-system CRUD uses the unified account authorization decision', async (
     () => runWithAccount(bob.id, () => db.update('/notes/n1', { title: '偷改' })),
     /unknown record/,
   )
+  db.facets.replaceContentRefs('/notes', 'n1', ['private.png'])
+  assert.doesNotThrow(() => runWithAccount(ada.id, () => db.requireAsset('private.png', 'resource:read')))
+  assert.throws(
+    () => runWithAccount(bob.id, () => db.requireAsset('private.png', 'resource:read')),
+    /permission denied/,
+  )
+  collab.authorization.grant(
+    ada.id,
+    { type: 'record', workspaceId: workspace.id, collection: '/notes', recordId: 'n1' },
+    'account',
+    bob.id,
+    'viewer',
+  )
+  assert.doesNotThrow(() => runWithAccount(bob.id, () => db.requireAsset('private.png', 'resource:read')))
+  assert.throws(
+    () => runWithAccount(bob.id, () => db.requireAsset('private.png', 'resource:update')),
+    /permission denied/,
+  )
 })

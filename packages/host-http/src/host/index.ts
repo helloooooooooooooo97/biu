@@ -350,6 +350,16 @@ export class HttpService extends Service {
             accountId = ''
           }
         }
+        const hasAccountSystem = Boolean(
+          (this.ctx.get('account') as { store?: { accountByToken?: unknown } } | undefined)?.store?.accountByToken,
+        )
+        const publicApi =
+          url.pathname.startsWith('/api/account/') ||
+          url.pathname.startsWith('/api/share/')
+        if (hasAccountSystem && url.pathname.startsWith('/api/') && !publicApi && !accountId) {
+          context.send(401, { error: '需要登录' })
+          return
+        }
         await runWithAccount(accountId, () => match.handler(context))
       } catch (error) {
         this.ctx.logger('http').error(error)

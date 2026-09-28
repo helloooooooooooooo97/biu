@@ -71,7 +71,9 @@ function servePageFile(ctx: Context, store: PagesStore) {
   ctx.inject(['http'], (inner) => {
     inner.http.route('GET', '/api/page/file/:name', async (route) => {
       try {
-        const { bytes, type, etag } = await store.readAsset(route.params.name ?? '')
+        const name = route.params.name ?? ''
+        inner.database.requireAsset(name, 'resource:read')
+        const { bytes, type, etag } = await store.readAsset(name)
         route.res.writeHead(200, {
           'content-type': type,
           'cache-control': 'no-store',
@@ -84,8 +86,12 @@ function servePageFile(ctx: Context, store: PagesStore) {
     })
     inner.http.route('PUT', '/api/page/file/:name', async (route) => {
       try {
+        const name = route.params.name ?? ''
+        const path = route.query.get('path') || String(route.req.headers['x-biu-resource-path'] ?? '')
+        if (path) await inner.database.requirePath(path, 'resource:update')
+        else inner.database.requireAsset(name, 'resource:update')
         const ifMatch = String(route.req.headers['if-match'] ?? '').trim().replace(/^W\//, '').replaceAll('"', '')
-        const written = await store.writeAsset(route.params.name ?? '', await route.bytes(), {
+        const written = await store.writeAsset(name, await route.bytes(), {
           etag: ifMatch && ifMatch !== '*' ? ifMatch : '',
         })
         inner.http.broadcast?.(DATABASE_CHANNEL, { ts: Date.now(), asset: { name: written.name, etag: written.etag } })
