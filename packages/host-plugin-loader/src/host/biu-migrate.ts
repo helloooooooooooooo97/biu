@@ -217,6 +217,68 @@ export const BIU_MIGRATIONS: Migration[] = [
   { version: 17, module: 'core-file-system', name: 'editor_content.version', up: (db) => {
     addColumn(db, 'editor_content', 'version', 'version INTEGER NOT NULL DEFAULT 1')
   } },
+  { version: 18, module: 'host-account', name: 'collab.tables', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS accounts_token ON accounts(token);
+      CREATE TABLE IF NOT EXISTS workspaces (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        owner_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS workspace_members (
+        workspace_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, account_id)
+      );
+      CREATE INDEX IF NOT EXISTS workspace_members_account ON workspace_members(account_id);
+      CREATE TABLE IF NOT EXISTS record_owners (
+        workspace_id TEXT NOT NULL,
+        collection TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        owner_id TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, collection, record_id)
+      );
+      CREATE TABLE IF NOT EXISTS sync_ops (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        workspace_id TEXT NOT NULL,
+        collection TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        field TEXT NOT NULL,
+        value_json TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        author_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS sync_ops_ws ON sync_ops(workspace_id, id);
+      CREATE TABLE IF NOT EXISTS edit_locks (
+        workspace_id TEXT NOT NULL,
+        collection TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, collection, record_id)
+      );
+      CREATE TABLE IF NOT EXISTS presence (
+        workspace_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        collection TEXT NOT NULL DEFAULT '',
+        record_id TEXT NOT NULL DEFAULT '',
+        seen_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, account_id)
+      );
+    `)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {
