@@ -185,6 +185,7 @@ export function writeAccountToken(next: string) {
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [token, setToken] = useState(readAccountToken)
+  const [verified, setVerified] = useState(false)
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
@@ -200,7 +201,29 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  if (token) return children
+  useEffect(() => {
+    if (!token) {
+      setVerified(false)
+      return
+    }
+    let live = true
+    setVerified(false)
+    void accountFetch(token, '/api/account/me')
+      .then(() => {
+        if (live) setVerified(true)
+      })
+      .catch((err) => {
+        if (!live) return
+        writeAccountToken('')
+        setError(err instanceof Error ? err.message : '登录已失效')
+      })
+    return () => {
+      live = false
+    }
+  }, [token])
+
+  if (token && verified) return children
+  if (token) return <div className="auth-gate" data-testid="auth-verifying">正在验证登录状态…</div>
 
   return (
     <div className="auth-gate" data-testid="auth-gate">

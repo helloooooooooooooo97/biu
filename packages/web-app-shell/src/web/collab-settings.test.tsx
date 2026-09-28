@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -15,7 +15,11 @@ function json(body: unknown, status = 200) {
 
 test('the app stays on the login gate until a token exists', async () => {
   localStorage.clear()
-  globalThis.fetch = (async () => json({ token: 'tok' })) as typeof fetch
+  const calls: string[] = []
+  globalThis.fetch = (async (path: string) => {
+    calls.push(String(path))
+    return json(String(path).endsWith('/me') ? { id: 'acc_1' } : { token: 'tok' })
+  }) as typeof fetch
   render(
     <AuthGate>
       <div data-testid="inside">in</div>
@@ -28,7 +32,8 @@ test('the app stays on the login gate until a token exists', async () => {
   await act(async () => {
     fireEvent.click(screen.getByTestId('auth-submit'))
   })
-  assert.equal(screen.getByTestId('inside').textContent, 'in')
+  await waitFor(() => assert.equal(screen.getByTestId('inside').textContent, 'in'))
+  assert.equal(calls.includes('/api/account/me'), true)
   cleanup()
 })
 

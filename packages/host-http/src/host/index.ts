@@ -355,7 +355,8 @@ export class HttpService extends Service {
         )
         const publicApi =
           url.pathname.startsWith('/api/account/') ||
-          url.pathname.startsWith('/api/share/')
+          url.pathname.startsWith('/api/share/') ||
+          (method === 'GET' && url.pathname.startsWith('/api/plugin-store/files/'))
         if (hasAccountSystem && url.pathname.startsWith('/api/') && !publicApi && !accountId) {
           context.send(401, { error: '需要登录' })
           return

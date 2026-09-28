@@ -59,6 +59,7 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     const token = bearer(route)
     const found = token ? account.store.accountByToken(token) : null
     if (!found) throw new CollabError('需要登录', 401)
+    rememberLogin(route, token)
     return found
   }
 
