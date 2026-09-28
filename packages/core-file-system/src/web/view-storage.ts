@@ -19,7 +19,7 @@ export function rememberViews(collectionPath: string, views: SavedView[]) {
 
 export function loadViews(collectionPath: string): SavedView[] {
   const remembered = memoryViews.get(collectionPath)
-  if (remembered?.length) return remembered
+  if (remembered) return remembered
   try {
     const raw = localStorage.getItem(viewsKey(collectionPath))
     const parsed = raw ? (JSON.parse(raw) as SavedView[]) : []
@@ -229,7 +229,7 @@ export function savedViewFromRecord(row: { viewId?: unknown; title?: unknown; mo
   })
 }
 
-export async function pullSavedViews() {
+export async function pullSavedViews(collectionPaths: readonly string[] = []) {
   try {
     const page = await listCollection({
       path: '/views',
@@ -264,10 +264,13 @@ export async function pullSavedViews() {
       list.push(view)
       byPath.set(tablePath, list)
     }
-    for (const [path, views] of byPath) {
+    const paths = new Set([...collectionPaths, ...byPath.keys()])
+    for (const path of paths) {
+      const views = byPath.get(path) ?? []
       rememberViews(path, views)
       try {
-        localStorage.setItem(viewsKey(path), JSON.stringify(views))
+        if (views.length) localStorage.setItem(viewsKey(path), JSON.stringify(views))
+        else localStorage.removeItem(viewsKey(path))
       } catch {
         /* ignore */
       }
@@ -284,20 +287,6 @@ export function upsertSavedView(collectionPath: string, view: SavedView) {
   rememberViews(collectionPath, stored)
   try {
     localStorage.setItem(viewsKey(collectionPath), JSON.stringify(stored))
-  } catch {
-    /* ignore */
-  }
-}
-
-export function pushAllSavedViews() {
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (!key?.startsWith('fsdb.views:')) continue
-      const path = key.slice('fsdb.views:'.length)
-      const views = loadViews(path)
-      if (views.length) pushSavedViews(path, views)
-    }
   } catch {
     /* ignore */
   }

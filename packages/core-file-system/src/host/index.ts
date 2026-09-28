@@ -2007,6 +2007,17 @@ async function withInspectorReveal<T>(
 export const name = 'core-file-system'
 export const inject = ['tools', 'http']
 
+export function databaseHttpFailure(error: unknown) {
+  const message = String(error)
+  if (/\bunknown (?:record|collection)\b/.test(message)) {
+    return { status: 404, body: { error: 'not found', code: 'NOT_FOUND' } } as const
+  }
+  if (/\bpermission denied\b/.test(message)) {
+    return { status: 403, body: { error: 'permission denied', code: 'FORBIDDEN' } } as const
+  }
+  return { status: 400, body: { error: message, code: 'BAD_REQUEST' } } as const
+}
+
 export function apply(ctx: Context) {
   const db = new DatabaseService(ctx)
   db.facets.open(biuSqlitePath())
@@ -2360,7 +2371,8 @@ export function apply(ctx: Context) {
     try {
       route.send(200, await op())
     } catch (error) {
-      route.send(400, { error: String(error) })
+      const failure = databaseHttpFailure(error)
+      route.send(failure.status, failure.body)
     }
   }
   ctx.http.route('GET', '/api/profile', (route) => {

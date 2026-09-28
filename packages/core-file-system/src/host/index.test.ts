@@ -6,7 +6,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { DatabaseService, apply as applyFileSystem } from './index.ts'
+import { DatabaseService, apply as applyFileSystem, databaseHttpFailure } from './index.ts'
 import { FileSystemAssets } from './assets-store.ts'
 import type { CollectionSpec } from '@biu/type-file-system'
 import { REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
@@ -61,6 +61,21 @@ function notesCollection(): CollectionSpec {
     ],
   }
 }
+
+test('database HTTP failures distinguish missing resources from bad requests', () => {
+  assert.deepEqual(databaseHttpFailure(new Error('unknown record: /pages/p008')), {
+    status: 404,
+    body: { error: 'not found', code: 'NOT_FOUND' },
+  })
+  assert.deepEqual(databaseHttpFailure(new Error('permission denied: INSUFFICIENT_PERMISSION')), {
+    status: 403,
+    body: { error: 'permission denied', code: 'FORBIDDEN' },
+  })
+  assert.deepEqual(databaseHttpFailure(new Error('cannot read: /pages/p008/child')), {
+    status: 400,
+    body: { error: 'Error: cannot read: /pages/p008/child', code: 'BAD_REQUEST' },
+  })
+})
 
 test('root lists registered collections; record read/update follows schema', async () => {
   const ctx = new Context()

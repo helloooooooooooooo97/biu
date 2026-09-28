@@ -1063,7 +1063,12 @@ export function CollectionBrowser({
         if (cancelled || !row?.id) return
         setDetailRow(row)
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        if (cancelled || !(error instanceof HttpError) || error.status !== 404) return
+        setOpenDetailId(null)
+        setDetailRow(null)
+        queueMicrotask(() => onCloseRecord?.())
+      })
     return () => {
       cancelled = true
     }
@@ -1406,13 +1411,13 @@ export function CollectionBrowser({
       if (path) contentConflicts.current.delete(path)
       openedContentPath.current = path
     }
-    if (!detailId) {
+    if (!detailId || detailRow?.id !== detailId) {
       contentGen.current += 1
       setDetailBody(null)
       return
     }
     pullDetailBody()
-  }, [collectionPath, dataPath, detailId, pullDetailBody])
+  }, [collectionPath, dataPath, detailId, detailRow, pullDetailBody])
 
   useEffect(() => {
     if (dlg?.kind !== 'rename') return
@@ -1518,7 +1523,7 @@ export function CollectionBrowser({
   }
   syncViewsRef.current = async () => {
     if (sheet) return
-    await pullSavedViews()
+    await pullSavedViews([collectionPath])
     const listed = listedViews(collectionPath, loadViews(collectionPath)).map((view) =>
       withViewDisplay(collectionPath, view),
     )
