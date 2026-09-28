@@ -206,13 +206,45 @@ export class CollabStore {
     this.requireMember(actorId, workspaceId)
     return this.db
       .prepare(
-        `SELECT a.id, a.name, m.role, m.created_at
+        `SELECT a.id, COALESCE(NULLIF(m.display_name, ''), a.name) AS name, a.name AS login_name, m.role, m.created_at
          FROM workspace_members m
          JOIN accounts a ON a.id = m.account_id
          WHERE m.workspace_id = ?
          ORDER BY m.created_at`,
       )
       .all(workspaceId) as Array<{ id: string; name: string; role: string; created_at: number }>
+  }
+
+  workspaceProfile(actorId: string) {
+    const workspaceId = this.activeWorkspaceId()
+    if (!workspaceId) throw new CollabError('没有工作区', 400)
+    this.requireMember(actorId, workspaceId)
+    const row = this.db
+      .prepare(
+        `SELECT a.name AS login_name, m.display_name, m.avatar
+         FROM workspace_members m
+         JOIN accounts a ON a.id = m.account_id
+         WHERE m.workspace_id = ? AND m.account_id = ?`,
+      )
+      .get(workspaceId, actorId) as { login_name: string; display_name: string; avatar: string } | undefined
+    if (!row) throw new CollabError('不在这个工作区', 403)
+    const name = row.display_name.trim() || row.login_name
+    return { workspaceId, loginName: row.login_name, name, avatar: row.avatar }
+  }
+
+  saveWorkspaceProfile(actorId: string, patch: { name?: string; avatar?: string }) {
+    const current = this.workspaceProfile(actorId)
+    const name = patch.name !== undefined ? patch.name.trim().slice(0, 40) : current.name
+    let avatar = patch.avatar !== undefined ? patch.avatar.trim() : current.avatar
+    if (avatar && !avatar.startsWith('data:image/')) avatar = ''
+    if (avatar.length > 240_000) throw new CollabError('头像太大', 400)
+    const display = name === current.loginName ? '' : name
+    this.db
+      .prepare(
+        `UPDATE workspace_members SET display_name = ?, avatar = ? WHERE workspace_id = ? AND account_id = ?`,
+      )
+      .run(display, avatar, current.workspaceId, actorId)
+    return { ...current, name: display || current.loginName, avatar }
   }
 
   listWorkspaces(accountId: string): Workspace[] {
@@ -454,9 +486,10 @@ export class CollabStore {
     this.requireMember(actorId, workspaceId)
     const rows = this.db
       .prepare(
-        `SELECT p.workspace_id, p.account_id, a.name, p.collection, p.record_id, p.seen_at
+        `SELECT p.workspace_id, p.account_id, COALESCE(NULLIF(m.display_name, ''), a.name) AS name, p.collection, p.record_id, p.seen_at
          FROM presence p
          JOIN accounts a ON a.id = p.account_id
+         LEFT JOIN workspace_members m ON m.workspace_id = p.workspace_id AND m.account_id = p.account_id
          WHERE p.workspace_id = ? AND p.seen_at >= ?
          ORDER BY p.seen_at DESC`,
       )

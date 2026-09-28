@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'vitest'
-import { ShellSettingsCollab } from './shell-chrome.tsx'
+import { AuthGate, ShellSettingsCollab } from './shell-chrome.tsx'
 
 function json(body: unknown, status = 200) {
   return Promise.resolve({
@@ -13,8 +13,27 @@ function json(body: unknown, status = 200) {
   })
 }
 
+test('the app stays on the login gate until a token exists', async () => {
+  localStorage.clear()
+  globalThis.fetch = (async () => json({ token: 'tok' })) as typeof fetch
+  render(
+    <AuthGate>
+      <div data-testid="inside">in</div>
+    </AuthGate>,
+  )
+  assert.equal(screen.queryByTestId('inside'), null)
+  assert.equal(screen.getByTestId('auth-gate').textContent?.includes('登录'), true)
+  fireEvent.change(screen.getByTestId('auth-name'), { target: { value: 'Ada' } })
+  fireEvent.change(screen.getByTestId('auth-password'), { target: { value: 'secret1' } })
+  await act(async () => {
+    fireEvent.click(screen.getByTestId('auth-submit'))
+  })
+  assert.equal(screen.getByTestId('inside').textContent, 'in')
+})
+
 test('collab settings uses the account row chrome and can create a workspace', async () => {
   localStorage.clear()
+  localStorage.setItem('biu.account.token', 'tok')
   const css = readFileSync(resolve(import.meta.dirname, '../../../../web/style.css'), 'utf8')
   assert.match(css, /\.settings-account-action\s*\{[^}]*font:\s*inherit/)
   assert.match(css, /\.settings-account-action\s*\{[^}]*border:\s*1px solid var\(--dsw-border\)/)
@@ -37,11 +56,8 @@ test('collab settings uses the account row chrome and can create a workspace', a
 
   render(<ShellSettingsCollab />)
   assert.equal(document.querySelector('.settings-account-title')?.textContent, '协同')
-  assert.equal(screen.queryByTestId('settings-collab-id'), null)
-  fireEvent.change(screen.getByTestId('settings-collab-name'), { target: { value: 'Ada' } })
-  fireEvent.change(screen.getByTestId('settings-collab-password'), { target: { value: 'secret1' } })
   await act(async () => {
-    fireEvent.click(screen.getByTestId('settings-collab-submit'))
+    await Promise.resolve()
   })
   assert.equal(screen.getByTestId('settings-collab-id').textContent, 'acc_1')
   fireEvent.change(screen.getByTestId('settings-collab-workspace'), { target: { value: 'Notes' } })
@@ -51,6 +67,5 @@ test('collab settings uses the account row chrome and can create a workspace', a
   assert.equal((screen.getByTestId('settings-collab-workspaces') as HTMLSelectElement).value, 'ws_1')
   assert.match(screen.getByTestId('settings-collab-members').textContent ?? '', /所有者/)
   assert.match(screen.getByTestId('settings-collab-presence').textContent ?? '', /Ada/)
-  assert.ok(calls.some((line) => line.startsWith('POST /api/account/login')))
-  assert.equal(calls.some((line) => line.includes('/bootstrap')), false)
+  assert.equal(calls.some((line) => line.includes('/login')), false)
 })

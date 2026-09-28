@@ -112,6 +112,30 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     }
   })
 
+  ctx.http.route('GET', '/api/account/workspace-profile', async (route) => {
+    try {
+      route.send(200, account.store.workspaceProfile(actor(route).id))
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/account/workspace-profile', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as { name?: unknown; avatar?: unknown }
+      route.send(
+        200,
+        account.store.saveWorkspaceProfile(me.id, {
+          ...(typeof body.name === 'string' ? { name: body.name } : {}),
+          ...(typeof body.avatar === 'string' ? { avatar: body.avatar } : {}),
+        }),
+      )
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
   ctx.http.route('GET', '/api/account/workspaces', async (route) => {
     try {
       const me = actor(route)

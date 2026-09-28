@@ -142,7 +142,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     indexes: [],
   },
   workspace_members: {
-    columns: ['workspace_id', 'account_id', 'role', 'created_at'],
+    columns: ['workspace_id', 'account_id', 'role', 'created_at', 'display_name', 'avatar'],
     indexes: ['workspace_members_account'],
   },
   record_owners: {
@@ -167,7 +167,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 20
+export const LATEST_BIU_SCHEMA = 21
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -364,6 +364,8 @@ CREATE TABLE IF NOT EXISTS workspace_members (
   account_id TEXT NOT NULL,
   role TEXT NOT NULL,
   created_at INTEGER NOT NULL,
+  display_name TEXT NOT NULL DEFAULT '',
+  avatar TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (workspace_id, account_id)
 );
 CREATE INDEX IF NOT EXISTS workspace_members_account ON workspace_members(account_id);

@@ -44,7 +44,7 @@ import { SessionInspector } from './session-inspector.tsx'
 import { SessionConfigDialog } from '@biu/web-session-view/dialog'
 import { FolderGlyph } from '@biu/web-session-view/folder-glyph'
 import { OverlayChatWindow } from './overlay-window.tsx'
-import { ShellSettingsAbout, ShellSettingsAccount, ShellSettingsAppearance, ShellSettingsCollab, ShellSettingsMcp, ShellSettingsShortcuts, ShellSettingsUpdate } from './shell-chrome.tsx'
+import { AuthGate, ShellSettingsAbout, ShellSettingsAccount, ShellSettingsAppearance, ShellSettingsCollab, ShellSettingsMcp, ShellSettingsShortcuts, ShellSettingsUpdate } from './shell-chrome.tsx'
 import { hydrateWorkspaceProfile } from '@biu/public-ui'
 import { hydrateTheme } from './theme.ts'
 import { hydratePagePrefs } from '@biu/core-file-system/page-width'
@@ -351,8 +351,13 @@ function Shell(props: SlotProps) {
   const openSettings = useCallback(() => setSettingsOpen(true), [])
   useEffect(() => {
     void hydrateWorkspaceProfile()
+    const onLibrary = () => {
+      void hydrateWorkspaceProfile()
+    }
+    window.addEventListener('fsdb:change', onLibrary)
     void hydrateTheme()
     void hydratePagePrefs()
+    return () => window.removeEventListener('fsdb:change', onLibrary)
   }, [])
   useEffect(() => {
     if (!settingsOpen) return
@@ -958,7 +963,13 @@ export function apply(ctx: Context) {
     slots: ctx.slots as SlotsService,
     appModules: ctx.appModules as AppModulesService,
   }
-  ctx.slots.fill('root', Shell, {
+  ctx.slots.fill('root', function ShellEntry(props: SlotProps) {
+    return (
+      <AuthGate>
+        <Shell {...props} />
+      </AuthGate>
+    )
+  }, {
     children: {
       sidebar: { kind: 'single' },
       demos: { kind: 'list' },

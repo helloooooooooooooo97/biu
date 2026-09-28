@@ -294,6 +294,15 @@ export const BIU_MIGRATIONS: Migration[] = [
     }
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS accounts_name ON accounts(name)`)
   } },
+  { version: 21, module: 'host-account', name: 'account.workspace-profile', up: (db) => {
+    const columns = tableColumnNames(db, 'workspace_members')
+    if (!columns.includes('display_name')) {
+      db.exec(`ALTER TABLE workspace_members ADD COLUMN display_name TEXT NOT NULL DEFAULT ''`)
+    }
+    if (!columns.includes('avatar')) {
+      db.exec(`ALTER TABLE workspace_members ADD COLUMN avatar TEXT NOT NULL DEFAULT ''`)
+    }
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

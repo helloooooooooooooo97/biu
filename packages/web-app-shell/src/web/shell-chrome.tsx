@@ -62,7 +62,7 @@ export function ShellSettingsAccount() {
       <header className="settings-account-head">
         <h3 className="settings-account-title">我的账户</h3>
         <p className="settings-muted settings-account-lead">
-          头像和昵称会出现在左上角、创建人，以及你发出的分享上。
+          头像和显示名字跟当前工作区绑在一起。换一个工作区可以是另一个名字。登录名字和密码在所有工作区都一样。
         </p>
       </header>
       <div className="settings-account-row">
@@ -118,9 +118,9 @@ export function ShellSettingsAccount() {
       <div className="settings-account-row">
         <div className="settings-account-copy">
           <label className="settings-account-label" htmlFor="settings-account-name">
-            首选名称
+            这个工作区里的名字
           </label>
-          <p className="settings-muted settings-account-hint">别人看到你时会用这个名字。</p>
+          <p className="settings-muted settings-account-hint">只在当前工作区里这样称呼你。</p>
         </div>
         <input
           id="settings-account-name"
@@ -138,11 +138,116 @@ export function ShellSettingsAccount() {
           }}
         />
       </div>
+      <div className="settings-account-row">
+        <div className="settings-account-copy">
+          <p className="settings-account-label">登录</p>
+          <p className="settings-muted settings-account-hint">退出后回到登录页。密码不会跟着工作区变。</p>
+        </div>
+        <button
+          type="button"
+          className="settings-account-action"
+          data-testid="settings-account-logout"
+          onClick={() => writeAccountToken('')}
+        >
+          退出
+        </button>
+      </div>
     </section>
   )
 }
 
 const ACCOUNT_KEY = 'biu.account.token'
+const ACCOUNT_EVENT = 'biu:account-token'
+
+export function readAccountToken() {
+  if (typeof localStorage === 'undefined') return ''
+  return localStorage.getItem(ACCOUNT_KEY) ?? ''
+}
+
+export function writeAccountToken(next: string) {
+  if (next) localStorage.setItem(ACCOUNT_KEY, next)
+  else localStorage.removeItem(ACCOUNT_KEY)
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ACCOUNT_EVENT))
+}
+
+export function AuthGate({ children }: { children: ReactNode }) {
+  const [token, setToken] = useState(readAccountToken)
+  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [name, setName] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const sync = () => setToken(readAccountToken())
+    window.addEventListener(ACCOUNT_EVENT, sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener(ACCOUNT_EVENT, sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
+
+  if (token) return children
+
+  return (
+    <div className="auth-gate" data-testid="auth-gate">
+      <form
+        className="settings-account auth-gate-card"
+        onSubmit={(event) => {
+          event.preventDefault()
+          const path = mode === 'register' ? '/api/account/register' : '/api/account/login'
+          void accountFetch('', path, {
+            method: 'POST',
+            body: JSON.stringify({ name: name.trim(), password }),
+          })
+            .then((body) => {
+              writeAccountToken(String(body.token ?? ''))
+              setPassword('')
+              setError('')
+            })
+            .catch((err) => setError(err instanceof Error ? err.message : '登录失败'))
+        }}
+      >
+        <header className="settings-account-head">
+          <h3 className="settings-account-title">{mode === 'register' ? '注册' : '登录'}</h3>
+          <p className="settings-muted settings-account-lead">登录之后才能进入。账号和密码在所有工作区都一样。</p>
+        </header>
+        {error ? <p className="settings-account-error">{error}</p> : null}
+        <div className="settings-account-actions auth-gate-fields">
+          <input
+            className="settings-account-input"
+            value={name}
+            maxLength={40}
+            placeholder="登录名字"
+            autoComplete="username"
+            data-testid="auth-name"
+            onChange={(event) => setName(event.target.value)}
+          />
+          <input
+            className="settings-account-input"
+            type="password"
+            value={password}
+            placeholder="密码"
+            autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+            data-testid="auth-password"
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          <button type="submit" className="settings-account-action" data-testid="auth-submit">
+            {mode === 'register' ? '注册并进入' : '登录'}
+          </button>
+          <button
+            type="button"
+            className="settings-account-action"
+            data-testid="auth-switch"
+            onClick={() => setMode((current) => (current === 'login' ? 'register' : 'login'))}
+          >
+            {mode === 'register' ? '已有账号，去登录' : '没有账号，去注册'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
 
 type CollabWorkspace = { id: string; name: string; role: string }
 type CollabMember = { id: string; name: string; role: string }
@@ -173,14 +278,9 @@ export function ShellSettingsCollab() {
   const [presence, setPresence] = useState<CollabPresence[]>([])
   const [error, setError] = useState('')
 
-  const [mode, setMode] = useState<'login' | 'register'>('login')
-  const [name, setName] = useState('')
-  const [password, setPassword] = useState('')
-
   const remember = (next: string) => {
     setToken(next)
-    if (next) localStorage.setItem(ACCOUNT_KEY, next)
-    else localStorage.removeItem(ACCOUNT_KEY)
+    writeAccountToken(next)
   }
 
   const loadWorkspace = useCallback(async (current: string, id: string) => {
@@ -243,67 +343,11 @@ export function ShellSettingsCollab() {
         </p>
       </header>
       {error ? <p className="settings-account-error" data-testid="settings-collab-error">{error}</p> : null}
-      {!token ? (
-        <form
-          className="settings-account-row"
-          data-testid="settings-collab-auth"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const path = mode === 'register' ? '/api/account/register' : '/api/account/login'
-            void accountFetch('', path, {
-              method: 'POST',
-              body: JSON.stringify({ name: name.trim(), password }),
-            })
-              .then((body) => {
-                remember(String(body.token ?? ''))
-                setPassword('')
-                setError('')
-              })
-              .catch((err) => setError(err instanceof Error ? err.message : '登录失败'))
-          }}
-        >
-          <div className="settings-account-copy">
-            <p className="settings-account-label">{mode === 'register' ? '注册' : '登录'}</p>
-            <p className="settings-muted settings-account-hint">用名字和密码进入工作区。密码至少 6 位。</p>
-          </div>
-          <div className="settings-account-actions">
-            <input
-              className="settings-account-input"
-              value={name}
-              maxLength={40}
-              placeholder="名字"
-              autoComplete="username"
-              data-testid="settings-collab-name"
-              onChange={(event) => setName(event.target.value)}
-            />
-            <input
-              className="settings-account-input"
-              type="password"
-              value={password}
-              placeholder="密码"
-              autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-              data-testid="settings-collab-password"
-              onChange={(event) => setPassword(event.target.value)}
-            />
-            <button type="submit" className="settings-account-action" data-testid="settings-collab-submit">
-              {mode === 'register' ? '注册' : '登录'}
-            </button>
-            <button
-              type="button"
-              className="settings-account-action"
-              data-testid="settings-collab-switch"
-              onClick={() => setMode((current) => (current === 'login' ? 'register' : 'login'))}
-            >
-              {mode === 'register' ? '去登录' : '去注册'}
-            </button>
-          </div>
-        </form>
-      ) : null}
       {me ? (
         <div className="settings-account-row">
           <div className="settings-account-copy">
             <p className="settings-account-label">{me.name}</p>
-            <p className="settings-muted settings-account-hint">这台设备上的身份。把账号 id 发给对方，才能被邀请进别的工作区。</p>
+            <p className="settings-muted settings-account-hint">登录名字在每个工作区都一样。把账号 id 发给对方，才能被邀请进别的工作区。</p>
           </div>
           <code className="settings-account-id" data-testid="settings-collab-id">{me.id}</code>
           <button
