@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { Context, Service } from 'cordis'
 import * as tools from '@biu/host-tools'
 import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseService, apply as applyFileSystem } from './index.ts'
@@ -12,6 +13,8 @@ import { REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
 import { facetsCollection } from './facets-collection.ts'
 import { trashCollection } from './trash-collection.ts'
 import { runWithSession } from '@biu/host-sessions/scope'
+import { openAndMigrateBiu, runWithAccount } from '@biu/host-plugin-loader/data-dir'
+import { CollabStore } from '@biu/host-account/store'
 import { builtinAllViewId } from '../catalog-views.ts'
 import { savedViewRecordPath } from '../paths.ts'
 
@@ -1679,4 +1682,37 @@ test('db tools follow the same workspace boundary as the file-system UI', async 
   active = home
   const homeList = await db.list('/notes')
   if (homeList.kind === 'collection') assert.deepEqual(homeList.items.map((item) => item.id), ['n2'])
+})
+
+test('file-system CRUD uses the unified account authorization decision', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.register(notesCollection())
+  const dir = mkdtempSync(join(tmpdir(), 'biu-db-authz-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'bob@example.com')
+  const workspace = collab.createWorkspace(ada.id, 'Shared')
+  collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+  collab.setActive(ada.id, workspace.id)
+  collab.setActive(bob.id, workspace.id)
+  runWithAccount(ada.id, () => collab.attach(workspace.id, '/notes', 'n1'))
+  runWithAccount(bob.id, () => collab.attach(workspace.id, '/notes', 'n2'))
+
+  const adaList = await runWithAccount(ada.id, () => db.list('/notes'))
+  const bobList = await runWithAccount(bob.id, () => db.list('/notes'))
+  if (adaList.kind === 'collection') assert.deepEqual(adaList.items.map((row) => row.id), ['n1'])
+  if (bobList.kind === 'collection') assert.deepEqual(bobList.items.map((row) => row.id), ['n2'])
+  await assert.rejects(
+    () => runWithAccount(bob.id, () => db.update('/notes/n1', { title: '偷改' })),
+    /unknown record/,
+  )
 })

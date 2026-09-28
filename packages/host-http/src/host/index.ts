@@ -337,7 +337,10 @@ export class HttpService extends Service {
       const started = Date.now()
       try {
         const header = String(req.headers.authorization ?? '')
-        const token = /^Bearer\s+(\S+)$/i.exec(header)?.[1] ?? ''
+        const bearerToken = /^Bearer\s+(\S+)$/i.exec(header)?.[1] ?? ''
+        const cookie = String(req.headers.cookie ?? '')
+        const encoded = cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith('biu_account='))
+        const token = bearerToken || (encoded ? decodeURIComponent(encoded.slice('biu_account='.length)) : '')
         let accountId = ''
         if (token) {
           try {

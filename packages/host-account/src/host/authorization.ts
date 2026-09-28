@@ -123,6 +123,13 @@ export class AuthorizationService {
     }
 
     if (resource.type === 'collection') {
+      const managing =
+        action === 'resource:share' ||
+        action === 'resource:manage-permissions' ||
+        action === 'resource:delete'
+      if (managing && membership !== 'owner' && membership !== 'admin') {
+        return { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
+      }
       return {
         allowed: true,
         effectiveRole: membership === 'owner' || membership === 'admin' ? 'manager' : 'editor',

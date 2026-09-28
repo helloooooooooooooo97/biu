@@ -801,6 +801,31 @@ export class DatabaseService extends Service implements Database {
     }
   }
 
+  async requirePath(path: string, action: PermissionAction) {
+    const parts = splitPath(path)
+    if (parts.length === 1) {
+      const spec = this.collection(`/${parts[0]}`)
+      if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
+      const authorization = this.authorization()
+      const actor = authorization?.currentActor()
+      if (authorization && !actor) throw new Error('permission denied: UNAUTHENTICATED')
+      if (authorization) {
+        authorization.requireCurrent(action, {
+          type: 'collection',
+          workspaceId: actor!.workspaceId,
+          collection: spec.path,
+        })
+      }
+      return
+    }
+    if (parts.length !== 2) throw new Error(`invalid resource path: ${normalizeCollectionPath(path)}`)
+    const spec = this.collection(`/${parts[0]}`)
+    if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
+    const record = await spec.get(parts[1]!)
+    if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
+    this.assertLiveRecord(spec, record.id, action)
+  }
+
   private async matchCollectionRows(
     spec: CollectionSpec,
     query: CollectionListQuery,
@@ -969,6 +994,7 @@ export class DatabaseService extends Service implements Database {
       facet: found.facet,
       items: found.items
         .filter((item) => !this.facets.isDeleted(item.collection, item.id))
+        .filter((item) => this.visibleRecords(item.collection, [{ id: item.id }]).length > 0)
         .map((item) => ({
         ...item,
         collectionLabel: labels.get(item.collection) ?? item.collection,
@@ -1412,8 +1438,19 @@ export class DatabaseService extends Service implements Database {
       if (!spec) continue
       const record = await spec.get(row.record_id)
       if (!record) continue
-      const membership = this.workspaceMembership()
-      if (membership && !this.inWorkspace(membership, row.collection, row.record_id)) continue
+      const authorization = this.authorization()
+      const actor = authorization?.currentActor()
+      if (authorization && actor) {
+        if (!authorization.authorize(actor, 'resource:read', {
+          type: 'record',
+          workspaceId: actor.workspaceId,
+          collection: row.collection,
+          recordId: row.record_id,
+        }).allowed) continue
+      } else {
+        const membership = this.workspaceMembership()
+        if (membership && !this.inWorkspace(membership, row.collection, row.record_id)) continue
+      }
       const decorated = this.decorateRecord(spec, record)
       const title = String(decorated.title ?? decorated.name ?? record.id).trim() || record.id
       items.push({
@@ -1440,6 +1477,8 @@ export class DatabaseService extends Service implements Database {
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
     if (loaded || !action.allowMissing) {
       this.assertLiveRecord(spec, record.id, (action.requiredAction ?? 'resource:update') as PermissionAction)
+    } else {
+      await this.requirePath(spec.path, (action.requiredAction ?? 'resource:update') as PermissionAction)
     }
     if (!matchActionWhen(record, action.when)) throw new Error(`action not available: ${actionId}`)
     const result = await action.run(parts[1]!, record, args)
@@ -2337,10 +2376,14 @@ export function apply(ctx: Context) {
   )
   ctx.http.route('GET', '/api/db/read', (route) => send(route, () => db.read(route.query.get('path') || '/')))
   ctx.http.route('GET', '/api/db/banner-gallery', (route) =>
-    send(route, () => ({ items: db.facets.listBannerGallery() })),
+    send(route, async () => {
+      await db.requirePath('/pages', 'resource:read')
+      return { items: db.facets.listBannerGallery() }
+    }),
   )
   ctx.http.route('POST', '/api/db/banner-gallery', async (route) => {
     try {
+      await db.requirePath('/pages', 'resource:update')
       const body = (await route.json()) as { id?: string }
       const id = String(body?.id ?? '').trim()
       if (!id) {
@@ -2410,6 +2453,7 @@ export function apply(ctx: Context) {
       const body = (await route.json()) as { path?: string; views?: StoredView[] }
       const path = String(body?.path ?? '')
       const next = Array.isArray(body.views) ? body.views : []
+      await db.requirePath(path, 'resource:update')
       dropSharesForRemovedViews(shares, path, savedViews.viewsFor(path), next)
       savedViews.replace(path, next)
       ctx.emit('database/change')
@@ -2449,6 +2493,14 @@ export function apply(ctx: Context) {
     if (!collection) {
       const items = []
       for (const share of shares.list()) {
+        try {
+          await db.requirePath(
+            share.kind === 'record' ? `${share.collection}/${share.recordId}` : share.collection,
+            'resource:share',
+          )
+        } catch {
+          continue
+        }
         let title = share.collection.replace(/^\//, '')
         if (share.kind === 'record' && share.recordId) {
           try {
@@ -2485,6 +2537,12 @@ export function apply(ctx: Context) {
     const kind = route.query.get('kind') === 'record' ? 'record' as const : 'view' as const
     const viewId = route.query.get('viewId') || ''
     const recordId = route.query.get('recordId') || ''
+    try {
+      await db.requirePath(kind === 'record' ? `${collection}/${recordId}` : collection, 'resource:read')
+    } catch {
+      route.send(404, { error: 'not found' })
+      return
+    }
     const share = shares.find(kind, collection, viewId, recordId)
     const resources = await sharePreviewOf(kind, collection, viewId, recordId)
     route.send(200, {
@@ -2505,14 +2563,17 @@ export function apply(ctx: Context) {
         allowCopy?: boolean
       }
       const kind = body.kind === 'record' ? 'record' as const : 'view' as const
+      const collection = String(body.collection ?? '')
+      const recordId = String(body.recordId ?? '')
+      await db.requirePath(kind === 'record' ? `${collection}/${recordId}` : collection, 'resource:share')
       if (body.enabled === false) {
-        shares.revokeTarget(kind, String(body.collection ?? ''), body.viewId ?? '', body.recordId ?? '')
+        shares.revokeTarget(kind, collection, body.viewId ?? '', body.recordId ?? '')
         route.send(200, { share: null })
         return
       }
       const share = shares.upsert({
         kind,
-        collection: String(body.collection ?? ''),
+        collection,
         viewId: body.viewId,
         recordId: body.recordId,
         password: body.password,
@@ -2674,6 +2735,7 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('GET', '/api/db/facets', async (route) => {
     try {
+      await db.requirePath('/facets', 'resource:read')
       const collect = route.query.get('collect') || ''
       if (collect) {
         route.send(200, await db.collectFacet(collect))
@@ -2687,6 +2749,7 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('POST', '/api/db/facets', async (route) => {
     try {
+      await db.requirePath('/facets', 'resource:update')
       const body = (await route.json()) as { facets?: unknown[] }
       facets.replace(Array.isArray(body.facets) ? body.facets : [])
       ctx.emit('database/change')
@@ -2698,6 +2761,24 @@ export function apply(ctx: Context) {
   const serveDbFile: Parameters<typeof ctx.http.route>[2] = async (route) => {
     try {
       const name = route.params.name ?? ''
+      const authorization = (ctx.get('account') as { authorization?: AuthorizationService } | undefined)?.authorization
+      const actor = authorization?.currentActor()
+      const refs = facets.recordsReferencingAsset(name)
+      if (
+        !authorization ||
+        !actor ||
+        !refs.some((ref) =>
+          authorization.authorize(actor, 'resource:read', {
+            type: 'record',
+            workspaceId: actor.workspaceId,
+            collection: ref.collection,
+            recordId: ref.record_id,
+          }).allowed,
+        )
+      ) {
+        route.send(404, { error: 'not found' })
+        return
+      }
       const { bytes, type, etag } = await assets.readAny(name)
       route.res.writeHead(200, {
         'content-type': type,
@@ -2712,6 +2793,12 @@ export function apply(ctx: Context) {
   const putDbFile: Parameters<typeof ctx.http.route>[2] = async (route) => {
     try {
       const name = route.params.name ?? ''
+      const path = route.query.get('path') || String(route.req.headers['x-biu-resource-path'] ?? '')
+      if (!path) {
+        route.send(400, { error: 'resource path required' })
+        return
+      }
+      await db.requirePath(path, 'resource:update')
       const bytes = await route.bytes()
       const written = isHashedAssetName(name)
         ? await assets.write(name, bytes)
@@ -2737,6 +2824,12 @@ export function apply(ctx: Context) {
   const putHashFile: Parameters<typeof ctx.http.route>[2] = async (route) => {
     try {
       const name = route.params.name ?? ''
+      const path = route.query.get('path') || String(route.req.headers['x-biu-resource-path'] ?? '')
+      if (!path) {
+        route.send(400, { error: 'resource path required' })
+        return
+      }
+      await db.requirePath(path, 'resource:update')
       const bytes = await route.bytes()
       const written = await assets.write(name, bytes)
       db.facets.putAttachment({

@@ -713,14 +713,15 @@ export class CollabStore {
       | { owner_id: string }
       | undefined
     if (!owner) throw new CollabError('工作区不存在', 404)
+    const caller = currentAccountId()
+    const recordOwner = caller || owner.owner_id
     this.db
       .prepare(
         `INSERT INTO record_owners (workspace_id, collection, record_id, owner_id, version, updated_at)
          VALUES (?, ?, ?, ?, 0, ?)
          ON CONFLICT(workspace_id, collection, record_id) DO NOTHING`,
       )
-      .run(workspaceId, collection, recordId, owner.owner_id, now)
-    const caller = currentAccountId()
+      .run(workspaceId, collection, recordId, recordOwner, now)
     if (caller) {
       this.authorization.attach(
         { type: 'account', accountId: caller, workspaceId },
@@ -767,7 +768,14 @@ export class CollabStore {
     return this.accessRows(workspaceId, collection, recordId)
   }
 
-  shareWithEmail(actorId: string, collection: string, recordId: string, email: string, now = Date.now()) {
+  shareWithEmail(
+    actorId: string,
+    collection: string,
+    recordId: string,
+    email: string,
+    role: ResourceRole = 'editor',
+    now = Date.now(),
+  ) {
     const workspaceId = this.activeWorkspaceId()
     if (!workspaceId) throw new CollabError('没有工作区', 400)
     this.requireMember(actorId, workspaceId)
@@ -787,7 +795,7 @@ export class CollabStore {
       resource,
     )
     if (!decision.allowed) throw new CollabError('没有权限', 403)
-    this.authorization.grant(actorId, resource, 'account', account.id, 'editor', now)
+    this.authorization.grant(actorId, resource, 'account', account.id, role, now)
     return this.accessRows(workspaceId, collection, recordId)
   }
 
@@ -802,7 +810,16 @@ export class CollabStore {
          ORDER BY g.created_at`,
       )
       .all(workspaceId, collection, recordId) as Array<{ id: string; name: string; email: string; role: string }>
-    return { private: rows.length > 0, people: rows }
+    const groups = this.db
+      .prepare(
+        `SELECT g.id, g.name, rg.role
+         FROM record_grants rg
+         JOIN workspace_groups g ON rg.subject_type = 'group' AND g.id = rg.subject_id
+         WHERE rg.workspace_id = ? AND rg.collection = ? AND rg.record_id = ?
+         ORDER BY rg.created_at`,
+      )
+      .all(workspaceId, collection, recordId) as Array<{ id: string; name: string; role: string }>
+    return { private: rows.length + groups.length > 0, people: rows, groups }
   }
 
   private writeState(key: string, value: string) {

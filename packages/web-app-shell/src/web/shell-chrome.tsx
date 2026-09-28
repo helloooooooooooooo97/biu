@@ -175,6 +175,9 @@ export function readAccountToken() {
 }
 
 export function writeAccountToken(next: string) {
+  if (!next && typeof window !== 'undefined') {
+    void fetch('/api/account/logout', { method: 'POST' }).catch(() => undefined)
+  }
   if (next) localStorage.setItem(ACCOUNT_KEY, next)
   else localStorage.removeItem(ACCOUNT_KEY)
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(ACCOUNT_EVENT))
@@ -263,6 +266,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 type CollabWorkspace = { id: string; name: string; role: string }
 type CollabMember = { id: string; name: string; email?: string; role: string }
 type CollabPresence = { accountId: string; name: string; collection: string; recordId: string }
+type CollabGroup = { id: string; name: string; memberCount: number }
 
 async function accountFetch(token: string, path: string, init?: RequestInit) {
   const res = await fetch(path, {
@@ -287,6 +291,10 @@ export function ShellSettingsCollab() {
   const [members, setMembers] = useState<CollabMember[]>([])
   const [inviteId, setInviteId] = useState('')
   const [presence, setPresence] = useState<CollabPresence[]>([])
+  const [groups, setGroups] = useState<CollabGroup[]>([])
+  const [groupName, setGroupName] = useState('')
+  const [groupId, setGroupId] = useState('')
+  const [groupEmail, setGroupEmail] = useState('')
   const [error, setError] = useState('')
 
   const remember = (next: string) => {
@@ -298,10 +306,17 @@ export function ShellSettingsCollab() {
     if (!current || !id) {
       setMembers([])
       setPresence([])
+      setGroups([])
       return
     }
-    const listed = (await accountFetch(current, `/api/account/workspaces/${id}/members`)) as { members?: CollabMember[] }
+    const [listed, grouped] = await Promise.all([
+      accountFetch(current, `/api/account/workspaces/${id}/members`) as Promise<{ members?: CollabMember[] }>,
+      accountFetch(current, `/api/account/workspaces/${id}/groups`) as Promise<{ groups?: CollabGroup[] }>,
+    ])
     setMembers(listed.members ?? [])
+    const nextGroups = grouped.groups ?? []
+    setGroups(nextGroups)
+    setGroupId((value) => value && nextGroups.some((row) => row.id === value) ? value : (nextGroups[0]?.id ?? ''))
     const here = (await accountFetch(current, '/api/account/presence', {
       method: 'POST',
       body: JSON.stringify({ workspaceId: id }),
@@ -439,6 +454,89 @@ export function ShellSettingsCollab() {
           <button type="submit" className="settings-account-action" disabled={!token} data-testid="settings-collab-create">
             新建
           </button>
+        </div>
+      </form>
+      <form
+        className="settings-account-row"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!token || !workspaceId || !groupName.trim()) return
+          void accountFetch(token, `/api/account/workspaces/${workspaceId}/groups`, {
+            method: 'POST',
+            body: JSON.stringify({ name: groupName.trim() }),
+          })
+            .then((body) => {
+              const created = body as CollabGroup
+              setGroups((rows) => [...rows, created])
+              setGroupId(created.id)
+              setGroupName('')
+              setError('')
+            })
+            .catch((err) => setError(err instanceof Error ? err.message : '创建成员组失败'))
+        }}
+      >
+        <div className="settings-account-copy">
+          <label className="settings-account-label" htmlFor="settings-collab-group">成员组</label>
+          <p className="settings-muted settings-account-hint">把权限授予组，成员变化后文档权限会立即跟着变化。</p>
+          <ul className="settings-account-people" data-testid="settings-collab-groups">
+            {groups.length
+              ? groups.map((row) => <li key={row.id}>{row.name} · {row.memberCount} 人</li>)
+              : <li className="settings-muted">还没有成员组。</li>}
+          </ul>
+        </div>
+        <div className="settings-account-actions">
+          <input
+            id="settings-collab-group"
+            className="settings-account-input"
+            value={groupName}
+            maxLength={40}
+            placeholder="例如：产品组"
+            data-testid="settings-collab-group"
+            onChange={(event) => setGroupName(event.target.value)}
+          />
+          <button type="submit" className="settings-account-action" disabled={!token || !workspaceId}>
+            新建组
+          </button>
+        </div>
+      </form>
+      <form
+        className="settings-account-row"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!token || !workspaceId || !groupId || !groupEmail.trim()) return
+          void accountFetch(token, `/api/account/workspaces/${workspaceId}/groups/${groupId}/members`, {
+            method: 'POST',
+            body: JSON.stringify({ email: groupEmail.trim() }),
+          })
+            .then(() => {
+              setGroups((rows) => rows.map((row) => row.id === groupId ? { ...row, memberCount: row.memberCount + 1 } : row))
+              setGroupEmail('')
+              setError('')
+            })
+            .catch((err) => setError(err instanceof Error ? err.message : '添加组成员失败'))
+        }}
+      >
+        <div className="settings-account-copy">
+          <p className="settings-account-label">添加组成员</p>
+          <p className="settings-muted settings-account-hint">只能加入已经属于当前工作区的账号。</p>
+        </div>
+        <div className="settings-account-actions">
+          <select
+            className="settings-account-input"
+            value={groupId}
+            aria-label="选择成员组"
+            onChange={(event) => setGroupId(event.target.value)}
+          >
+            {groups.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+          </select>
+          <input
+            className="settings-account-input"
+            type="email"
+            value={groupEmail}
+            placeholder="成员的登录邮箱"
+            onChange={(event) => setGroupEmail(event.target.value)}
+          />
+          <button type="submit" className="settings-account-action" disabled={!groupId}>添加</button>
         </div>
       </form>
       <div className="settings-account-row">

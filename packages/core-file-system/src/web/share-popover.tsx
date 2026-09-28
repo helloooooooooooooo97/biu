@@ -123,18 +123,50 @@ export function ShareButton({
 function WorkspaceAccess({ collection, recordId }: { collection: string; recordId: string }) {
   const [email, setEmail] = useState('')
   const [people, setPeople] = useState<Array<{ id: string; name: string; email: string; role: string }>>([])
+  const [groups, setGroups] = useState<Array<{ id: string; name: string; role: string }>>([])
+  const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string }>>([])
+  const [groupId, setGroupId] = useState('')
+  const [role, setRole] = useState<'viewer' | 'editor' | 'manager'>('editor')
   const [error, setError] = useState('')
 
   async function load() {
-    const data = await readJson<{ people?: Array<{ id: string; name: string; email: string; role: string }> }>(
+    const data = await readJson<{
+      people?: Array<{ id: string; name: string; email: string; role: string }>
+      groups?: Array<{ id: string; name: string; role: string }>
+    }>(
       `/api/account/access?collection=${encodeURIComponent(collection)}&recordId=${encodeURIComponent(recordId)}`,
     )
     setPeople(data.people ?? [])
+    setGroups(data.groups ?? [])
   }
 
   useEffect(() => {
     void load().catch(() => setPeople([]))
+    void readJson<{ workspaceId?: string }>('/api/account/active')
+      .then((active) => active.workspaceId
+        ? readJson<{ groups?: Array<{ id: string; name: string }> }>(`/api/account/workspaces/${active.workspaceId}/groups`)
+        : { groups: [] })
+      .then((data) => {
+        const rows = data.groups ?? []
+        setAvailableGroups(rows)
+        setGroupId((current) => current || rows[0]?.id || '')
+      })
+      .catch(() => setAvailableGroups([]))
   }, [collection, recordId])
+
+  function grant(input: { email?: string; groupId?: string }) {
+    setError('')
+    return readJson(`/api/account/access`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ collection, recordId, role, ...input }),
+    })
+      .then(() => {
+        setEmail('')
+        return load()
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : '无法授权'))
+  }
 
   return (
     <form
@@ -142,24 +174,15 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
       data-testid="fsdb-share-members"
       onSubmit={(event) => {
         event.preventDefault()
-        setError('')
-        void readJson(`/api/account/access`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ collection, recordId, email: email.trim() }),
-        })
-          .then(() => {
-            setEmail('')
-            return load()
-          })
-          .catch((err) => setError(err instanceof Error ? err.message : '无法邀请'))
+        if (email.trim()) void grant({ email: email.trim() })
       }}
     >
       <p className="fsdb-share-empty-title">工作区成员</p>
       <ul>
         {people.length ? people.map((row) => (
-          <li key={row.id}>{row.name}{row.email ? ` · ${row.email}` : ''} · {row.role === 'owner' ? '创建者' : '可编辑'}</li>
+          <li key={row.id}>{row.name}{row.email ? ` · ${row.email}` : ''} · {roleLabel(row.role)}</li>
         )) : <li>还没有单独授权。新建的文档只有创建者能看，旧文档在授权前工作区成员都能看。</li>}
+        {groups.map((row) => <li key={`group:${row.id}`}>{row.name} · 成员组 · {roleLabel(row.role)}</li>)}
       </ul>
       <div className="fsdb-share-link-row">
         <input
@@ -170,11 +193,38 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
           data-testid="fsdb-share-member-email"
           onChange={(event) => setEmail(event.target.value)}
         />
+        <select value={role} aria-label="权限" onChange={(event) => setRole(event.target.value as typeof role)}>
+          <option value="viewer">可查看</option>
+          <option value="editor">可编辑</option>
+          <option value="manager">可管理</option>
+        </select>
         <button type="submit" className="fsdb-share-publish" data-testid="fsdb-share-member-add">添加</button>
       </div>
+      {availableGroups.length ? (
+        <div className="fsdb-share-link-row">
+          <select value={groupId} aria-label="成员组" onChange={(event) => setGroupId(event.target.value)}>
+            {availableGroups.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+          </select>
+          <button
+            type="button"
+            className="fsdb-share-publish"
+            disabled={!groupId}
+            onClick={() => void grant({ groupId })}
+          >
+            添加成员组
+          </button>
+        </div>
+      ) : null}
       {error ? <p>{error}</p> : null}
     </form>
   )
+}
+
+function roleLabel(role: string) {
+  if (role === 'owner') return '创建者'
+  if (role === 'manager') return '可管理'
+  if (role === 'viewer') return '可查看'
+  return '可编辑'
 }
 
 export function SharePanel({ target, embedded = false }: { target: ShareTarget; embedded?: boolean }) {

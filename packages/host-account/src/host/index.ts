@@ -32,7 +32,14 @@ export class AccountService extends Service {
 function bearer(route: RouteContext) {
   const header = String(route.req.headers.authorization ?? '')
   const match = /^Bearer\s+(\S+)$/i.exec(header)
-  return match?.[1] ?? ''
+  if (match?.[1]) return match[1]
+  const cookie = String(route.req.headers.cookie ?? '')
+  const encoded = cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith('biu_account='))
+  return encoded ? decodeURIComponent(encoded.slice('biu_account='.length)) : ''
+}
+
+function rememberLogin(route: RouteContext, token: string) {
+  route.res.setHeader('set-cookie', `biu_account=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict`)
 }
 
 function fail(route: RouteContext, error: unknown) {
@@ -92,6 +99,7 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       if (!email.trim()) throw new CollabError('邮箱不能为空', 400)
       const created = account.store.register('', Date.now(), password, email)
       const workspaceId = account.store.enter(created.id)
+      rememberLogin(route, created.token)
       ctx.http.broadcast('database', { ts: Date.now() })
       route.send(201, { id: created.id, name: created.name, createdAt: created.createdAt, token: created.token, workspaceId })
     } catch (error) {
@@ -104,11 +112,17 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       const body = (await route.json()) as { email?: string; password?: string }
       const found = account.store.login(String(body.email ?? ''), String(body.password ?? ''))
       const workspaceId = account.store.enter(found.id)
+      rememberLogin(route, found.token)
       ctx.http.broadcast('database', { ts: Date.now() })
       route.send(200, { id: found.id, name: found.name, createdAt: found.createdAt, token: found.token, workspaceId })
     } catch (error) {
       fail(route, error)
     }
+  })
+
+  ctx.http.route('POST', '/api/account/logout', async (route) => {
+    route.res.setHeader('set-cookie', 'biu_account=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0')
+    route.send(200, { ok: true })
   })
 
   ctx.http.route('GET', '/api/account/me', async (route) => {
@@ -254,7 +268,7 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
         200,
         body.groupId
           ? account.store.grantGroup(me.id, collection, recordId, String(body.groupId), role)
-          : account.store.shareWithEmail(me.id, collection, recordId, String(body.email ?? '')),
+          : account.store.shareWithEmail(me.id, collection, recordId, String(body.email ?? ''), role),
       )
     } catch (error) {
       fail(route, error)
