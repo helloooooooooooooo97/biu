@@ -287,6 +287,13 @@ export const BIU_MIGRATIONS: Migration[] = [
       );
     `)
   } },
+  { version: 20, module: 'host-account', name: 'account.password', up: (db) => {
+    const columns = tableColumnNames(db, 'accounts')
+    if (!columns.includes('password_hash')) {
+      db.exec(`ALTER TABLE accounts ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''`)
+    }
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS accounts_name ON accounts(name)`)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

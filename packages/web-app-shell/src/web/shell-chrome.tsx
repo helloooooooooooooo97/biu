@@ -173,25 +173,15 @@ export function ShellSettingsCollab() {
   const [presence, setPresence] = useState<CollabPresence[]>([])
   const [error, setError] = useState('')
 
+  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [name, setName] = useState('')
+  const [password, setPassword] = useState('')
+
   const remember = (next: string) => {
     setToken(next)
     if (next) localStorage.setItem(ACCOUNT_KEY, next)
+    else localStorage.removeItem(ACCOUNT_KEY)
   }
-
-  useEffect(() => {
-    if (token) return
-    let gone = false
-    void accountFetch('', '/api/account/bootstrap', { method: 'POST', body: '{}' })
-      .then((body) => {
-        if (!gone) remember(String(body.token ?? ''))
-      })
-      .catch((err) => {
-        if (!gone) setError(err instanceof Error ? err.message : '无法准备本地工作区')
-      })
-    return () => {
-      gone = true
-    }
-  }, [token])
 
   const loadWorkspace = useCallback(async (current: string, id: string) => {
     if (!current || !id) {
@@ -227,7 +217,9 @@ export function ShellSettingsCollab() {
         setWorkspaceId(String(active.workspaceId || rows[0]?.id || ''))
         setError('')
       } catch (err) {
-        if (!gone) setError(err instanceof Error ? err.message : '无法读取账号')
+        if (gone) return
+        remember('')
+        setError(err instanceof Error ? err.message : '无法读取账号')
       }
     })()
     return () => {
@@ -251,6 +243,62 @@ export function ShellSettingsCollab() {
         </p>
       </header>
       {error ? <p className="settings-account-error" data-testid="settings-collab-error">{error}</p> : null}
+      {!token ? (
+        <form
+          className="settings-account-row"
+          data-testid="settings-collab-auth"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const path = mode === 'register' ? '/api/account/register' : '/api/account/login'
+            void accountFetch('', path, {
+              method: 'POST',
+              body: JSON.stringify({ name: name.trim(), password }),
+            })
+              .then((body) => {
+                remember(String(body.token ?? ''))
+                setPassword('')
+                setError('')
+              })
+              .catch((err) => setError(err instanceof Error ? err.message : '登录失败'))
+          }}
+        >
+          <div className="settings-account-copy">
+            <p className="settings-account-label">{mode === 'register' ? '注册' : '登录'}</p>
+            <p className="settings-muted settings-account-hint">用名字和密码进入工作区。密码至少 6 位。</p>
+          </div>
+          <div className="settings-account-actions">
+            <input
+              className="settings-account-input"
+              value={name}
+              maxLength={40}
+              placeholder="名字"
+              autoComplete="username"
+              data-testid="settings-collab-name"
+              onChange={(event) => setName(event.target.value)}
+            />
+            <input
+              className="settings-account-input"
+              type="password"
+              value={password}
+              placeholder="密码"
+              autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+              data-testid="settings-collab-password"
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <button type="submit" className="settings-account-action" data-testid="settings-collab-submit">
+              {mode === 'register' ? '注册' : '登录'}
+            </button>
+            <button
+              type="button"
+              className="settings-account-action"
+              data-testid="settings-collab-switch"
+              onClick={() => setMode((current) => (current === 'login' ? 'register' : 'login'))}
+            >
+              {mode === 'register' ? '去登录' : '去注册'}
+            </button>
+          </div>
+        </form>
+      ) : null}
       {me ? (
         <div className="settings-account-row">
           <div className="settings-account-copy">
@@ -258,6 +306,21 @@ export function ShellSettingsCollab() {
             <p className="settings-muted settings-account-hint">这台设备上的身份。把账号 id 发给对方，才能被邀请进别的工作区。</p>
           </div>
           <code className="settings-account-id" data-testid="settings-collab-id">{me.id}</code>
+          <button
+            type="button"
+            className="settings-account-action"
+            data-testid="settings-collab-logout"
+            onClick={() => {
+              remember('')
+              setMe(null)
+              setWorkspaces([])
+              setWorkspaceId('')
+              setMembers([])
+              setPresence([])
+            }}
+          >
+            退出
+          </button>
         </div>
       ) : null}
       <form

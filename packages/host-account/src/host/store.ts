@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 
 export const PRESENCE_STALE_MS = 30_000
@@ -55,6 +55,21 @@ function id(prefix: string) {
   return `${prefix}_${randomBytes(8).toString('hex')}`
 }
 
+function hashPassword(password: string) {
+  const salt = randomBytes(16)
+  const hash = scryptSync(password, salt, 32)
+  return `scrypt:${salt.toString('hex')}:${hash.toString('hex')}`
+}
+
+function verifyPassword(password: string, stored: string) {
+  const [kind, saltHex, hashHex] = stored.split(':')
+  if (kind !== 'scrypt' || !saltHex || !hashHex) return false
+  const actual = scryptSync(password, Buffer.from(saltHex, 'hex'), 32)
+  const expected = Buffer.from(hashHex, 'hex')
+  if (actual.length !== expected.length) return false
+  return timingSafeEqual(actual, expected)
+}
+
 export class CollabStore {
   constructor(private db: DatabaseSync) {}
 
@@ -101,14 +116,39 @@ export class CollabStore {
     }
   }
 
-  register(name: string, now = Date.now()): Account & { token: string } {
+  register(name: string, now = Date.now(), password = ''): Account & { token: string } {
     const trimmed = name.trim()
     if (!trimmed) throw new CollabError('名字不能为空', 400)
+    const secret = password.trim()
+    if (secret && secret.length < 6) throw new CollabError('密码至少 6 位', 400)
+    const taken = this.db.prepare('SELECT id FROM accounts WHERE name = ?').get(trimmed) as { id: string } | undefined
+    if (taken) throw new CollabError('这个名字已经注册过', 409)
     const account = { id: id('acc'), name: trimmed, token: randomBytes(24).toString('hex'), createdAt: now }
     this.db
-      .prepare('INSERT INTO accounts (id, name, token, created_at) VALUES (?, ?, ?, ?)')
-      .run(account.id, account.name, account.token, account.createdAt)
+      .prepare('INSERT INTO accounts (id, name, token, password_hash, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(account.id, account.name, account.token, secret ? hashPassword(secret) : '', account.createdAt)
     return account
+  }
+
+  login(name: string, password: string): Account & { token: string } {
+    const trimmed = name.trim()
+    const row = this.db
+      .prepare('SELECT id, name, token, password_hash, created_at FROM accounts WHERE name = ?')
+      .get(trimmed) as { id: string; name: string; token: string; password_hash: string; created_at: number } | undefined
+    if (!row?.password_hash || !verifyPassword(password, row.password_hash)) {
+      throw new CollabError('名字或密码不对', 401)
+    }
+    return { id: row.id, name: row.name, token: row.token, createdAt: row.created_at }
+  }
+
+  /** 登录后停在自己的工作区。还没有的话建一个空的。 */
+  enter(accountId: string) {
+    const rows = this.listWorkspaces(accountId)
+    const active = this.activeWorkspaceId()
+    if (active && rows.some((row) => row.id === active)) return active
+    const next = rows[0]?.id ?? this.createWorkspace(accountId, '我的工作区').id
+    this.writeState('active', next)
+    return next
   }
 
   accountByToken(token: string): Account | null {

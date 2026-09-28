@@ -167,7 +167,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 19
+export const LATEST_BIU_SCHEMA = 20
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -347,8 +347,9 @@ CREATE TABLE IF NOT EXISTS gc_candidates (
 );
 CREATE TABLE IF NOT EXISTS accounts (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
+  name TEXT NOT NULL UNIQUE,
   token TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS accounts_token ON accounts(token);

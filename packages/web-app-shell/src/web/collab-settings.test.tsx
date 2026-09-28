@@ -23,7 +23,7 @@ test('collab settings uses the account row chrome and can create a workspace', a
   globalThis.fetch = (async (path: string, init?: RequestInit) => {
     const url = String(path)
     calls.push(`${init?.method ?? 'GET'} ${url}`)
-    if (url.endsWith('/bootstrap')) return json({ id: 'acc_1', name: 'Ada', token: 'tok', workspace: { id: 'ws_0', name: '本机', role: 'owner' } })
+    if (url.endsWith('/login')) return json({ id: 'acc_1', name: 'Ada', token: 'tok' })
     if (url.endsWith('/me')) return json({ id: 'acc_1', name: 'Ada' })
     if (url.endsWith('/workspaces') && (init?.method ?? 'GET') === 'GET') return json({ workspaces: [] })
     if (url.endsWith('/active')) return json({ workspaceId: init?.method === 'POST' ? 'ws_1' : '' })
@@ -37,8 +37,11 @@ test('collab settings uses the account row chrome and can create a workspace', a
 
   render(<ShellSettingsCollab />)
   assert.equal(document.querySelector('.settings-account-title')?.textContent, '协同')
+  assert.equal(screen.queryByTestId('settings-collab-id'), null)
+  fireEvent.change(screen.getByTestId('settings-collab-name'), { target: { value: 'Ada' } })
+  fireEvent.change(screen.getByTestId('settings-collab-password'), { target: { value: 'secret1' } })
   await act(async () => {
-    await Promise.resolve()
+    fireEvent.click(screen.getByTestId('settings-collab-submit'))
   })
   assert.equal(screen.getByTestId('settings-collab-id').textContent, 'acc_1')
   fireEvent.change(screen.getByTestId('settings-collab-workspace'), { target: { value: 'Notes' } })
@@ -48,5 +51,6 @@ test('collab settings uses the account row chrome and can create a workspace', a
   assert.equal((screen.getByTestId('settings-collab-workspaces') as HTMLSelectElement).value, 'ws_1')
   assert.match(screen.getByTestId('settings-collab-members').textContent ?? '', /所有者/)
   assert.match(screen.getByTestId('settings-collab-presence').textContent ?? '', /Ada/)
-  assert.ok(calls.some((line) => line.startsWith('POST /api/account/bootstrap')))
+  assert.ok(calls.some((line) => line.startsWith('POST /api/account/login')))
+  assert.equal(calls.some((line) => line.includes('/bootstrap')), false)
 })

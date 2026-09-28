@@ -80,8 +80,25 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
 
   ctx.http.route('POST', '/api/account/register', async (route) => {
     try {
-      const body = (await route.json()) as { name?: string }
-      route.send(201, account.store.register(String(body.name ?? '')))
+      const body = (await route.json()) as { name?: string; password?: string }
+      const password = String(body.password ?? '')
+      if (!password.trim()) throw new CollabError('密码不能为空', 400)
+      const created = account.store.register(String(body.name ?? ''), Date.now(), password)
+      const workspaceId = account.store.enter(created.id)
+      ctx.http.broadcast('database', { ts: Date.now() })
+      route.send(201, { id: created.id, name: created.name, createdAt: created.createdAt, token: created.token, workspaceId })
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/account/login', async (route) => {
+    try {
+      const body = (await route.json()) as { name?: string; password?: string }
+      const found = account.store.login(String(body.name ?? ''), String(body.password ?? ''))
+      const workspaceId = account.store.enter(found.id)
+      ctx.http.broadcast('database', { ts: Date.now() })
+      route.send(200, { id: found.id, name: found.name, createdAt: found.createdAt, token: found.token, workspaceId })
     } catch (error) {
       fail(route, error)
     }

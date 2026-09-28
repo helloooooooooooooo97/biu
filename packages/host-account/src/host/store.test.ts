@@ -173,3 +173,18 @@ test('presence drops a heartbeat older than the stale window', () => {
   assert.equal(collab.presence(ada.id, workspace.id, 10_000).length, 1)
   assert.equal(collab.presence(ada.id, workspace.id, 10_000 + 30_001).length, 0)
 })
+
+test('login accepts the password set at register and rejects the rest', () => {
+  const collab = store()
+  const ada = collab.register('Ada', Date.now(), 'secret1')
+  const signed = collab.login('Ada', 'secret1')
+  assert.equal(signed.id, ada.id)
+  assert.equal(signed.token, ada.token)
+  const workspaceId = collab.enter(ada.id)
+  assert.equal(collab.activeWorkspaceId(), workspaceId)
+  assert.equal(collab.listWorkspaces(ada.id)[0]?.name, '我的工作区')
+  assert.equal(collab.enter(ada.id), workspaceId)
+  assert.throws(() => collab.login('Ada', 'wrong'), CollabError)
+  assert.throws(() => collab.register('Ada', Date.now(), 'secret2'), CollabError)
+  assert.throws(() => collab.register('Bob', Date.now(), '123'), CollabError)
+})
