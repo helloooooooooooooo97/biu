@@ -165,7 +165,6 @@ async function accountFetch(token: string, path: string, init?: RequestInit) {
 export function ShellSettingsCollab() {
   const [token, setToken] = useState(() => localStorage.getItem(ACCOUNT_KEY) ?? '')
   const [me, setMe] = useState<{ id: string; name: string } | null>(null)
-  const [name, setName] = useState('')
   const [workspaces, setWorkspaces] = useState<CollabWorkspace[]>([])
   const [workspaceId, setWorkspaceId] = useState('')
   const [workspaceName, setWorkspaceName] = useState('')
@@ -177,8 +176,22 @@ export function ShellSettingsCollab() {
   const remember = (next: string) => {
     setToken(next)
     if (next) localStorage.setItem(ACCOUNT_KEY, next)
-    else localStorage.removeItem(ACCOUNT_KEY)
   }
+
+  useEffect(() => {
+    if (token) return
+    let gone = false
+    void accountFetch('', '/api/account/bootstrap', { method: 'POST', body: '{}' })
+      .then((body) => {
+        if (!gone) remember(String(body.token ?? ''))
+      })
+      .catch((err) => {
+        if (!gone) setError(err instanceof Error ? err.message : '无法准备本地工作区')
+      })
+    return () => {
+      gone = true
+    }
+  }, [token])
 
   const loadWorkspace = useCallback(async (current: string, id: string) => {
     if (!current || !id) {
@@ -237,55 +250,15 @@ export function ShellSettingsCollab() {
         </p>
       </header>
       {error ? <p className="settings-account-error" data-testid="settings-collab-error">{error}</p> : null}
-      {token && me ? (
+      {me ? (
         <div className="settings-account-row">
           <div className="settings-account-copy">
             <p className="settings-account-label">{me.name}</p>
-            <p className="settings-muted settings-account-hint">把账号 id 发给对方，才能被邀请进工作区。</p>
+            <p className="settings-muted settings-account-hint">这台设备上的身份。把账号 id 发给对方，才能被邀请进别的工作区。</p>
           </div>
-          <div className="settings-account-actions">
-            <code className="settings-account-id" data-testid="settings-collab-id">{me.id}</code>
-            <button type="button" className="settings-account-action" onClick={() => remember('')}>
-              退出
-            </button>
-          </div>
+          <code className="settings-account-id" data-testid="settings-collab-id">{me.id}</code>
         </div>
-      ) : (
-        <form
-          className="settings-account-row"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void accountFetch('', '/api/account/register', {
-              method: 'POST',
-              body: JSON.stringify({ name }),
-            })
-              .then((body) => {
-                remember(String(body.token ?? ''))
-                setName('')
-              })
-              .catch((err) => setError(err instanceof Error ? err.message : '创建失败'))
-          }}
-        >
-          <div className="settings-account-copy">
-            <label className="settings-account-label" htmlFor="settings-collab-name">创建账号</label>
-            <p className="settings-muted settings-account-hint">只用一个名字。凭证留在这台设备上。</p>
-          </div>
-          <div className="settings-account-actions">
-            <input
-              id="settings-collab-name"
-              className="settings-account-input"
-              value={name}
-              maxLength={40}
-              placeholder="你的名字"
-              data-testid="settings-collab-name"
-              onChange={(event) => setName(event.target.value)}
-            />
-            <button type="submit" className="settings-account-action" data-testid="settings-collab-register">
-              创建
-            </button>
-          </div>
-        </form>
-      )}
+      ) : null}
       <form
         className="settings-account-row"
         onSubmit={(event) => {

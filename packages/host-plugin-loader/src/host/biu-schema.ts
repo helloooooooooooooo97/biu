@@ -161,9 +161,13 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     columns: ['workspace_id', 'account_id', 'collection', 'record_id', 'seen_at'],
     indexes: [],
   },
+  collab_state: {
+    columns: ['key', 'value'],
+    indexes: [],
+  },
 }
 
-export const LATEST_BIU_SCHEMA = 18
+export const LATEST_BIU_SCHEMA = 19
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -398,6 +402,10 @@ CREATE TABLE IF NOT EXISTS presence (
   record_id TEXT NOT NULL DEFAULT '',
   seen_at INTEGER NOT NULL,
   PRIMARY KEY (workspace_id, account_id)
+);
+CREATE TABLE IF NOT EXISTS collab_state (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
 );
 `
 

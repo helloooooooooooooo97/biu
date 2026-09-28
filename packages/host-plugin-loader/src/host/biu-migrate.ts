@@ -279,6 +279,14 @@ export const BIU_MIGRATIONS: Migration[] = [
       );
     `)
   } },
+  { version: 19, module: 'host-account', name: 'collab.bootstrap', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS collab_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@biu/host-plugin-loader": "0.1.0",
+    "@biu/host-workspace": "0.1.0",
     "@biu/type-http": "0.1.0"
   }
 }

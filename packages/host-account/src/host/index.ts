@@ -1,5 +1,6 @@
 import { Service, type Context } from 'cordis'
 import { dataPath, openAndMigrateBiu } from '@biu/host-plugin-loader/data-dir'
+import { readWorkspaceProfile } from '@biu/host-workspace'
 import type { RouteContext } from '@biu/type-http'
 import { CollabError, CollabStore } from './store.ts'
 
@@ -17,6 +18,8 @@ export class AccountService extends Service {
     const db = openAndMigrateBiu(config.sqlitePath ?? dataPath('biu.sqlite'))
     this.db = db
     this.store = new CollabStore(db)
+    const profile = readWorkspaceProfile()
+    this.store.bootstrapLocal({ accountName: profile.name || '我', workspaceName: '本机' })
     ctx.on('dispose', () => db.close())
   }
 }
@@ -44,6 +47,15 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     if (!found) throw new CollabError('需要登录', 401)
     return found
   }
+
+  ctx.http.route('POST', '/api/account/bootstrap', async (route) => {
+    try {
+      const profile = readWorkspaceProfile()
+      route.send(200, account.store.bootstrapLocal({ accountName: profile.name || '我', workspaceName: '本机' }))
+    } catch (error) {
+      fail(route, error)
+    }
+  })
 
   ctx.http.route('POST', '/api/account/register', async (route) => {
     try {

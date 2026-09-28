@@ -58,6 +58,45 @@ function id(prefix: string) {
 export class CollabStore {
   constructor(private db: DatabaseSync) {}
 
+  bootstrapLocal(input: { accountName?: string; workspaceName?: string; now?: number } = {}) {
+    const now = input.now ?? Date.now()
+    const done = this.db.prepare(`SELECT value FROM collab_state WHERE key = 'bootstrapped'`).get() as
+      | { value: string }
+      | undefined
+    if (done) return { ...this.localSession(), imported: 0, bootstrapped: true }
+    const existing = this.db.prepare('SELECT id FROM workspaces ORDER BY created_at LIMIT 1').get() as
+      | { id: string }
+      | undefined
+    if (existing) {
+      this.markBootstrapped()
+      return { ...this.localSession(), imported: 0, bootstrapped: true }
+    }
+    const accountName = (input.accountName ?? '').trim() || '我'
+    const workspaceName = (input.workspaceName ?? '').trim() || '本机'
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      const account = this.register(accountName, now)
+      const workspace = this.createWorkspace(account.id, workspaceName, now, false)
+      const imported = this.importLiveRecords(workspace.id, account.id, now)
+      this.markBootstrapped()
+      this.db.exec('COMMIT')
+      return {
+        account: { id: account.id, name: account.name, createdAt: account.createdAt },
+        token: account.token,
+        workspace,
+        imported,
+        bootstrapped: false,
+      }
+    } catch (error) {
+      try {
+        this.db.exec('ROLLBACK')
+      } catch {
+        /* ignore */
+      }
+      throw error
+    }
+  }
+
   register(name: string, now = Date.now()): Account & { token: string } {
     const trimmed = name.trim()
     if (!trimmed) throw new CollabError('名字不能为空', 400)
@@ -76,13 +115,12 @@ export class CollabStore {
     return { id: row.id, name: row.name, createdAt: row.created_at }
   }
 
-  createWorkspace(ownerId: string, name: string, now = Date.now()): Workspace {
+  createWorkspace(ownerId: string, name: string, now = Date.now(), ownTransaction = true): Workspace {
     this.requireAccount(ownerId)
     const trimmed = name.trim()
     if (!trimmed) throw new CollabError('工作区名字不能为空', 400)
     const workspace = { id: id('ws'), name: trimmed, ownerId, createdAt: now }
-    this.db.exec('BEGIN IMMEDIATE')
-    try {
+    const write = () => {
       this.db
         .prepare('INSERT INTO workspaces (id, name, owner_id, created_at) VALUES (?, ?, ?, ?)')
         .run(workspace.id, workspace.name, ownerId, now)
@@ -91,6 +129,14 @@ export class CollabStore {
           'INSERT INTO workspace_members (workspace_id, account_id, role, created_at) VALUES (?, ?, ?, ?)',
         )
         .run(workspace.id, ownerId, 'owner', now)
+    }
+    if (!ownTransaction) {
+      write()
+      return { ...workspace, role: 'owner' }
+    }
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      write()
       this.db.exec('COMMIT')
     } catch (error) {
       this.db.exec('ROLLBACK')
@@ -386,6 +432,77 @@ export class CollabStore {
       recordId: row.record_id,
       seenAt: row.seen_at,
     }))
+  }
+
+  private markBootstrapped() {
+    this.db
+      .prepare(`INSERT INTO collab_state (key, value) VALUES ('bootstrapped', '1') ON CONFLICT(key) DO UPDATE SET value = '1'`)
+      .run()
+  }
+
+  private localSession() {
+    const row = this.db
+      .prepare(
+        `SELECT a.id, a.name, a.token, a.created_at, w.id AS workspace_id, w.name AS workspace_name, w.owner_id, w.created_at AS workspace_created
+         FROM workspaces w
+         JOIN accounts a ON a.id = w.owner_id
+         ORDER BY w.created_at
+         LIMIT 1`,
+      )
+      .get() as
+      | {
+          id: string
+          name: string
+          token: string
+          created_at: number
+          workspace_id: string
+          workspace_name: string
+          owner_id: string
+          workspace_created: number
+        }
+      | undefined
+    if (!row) throw new CollabError('还没有本地工作区', 404)
+    return {
+      account: { id: row.id, name: row.name, createdAt: row.created_at },
+      token: row.token,
+      workspace: {
+        id: row.workspace_id,
+        name: row.workspace_name,
+        ownerId: row.owner_id,
+        role: 'owner',
+        createdAt: row.workspace_created,
+      },
+    }
+  }
+
+  private importLiveRecords(workspaceId: string, ownerId: string, now: number) {
+    const inserted = this.db
+      .prepare(
+        `INSERT INTO record_owners (workspace_id, collection, record_id, owner_id, version, updated_at)
+         SELECT ?, live.collection, live.record_id, ?, 0, ?
+         FROM (
+           SELECT '/pages' AS collection, id AS record_id FROM pages
+           UNION
+           SELECT '/tasks', id FROM tasks
+           UNION
+           SELECT '/sessions', id FROM sessions
+           UNION
+           SELECT collection, record_id FROM editor_content
+           WHERE collection IN ('/skills', '/plugins')
+           UNION
+           SELECT collection, record_id FROM record_meta
+           WHERE collection IN ('/pages', '/tasks', '/sessions', '/skills', '/plugins')
+         ) AS live
+         WHERE NOT EXISTS (
+           SELECT 1 FROM record_meta AS meta
+           WHERE meta.collection = live.collection
+             AND meta.record_id = live.record_id
+             AND meta.deleted_at IS NOT NULL
+             AND meta.deleted_at > 0
+         )`,
+      )
+      .run(workspaceId, ownerId, now)
+    return Number(inserted.changes)
   }
 
   private requireAccount(accountId: string) {

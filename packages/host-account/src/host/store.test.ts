@@ -108,6 +108,61 @@ test('sync bumps version and rejects a stale writer while a lock is held', () =>
   assert.equal(ops[0]?.value, 'two')
 })
 
+test('bootstrap claims live records once and skips trash', () => {
+  const collab = store()
+  const db = (collab as unknown as { db: import('node:sqlite').DatabaseSync }).db
+  db.prepare(`INSERT INTO pages (id, title, created_at, updated_at) VALUES ('p1', 'Home', 1, 1)`).run()
+  db.prepare(`INSERT INTO tasks (id, title, created_at, updated_at) VALUES ('t1', 'Do', 1, 1), ('t2', 'Gone', 1, 1)`).run()
+  db.prepare(`INSERT INTO sessions (id, version, title, updated_at) VALUES ('s1', 1, 'Chat', 1)`).run()
+  db.prepare(
+    `INSERT INTO editor_content (collection, record_id, body, updated_at, version) VALUES ('/skills', 'sk1', '#', 1, 1)`,
+  ).run()
+  db.prepare(
+    `INSERT INTO record_meta (collection, record_id, deleted_at) VALUES ('/tasks', 't2', 9), ('/skills', 'old', 9)`,
+  ).run()
+  const first = collab.bootstrapLocal({ accountName: 'Ada', workspaceName: '本机', now: 20 })
+  assert.equal(first.bootstrapped, false)
+  assert.equal(first.account.name, 'Ada')
+  assert.equal(first.workspace.name, '本机')
+  assert.equal(first.imported, 4)
+  const heads = (
+    db.prepare('SELECT collection, record_id, version FROM record_owners ORDER BY collection, record_id').all() as Array<{
+      collection: string
+      record_id: string
+      version: number
+    }>
+  ).map((row) => ({ collection: row.collection, record_id: row.record_id, version: row.version }))
+  assert.deepEqual(heads, [
+    { collection: '/pages', record_id: 'p1', version: 0 },
+    { collection: '/sessions', record_id: 's1', version: 0 },
+    { collection: '/skills', record_id: 'sk1', version: 0 },
+    { collection: '/tasks', record_id: 't1', version: 0 },
+  ])
+  const again = collab.bootstrapLocal({ accountName: '其他', now: 30 })
+  assert.equal(again.bootstrapped, true)
+  assert.equal(again.account.id, first.account.id)
+  assert.equal(again.imported, 0)
+  db.prepare(`INSERT INTO pages (id, title, created_at, updated_at) VALUES ('p2', 'Later', 1, 1)`).run()
+  collab.bootstrapLocal()
+  const pages = db.prepare(`SELECT record_id FROM record_owners WHERE collection = '/pages' ORDER BY record_id`).all() as Array<{
+    record_id: string
+  }>
+  assert.deepEqual(pages.map((row) => row.record_id), ['p1'])
+})
+
+test('an existing workspace is not filled with local records', () => {
+  const collab = store()
+  const ada = collab.register('Ada')
+  collab.createWorkspace(ada.id, '已有')
+  const db = (collab as unknown as { db: import('node:sqlite').DatabaseSync }).db
+  db.prepare(`INSERT INTO pages (id, title, created_at, updated_at) VALUES ('p1', 'Home', 1, 1)`).run()
+  const result = collab.bootstrapLocal({ accountName: '我' })
+  assert.equal(result.workspace.name, '已有')
+  assert.equal(result.imported, 0)
+  const count = db.prepare('SELECT COUNT(*) AS n FROM record_owners').get() as { n: number }
+  assert.equal(Number(count.n), 0)
+})
+
 test('presence drops a heartbeat older than the stale window', () => {
   const collab = store()
   const ada = collab.register('Ada')
