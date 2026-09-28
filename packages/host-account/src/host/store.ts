@@ -221,11 +221,19 @@ export class CollabStore {
     return this.members(actorId, workspaceId)
   }
 
+  addMemberByEmail(actorId: string, workspaceId: string, email: string, now = Date.now()) {
+    const normalized = email.trim().toLowerCase()
+    if (!normalized) throw new CollabError('邮箱不能为空', 400)
+    const row = this.db.prepare('SELECT id FROM accounts WHERE email = ?').get(normalized) as { id: string } | undefined
+    if (!row) throw new CollabError('没有这个邮箱，对方需要先注册', 404)
+    return this.addMember(actorId, workspaceId, row.id, now)
+  }
+
   members(actorId: string, workspaceId: string) {
     this.requireMember(actorId, workspaceId)
     return this.db
       .prepare(
-        `SELECT a.id, COALESCE(NULLIF(m.display_name, ''), '未设置') AS name, a.email AS login_name, m.role, m.created_at
+        `SELECT a.id, COALESCE(NULLIF(m.display_name, ''), '未设置') AS name, COALESCE(a.email, '') AS email, m.role, m.created_at
          FROM workspace_members m
          JOIN accounts a ON a.id = m.account_id
          WHERE m.workspace_id = ?

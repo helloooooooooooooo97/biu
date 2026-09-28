@@ -20,15 +20,16 @@ function store() {
   return new CollabStore(db)
 }
 
-test('owner can add a member and a stranger cannot sync', () => {
+test('owner can add a member by email and a stranger cannot sync', () => {
   const collab = store()
-  const ada = collab.register('Ada')
-  const bob = collab.register('Bob')
-  const cara = collab.register('Cara')
+  const ada = collab.register('', Date.now(), 'secret1', 'ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'bob@example.com')
+  const cara = collab.register('', Date.now(), 'secret1', 'cara@example.com')
   const workspace = collab.createWorkspace(ada.id, 'Notes')
-  collab.addMember(ada.id, workspace.id, bob.id)
+  collab.addMemberByEmail(ada.id, workspace.id, 'Bob@Example.com')
   assert.equal(collab.listWorkspaces(bob.id)[0]?.role, 'member')
-  assert.throws(() => collab.addMember(bob.id, workspace.id, cara.id), CollabError)
+  assert.throws(() => collab.addMemberByEmail(bob.id, workspace.id, 'cara@example.com'), CollabError)
+  assert.throws(() => collab.addMemberByEmail(ada.id, workspace.id, 'missing@example.com'), /先注册/)
   assert.throws(
     () =>
       collab.sync({

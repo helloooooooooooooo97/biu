@@ -169,8 +169,11 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   ctx.http.route('POST', '/api/account/workspaces/:id/members', async (route) => {
     try {
       const me = actor(route)
-      const body = (await route.json()) as { accountId?: string }
-      const members = account.store.addMember(me.id, route.params.id!, String(body.accountId ?? ''))
+      const body = (await route.json()) as { accountId?: string; email?: string }
+      const email = String(body.email ?? '').trim()
+      const members = email
+        ? account.store.addMemberByEmail(me.id, route.params.id!, email)
+        : account.store.addMember(me.id, route.params.id!, String(body.accountId ?? ''))
       route.send(200, { members })
     } catch (error) {
       fail(route, error)

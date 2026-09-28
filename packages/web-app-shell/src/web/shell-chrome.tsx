@@ -261,7 +261,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 }
 
 type CollabWorkspace = { id: string; name: string; role: string }
-type CollabMember = { id: string; name: string; role: string }
+type CollabMember = { id: string; name: string; email?: string; role: string }
 type CollabPresence = { accountId: string; name: string; collection: string; recordId: string }
 
 async function accountFetch(token: string, path: string, init?: RequestInit) {
@@ -446,7 +446,7 @@ export function ShellSettingsCollab() {
           <p className="settings-account-label">成员</p>
           <ul className="settings-account-people" data-testid="settings-collab-members">
             {members.length ? members.map((row) => (
-              <li key={row.id}>{row.name} · {row.role === 'owner' ? '所有者' : '成员'}</li>
+              <li key={row.id}>{row.name}{row.email ? ` · ${row.email}` : ''} · {row.role === 'owner' ? '所有者' : '成员'}</li>
             )) : <li className="settings-muted">邀请后会出现在这里。</li>}
           </ul>
         </div>
@@ -458,7 +458,7 @@ export function ShellSettingsCollab() {
           if (!token || !workspaceId) return
           void accountFetch(token, `/api/account/workspaces/${workspaceId}/members`, {
             method: 'POST',
-            body: JSON.stringify({ accountId: inviteId.trim() }),
+            body: JSON.stringify({ email: inviteId.trim() }),
           })
             .then((body) => {
               setMembers(((body as { members?: CollabMember[] }).members) ?? [])
@@ -470,14 +470,15 @@ export function ShellSettingsCollab() {
       >
         <div className="settings-account-copy">
           <label className="settings-account-label" htmlFor="settings-collab-invite">邀请</label>
-          <p className="settings-muted settings-account-hint">填对方的账号 id。只有所有者可以邀请。</p>
+          <p className="settings-muted settings-account-hint">填对方的登录邮箱。对方要先注册。只有所有者可以邀请。</p>
         </div>
         <div className="settings-account-actions">
           <input
             id="settings-collab-invite"
             className="settings-account-input"
             value={inviteId}
-            placeholder="acc_…"
+            placeholder="对方的登录邮箱"
+            type="email"
             data-testid="settings-collab-invite"
             onChange={(event) => setInviteId(event.target.value)}
           />
