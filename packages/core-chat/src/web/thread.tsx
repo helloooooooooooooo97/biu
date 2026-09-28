@@ -789,6 +789,10 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLElement | null>(null)
   const stickToBottomRef = useRef(true)
+  const followedUserRef = useRef('')
+  const ignoreNextScrollRef = useRef(false)
+  const skipNextLayoutPinRef = useRef(false)
+  const skipNextResizePinRef = useRef(false)
   const sessionIdRef = useRef(sessionId)
   sessionIdRef.current = sessionId
   const restoredForRef = useRef<string | null>(null)
@@ -860,6 +864,10 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
     prependHeightRef.current = 0
     holdOlderRef.current = mem?.kind === 'pin'
     maxScrollRef.current = 0
+    followedUserRef.current = ''
+    ignoreNextScrollRef.current = false
+    skipNextLayoutPinRef.current = false
+    skipNextResizePinRef.current = false
   }, [sessionId])
 
   useEffect(() => {
@@ -870,9 +878,20 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
     }
   }, [])
 
+  const latestUserId = [...mountedNodes].reverse().find((node) => node.kind === 'user')?.id ?? ''
+
   useLayoutEffect(() => {
-    if (pending) stickToBottomRef.current = true
-  }, [pending])
+    if (!pending || !latestUserId || followedUserRef.current === latestUserId) return
+    const parent = scrollRef.current
+    stickToBottomRef.current = true
+    followedUserRef.current = latestUserId
+    if (parent) {
+      ignoreNextScrollRef.current = true
+      skipNextLayoutPinRef.current = true
+      skipNextResizePinRef.current = true
+      restoreChatScroll(parent, { kind: 'pin', nodeId: latestUserId })
+    }
+  }, [pending, latestUserId, scrollEpoch])
 
   useEffect(() => {
     const parent = scrollRef.current
@@ -908,6 +927,12 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
       })
     }
     const onScroll = () => {
+      if (ignoreNextScrollRef.current) {
+        ignoreNextScrollRef.current = false
+        lastTop = parent.scrollTop
+        maybePrefetchOlder()
+        return
+      }
       applyStick(parent.scrollTop < lastTop - 0.5)
       lastTop = parent.scrollTop
       maybePrefetchOlder()
@@ -915,6 +940,15 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
     const onWheel = (event: WheelEvent) => {
       // 滚轮先于 scroll；必须立刻松钉，否则 ResizeObserver / 贴底 layout 会把位移拽回去。
       if (event.deltaY < 0) stickToBottomRef.current = false
+    }
+    let lastTouchY = 0
+    const onTouchStart = (event: TouchEvent) => {
+      lastTouchY = event.touches[0]?.clientY ?? 0
+    }
+    const onTouchMove = (event: TouchEvent) => {
+      const nextY = event.touches[0]?.clientY ?? lastTouchY
+      if (nextY > lastTouchY + 0.5) stickToBottomRef.current = false
+      lastTouchY = nextY
     }
     const onUserScroll = () => {
       onScroll()
@@ -928,9 +962,13 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
     onScroll()
     parent.addEventListener('scroll', onUserScroll, { passive: true })
     parent.addEventListener('wheel', onWheel, { passive: true })
+    parent.addEventListener('touchstart', onTouchStart, { passive: true })
+    parent.addEventListener('touchmove', onTouchMove, { passive: true })
     return () => {
       parent.removeEventListener('scroll', onUserScroll)
       parent.removeEventListener('wheel', onWheel)
+      parent.removeEventListener('touchstart', onTouchStart)
+      parent.removeEventListener('touchmove', onTouchMove)
     }
   }, [sessionId, scrollEpoch, hasMoreOlder, loadingOlder, sessionView])
 
@@ -940,6 +978,10 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
     if (!root || !parent) return
     const pin = () => {
       if (!stickToBottomRef.current) return
+      if (skipNextResizePinRef.current) {
+        skipNextResizePinRef.current = false
+        return
+      }
       pinChatToLatest(parent)
     }
     const ro = new ResizeObserver(pin)
@@ -992,7 +1034,11 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
     }
     if (sessionId) restoredForRef.current = sessionId
     if (stickToBottomRef.current) {
-      if (mountedNodes.length > 0) pinChatToLatest(parent)
+      if (skipNextLayoutPinRef.current) {
+        skipNextLayoutPinRef.current = false
+      } else if (mountedNodes.length > 0) {
+        pinChatToLatest(parent)
+      }
     } else if (prependHeightRef.current) {
       const delta = parent.scrollHeight - prependHeightRef.current
       // 钉在顶上看更早内容时不要把 scrollTop 往下拽，否则会和上滑抢位置、抖死。
