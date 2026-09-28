@@ -57,7 +57,6 @@ test('workspace member directory is readable by members but managed by owners', 
   }
   assert.equal(auth.authorize(actor(bob.id), 'resource:read', member).allowed, true)
   assert.equal(auth.authorize(actor(bob.id), 'resource:update', member).allowed, false)
-  assert.equal(auth.authorize(actor(ada.id), 'resource:update', member).allowed, true)
   assert.equal(auth.authorize(actor(ada.id), 'resource:delete', member).allowed, true)
 })
 

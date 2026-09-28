@@ -205,6 +205,16 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     }
   })
 
+  ctx.http.route('DELETE', '/api/account/workspaces/:id/members/:accountId', async (route) => {
+    try {
+      const me = actor(route)
+      account.store.removeMember(me.id, route.params.id!, route.params.accountId!)
+      route.send(200, { members: account.store.members(me.id, route.params.id!) })
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
   ctx.http.route('GET', '/api/account/workspaces/:id/groups', async (route) => {
     try {
       const me = actor(route)

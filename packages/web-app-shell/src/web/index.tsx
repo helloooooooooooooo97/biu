@@ -861,7 +861,7 @@ function Shell(props: SlotProps) {
                 <ul className="settings-rail-list">
                   {[
                     { key: 'account', label: '账户', Icon: UserCircleIcon },
-                    { key: 'collab', label: '协同', Icon: UserGroupIcon },
+                    { key: 'collab', label: '工作区', Icon: UserGroupIcon },
                     { key: 'appearance', label: '外观', Icon: SwatchIcon },
                     { key: 'plugins', label: '插件', Icon: PuzzlePieceIcon },
                     { key: 'mcp', label: 'MCP', Icon: LinkIcon },

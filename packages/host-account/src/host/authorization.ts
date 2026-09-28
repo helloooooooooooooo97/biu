@@ -114,9 +114,7 @@ export class AuthorizationService {
     if (!membership) return { allowed: false, reason: 'NOT_A_MEMBER' }
 
     if (resource.type === 'workspace') {
-      const allowed =
-        membership === 'owner' ||
-        (membership === 'admin' && action !== 'workspace:delete')
+      const allowed = membership === 'owner'
       return allowed
         ? { allowed: true, effectiveRole: membership === 'owner' ? 'owner' : 'manager', source: 'workspace-default' }
         : { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
@@ -124,8 +122,7 @@ export class AuthorizationService {
 
     if (resource.type === 'collection') {
       if (resource.collection === '/workspace-members') {
-        const effectiveRole: ResourceRole =
-          membership === 'owner' ? 'owner' : membership === 'admin' ? 'manager' : 'viewer'
+        const effectiveRole: ResourceRole = membership === 'owner' ? 'owner' : 'viewer'
         return ROLE_RANK[effectiveRole] >= ROLE_RANK[requiredRole(action)]
           ? { allowed: true, effectiveRole, source: 'workspace-default' }
           : { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
@@ -134,19 +131,18 @@ export class AuthorizationService {
         action === 'resource:share' ||
         action === 'resource:manage-permissions' ||
         action === 'resource:delete'
-      if (managing && membership !== 'owner' && membership !== 'admin') {
+      if (managing && membership !== 'owner') {
         return { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
       }
       return {
         allowed: true,
-        effectiveRole: membership === 'owner' || membership === 'admin' ? 'manager' : 'editor',
+        effectiveRole: membership === 'owner' ? 'manager' : 'editor',
         source: 'workspace-default',
       }
     }
 
     if (resource.collection === '/workspace-members') {
-      const effectiveRole: ResourceRole =
-        membership === 'owner' ? 'owner' : membership === 'admin' ? 'manager' : 'viewer'
+      const effectiveRole: ResourceRole = membership === 'owner' ? 'owner' : 'viewer'
       return ROLE_RANK[effectiveRole] >= ROLE_RANK[requiredRole(action)]
         ? { allowed: true, effectiveRole, source: 'workspace-default' }
         : { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }

@@ -60,11 +60,11 @@ export function workspaceMembersCollection(store: CollabStore): CollectionSpec {
       title: '空间成员',
       inspector: false,
       blurb:
-        '当前工作区成员目录。db_list /workspace-members 查看全部成员；Owner 可用 db_create 写 {email} 邀请已注册邮箱，用 db_update 修改 role=admin|member，用 db_delete 移除成员。不能修改或移除 Owner。',
+        '当前工作区成员目录。db_list /workspace-members 查看全部成员；Owner 可用 db_create 写 {email} 邀请已注册邮箱，用 db_delete 移除成员。角色只有 owner/member，且不能修改或移除 Owner。',
       order: 18,
       icon: 'users',
     },
-    records: { update: true, create: true, delete: true },
+    records: { update: false, create: true, delete: true },
     schema: {
       labelField: 'title',
       columns: ['title', 'email', 'role', 'joinedAt'],
@@ -73,7 +73,7 @@ export function workspaceMembersCollection(store: CollabStore): CollectionSpec {
         title: { type: 'string', label: '账号名' },
         name: { type: 'string', label: '空间账号名' },
         email: { type: 'string', label: '登录邮箱', writable: true },
-        role: { type: 'select', label: '角色', enum: ['owner', 'admin', 'member'], writable: true },
+        role: { type: 'select', label: '角色', enum: ['owner', 'member'] },
         joinedAt: { type: 'datetime', label: '加入时间', sortable: true },
       },
     },
@@ -111,12 +111,6 @@ export function workspaceMembersCollection(store: CollabStore): CollectionSpec {
         created.push(asRecord(member))
       }
       return created
-    },
-    update: async (id, patch) => {
-      const { actorId, workspaceId } = identity()
-      const role = String(patch.role ?? '')
-      if (role !== 'admin' && role !== 'member') throw new Error('role must be admin or member')
-      return asRecord(store.updateMemberRole(actorId, workspaceId, id, role))
     },
     remove: async (query) => {
       const { actorId, workspaceId } = identity()

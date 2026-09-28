@@ -59,11 +59,19 @@ async function readAvatarFile(file: File) {
 export function ShellSettingsAccount() {
   const profile = useWorkspaceProfile()
   const [name, setName] = useState(profile.name)
+  const [email, setEmail] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setName(profile.name)
   }, [profile.name])
+  useEffect(() => {
+    const token = localStorage.getItem(ACCOUNT_KEY) ?? ''
+    if (!token) return
+    void accountFetch(token, '/api/account/me')
+      .then((body) => setEmail(String(body.email ?? '')))
+      .catch(() => setEmail(''))
+  }, [])
 
   const initial = (profile.name.trim() || '用户').slice(0, 1)
 
@@ -150,8 +158,10 @@ export function ShellSettingsAccount() {
       </div>
       <div className="settings-account-row">
         <div className="settings-account-copy">
-          <p className="settings-account-label">登录</p>
-          <p className="settings-muted settings-account-hint">退出后回到登录页。密码不会跟着工作区变。</p>
+          <p className="settings-account-label">登录账号</p>
+          <p className="settings-muted settings-account-hint">
+            {email || '登录邮箱'} · 邮箱和密码跨工作区保持一致。
+          </p>
         </div>
         <button
           type="button"
@@ -315,7 +325,6 @@ async function accountFetch(token: string, path: string, init?: RequestInit) {
 
 export function ShellSettingsCollab() {
   const [token, setToken] = useState(() => localStorage.getItem(ACCOUNT_KEY) ?? '')
-  const [me, setMe] = useState<{ id: string; name: string } | null>(null)
   const [workspaces, setWorkspaces] = useState<CollabWorkspace[]>([])
   const [workspaceId, setWorkspaceId] = useState('')
   const [workspaceName, setWorkspaceName] = useState('')
@@ -357,18 +366,15 @@ export function ShellSettingsCollab() {
 
   useEffect(() => {
     if (!token) {
-      setMe(null)
       setWorkspaces([])
       return
     }
     let gone = false
     void (async () => {
       try {
-        const profile = (await accountFetch(token, '/api/account/me')) as { id?: string; name?: string }
         const listed = (await accountFetch(token, '/api/account/workspaces')) as { workspaces?: CollabWorkspace[] }
         const active = (await accountFetch(token, '/api/account/active')) as { workspaceId?: string }
         if (gone) return
-        setMe({ id: String(profile.id ?? ''), name: String(profile.name ?? '') })
         const rows = listed.workspaces ?? []
         setWorkspaces(rows)
         setWorkspaceId(String(active.workspaceId || rows[0]?.id || ''))
@@ -391,39 +397,17 @@ export function ShellSettingsCollab() {
     })
   }, [token, workspaceId, loadWorkspace])
 
+  const canManage = workspaces.find((row) => row.id === workspaceId)?.role === 'owner'
+
   return (
     <section className="settings-account" data-testid="settings-collab">
       <header className="settings-account-head">
-        <h3 className="settings-account-title">协同</h3>
+        <h3 className="settings-account-title">工作区与成员</h3>
         <p className="settings-muted settings-account-lead">
-          同一个工作区里的人可以认领记录、按版本同步，并看到谁正在哪条记录上。
+          在这里切换空间、邀请成员和维护成员组。个人头像、昵称与登录信息统一放在“账户”。
         </p>
       </header>
       {error ? <p className="settings-account-error" data-testid="settings-collab-error">{error}</p> : null}
-      {me ? (
-        <div className="settings-account-row">
-          <div className="settings-account-copy">
-            <p className="settings-account-label">{me.name}</p>
-            <p className="settings-muted settings-account-hint">登录邮箱在每个工作区都一样。把账号 id 发给对方，才能被邀请进别的工作区。</p>
-          </div>
-          <code className="settings-account-id" data-testid="settings-collab-id">{me.id}</code>
-          <button
-            type="button"
-            className="settings-account-action"
-            data-testid="settings-collab-logout"
-            onClick={() => {
-              remember('')
-              setMe(null)
-              setWorkspaces([])
-              setWorkspaceId('')
-              setMembers([])
-              setPresence([])
-            }}
-          >
-            退出
-          </button>
-        </div>
-      ) : null}
       <form
         className="settings-account-row"
         onSubmit={(event) => {
@@ -491,6 +475,70 @@ export function ShellSettingsCollab() {
         className="settings-account-row"
         onSubmit={(event) => {
           event.preventDefault()
+          if (!token || !workspaceId || !inviteId.trim()) return
+          void accountFetch(token, `/api/account/workspaces/${workspaceId}/members`, {
+            method: 'POST',
+            body: JSON.stringify({ email: inviteId.trim() }),
+          })
+            .then((body) => {
+              setMembers(((body as { members?: CollabMember[] }).members) ?? [])
+              setInviteId('')
+              setError('')
+            })
+            .catch((err) => setError(err instanceof Error ? err.message : '邀请失败'))
+        }}
+      >
+        <div className="settings-account-copy">
+          <label className="settings-account-label" htmlFor="settings-collab-invite">空间成员</label>
+          <p className="settings-muted settings-account-hint">
+            角色只有所有者和成员。{canManage ? '你可以邀请或移除成员。' : '只有所有者可以管理成员。'}
+          </p>
+          <ul className="settings-account-people" data-testid="settings-collab-members">
+            {members.length ? members.map((row) => (
+              <li key={row.id}>
+                {row.name}{row.email ? ` · ${row.email}` : ''} · {row.role === 'owner' ? '所有者' : '成员'}
+                {canManage && row.role !== 'owner' ? (
+                  <button
+                    type="button"
+                    className="settings-account-clear"
+                    onClick={() => {
+                      if (!window.confirm(`确定将 ${row.name || row.email || '该成员'} 移出工作区？`)) return
+                      void accountFetch(token, `/api/account/workspaces/${workspaceId}/members/${row.id}`, {
+                        method: 'DELETE',
+                      })
+                        .then((body) => {
+                          setMembers(((body as { members?: CollabMember[] }).members) ?? [])
+                          setError('')
+                        })
+                        .catch((err) => setError(err instanceof Error ? err.message : '移除成员失败'))
+                    }}
+                  >
+                    移除
+                  </button>
+                ) : null}
+              </li>
+            )) : <li className="settings-muted">当前空间还没有其他成员。</li>}
+          </ul>
+        </div>
+        {canManage ? <div className="settings-account-actions">
+          <input
+            id="settings-collab-invite"
+            className="settings-account-input"
+            value={inviteId}
+            placeholder="成员的登录邮箱"
+            type="email"
+            data-testid="settings-collab-invite"
+            onChange={(event) => setInviteId(event.target.value)}
+          />
+          <button type="submit" className="settings-account-action" disabled={!token || !workspaceId || !inviteId.trim()}>
+            邀请
+          </button>
+        </div> : null}
+      </form>
+      <form
+        className="settings-account-row"
+        onSubmit={(event) => {
+          event.preventDefault()
           if (!token || !workspaceId || !groupName.trim()) return
           void accountFetch(token, `/api/account/workspaces/${workspaceId}/groups`, {
             method: 'POST',
@@ -515,7 +563,7 @@ export function ShellSettingsCollab() {
               : <li className="settings-muted">还没有成员组。</li>}
           </ul>
         </div>
-        <div className="settings-account-actions">
+        {canManage ? <div className="settings-account-actions">
           <input
             id="settings-collab-group"
             className="settings-account-input"
@@ -528,9 +576,9 @@ export function ShellSettingsCollab() {
           <button type="submit" className="settings-account-action" disabled={!token || !workspaceId}>
             新建组
           </button>
-        </div>
+        </div> : null}
       </form>
-      <form
+      {canManage && groups.length ? <form
         className="settings-account-row"
         onSubmit={(event) => {
           event.preventDefault()
@@ -569,53 +617,7 @@ export function ShellSettingsCollab() {
           />
           <button type="submit" className="settings-account-action" disabled={!groupId}>添加</button>
         </div>
-      </form>
-      <div className="settings-account-row">
-        <div className="settings-account-copy">
-          <p className="settings-account-label">成员</p>
-          <ul className="settings-account-people" data-testid="settings-collab-members">
-            {members.length ? members.map((row) => (
-              <li key={row.id}>{row.name}{row.email ? ` · ${row.email}` : ''} · {row.role === 'owner' ? '所有者' : '成员'}</li>
-            )) : <li className="settings-muted">邀请后会出现在这里。</li>}
-          </ul>
-        </div>
-      </div>
-      <form
-        className="settings-account-row"
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (!token || !workspaceId) return
-          void accountFetch(token, `/api/account/workspaces/${workspaceId}/members`, {
-            method: 'POST',
-            body: JSON.stringify({ email: inviteId.trim() }),
-          })
-            .then((body) => {
-              setMembers(((body as { members?: CollabMember[] }).members) ?? [])
-              setInviteId('')
-              setError('')
-            })
-            .catch((err) => setError(err instanceof Error ? err.message : '邀请失败'))
-        }}
-      >
-        <div className="settings-account-copy">
-          <label className="settings-account-label" htmlFor="settings-collab-invite">邀请</label>
-          <p className="settings-muted settings-account-hint">填对方的登录邮箱。对方要先注册。只有所有者可以邀请。</p>
-        </div>
-        <div className="settings-account-actions">
-          <input
-            id="settings-collab-invite"
-            className="settings-account-input"
-            value={inviteId}
-            placeholder="对方的登录邮箱"
-            type="email"
-            data-testid="settings-collab-invite"
-            onChange={(event) => setInviteId(event.target.value)}
-          />
-          <button type="submit" className="settings-account-action" disabled={!token || !workspaceId}>
-            邀请
-          </button>
-        </div>
-      </form>
+      </form> : null}
       <div className="settings-account-row">
         <div className="settings-account-copy">
           <p className="settings-account-label">正在看</p>

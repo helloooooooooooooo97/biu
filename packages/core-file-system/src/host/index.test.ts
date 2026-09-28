@@ -15,6 +15,7 @@ import { trashCollection } from './trash-collection.ts'
 import { runWithSession } from '@biu/host-sessions/scope'
 import { openAndMigrateBiu, runWithAccount } from '@biu/host-plugin-loader/data-dir'
 import { CollabStore } from '@biu/host-account/store'
+import { workspaceMembersCollection } from '@biu/host-account/workspace-members-collection'
 import { builtinAllViewId } from '../catalog-views.ts'
 import { savedViewRecordPath } from '../paths.ts'
 
@@ -1733,4 +1734,31 @@ test('file-system CRUD uses the unified account authorization decision', async (
     () => runWithAccount(bob.id, () => db.requireAsset('private.png', 'resource:update')),
     /permission denied/,
   )
+})
+
+test('workspace member tags use file-system metadata instead of role updates', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const dir = mkdtempSync(join(tmpdir(), 'biu-member-tags-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  db.register(workspaceMembersCollection(collab))
+  const ada = collab.register('', Date.now(), 'secret1', 'ada-tags@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'bob-tags@example.com')
+  const workspace = collab.createWorkspace(ada.id, 'Tags')
+  collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+  collab.setActive(ada.id, workspace.id)
+
+  const updated = await runWithAccount(ada.id, () =>
+    db.update(`/workspace-members/${bob.id}`, { tags: ['213'] }),
+  )
+  assert.deepEqual(updated.value.tags, ['213'])
+  assert.equal(collab.members(ada.id, workspace.id).find((row) => row.id === bob.id)?.role, 'member')
 })

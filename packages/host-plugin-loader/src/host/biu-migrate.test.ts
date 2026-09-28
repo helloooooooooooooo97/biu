@@ -44,9 +44,25 @@ test('empty database fast path matches upgraded v1 fixture', () => {
 test('BIU_MIGRATIONS versions are unique and increasing', () => {
   assertBiuMigrationLog()
   assert.equal(BIU_MIGRATIONS.at(-1)?.version, LATEST_BIU_SCHEMA)
-  assert.equal(BIU_MIGRATIONS.at(-1)?.name, 'account.authorization-model')
+  assert.equal(BIU_MIGRATIONS.at(-1)?.name, 'account.member-roles')
   assert.throws(() => assertBiuMigrationLog([{ version: 2 }, { version: 2 }]), /重复/)
   assert.throws(() => assertBiuMigrationLog([{ version: 3 }, { version: 1 }]), /单调递增/)
+})
+
+test('member role migration keeps only owner and member', () => {
+  const db = openSqlite(':memory:')
+  migrateBiu(db, {}, 25)
+  db.exec(`
+    INSERT INTO accounts (id, name, token, password_hash, created_at, email)
+    VALUES ('a1', 'A', 't1', 'p1', 1, 'a@example.com');
+    INSERT INTO workspaces (id, name, owner_id, created_at) VALUES ('w1', 'W', 'a1', 1);
+    INSERT INTO workspace_members (workspace_id, account_id, role, created_at)
+    VALUES ('w1', 'a1', 'admin', 1);
+  `)
+  migrateBiu(db)
+  const row = db.prepare(`SELECT role FROM workspace_members WHERE workspace_id = 'w1'`).get() as { role: string }
+  assert.equal(row.role, 'member')
+  db.close()
 })
 
 test('snapshotBefore writes a pre-migration copy', () => {

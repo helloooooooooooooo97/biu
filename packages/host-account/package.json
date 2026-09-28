@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/host/index.ts",
     "./store": "./src/host/store.ts",
-    "./authorization": "./src/host/authorization.ts"
+    "./authorization": "./src/host/authorization.ts",
+    "./workspace-members-collection": "./src/host/workspace-members-collection.ts"
   },
   "peerDependencies": {
     "cordis": "4.0.0-rc.8"

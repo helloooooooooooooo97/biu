@@ -66,11 +66,11 @@ test('collab settings uses the account row chrome and can create a workspace', a
   }) as typeof fetch
 
   render(<ShellSettingsCollab />)
-  assert.equal(screen.getByTestId('settings-collab').querySelector('.settings-account-title')?.textContent, '协同')
+  assert.equal(screen.getByTestId('settings-collab').querySelector('.settings-account-title')?.textContent, '工作区与成员')
   await act(async () => {
     await Promise.resolve()
   })
-  assert.equal(screen.getByTestId('settings-collab-id').textContent, 'acc_1')
+  assert.equal(screen.queryByTestId('settings-collab-id'), null)
   fireEvent.change(screen.getByTestId('settings-collab-workspace'), { target: { value: 'Notes' } })
   await act(async () => {
     fireEvent.click(screen.getByTestId('settings-collab-create'))

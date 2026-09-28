@@ -254,19 +254,6 @@ export class CollabStore {
     return this.members(actorId, workspaceId)
   }
 
-  updateMemberRole(actorId: string, workspaceId: string, accountId: string, role: 'admin' | 'member') {
-    this.requireRole(actorId, workspaceId, 'owner')
-    const target = this.db
-      .prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
-      .get(workspaceId, accountId) as { role: string } | undefined
-    if (!target) throw new CollabError('成员不存在', 404)
-    if (target.role === 'owner') throw new CollabError('不能修改工作区所有者角色', 400)
-    this.db
-      .prepare('UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND account_id = ?')
-      .run(role, workspaceId, accountId)
-    return this.members(actorId, workspaceId).find((row) => row.id === accountId)!
-  }
-
   removeMember(actorId: string, workspaceId: string, accountId: string) {
     this.requireRole(actorId, workspaceId, 'owner')
     const target = this.db

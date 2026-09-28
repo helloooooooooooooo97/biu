@@ -25,6 +25,8 @@ test('workspace members collection lists and manages only the active workspace',
   store.setActive(ada.id, workspace.id)
   store.setActive(bob.id, workspace.id)
   const collection = workspaceMembersCollection(store)
+  assert.equal(collection.records?.update, false)
+  assert.equal(collection.update, undefined)
 
   const before = await runWithAccount(ada.id, () => collection.list())
   assert.deepEqual(before.map((row) => row.email), ['ada@example.com', 'bob@example.com'])
@@ -37,10 +39,8 @@ test('workspace members collection lists and manages only the active workspace',
     ['ada@example.com', 'bob@example.com', 'cara@example.com'],
   )
 
-  const promoted = await runWithAccount(ada.id, () => collection.update!(bob.id, { role: 'admin' }))
-  assert.equal(promoted.role, 'admin')
   await assert.rejects(
-    () => runWithAccount(bob.id, () => collection.update!(cara.id, { role: 'admin' })),
+    () => runWithAccount(bob.id, () => collection.remove!({ ids: [cara.id] })),
     /只有所有者可以这样做/,
   )
 

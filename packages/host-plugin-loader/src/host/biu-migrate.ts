@@ -391,6 +391,9 @@ export const BIU_MIGRATIONS: Migration[] = [
         ON record_grants(workspace_id, subject_type, subject_id);
     `)
   } },
+  { version: 26, module: 'host-account', name: 'account.member-roles', up: (db) => {
+    db.exec(`UPDATE workspace_members SET role = 'member' WHERE role <> 'owner'`)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {
