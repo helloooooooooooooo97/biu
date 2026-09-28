@@ -126,6 +126,8 @@ test('settings appearance toggles day and night themes', () => {
   const css = readFileSync(resolve(import.meta.dirname, '../../../../web/style.css'), 'utf8')
   const html = readFileSync(resolve(import.meta.dirname, '../../../../index.html'), 'utf8')
   assert.match(shell, /key: 'account'/)
+  assert.match(shell, /key: 'collab'/)
+  assert.match(shell, /ShellSettingsCollab/)
   assert.match(shell, /key: 'appearance'/)
   assert.match(shell, /ShellSettingsAccount/)
   assert.match(shell, /ShellSettingsAppearance/)

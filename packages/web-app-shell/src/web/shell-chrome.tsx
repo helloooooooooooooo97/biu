@@ -142,6 +142,263 @@ export function ShellSettingsAccount() {
   )
 }
 
+const ACCOUNT_KEY = 'biu.account.token'
+
+type CollabWorkspace = { id: string; name: string; role: string }
+type CollabMember = { id: string; name: string; role: string }
+type CollabPresence = { accountId: string; name: string; collection: string; recordId: string }
+
+async function accountFetch(token: string, path: string, init?: RequestInit) {
+  const res = await fetch(path, {
+    ...init,
+    headers: {
+      'content-type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
+  })
+  const body = (await res.json().catch(() => ({}))) as { error?: string }
+  if (!res.ok) throw new Error(body.error || '请求失败')
+  return body as Record<string, unknown>
+}
+
+export function ShellSettingsCollab() {
+  const [token, setToken] = useState(() => localStorage.getItem(ACCOUNT_KEY) ?? '')
+  const [me, setMe] = useState<{ id: string; name: string } | null>(null)
+  const [name, setName] = useState('')
+  const [workspaces, setWorkspaces] = useState<CollabWorkspace[]>([])
+  const [workspaceId, setWorkspaceId] = useState('')
+  const [workspaceName, setWorkspaceName] = useState('')
+  const [members, setMembers] = useState<CollabMember[]>([])
+  const [inviteId, setInviteId] = useState('')
+  const [presence, setPresence] = useState<CollabPresence[]>([])
+  const [error, setError] = useState('')
+
+  const remember = (next: string) => {
+    setToken(next)
+    if (next) localStorage.setItem(ACCOUNT_KEY, next)
+    else localStorage.removeItem(ACCOUNT_KEY)
+  }
+
+  const loadWorkspace = useCallback(async (current: string, id: string) => {
+    if (!current || !id) {
+      setMembers([])
+      setPresence([])
+      return
+    }
+    const listed = (await accountFetch(current, `/api/account/workspaces/${id}/members`)) as { members?: CollabMember[] }
+    setMembers(listed.members ?? [])
+    const here = (await accountFetch(current, '/api/account/presence', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId: id }),
+    })) as { presence?: CollabPresence[] }
+    setPresence(here.presence ?? [])
+  }, [])
+
+  useEffect(() => {
+    if (!token) {
+      setMe(null)
+      setWorkspaces([])
+      return
+    }
+    let gone = false
+    void (async () => {
+      try {
+        const profile = (await accountFetch(token, '/api/account/me')) as { id?: string; name?: string }
+        const listed = (await accountFetch(token, '/api/account/workspaces')) as { workspaces?: CollabWorkspace[] }
+        if (gone) return
+        setMe({ id: String(profile.id ?? ''), name: String(profile.name ?? '') })
+        const rows = listed.workspaces ?? []
+        setWorkspaces(rows)
+        setWorkspaceId((current) => current || rows[0]?.id || '')
+        setError('')
+      } catch (err) {
+        if (!gone) setError(err instanceof Error ? err.message : '无法读取账号')
+      }
+    })()
+    return () => {
+      gone = true
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (!token || !workspaceId) return
+    void loadWorkspace(token, workspaceId).catch((err) => {
+      setError(err instanceof Error ? err.message : '无法读取工作区')
+    })
+  }, [token, workspaceId, loadWorkspace])
+
+  return (
+    <section className="settings-account" data-testid="settings-collab">
+      <header className="settings-account-head">
+        <h3 className="settings-account-title">协同</h3>
+        <p className="settings-muted settings-account-lead">
+          同一个工作区里的人可以认领记录、按版本同步，并看到谁正在哪条记录上。
+        </p>
+      </header>
+      {error ? <p className="settings-account-error" data-testid="settings-collab-error">{error}</p> : null}
+      {token && me ? (
+        <div className="settings-account-row">
+          <div className="settings-account-copy">
+            <p className="settings-account-label">{me.name}</p>
+            <p className="settings-muted settings-account-hint">把账号 id 发给对方，才能被邀请进工作区。</p>
+          </div>
+          <div className="settings-account-actions">
+            <code className="settings-account-id" data-testid="settings-collab-id">{me.id}</code>
+            <button type="button" className="settings-account-action" onClick={() => remember('')}>
+              退出
+            </button>
+          </div>
+        </div>
+      ) : (
+        <form
+          className="settings-account-row"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void accountFetch('', '/api/account/register', {
+              method: 'POST',
+              body: JSON.stringify({ name }),
+            })
+              .then((body) => {
+                remember(String(body.token ?? ''))
+                setName('')
+              })
+              .catch((err) => setError(err instanceof Error ? err.message : '创建失败'))
+          }}
+        >
+          <div className="settings-account-copy">
+            <label className="settings-account-label" htmlFor="settings-collab-name">创建账号</label>
+            <p className="settings-muted settings-account-hint">只用一个名字。凭证留在这台设备上。</p>
+          </div>
+          <div className="settings-account-actions">
+            <input
+              id="settings-collab-name"
+              className="settings-account-input"
+              value={name}
+              maxLength={40}
+              placeholder="你的名字"
+              data-testid="settings-collab-name"
+              onChange={(event) => setName(event.target.value)}
+            />
+            <button type="submit" className="settings-account-action" data-testid="settings-collab-register">
+              创建
+            </button>
+          </div>
+        </form>
+      )}
+      <form
+        className="settings-account-row"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!token) return
+          void accountFetch(token, '/api/account/workspaces', {
+            method: 'POST',
+            body: JSON.stringify({ name: workspaceName }),
+          })
+            .then(async (body) => {
+              const created = body as CollabWorkspace
+              setWorkspaces((rows) => [...rows, created])
+              setWorkspaceId(created.id)
+              setWorkspaceName('')
+              setError('')
+            })
+            .catch((err) => setError(err instanceof Error ? err.message : '创建失败'))
+        }}
+      >
+        <div className="settings-account-copy">
+          <label className="settings-account-label" htmlFor="settings-collab-workspace">工作区</label>
+          <p className="settings-muted settings-account-hint">成员改不同记录。同一条记录同时只锁给一个人。</p>
+        </div>
+        <div className="settings-account-actions">
+          <select
+            className="settings-account-input"
+            aria-label="选择工作区"
+            data-testid="settings-collab-workspaces"
+            value={workspaceId}
+            disabled={!workspaces.length}
+            onChange={(event) => setWorkspaceId(event.target.value)}
+          >
+            {workspaces.length ? null : <option value="">还没有工作区</option>}
+            {workspaces.map((row) => (
+              <option key={row.id} value={row.id}>{row.name}</option>
+            ))}
+          </select>
+          <input
+            id="settings-collab-workspace"
+            className="settings-account-input"
+            value={workspaceName}
+            maxLength={40}
+            placeholder="新工作区"
+            data-testid="settings-collab-workspace"
+            onChange={(event) => setWorkspaceName(event.target.value)}
+          />
+          <button type="submit" className="settings-account-action" disabled={!token} data-testid="settings-collab-create">
+            新建
+          </button>
+        </div>
+      </form>
+      <div className="settings-account-row">
+        <div className="settings-account-copy">
+          <p className="settings-account-label">成员</p>
+          <ul className="settings-account-people" data-testid="settings-collab-members">
+            {members.length ? members.map((row) => (
+              <li key={row.id}>{row.name} · {row.role === 'owner' ? '所有者' : '成员'}</li>
+            )) : <li className="settings-muted">邀请后会出现在这里。</li>}
+          </ul>
+        </div>
+      </div>
+      <form
+        className="settings-account-row"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!token || !workspaceId) return
+          void accountFetch(token, `/api/account/workspaces/${workspaceId}/members`, {
+            method: 'POST',
+            body: JSON.stringify({ accountId: inviteId.trim() }),
+          })
+            .then((body) => {
+              setMembers(((body as { members?: CollabMember[] }).members) ?? [])
+              setInviteId('')
+              setError('')
+            })
+            .catch((err) => setError(err instanceof Error ? err.message : '邀请失败'))
+        }}
+      >
+        <div className="settings-account-copy">
+          <label className="settings-account-label" htmlFor="settings-collab-invite">邀请</label>
+          <p className="settings-muted settings-account-hint">填对方的账号 id。只有所有者可以邀请。</p>
+        </div>
+        <div className="settings-account-actions">
+          <input
+            id="settings-collab-invite"
+            className="settings-account-input"
+            value={inviteId}
+            placeholder="acc_…"
+            data-testid="settings-collab-invite"
+            onChange={(event) => setInviteId(event.target.value)}
+          />
+          <button type="submit" className="settings-account-action" disabled={!token || !workspaceId}>
+            邀请
+          </button>
+        </div>
+      </form>
+      <div className="settings-account-row">
+        <div className="settings-account-copy">
+          <p className="settings-account-label">正在看</p>
+          <ul className="settings-account-people" data-testid="settings-collab-presence">
+            {presence.length ? presence.map((row) => (
+              <li key={row.accountId}>
+                {row.name}
+                {row.collection && row.recordId ? ` · ${row.collection}/${row.recordId}` : ''}
+              </li>
+            )) : <li className="settings-muted">打开工作区后，30 秒内有心跳的人会出现在这里。</li>}
+          </ul>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export function ShellSettingsAppearance() {
   const [theme, setTheme] = useState(readTheme)
   const [pagePrefs, setPagePrefs] = useState(getPagePrefs)

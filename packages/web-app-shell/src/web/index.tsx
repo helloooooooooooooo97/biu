@@ -44,7 +44,7 @@ import { SessionInspector } from './session-inspector.tsx'
 import { SessionConfigDialog } from '@biu/web-session-view/dialog'
 import { FolderGlyph } from '@biu/web-session-view/folder-glyph'
 import { OverlayChatWindow } from './overlay-window.tsx'
-import { ShellSettingsAbout, ShellSettingsAccount, ShellSettingsAppearance, ShellSettingsMcp, ShellSettingsShortcuts, ShellSettingsUpdate } from './shell-chrome.tsx'
+import { ShellSettingsAbout, ShellSettingsAccount, ShellSettingsAppearance, ShellSettingsCollab, ShellSettingsMcp, ShellSettingsShortcuts, ShellSettingsUpdate } from './shell-chrome.tsx'
 import { hydrateWorkspaceProfile } from '@biu/public-ui'
 import { hydrateTheme } from './theme.ts'
 import { hydratePagePrefs } from '@biu/core-file-system/page-width'
@@ -66,6 +66,7 @@ import {
   QueueListIcon,
   SwatchIcon,
   UserCircleIcon,
+  UserGroupIcon,
   XMarkIcon,
 } from '@heroicons/react/16/solid'
 
@@ -855,6 +856,7 @@ function Shell(props: SlotProps) {
                 <ul className="settings-rail-list">
                   {[
                     { key: 'account', label: '账户', Icon: UserCircleIcon },
+                    { key: 'collab', label: '协同', Icon: UserGroupIcon },
                     { key: 'appearance', label: '外观', Icon: SwatchIcon },
                     { key: 'plugins', label: '插件', Icon: PuzzlePieceIcon },
                     { key: 'mcp', label: 'MCP', Icon: LinkIcon },
@@ -889,6 +891,7 @@ function Shell(props: SlotProps) {
                 </button>
                 <div className="settings-pane">
                   {settingsTab === 'account' ? <ShellSettingsAccount /> : null}
+                  {settingsTab === 'collab' ? <ShellSettingsCollab /> : null}
                   {settingsTab === 'appearance' ? <ShellSettingsAppearance /> : null}
                   {settingsTab === 'plugins' ? (
                     <section>

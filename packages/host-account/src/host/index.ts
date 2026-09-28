@@ -54,6 +54,14 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     }
   })
 
+  ctx.http.route('GET', '/api/account/me', async (route) => {
+    try {
+      route.send(200, actor(route))
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
   ctx.http.route('GET', '/api/account/workspaces', async (route) => {
     try {
       const me = actor(route)
@@ -68,6 +76,15 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       const me = actor(route)
       const body = (await route.json()) as { name?: string }
       route.send(201, account.store.createWorkspace(me.id, String(body.name ?? '')))
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('GET', '/api/account/workspaces/:id/members', async (route) => {
+    try {
+      const me = actor(route)
+      route.send(200, { members: account.store.members(me.id, route.params.id!) })
     } catch (error) {
       fail(route, error)
     }

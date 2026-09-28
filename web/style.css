@@ -1610,6 +1610,73 @@ body {
   color: var(--dsw-danger);
 }
 
+.settings-account-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+  max-width: 100%;
+}
+
+.settings-account-action {
+  height: 32px;
+  margin: 0;
+  border: 1px solid var(--dsw-border);
+  border-radius: 6px;
+  background: var(--dsw-bg);
+  padding: 0 12px;
+  color: var(--dsw-label);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-account-action:hover:not(:disabled) {
+  background: var(--dsw-hover);
+}
+
+.settings-account-action:disabled {
+  color: var(--dsw-label-3);
+  cursor: default;
+}
+
+.settings-account-id {
+  max-width: 168px;
+  overflow: hidden;
+  border: 1px solid var(--dsw-border);
+  border-radius: 6px;
+  background: var(--dsw-muted-fill);
+  padding: 6px 8px;
+  color: var(--dsw-label-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-account-people {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--dsw-label-2);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.settings-account-error {
+  margin: 12px 0 0;
+  color: var(--dsw-danger);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+select.settings-account-input {
+  width: min(140px, 28vw);
+}
+
 .sidebar-brand-mascot {
   overflow: visible;
 }
