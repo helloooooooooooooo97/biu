@@ -135,7 +135,7 @@ export function nextStickToLatest(opts: {
   if (opts.scrollingUp) return false
   if (opts.scrollTop <= PIN_TOP_SLACK_PX) return false
   if (opts.distanceFromBottom <= CHAT_PIN_BOTTOM_PX) return true
-  return opts.stuck
+  return false
 }
 
 export function pinChatToLatest(parent: HTMLElement) {
