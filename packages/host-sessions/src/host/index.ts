@@ -628,6 +628,7 @@ export class SessionsService extends Service {
     const key = `/sessions\t${id}`
     if (membership.mine.has(key)) return true
     if (membership.any.has(key)) return false
+    if (membership.strict) return false
     return membership.active === membership.home
   }
 
@@ -689,7 +690,7 @@ export class SessionsService extends Service {
           | {
               store?: {
                 activeWorkspaceId(): string | null
-                membership(): { active: string | null; home: string | null; mine: Set<string>; any: Set<string> }
+                membership(): { active: string | null; home: string | null; mine: Set<string>; any: Set<string>; strict?: boolean }
                 attach(workspaceId: string, collection: string, recordId: string): void
               }
             }

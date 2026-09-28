@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, test } from 'vitest'
 import { openAndMigrateBiu } from '@biu/host-plugin-loader/data-dir'
 import { CollabError, CollabStore } from './store.ts'
+import { runWithAccount } from '@biu/host-plugin-loader/data-dir'
 
 const dirs: string[] = []
 
@@ -202,4 +203,24 @@ test('login accepts the password set at register and rejects the rest', () => {
   assert.throws(() => collab.login('ada@example.com', 'wrong'), CollabError)
   assert.throws(() => collab.register('', Date.now(), 'secret2', 'ada@example.com'), CollabError)
   assert.throws(() => collab.register('', Date.now(), '123', 'short@example.com'), CollabError)
+})
+
+test('logged-in accounts only see records in their own workspace', () => {
+  const collab = store()
+  const ada = collab.register('', Date.now(), 'secret1', 'ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'bob@example.com')
+  const adaWs = collab.enter(ada.id)
+  const bobWs = collab.enter(bob.id)
+  assert.notEqual(adaWs, bobWs)
+  collab.attach(adaWs, '/pages', 'p-ada')
+  collab.attach(bobWs, '/sessions', 's-bob')
+  const adaView = runWithAccount(ada.id, () => collab.membership())
+  const bobView = runWithAccount(bob.id, () => collab.membership())
+  assert.equal(adaView.strict, true)
+  assert.equal(adaView.mine.has('/pages\tp-ada'), true)
+  assert.equal(adaView.mine.has('/sessions\ts-bob'), false)
+  assert.equal(bobView.mine.has('/sessions\ts-bob'), true)
+  assert.equal(bobView.mine.has('/pages\tp-ada'), false)
+  assert.equal(runWithAccount(ada.id, () => collab.activeWorkspaceId()), adaWs)
+  assert.equal(runWithAccount(bob.id, () => collab.activeWorkspaceId()), bobWs)
 })

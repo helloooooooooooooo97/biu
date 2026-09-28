@@ -7,7 +7,7 @@ import { Service, type Context } from 'cordis'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { HUB_CHANGE } from '@biu/type-http'
 import type { Method, RouteContext, RouteHandler } from '@biu/type-http'
-import { profilePath } from '@biu/host-plugin-loader/data-dir'
+import { profilePath, runWithAccount } from '@biu/host-plugin-loader/data-dir'
 import { isShareApiPath, isSharePublicPath } from './share-gate.ts'
 
 interface Route {
@@ -336,7 +336,18 @@ export class HttpService extends Service {
       }
       const started = Date.now()
       try {
-        await match.handler(context)
+        const header = String(req.headers.authorization ?? '')
+        const token = /^Bearer\s+(\S+)$/i.exec(header)?.[1] ?? ''
+        let accountId = ''
+        if (token) {
+          try {
+            const store = (this.ctx.get('account') as { store?: { accountByToken(token: string): { id: string } | null } } | undefined)?.store
+            accountId = store?.accountByToken(token)?.id ?? ''
+          } catch {
+            accountId = ''
+          }
+        }
+        await runWithAccount(accountId, () => match.handler(context))
       } catch (error) {
         this.ctx.logger('http').error(error)
         if (!res.headersSent) context.send(500, { error: String(error) })

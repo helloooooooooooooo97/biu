@@ -14,7 +14,6 @@ import {
   MagnifyingGlassIcon,
 } from '@heroicons/react/16/solid'
 import { AnchorMenu } from '@biu/public-ui'
-import { setChatOverlay } from './chat-overlay.ts'
 import { chromeIcon } from './chrome-icon.ts'
 import { applyNoticeClick, noticeIdOf } from './notice-open.ts'
 import { readMainDataRoute } from '@biu/core-file-system/main-data-route'
@@ -22,6 +21,17 @@ import { persistTheme, readTheme, type ThemeMode } from './theme.ts'
 import { persistWorkspaceProfile, useWorkspaceProfile } from '@biu/public-ui'
 import { LayoutPrefsMenu } from '@biu/core-file-system/layout-prefs-menu'
 import { getPagePrefs, hydratePagePrefs, subscribePageWidth } from '@biu/core-file-system/page-width'
+
+if (typeof window !== 'undefined') {
+  const originalFetch = window.fetch.bind(window)
+  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const token = localStorage.getItem('biu.account.token') ?? ''
+    if (!token) return originalFetch(input, init)
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+    if (!headers.has('authorization')) headers.set('authorization', `Bearer ${token}`)
+    return originalFetch(input, { ...init, headers })
+  }
+}
 
 async function readAvatarFile(file: File) {
   const url = URL.createObjectURL(file)

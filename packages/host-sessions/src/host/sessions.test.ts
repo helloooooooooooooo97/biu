@@ -1,9 +1,12 @@
 import { mkdtemp, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
+import { mkdtempSync } from 'node:fs'
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { Context, Service } from 'cordis'
+import { openAndMigrateBiu, runWithAccount } from '@biu/host-plugin-loader/data-dir'
+import { CollabStore } from '@biu/host-account/store'
 import * as sessionStore from '@biu/host-session-store'
 import * as sessions from './index.ts'
 import { SESSION_FORMAT_VERSION, deriveMessages, applyContextBudget, estimateTokens, statInputComposition } from './index.ts'
@@ -743,5 +746,32 @@ test('statInputComposition: honors compact point (starts counting after it)', ()
   // 压缩点前的 early-msg-aaaa 不计入；只从压缩点后开算
   assert.equal(out.histChars + out.curChars, 'after-compact'.length)
   assert.equal(out.curChars, 'after-compact'.length)
+})
+
+test('two accounts do not see each others sessions', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  const dir = mkdtempSync(join(tmpdir(), 'biu-account-sessions-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'bob@example.com')
+  collab.enter(ada.id)
+  collab.enter(bob.id)
+  const adaSession = await runWithAccount(ada.id, () => ctx.sessions.create('ada-session'))
+  const bobSession = await runWithAccount(bob.id, () => ctx.sessions.create('bob-session'))
+  const adaList = await runWithAccount(ada.id, () => ctx.sessions.listSummaries())
+  const bobList = await runWithAccount(bob.id, () => ctx.sessions.listSummaries())
+  assert.deepEqual(adaList.map((item) => item.id), [adaSession.id])
+  assert.deepEqual(bobList.map((item) => item.id), [bobSession.id])
+  assert.equal(runWithAccount(bob.id, () => ctx.sessions.inWorkspace(adaSession.id)), false)
+  assert.equal(runWithAccount(ada.id, () => ctx.sessions.inWorkspace(bobSession.id)), false)
 })
 

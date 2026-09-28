@@ -311,6 +311,12 @@ export const BIU_MIGRATIONS: Migration[] = [
     }
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS accounts_email ON accounts(email) WHERE email IS NOT NULL AND length(email) > 0`)
   } },
+  { version: 23, module: 'host-account', name: 'account.active-workspace', up: (db) => {
+    const columns = tableColumnNames(db, 'accounts')
+    if (!columns.includes('active_workspace_id')) {
+      db.exec(`ALTER TABLE accounts ADD COLUMN active_workspace_id TEXT NOT NULL DEFAULT ''`)
+    }
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

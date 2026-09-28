@@ -1,5 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
+import { currentAccountId } from '@biu/host-plugin-loader/data-dir'
 
 export const PRESENCE_STALE_MS = 30_000
 export const DEFAULT_LOCK_MS = 60_000
@@ -157,11 +158,16 @@ export class CollabStore {
   /** 登录后停在自己的工作区。还没有的话建一个空的。 */
   enter(accountId: string) {
     const rows = this.listWorkspaces(accountId)
-    const active = this.activeWorkspaceId()
-    if (active && rows.some((row) => row.id === active)) return active
-    const next = rows[0]?.id ?? this.createWorkspace(accountId, '我的工作区').id
-    this.writeState('active', next)
+    const current = this.accountActiveWorkspace(accountId)
+    const next = current && rows.some((row) => row.id === current) ? current : (rows[0]?.id ?? this.createWorkspace(accountId, '我的工作区').id)
+    this.rememberActive(accountId, next)
     return next
+  }
+
+  activeWorkspaceId() {
+    const caller = currentAccountId()
+    if (caller) return this.accountActiveWorkspace(caller)
+    return this.stateValue('active')
   }
 
   accountByToken(token: string): Account | null {
@@ -523,10 +529,6 @@ export class CollabStore {
     }))
   }
 
-  activeWorkspaceId() {
-    return this.stateValue('active')
-  }
-
   homeWorkspaceId() {
     return this.stateValue('home')
   }
@@ -544,7 +546,7 @@ export class CollabStore {
       any.add(key)
       if (row.workspace_id === active) mine.add(key)
     }
-    return { active, home, mine, any }
+    return { active, home, mine, any, strict: Boolean(currentAccountId()) }
   }
 
   private stateValue(key: string) {
@@ -554,8 +556,21 @@ export class CollabStore {
 
   setActive(actorId: string, workspaceId: string) {
     this.requireMember(actorId, workspaceId)
-    this.writeState('active', workspaceId)
+    this.rememberActive(actorId, workspaceId)
     return workspaceId
+  }
+
+  private accountActiveWorkspace(accountId: string) {
+    const row = this.db.prepare('SELECT active_workspace_id FROM accounts WHERE id = ?').get(accountId) as
+      | { active_workspace_id?: string }
+      | undefined
+    return row?.active_workspace_id || null
+  }
+
+  private rememberActive(accountId: string, workspaceId: string) {
+    this.db.prepare('UPDATE accounts SET active_workspace_id = ? WHERE id = ?').run(workspaceId, accountId)
+    const caller = currentAccountId()
+    if (!caller || caller === accountId) this.writeState('active', workspaceId)
   }
 
   recordIds(workspaceId: string, collection: string) {

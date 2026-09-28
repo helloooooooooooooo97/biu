@@ -141,6 +141,18 @@ export function runWithWorkspace<T>(scope: WorkspaceScope, fn: () => T): T {
   return workspaceScope.run(scope, fn)
 }
 
+const accountScope = new AsyncLocalStorage<string>()
+
+export function currentAccountId() {
+  return accountScope.getStore() || ''
+}
+
+/** 这次 HTTP 请求是哪个登录账号。没有 token 时是空字符串。 */
+export function runWithAccount<T>(accountId: string, fn: () => T): T {
+  if (!accountId) return fn()
+  return accountScope.run(accountId, fn)
+}
+
 /** Packaged Electron sets BIU_HOME to userData so replacing the .app does not wipe notes. */
 export function dataHome(): string {
   return currentWorkspace()?.root || process.env.BIU_HOME || process.cwd()

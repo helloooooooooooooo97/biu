@@ -548,6 +548,7 @@ type WorkspaceMembership = {
   home: string | null
   mine: Set<string>
   any: Set<string>
+  strict?: boolean
 }
 
 type WorkspaceFiles = {
@@ -679,6 +680,7 @@ export class DatabaseService extends Service implements Database {
     const key = `${collection}\t${id}`
     if (membership.mine.has(key)) return true
     if (membership.any.has(key)) return false
+    if (membership.strict) return false
     return membership.active === membership.home
   }
 
