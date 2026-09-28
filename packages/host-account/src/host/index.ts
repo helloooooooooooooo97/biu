@@ -57,6 +57,27 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     }
   })
 
+  ctx.http.route('GET', '/api/account/active', async (route) => {
+    try {
+      actor(route)
+      route.send(200, { workspaceId: account.store.activeWorkspaceId() })
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/account/active', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as { workspaceId?: string }
+      const workspaceId = account.store.setActive(me.id, String(body.workspaceId ?? ''))
+      ctx.http.broadcast('database', { ts: Date.now() })
+      route.send(200, { workspaceId })
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
   ctx.http.route('POST', '/api/account/register', async (route) => {
     try {
       const body = (await route.json()) as { name?: string }

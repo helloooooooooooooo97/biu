@@ -542,6 +542,13 @@ function sortRecords(rows: DbRecord[], field: string, dir: 'asc' | 'desc', sorts
 export const DEFAULT_PAGE_SIZE = 50
 export const MAX_PAGE_SIZE = 200
 const HARD_DELETE_PATHS = new Set(['/events', '/trash'])
+const WORKSPACE_COLLECTIONS = new Set(['/pages', '/tasks', '/sessions', '/skills', '/plugins'])
+
+type WorkspaceFiles = {
+  activeWorkspaceId(): string | null
+  recordIds(workspaceId: string, collection: string): Set<string>
+  attach(workspaceId: string, collection: string, recordId: string): void
+}
 
 export function clampPage(limit?: number, offset?: number) {
   const size = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.isFinite(Number(limit)) ? Number(limit) : DEFAULT_PAGE_SIZE))
@@ -623,8 +630,39 @@ export class DatabaseService extends Service implements Database {
     return scoped.map((row) => this.decorateRecord(spec, row))
   }
 
+  private collabStore() {
+    try {
+      return (this.ctx.get('account') as { store?: WorkspaceFiles } | undefined)?.store
+    } catch {
+      return undefined
+    }
+  }
+
+  private workspaceRecordIds(collection: string) {
+    const store = this.collabStore()
+    if (!store || !WORKSPACE_COLLECTIONS.has(collection)) return null
+    const workspaceId = store.activeWorkspaceId()
+    if (!workspaceId) return null
+    return store.recordIds(workspaceId, collection)
+  }
+
+  private visibleRecords<T extends { id?: unknown }>(collection: string, rows: T[]) {
+    const ids = this.workspaceRecordIds(collection)
+    if (!ids) return rows
+    return rows.filter((row) => ids.has(String(row.id ?? '')))
+  }
+
+  private attachWorkspaceRecord(collection: string, recordId: string) {
+    const store = this.collabStore()
+    const workspaceId = store?.activeWorkspaceId()
+    if (!store || !workspaceId || !WORKSPACE_COLLECTIONS.has(collection)) return
+    store.attach(workspaceId, collection, recordId)
+  }
+
   private assertLiveRecord(spec: CollectionSpec, id: string) {
     if (this.facets.isDeleted(spec.path, id)) throw new Error(`unknown record: ${spec.path}/${id}`)
+    const ids = this.workspaceRecordIds(spec.path)
+    if (ids && !ids.has(id)) throw new Error(`unknown record: ${spec.path}/${id}`)
   }
 
   private async matchCollectionRows(
@@ -763,7 +801,7 @@ export class DatabaseService extends Service implements Database {
     const matched = await this.matchCollectionRows(spec, query, liveFilter, q)
     const tagFilter = spec.path === '/facets' ? String(filter?.facetId ?? '').trim() : ''
     if (tagFilter) schema = schemaWithTagPack(schema, this.facets.get(tagFilter))
-    const sorted = sortRecords(matched, sortField, sortDir, page?.sorts)
+    const sorted = this.visibleRecords(spec.path, sortRecords(matched, sortField, sortDir, page?.sorts))
     const total = sorted.length
     const slice = sorted.slice(offset, offset + limit)
     return {
@@ -1096,6 +1134,7 @@ export class DatabaseService extends Service implements Database {
       }
       this.indexFacetRecord(spec, this.decorateRecord(spec, record))
       this.refreshContentRefs(spec, this.withBanner(spec, record))
+      this.attachWorkspaceRecord(spec.path, record.id)
     }
     this.bump()
     const items = created.map((record) => ({
@@ -1133,7 +1172,10 @@ export class DatabaseService extends Service implements Database {
     }
     const matchedTrash = await this.matchCollectionRows(spec, { ...listQuery, trash: true }, filter, q)
     const matchedLive = await this.matchCollectionRows(spec, { ...listQuery, trash: false }, filter, q)
-    const matched = query.purge ? (matchedTrash.length ? matchedTrash : matchedLive) : matchedLive
+    const matched = this.visibleRecords(
+      spec.path,
+      query.purge ? (matchedTrash.length ? matchedTrash : matchedLive) : matchedLive,
+    )
     const ids = [...new Set(matched.map((row) => row.id))]
     if (!ids.length) return { kind: 'deleted' as const, path: spec.path, ids }
     const hard = Boolean(query.purge) || HARD_DELETE_PATHS.has(spec.path)

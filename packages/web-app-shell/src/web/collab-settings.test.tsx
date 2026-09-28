@@ -26,6 +26,7 @@ test('collab settings uses the account row chrome and can create a workspace', a
     if (url.endsWith('/bootstrap')) return json({ id: 'acc_1', name: 'Ada', token: 'tok', workspace: { id: 'ws_0', name: '本机', role: 'owner' } })
     if (url.endsWith('/me')) return json({ id: 'acc_1', name: 'Ada' })
     if (url.endsWith('/workspaces') && (init?.method ?? 'GET') === 'GET') return json({ workspaces: [] })
+    if (url.endsWith('/active')) return json({ workspaceId: init?.method === 'POST' ? 'ws_1' : '' })
     if (url.endsWith('/workspaces') && init?.method === 'POST') {
       return json({ id: 'ws_1', name: 'Notes', role: 'owner' }, 201)
     }

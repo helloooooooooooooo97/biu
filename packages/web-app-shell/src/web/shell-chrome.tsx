@@ -219,11 +219,12 @@ export function ShellSettingsCollab() {
       try {
         const profile = (await accountFetch(token, '/api/account/me')) as { id?: string; name?: string }
         const listed = (await accountFetch(token, '/api/account/workspaces')) as { workspaces?: CollabWorkspace[] }
+        const active = (await accountFetch(token, '/api/account/active')) as { workspaceId?: string }
         if (gone) return
         setMe({ id: String(profile.id ?? ''), name: String(profile.name ?? '') })
         const rows = listed.workspaces ?? []
         setWorkspaces(rows)
-        setWorkspaceId((current) => current || rows[0]?.id || '')
+        setWorkspaceId(String(active.workspaceId || rows[0]?.id || ''))
         setError('')
       } catch (err) {
         if (!gone) setError(err instanceof Error ? err.message : '无法读取账号')
@@ -272,6 +273,10 @@ export function ShellSettingsCollab() {
               const created = body as CollabWorkspace
               setWorkspaces((rows) => [...rows, created])
               setWorkspaceId(created.id)
+              await accountFetch(token, '/api/account/active', {
+                method: 'POST',
+                body: JSON.stringify({ workspaceId: created.id }),
+              })
               setWorkspaceName('')
               setError('')
             })
@@ -289,7 +294,15 @@ export function ShellSettingsCollab() {
             data-testid="settings-collab-workspaces"
             value={workspaceId}
             disabled={!workspaces.length}
-            onChange={(event) => setWorkspaceId(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value
+              setWorkspaceId(next)
+              if (!token || !next) return
+              void accountFetch(token, '/api/account/active', {
+                method: 'POST',
+                body: JSON.stringify({ workspaceId: next }),
+              }).catch((err) => setError(err instanceof Error ? err.message : '无法切换工作区'))
+            }}
           >
             {workspaces.length ? null : <option value="">还没有工作区</option>}
             {workspaces.map((row) => (

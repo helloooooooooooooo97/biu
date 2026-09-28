@@ -125,6 +125,8 @@ test('bootstrap claims live records once and skips trash', () => {
   assert.equal(first.account.name, 'Ada')
   assert.equal(first.workspace.name, '本机')
   assert.equal(first.imported, 4)
+  assert.equal(collab.activeWorkspaceId(), first.workspace.id)
+  assert.equal(collab.recordIds(first.workspace.id, '/pages').has('p1'), true)
   const heads = (
     db.prepare('SELECT collection, record_id, version FROM record_owners ORDER BY collection, record_id').all() as Array<{
       collection: string

@@ -69,6 +69,7 @@ export class CollabStore {
       | undefined
     if (existing) {
       this.markBootstrapped()
+      if (!this.activeWorkspaceId()) this.writeState('active', existing.id)
       return { ...this.localSession(), imported: 0, bootstrapped: true }
     }
     const accountName = (input.accountName ?? '').trim() || '我'
@@ -79,6 +80,7 @@ export class CollabStore {
       const workspace = this.createWorkspace(account.id, workspaceName, now, false)
       const imported = this.importLiveRecords(workspace.id, account.id, now)
       this.markBootstrapped()
+      this.writeState('active', workspace.id)
       this.db.exec('COMMIT')
       return {
         account: { id: account.id, name: account.name, createdAt: account.createdAt },
@@ -434,10 +436,46 @@ export class CollabStore {
     }))
   }
 
-  private markBootstrapped() {
+  activeWorkspaceId() {
+    const row = this.db.prepare(`SELECT value FROM collab_state WHERE key = 'active'`).get() as { value?: string } | undefined
+    return row?.value || null
+  }
+
+  setActive(actorId: string, workspaceId: string) {
+    this.requireMember(actorId, workspaceId)
+    this.writeState('active', workspaceId)
+    return workspaceId
+  }
+
+  recordIds(workspaceId: string, collection: string) {
+    const rows = this.db
+      .prepare('SELECT record_id FROM record_owners WHERE workspace_id = ? AND collection = ?')
+      .all(workspaceId, collection) as Array<{ record_id: string }>
+    return new Set(rows.map((row) => row.record_id))
+  }
+
+  attach(workspaceId: string, collection: string, recordId: string, now = Date.now()) {
+    const owner = this.db.prepare('SELECT owner_id FROM workspaces WHERE id = ?').get(workspaceId) as
+      | { owner_id: string }
+      | undefined
+    if (!owner) throw new CollabError('工作区不存在', 404)
     this.db
-      .prepare(`INSERT INTO collab_state (key, value) VALUES ('bootstrapped', '1') ON CONFLICT(key) DO UPDATE SET value = '1'`)
-      .run()
+      .prepare(
+        `INSERT INTO record_owners (workspace_id, collection, record_id, owner_id, version, updated_at)
+         VALUES (?, ?, ?, ?, 0, ?)
+         ON CONFLICT(workspace_id, collection, record_id) DO NOTHING`,
+      )
+      .run(workspaceId, collection, recordId, owner.owner_id, now)
+  }
+
+  private writeState(key: string, value: string) {
+    this.db
+      .prepare(`INSERT INTO collab_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+      .run(key, value)
+  }
+
+  private markBootstrapped() {
+    this.writeState('bootstrapped', '1')
   }
 
   private localSession() {
