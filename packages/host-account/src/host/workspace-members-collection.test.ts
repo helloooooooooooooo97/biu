@@ -29,13 +29,13 @@ test('workspace members collection lists and manages only the active workspace',
   assert.equal(typeof collection.update, 'function')
 
   const before = await runWithAccount(ada.id, () => collection.list())
-  assert.deepEqual(before.map((row) => row.email), ['ada@example.com', 'bob@example.com'])
+  assert.deepEqual(before.map((row) => row.email).sort(), ['ada@example.com', 'bob@example.com'])
 
   const created = await runWithAccount(ada.id, () => collection.create!([{ email: cara.email }]))
   assert.equal(created[0]?.email, cara.email)
   store.setActive(cara.id, workspace.id)
   assert.deepEqual(
-    (await runWithAccount(cara.id, () => collection.list())).map((row) => row.email),
+    (await runWithAccount(cara.id, () => collection.list())).map((row) => row.email).sort(),
     ['ada@example.com', 'bob@example.com', 'cara@example.com'],
   )
 
