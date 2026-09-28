@@ -69,6 +69,7 @@ export class CollabStore {
       | undefined
     if (existing) {
       this.markBootstrapped()
+      if (!this.homeWorkspaceId()) this.writeState('home', existing.id)
       if (!this.activeWorkspaceId()) this.writeState('active', existing.id)
       return { ...this.localSession(), imported: 0, bootstrapped: true }
     }
@@ -80,6 +81,7 @@ export class CollabStore {
       const workspace = this.createWorkspace(account.id, workspaceName, now, false)
       const imported = this.importLiveRecords(workspace.id, account.id, now)
       this.markBootstrapped()
+      this.writeState('home', workspace.id)
       this.writeState('active', workspace.id)
       this.db.exec('COMMIT')
       return {
@@ -437,7 +439,31 @@ export class CollabStore {
   }
 
   activeWorkspaceId() {
-    const row = this.db.prepare(`SELECT value FROM collab_state WHERE key = 'active'`).get() as { value?: string } | undefined
+    return this.stateValue('active')
+  }
+
+  homeWorkspaceId() {
+    return this.stateValue('home')
+  }
+
+  membership() {
+    const active = this.activeWorkspaceId()
+    const home = this.homeWorkspaceId()
+    const rows = this.db
+      .prepare('SELECT workspace_id, collection, record_id FROM record_owners')
+      .all() as Array<{ workspace_id: string; collection: string; record_id: string }>
+    const mine = new Set<string>()
+    const any = new Set<string>()
+    for (const row of rows) {
+      const key = `${row.collection}\t${row.record_id}`
+      any.add(key)
+      if (row.workspace_id === active) mine.add(key)
+    }
+    return { active, home, mine, any }
+  }
+
+  private stateValue(key: string) {
+    const row = this.db.prepare('SELECT value FROM collab_state WHERE key = ?').get(key) as { value?: string } | undefined
     return row?.value || null
   }
 

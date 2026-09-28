@@ -57,7 +57,7 @@ import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { FileSystemAssets, collectAssetNames, assetNamesFromMarkdown, assetNamesFromHtml, isAssetFileName, isHashedAssetName, mimeOfAsset, AssetConflictError, parseIfMatch } from './assets-store.ts'
-import { facetsCollection } from './facets-collection.ts'
+import { facetsCollection, parseStampRecordId } from './facets-collection.ts'
 import { trashCollection } from './trash-collection.ts'
 import { runWorkspaceAssetGc } from './asset-gc-run.ts'
 import { ContentTurnService } from './content-turn-service.ts'
@@ -542,11 +542,17 @@ function sortRecords(rows: DbRecord[], field: string, dir: 'asc' | 'desc', sorts
 export const DEFAULT_PAGE_SIZE = 50
 export const MAX_PAGE_SIZE = 200
 const HARD_DELETE_PATHS = new Set(['/events', '/trash'])
-const WORKSPACE_COLLECTIONS = new Set(['/pages', '/tasks', '/sessions', '/skills', '/plugins'])
+
+type WorkspaceMembership = {
+  active: string | null
+  home: string | null
+  mine: Set<string>
+  any: Set<string>
+}
 
 type WorkspaceFiles = {
   activeWorkspaceId(): string | null
-  recordIds(workspaceId: string, collection: string): Set<string>
+  membership(): WorkspaceMembership
   attach(workspaceId: string, collection: string, recordId: string): void
 }
 
@@ -638,31 +644,71 @@ export class DatabaseService extends Service implements Database {
     }
   }
 
-  private workspaceRecordIds(collection: string) {
+  private workspaceMembership() {
     const store = this.collabStore()
-    if (!store || !WORKSPACE_COLLECTIONS.has(collection)) return null
-    const workspaceId = store.activeWorkspaceId()
-    if (!workspaceId) return null
-    return store.recordIds(workspaceId, collection)
+    if (!store?.activeWorkspaceId()) return null
+    return store.membership()
   }
 
-  private visibleRecords<T extends { id?: unknown }>(collection: string, rows: T[]) {
-    const ids = this.workspaceRecordIds(collection)
-    if (!ids) return rows
-    return rows.filter((row) => ids.has(String(row.id ?? '')))
+  private scopeTarget(collection: string, id: string, row?: { pageId?: unknown; collection?: unknown; sessionId?: unknown; sourceId?: unknown; tablePath?: unknown }) {
+    if (collection === '/trash') {
+      const tablePath = String(row?.tablePath ?? '')
+      const sourceId = String(row?.sourceId ?? '')
+      if (tablePath && sourceId) return { collection: tablePath, id: sourceId }
+      const parsed = parseStampRecordId(id)
+      if (parsed) return { collection: parsed.collection, id: parsed.recordId }
+    }
+    if (collection === '/events') {
+      const sessionId = String(row?.sessionId ?? (id.lastIndexOf(':') > 0 ? id.slice(0, id.lastIndexOf(':')) : ''))
+      if (sessionId) return { collection: '/sessions', id: sessionId }
+    }
+    if (collection === '/page-blocks') {
+      const pageId = String(row?.pageId ?? '')
+      const parent = String(row?.collection ?? '')
+      if (pageId && parent) return { collection: parent, id: pageId }
+      const parts = id.split('::')
+      if (parts.length >= 3) {
+        const parent = parts[0]!.startsWith('/') ? parts[0]! : `/${parts[0]}`
+        return { collection: parent, id: parts[1]! }
+      }
+    }
+    return { collection, id }
+  }
+
+  private inWorkspace(membership: WorkspaceMembership, collection: string, id: string) {
+    const key = `${collection}\t${id}`
+    if (membership.mine.has(key)) return true
+    if (membership.any.has(key)) return false
+    return membership.active === membership.home
+  }
+
+  private visibleRecords<T extends { id?: unknown; pageId?: unknown; collection?: unknown; sessionId?: unknown; sourceId?: unknown; tablePath?: unknown }>(
+    collection: string,
+    rows: T[],
+  ) {
+    const membership = this.workspaceMembership()
+    if (!membership) return rows
+    return rows.filter((row) => {
+      const target = this.scopeTarget(collection, String(row.id ?? ''), row)
+      return this.inWorkspace(membership, target.collection, target.id)
+    })
   }
 
   private attachWorkspaceRecord(collection: string, recordId: string) {
     const store = this.collabStore()
     const workspaceId = store?.activeWorkspaceId()
-    if (!store || !workspaceId || !WORKSPACE_COLLECTIONS.has(collection)) return
+    if (!store || !workspaceId) return
     store.attach(workspaceId, collection, recordId)
   }
 
   private assertLiveRecord(spec: CollectionSpec, id: string) {
     if (this.facets.isDeleted(spec.path, id)) throw new Error(`unknown record: ${spec.path}/${id}`)
-    const ids = this.workspaceRecordIds(spec.path)
-    if (ids && !ids.has(id)) throw new Error(`unknown record: ${spec.path}/${id}`)
+    const membership = this.workspaceMembership()
+    if (!membership) return
+    const target = this.scopeTarget(spec.path, id)
+    if (!this.inWorkspace(membership, target.collection, target.id)) {
+      throw new Error(`unknown record: ${spec.path}/${id}`)
+    }
   }
 
   private async matchCollectionRows(
