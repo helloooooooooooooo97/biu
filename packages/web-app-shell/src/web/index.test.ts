@@ -132,7 +132,7 @@ test('settings appearance toggles day and night themes', () => {
   assert.match(shell, /ShellSettingsAccount/)
   assert.match(shell, /ShellSettingsAppearance/)
   assert.match(chrome, /data-testid="settings-account"/)
-  assert.match(chrome, /这个工作区里的名字/)
+  assert.match(chrome, /这个工作区的账号名/)
   assert.match(chrome, /data-testid="settings-appearance"/)
   assert.match(chrome, /日间模式/)
   assert.match(chrome, /夜间模式/)

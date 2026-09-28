@@ -134,8 +134,8 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     indexes: [],
   },
   accounts: {
-    columns: ['id', 'name', 'token', 'created_at'],
-    indexes: ['accounts_token'],
+    columns: ['id', 'name', 'token', 'password_hash', 'created_at', 'email'],
+    indexes: ['accounts_token', 'accounts_email'],
   },
   workspaces: {
     columns: ['id', 'name', 'owner_id', 'created_at'],
@@ -167,7 +167,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 21
+export const LATEST_BIU_SCHEMA = 22
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -347,12 +347,14 @@ CREATE TABLE IF NOT EXISTS gc_candidates (
 );
 CREATE TABLE IF NOT EXISTS accounts (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
   token TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL DEFAULT '',
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  email TEXT
 );
 CREATE INDEX IF NOT EXISTS accounts_token ON accounts(token);
+CREATE UNIQUE INDEX IF NOT EXISTS accounts_email ON accounts(email) WHERE email IS NOT NULL AND length(email) > 0;
 CREATE TABLE IF NOT EXISTS workspaces (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,

@@ -303,6 +303,14 @@ export const BIU_MIGRATIONS: Migration[] = [
       db.exec(`ALTER TABLE workspace_members ADD COLUMN avatar TEXT NOT NULL DEFAULT ''`)
     }
   } },
+  { version: 22, module: 'host-account', name: 'account.email', up: (db) => {
+    db.exec('DROP INDEX IF EXISTS accounts_name')
+    const columns = tableColumnNames(db, 'accounts')
+    if (!columns.includes('email')) {
+      db.exec(`ALTER TABLE accounts ADD COLUMN email TEXT`)
+    }
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS accounts_email ON accounts(email) WHERE email IS NOT NULL AND length(email) > 0`)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

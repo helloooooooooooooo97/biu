@@ -62,7 +62,7 @@ export function ShellSettingsAccount() {
       <header className="settings-account-head">
         <h3 className="settings-account-title">我的账户</h3>
         <p className="settings-muted settings-account-lead">
-          头像和显示名字跟当前工作区绑在一起。换一个工作区可以是另一个名字。登录名字和密码在所有工作区都一样。
+          头像和账号名跟当前工作区绑在一起，不同工作区可以重名。登录邮箱和密码在所有工作区都一样。
         </p>
       </header>
       <div className="settings-account-row">
@@ -118,9 +118,9 @@ export function ShellSettingsAccount() {
       <div className="settings-account-row">
         <div className="settings-account-copy">
           <label className="settings-account-label" htmlFor="settings-account-name">
-            这个工作区里的名字
+            这个工作区的账号名
           </label>
-          <p className="settings-muted settings-account-hint">只在当前工作区里这样称呼你。</p>
+          <p className="settings-muted settings-account-hint">只在当前工作区里使用，可以和别人重名。</p>
         </div>
         <input
           id="settings-account-name"
@@ -198,7 +198,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           const path = mode === 'register' ? '/api/account/register' : '/api/account/login'
           void accountFetch('', path, {
             method: 'POST',
-            body: JSON.stringify({ name: name.trim(), password }),
+            body: JSON.stringify({ email: name.trim(), password }),
           })
             .then((body) => {
               writeAccountToken(String(body.token ?? ''))
@@ -210,7 +210,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       >
         <header className="settings-account-head">
           <h3 className="settings-account-title">{mode === 'register' ? '注册' : '登录'}</h3>
-          <p className="settings-muted settings-account-lead">登录之后才能进入。账号和密码在所有工作区都一样。</p>
+          <p className="settings-muted settings-account-lead">登录之后才能进入。登录邮箱和密码在所有工作区都一样。</p>
         </header>
         {error ? <p className="settings-account-error">{error}</p> : null}
         <div className="settings-account-actions auth-gate-fields">
@@ -218,8 +218,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
             className="settings-account-input"
             value={name}
             maxLength={40}
-            placeholder="登录名字"
-            autoComplete="username"
+            placeholder="登录邮箱"
+            type="email"
+            autoComplete="email"
             data-testid="auth-name"
             onChange={(event) => setName(event.target.value)}
           />
@@ -347,7 +348,7 @@ export function ShellSettingsCollab() {
         <div className="settings-account-row">
           <div className="settings-account-copy">
             <p className="settings-account-label">{me.name}</p>
-            <p className="settings-muted settings-account-hint">登录名字在每个工作区都一样。把账号 id 发给对方，才能被邀请进别的工作区。</p>
+            <p className="settings-muted settings-account-hint">登录邮箱在每个工作区都一样。把账号 id 发给对方，才能被邀请进别的工作区。</p>
           </div>
           <code className="settings-account-id" data-testid="settings-collab-id">{me.id}</code>
           <button

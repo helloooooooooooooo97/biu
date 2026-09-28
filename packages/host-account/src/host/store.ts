@@ -14,7 +14,7 @@ export class CollabError extends Error {
   }
 }
 
-export type Account = { id: string; name: string; createdAt: number }
+export type Account = { id: string; name: string; email: string; createdAt: number }
 export type Workspace = { id: string; name: string; ownerId: string; role: string; createdAt: number }
 export type RecordHead = {
   workspaceId: string
@@ -116,29 +116,42 @@ export class CollabStore {
     }
   }
 
-  register(name: string, now = Date.now(), password = ''): Account & { token: string } {
-    const trimmed = name.trim()
-    if (!trimmed) throw new CollabError('名字不能为空', 400)
+  register(name: string, now = Date.now(), password = '', email = ''): Account & { token: string } {
     const secret = password.trim()
+    const normalized = email.trim().toLowerCase()
     if (secret && secret.length < 6) throw new CollabError('密码至少 6 位', 400)
-    const taken = this.db.prepare('SELECT id FROM accounts WHERE name = ?').get(trimmed) as { id: string } | undefined
-    if (taken) throw new CollabError('这个名字已经注册过', 409)
-    const account = { id: id('acc'), name: trimmed, token: randomBytes(24).toString('hex'), createdAt: now }
+    if (secret && !normalized) throw new CollabError('邮箱不能为空', 400)
+    if (normalized && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new CollabError('邮箱格式不对', 400)
+    if (normalized) {
+      const taken = this.db.prepare('SELECT id FROM accounts WHERE email = ?').get(normalized) as { id: string } | undefined
+      if (taken) throw new CollabError('这个邮箱已经注册过', 409)
+    }
+    const trimmed = name.trim() || (normalized ? normalized.split('@')[0]! : '')
+    if (!trimmed) throw new CollabError('名字不能为空', 400)
+    const account = {
+      id: id('acc'),
+      name: trimmed,
+      email: normalized,
+      token: randomBytes(24).toString('hex'),
+      createdAt: now,
+    }
     this.db
-      .prepare('INSERT INTO accounts (id, name, token, password_hash, created_at) VALUES (?, ?, ?, ?, ?)')
-      .run(account.id, account.name, account.token, secret ? hashPassword(secret) : '', account.createdAt)
+      .prepare('INSERT INTO accounts (id, name, token, password_hash, created_at, email) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(account.id, account.name, account.token, secret ? hashPassword(secret) : '', account.createdAt, normalized || null)
     return account
   }
 
-  login(name: string, password: string): Account & { token: string } {
-    const trimmed = name.trim()
+  login(email: string, password: string): Account & { token: string } {
+    const normalized = email.trim().toLowerCase()
     const row = this.db
-      .prepare('SELECT id, name, token, password_hash, created_at FROM accounts WHERE name = ?')
-      .get(trimmed) as { id: string; name: string; token: string; password_hash: string; created_at: number } | undefined
+      .prepare('SELECT id, name, email, token, password_hash, created_at FROM accounts WHERE email = ?')
+      .get(normalized) as
+      | { id: string; name: string; email: string; token: string; password_hash: string; created_at: number }
+      | undefined
     if (!row?.password_hash || !verifyPassword(password, row.password_hash)) {
-      throw new CollabError('名字或密码不对', 401)
+      throw new CollabError('邮箱或密码不对', 401)
     }
-    return { id: row.id, name: row.name, token: row.token, createdAt: row.created_at }
+    return { id: row.id, name: row.name, email: row.email, token: row.token, createdAt: row.created_at }
   }
 
   /** 登录后停在自己的工作区。还没有的话建一个空的。 */
@@ -153,10 +166,10 @@ export class CollabStore {
 
   accountByToken(token: string): Account | null {
     const row = this.db
-      .prepare('SELECT id, name, created_at FROM accounts WHERE token = ?')
-      .get(token) as { id: string; name: string; created_at: number } | undefined
+      .prepare('SELECT id, name, email, created_at FROM accounts WHERE token = ?')
+      .get(token) as { id: string; name: string; email: string | null; created_at: number } | undefined
     if (!row) return null
-    return { id: row.id, name: row.name, createdAt: row.created_at }
+    return { id: row.id, name: row.name, email: row.email ?? '', createdAt: row.created_at }
   }
 
   createWorkspace(ownerId: string, name: string, now = Date.now(), ownTransaction = true): Workspace {
@@ -206,7 +219,7 @@ export class CollabStore {
     this.requireMember(actorId, workspaceId)
     return this.db
       .prepare(
-        `SELECT a.id, COALESCE(NULLIF(m.display_name, ''), a.name) AS name, a.name AS login_name, m.role, m.created_at
+        `SELECT a.id, COALESCE(NULLIF(m.display_name, ''), '未设置') AS name, a.email AS login_name, m.role, m.created_at
          FROM workspace_members m
          JOIN accounts a ON a.id = m.account_id
          WHERE m.workspace_id = ?
@@ -221,15 +234,14 @@ export class CollabStore {
     this.requireMember(actorId, workspaceId)
     const row = this.db
       .prepare(
-        `SELECT a.name AS login_name, m.display_name, m.avatar
+        `SELECT a.email AS login_email, m.display_name, m.avatar
          FROM workspace_members m
          JOIN accounts a ON a.id = m.account_id
          WHERE m.workspace_id = ? AND m.account_id = ?`,
       )
-      .get(workspaceId, actorId) as { login_name: string; display_name: string; avatar: string } | undefined
+      .get(workspaceId, actorId) as { login_email: string | null; display_name: string; avatar: string } | undefined
     if (!row) throw new CollabError('不在这个工作区', 403)
-    const name = row.display_name.trim() || row.login_name
-    return { workspaceId, loginName: row.login_name, name, avatar: row.avatar }
+    return { workspaceId, email: row.login_email ?? '', name: row.display_name.trim(), avatar: row.avatar }
   }
 
   saveWorkspaceProfile(actorId: string, patch: { name?: string; avatar?: string }) {
@@ -238,13 +250,13 @@ export class CollabStore {
     let avatar = patch.avatar !== undefined ? patch.avatar.trim() : current.avatar
     if (avatar && !avatar.startsWith('data:image/')) avatar = ''
     if (avatar.length > 240_000) throw new CollabError('头像太大', 400)
-    const display = name === current.loginName ? '' : name
+    const display = name
     this.db
       .prepare(
         `UPDATE workspace_members SET display_name = ?, avatar = ? WHERE workspace_id = ? AND account_id = ?`,
       )
       .run(display, avatar, current.workspaceId, actorId)
-    return { ...current, name: display || current.loginName, avatar }
+    return { ...current, name: display, avatar }
   }
 
   listWorkspaces(accountId: string): Workspace[] {
@@ -486,7 +498,7 @@ export class CollabStore {
     this.requireMember(actorId, workspaceId)
     const rows = this.db
       .prepare(
-        `SELECT p.workspace_id, p.account_id, COALESCE(NULLIF(m.display_name, ''), a.name) AS name, p.collection, p.record_id, p.seen_at
+        `SELECT p.workspace_id, p.account_id, COALESCE(NULLIF(m.display_name, ''), '未设置') AS name, p.collection, p.record_id, p.seen_at
          FROM presence p
          JOIN accounts a ON a.id = p.account_id
          LEFT JOIN workspace_members m ON m.workspace_id = p.workspace_id AND m.account_id = p.account_id
@@ -600,7 +612,7 @@ export class CollabStore {
       | undefined
     if (!row) throw new CollabError('还没有本地工作区', 404)
     return {
-      account: { id: row.id, name: row.name, createdAt: row.created_at },
+      account: { id: row.id, name: row.name, email: '', createdAt: row.created_at },
       token: row.token,
       workspace: {
         id: row.workspace_id,

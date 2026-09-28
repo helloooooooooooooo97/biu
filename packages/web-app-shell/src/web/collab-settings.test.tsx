@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -23,12 +23,13 @@ test('the app stays on the login gate until a token exists', async () => {
   )
   assert.equal(screen.queryByTestId('inside'), null)
   assert.equal(screen.getByTestId('auth-gate').textContent?.includes('登录'), true)
-  fireEvent.change(screen.getByTestId('auth-name'), { target: { value: 'Ada' } })
+  fireEvent.change(screen.getByTestId('auth-name'), { target: { value: 'ada@example.com' } })
   fireEvent.change(screen.getByTestId('auth-password'), { target: { value: 'secret1' } })
   await act(async () => {
     fireEvent.click(screen.getByTestId('auth-submit'))
   })
   assert.equal(screen.getByTestId('inside').textContent, 'in')
+  cleanup()
 })
 
 test('collab settings uses the account row chrome and can create a workspace', async () => {
@@ -55,7 +56,7 @@ test('collab settings uses the account row chrome and can create a workspace', a
   }) as typeof fetch
 
   render(<ShellSettingsCollab />)
-  assert.equal(document.querySelector('.settings-account-title')?.textContent, '协同')
+  assert.equal(screen.getByTestId('settings-collab').querySelector('.settings-account-title')?.textContent, '协同')
   await act(async () => {
     await Promise.resolve()
   })
