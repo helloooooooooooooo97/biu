@@ -29,9 +29,8 @@ test('workspace members collection lists and manages only the active workspace',
   const before = await runWithAccount(ada.id, () => collection.list())
   assert.deepEqual(before.map((row) => row.email), ['ada@example.com', 'bob@example.com'])
 
-  const invite = collection.actions?.find((action) => action.id === 'invite')
-  assert.ok(invite)
-  await runWithAccount(ada.id, () => invite.run('invite', { id: 'invite' }, { email: cara.email }))
+  const created = await runWithAccount(ada.id, () => collection.create!([{ email: cara.email }]))
+  assert.equal(created[0]?.email, cara.email)
   store.setActive(cara.id, workspace.id)
   assert.deepEqual(
     (await runWithAccount(cara.id, () => collection.list())).map((row) => row.email),

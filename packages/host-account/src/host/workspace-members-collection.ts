@@ -60,11 +60,11 @@ export function workspaceMembersCollection(store: CollabStore): CollectionSpec {
       title: '空间成员',
       inspector: false,
       blurb:
-        '当前工作区成员目录。db_list /workspace-members 查看全部成员；Owner 可用 db_action /workspace-members/invite action=invite args.email 邀请已注册邮箱，用 db_update 修改 role=admin|member，用 db_delete 移除成员。不能修改或移除 Owner。',
+        '当前工作区成员目录。db_list /workspace-members 查看全部成员；Owner 可用 db_create 写 {email} 邀请已注册邮箱，用 db_update 修改 role=admin|member，用 db_delete 移除成员。不能修改或移除 Owner。',
       order: 18,
       icon: 'users',
     },
-    records: { update: true, create: false, delete: true },
+    records: { update: true, create: true, delete: true },
     schema: {
       labelField: 'title',
       columns: ['title', 'email', 'role', 'joinedAt'],
@@ -72,7 +72,7 @@ export function workspaceMembersCollection(store: CollabStore): CollectionSpec {
         ...REQUIRED_RECORD_FIELDS,
         title: { type: 'string', label: '账号名' },
         name: { type: 'string', label: '空间账号名' },
-        email: { type: 'string', label: '登录邮箱' },
+        email: { type: 'string', label: '登录邮箱', writable: true },
         role: { type: 'select', label: '角色', enum: ['owner', 'admin', 'member'], writable: true },
         joinedAt: { type: 'datetime', label: '加入时间', sortable: true },
       },
@@ -100,6 +100,18 @@ export function workspaceMembersCollection(store: CollabStore): CollectionSpec {
     ],
     list,
     get: async (id) => rows().find((row) => row.id === id) ?? null,
+    create: async (records) => {
+      const { actorId, workspaceId } = identity()
+      const created: DbRecord[] = []
+      for (const record of records) {
+        const email = String(record.email ?? '').trim()
+        const members = store.addMemberByEmail(actorId, workspaceId, email)
+        const member = members.find((row) => row.email === email.toLowerCase())
+        if (!member) throw new Error('member was not created')
+        created.push(asRecord(member))
+      }
+      return created
+    },
     update: async (id, patch) => {
       const { actorId, workspaceId } = identity()
       const role = String(patch.role ?? '')

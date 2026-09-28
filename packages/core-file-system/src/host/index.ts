@@ -1346,11 +1346,13 @@ export class DatabaseService extends Service implements Database {
       this.refreshContentRefs(spec, this.withBanner(spec, record))
       const parentField = spec.schema.parentField
       const parentRecordId = parentField ? String(record[parentField] ?? '').trim() : ''
-      this.attachWorkspaceRecord(spec.path, record.id, {
-        ownership: parentRecordId ? 'workspace' : 'personal',
-        accessMode: parentRecordId ? 'inherit' : 'private',
-        ...(parentRecordId ? { parentCollection: spec.path, parentRecordId } : {}),
-      })
+      if (spec.path !== '/workspace-members') {
+        this.attachWorkspaceRecord(spec.path, record.id, {
+          ownership: parentRecordId ? 'workspace' : 'personal',
+          accessMode: parentRecordId ? 'inherit' : 'private',
+          ...(parentRecordId ? { parentCollection: spec.path, parentRecordId } : {}),
+        })
+      }
     }
     this.bump()
     const items = created.map((record) => ({
