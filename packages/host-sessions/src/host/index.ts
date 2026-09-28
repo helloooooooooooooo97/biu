@@ -626,10 +626,17 @@ export class SessionsService extends Service {
     if (!store?.activeWorkspaceId()) return true
     const membership = store.membership()
     const key = `/sessions\t${id}`
-    if (membership.mine.has(key)) return true
+    if (membership.mine.has(key)) return this.recordReadable(id)
     if (membership.any.has(key)) return false
     if (membership.strict) return false
-    return membership.active === membership.home
+    if (membership.active !== membership.home) return false
+    return this.recordReadable(id)
+  }
+
+  private recordReadable(id: string) {
+    const store = this.collabStore()
+    if (!store || typeof store.canReadRecord !== 'function') return true
+    return store.canReadRecord('/sessions', id)
   }
 
   async listSummaries() {
@@ -692,6 +699,7 @@ export class SessionsService extends Service {
                 activeWorkspaceId(): string | null
                 membership(): { active: string | null; home: string | null; mine: Set<string>; any: Set<string>; strict?: boolean }
                 attach(workspaceId: string, collection: string, recordId: string): void
+                canReadRecord?(collection: string, recordId: string): boolean
               }
             }
           | undefined

@@ -120,6 +120,63 @@ export function ShareButton({
   )
 }
 
+function WorkspaceAccess({ collection, recordId }: { collection: string; recordId: string }) {
+  const [email, setEmail] = useState('')
+  const [people, setPeople] = useState<Array<{ id: string; name: string; email: string; role: string }>>([])
+  const [error, setError] = useState('')
+
+  async function load() {
+    const data = await readJson<{ people?: Array<{ id: string; name: string; email: string; role: string }> }>(
+      `/api/account/access?collection=${encodeURIComponent(collection)}&recordId=${encodeURIComponent(recordId)}`,
+    )
+    setPeople(data.people ?? [])
+  }
+
+  useEffect(() => {
+    void load().catch(() => setPeople([]))
+  }, [collection, recordId])
+
+  return (
+    <form
+      className="fsdb-share-link-section"
+      data-testid="fsdb-share-members"
+      onSubmit={(event) => {
+        event.preventDefault()
+        setError('')
+        void readJson(`/api/account/access`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ collection, recordId, email: email.trim() }),
+        })
+          .then(() => {
+            setEmail('')
+            return load()
+          })
+          .catch((err) => setError(err instanceof Error ? err.message : '无法邀请'))
+      }}
+    >
+      <p className="fsdb-share-empty-title">工作区成员</p>
+      <ul>
+        {people.length ? people.map((row) => (
+          <li key={row.id}>{row.name}{row.email ? ` · ${row.email}` : ''} · {row.role === 'owner' ? '创建者' : '可编辑'}</li>
+        )) : <li>还没有单独授权。新建的文档只有创建者能看，旧文档在授权前工作区成员都能看。</li>}
+      </ul>
+      <div className="fsdb-share-link-row">
+        <input
+          className="fsdb-share-link-field"
+          type="email"
+          value={email}
+          placeholder="成员的登录邮箱"
+          data-testid="fsdb-share-member-email"
+          onChange={(event) => setEmail(event.target.value)}
+        />
+        <button type="submit" className="fsdb-share-publish" data-testid="fsdb-share-member-add">添加</button>
+      </div>
+      {error ? <p>{error}</p> : null}
+    </form>
+  )
+}
+
 export function SharePanel({ target, embedded = false }: { target: ShareTarget; embedded?: boolean }) {
   const [share, setShare] = useState<ShareInfo | null>(null)
   const [resources, setResources] = useState<ShareResourceStats>({ pages: 0, plugins: 0, collections: 0, pluginIds: [] })
@@ -258,8 +315,9 @@ export function SharePanel({ target, embedded = false }: { target: ShareTarget; 
     <div className={`fsdb-share-panel${embedded ? ' is-embedded' : ''}`} role="dialog" aria-label="分享" data-testid="fsdb-share-panel">
       <header className="fsdb-share-head">
         <strong>分享</strong>
-        <p>通过链接邀请他人查看此内容。</p>
+        <p>文档默认只有你自己能看。把工作区里的成员加进来，他们才能打开。</p>
       </header>
+      {target.kind === 'record' && target.recordId ? <WorkspaceAccess collection={target.collection} recordId={target.recordId} /> : null}
       <section className="fsdb-share-link-section">
         {!share ? (
           <div className="fsdb-share-empty">

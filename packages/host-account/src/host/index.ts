@@ -180,6 +180,31 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     }
   })
 
+  ctx.http.route('GET', '/api/account/access', async (route) => {
+    try {
+      const me = actor(route)
+      route.send(
+        200,
+        account.store.recordAccess(me.id, String(route.query.get('collection') ?? ''), String(route.query.get('recordId') ?? '')),
+      )
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/account/access', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as { collection?: string; recordId?: string; email?: string }
+      route.send(
+        200,
+        account.store.shareWithEmail(me.id, String(body.collection ?? ''), String(body.recordId ?? ''), String(body.email ?? '')),
+      )
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
   ctx.http.route('POST', '/api/account/records/claim', async (route) => {
     try {
       const me = actor(route)

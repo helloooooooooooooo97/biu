@@ -317,6 +317,19 @@ export const BIU_MIGRATIONS: Migration[] = [
       db.exec(`ALTER TABLE accounts ADD COLUMN active_workspace_id TEXT NOT NULL DEFAULT ''`)
     }
   } },
+  { version: 24, module: 'host-account', name: 'account.record-grants', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS record_grants (
+        workspace_id TEXT NOT NULL,
+        collection TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, collection, record_id, account_id)
+      );
+    `)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

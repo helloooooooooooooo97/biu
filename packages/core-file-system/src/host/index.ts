@@ -6,6 +6,7 @@ import {
   dataHome,
   dataPath,
   EditorContentConflictError,
+  currentAccountId,
   readEditorContent,
   readEditorContentRecord,
   writeEditorContent,
@@ -555,6 +556,7 @@ type WorkspaceFiles = {
   activeWorkspaceId(): string | null
   membership(): WorkspaceMembership
   attach(workspaceId: string, collection: string, recordId: string): void
+  grantMap?(workspaceId: string, collection: string): Map<string, Set<string>>
 }
 
 export function clampPage(limit?: number, offset?: number) {
@@ -690,10 +692,32 @@ export class DatabaseService extends Service implements Database {
   ) {
     const membership = this.workspaceMembership()
     if (!membership) return rows
+    const store = this.collabStore()
+    const workspaceId = store?.activeWorkspaceId() ?? ''
+    const grants = new Map<string, Map<string, Set<string>>>()
     return rows.filter((row) => {
       const target = this.scopeTarget(collection, String(row.id ?? ''), row)
-      return this.inWorkspace(membership, target.collection, target.id)
+      if (!this.inWorkspace(membership, target.collection, target.id)) return false
+      if (!membership.strict || !store?.grantMap || !workspaceId) return true
+      let map = grants.get(target.collection)
+      if (!map) {
+        map = store.grantMap(workspaceId, target.collection)
+        grants.set(target.collection, map)
+      }
+      const people = map.get(target.id)
+      if (!people || people.size === 0) return true
+      return people.has(currentAccountId())
     })
+  }
+
+  private grantAllows(collection: string, id: string) {
+    const membership = this.workspaceMembership()
+    const store = this.collabStore()
+    const workspaceId = store?.activeWorkspaceId()
+    if (!membership?.strict || !store?.grantMap || !workspaceId) return true
+    const people = store.grantMap(workspaceId, collection).get(id)
+    if (!people || people.size === 0) return true
+    return people.has(currentAccountId())
   }
 
   private attachWorkspaceRecord(collection: string, recordId: string) {
@@ -708,7 +732,7 @@ export class DatabaseService extends Service implements Database {
     const membership = this.workspaceMembership()
     if (!membership) return
     const target = this.scopeTarget(spec.path, id)
-    if (!this.inWorkspace(membership, target.collection, target.id)) {
+    if (!this.inWorkspace(membership, target.collection, target.id) || !this.grantAllows(target.collection, target.id)) {
       throw new Error(`unknown record: ${spec.path}/${id}`)
     }
   }

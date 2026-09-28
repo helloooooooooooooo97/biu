@@ -145,6 +145,10 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     columns: ['workspace_id', 'account_id', 'role', 'created_at', 'display_name', 'avatar'],
     indexes: ['workspace_members_account'],
   },
+  record_grants: {
+    columns: ['workspace_id', 'collection', 'record_id', 'account_id', 'role', 'created_at'],
+    indexes: [],
+  },
   record_owners: {
     columns: ['workspace_id', 'collection', 'record_id', 'owner_id', 'version', 'updated_at'],
     indexes: [],
@@ -167,7 +171,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 23
+export const LATEST_BIU_SCHEMA = 24
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -393,6 +397,15 @@ CREATE TABLE IF NOT EXISTS sync_ops (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS sync_ops_ws ON sync_ops(workspace_id, id);
+CREATE TABLE IF NOT EXISTS record_grants (
+  workspace_id TEXT NOT NULL,
+  collection TEXT NOT NULL,
+  record_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, collection, record_id, account_id)
+);
 CREATE TABLE IF NOT EXISTS edit_locks (
   workspace_id TEXT NOT NULL,
   collection TEXT NOT NULL,

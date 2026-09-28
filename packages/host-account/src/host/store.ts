@@ -600,6 +600,82 @@ export class CollabStore {
          ON CONFLICT(workspace_id, collection, record_id) DO NOTHING`,
       )
       .run(workspaceId, collection, recordId, owner.owner_id, now)
+    const caller = currentAccountId()
+    if (caller) this.grant(workspaceId, collection, recordId, caller, 'owner', now)
+  }
+
+  grantMap(workspaceId: string, collection: string) {
+    const rows = this.db
+      .prepare('SELECT record_id, account_id FROM record_grants WHERE workspace_id = ? AND collection = ?')
+      .all(workspaceId, collection) as Array<{ record_id: string; account_id: string }>
+    const map = new Map<string, Set<string>>()
+    for (const row of rows) {
+      const set = map.get(row.record_id) ?? new Set<string>()
+      set.add(row.account_id)
+      map.set(row.record_id, set)
+    }
+    return map
+  }
+
+  canReadRecord(collection: string, recordId: string) {
+    const caller = currentAccountId()
+    const workspaceId = this.activeWorkspaceId()
+    if (!caller || !workspaceId) return true
+    const people = this.grantMap(workspaceId, collection).get(recordId)
+    if (!people || people.size === 0) return true
+    return people.has(caller)
+  }
+
+  recordAccess(actorId: string, collection: string, recordId: string) {
+    const workspaceId = this.activeWorkspaceId()
+    if (!workspaceId) throw new CollabError('没有工作区', 400)
+    this.requireMember(actorId, workspaceId)
+    if (!this.canReadRecord(collection, recordId)) throw new CollabError('没有权限', 403)
+    return this.accessRows(workspaceId, collection, recordId)
+  }
+
+  shareWithEmail(actorId: string, collection: string, recordId: string, email: string, now = Date.now()) {
+    const workspaceId = this.activeWorkspaceId()
+    if (!workspaceId) throw new CollabError('没有工作区', 400)
+    this.requireMember(actorId, workspaceId)
+    const owned = this.db
+      .prepare('SELECT 1 AS ok FROM record_owners WHERE workspace_id = ? AND collection = ? AND record_id = ?')
+      .get(workspaceId, collection, recordId) as { ok: number } | undefined
+    if (!owned) throw new CollabError('记录不在这个工作区', 404)
+    const normalized = email.trim().toLowerCase()
+    if (!normalized) throw new CollabError('邮箱不能为空', 400)
+    const account = this.db.prepare('SELECT id FROM accounts WHERE email = ?').get(normalized) as { id: string } | undefined
+    if (!account) throw new CollabError('没有这个邮箱，对方需要先注册', 404)
+    this.requireMember(account.id, workspaceId)
+    const people = this.grantMap(workspaceId, collection).get(recordId)
+    if (people && people.size > 0 && !people.has(actorId)) throw new CollabError('没有权限', 403)
+    if (!people || !people.has(actorId)) this.grant(workspaceId, collection, recordId, actorId, 'owner', now)
+    this.grant(workspaceId, collection, recordId, account.id, 'edit', now)
+    return this.accessRows(workspaceId, collection, recordId)
+  }
+
+  private grant(workspaceId: string, collection: string, recordId: string, accountId: string, role: string, now = Date.now()) {
+    this.db
+      .prepare(
+        `INSERT INTO record_grants (workspace_id, collection, record_id, account_id, role, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(workspace_id, collection, record_id, account_id) DO NOTHING`,
+      )
+      .run(workspaceId, collection, recordId, accountId, role, now)
+  }
+
+  private accessRows(workspaceId: string, collection: string, recordId: string) {
+    const rows = this.db
+      .prepare(
+        `SELECT a.id, COALESCE(NULLIF(m.display_name, ''), '未设置') AS name, COALESCE(a.email, '') AS email, g.role
+         FROM record_grants g
+         JOIN accounts a ON a.id = g.account_id
+         LEFT JOIN workspace_members m ON m.workspace_id = g.workspace_id AND m.account_id = g.account_id
+         WHERE g.workspace_id = ? AND g.collection = ? AND g.record_id = ?
+         ORDER BY g.created_at`,
+      )
+      .all(workspaceId, collection, recordId) as Array<{ id: string; name: string; email: string; role: string }>
+    return { private: rows.length > 0, people: rows }
   }
 
   private writeState(key: string, value: string) {
