@@ -154,7 +154,7 @@ function upgradePath(req: IncomingMessage) {
 export class HttpService extends Service {
   private routes: Route[] = []
   private sockets = new Set<WebSocket>()
-  private socketMeta = new WeakMap<WebSocket, { accountId: string; workspaceId: string }>()
+  private socketMeta = new WeakMap<WebSocket, { accountId: string; workspaceId: string; token: string }>()
   private server: Server | null = null
   /** 同一 HTTP server 上只能有一条 upgrade 路由；多挂几个 `ws.Server({ server })` 会互相 abort 握手。 */
   private wsServers = new Map<string, WebSocketServer>()
@@ -169,34 +169,14 @@ export class HttpService extends Service {
       const hub = new WebSocketServer({ noServer: true })
       this.wsServers.set('/ws', hub)
       hub.on('connection', (socket, request: IncomingMessage) => {
-        const url = new URL(request?.url ?? '/', 'http://localhost')
-        const cookie = String(request.headers.cookie ?? '')
-        const encoded = cookie
-          .split(';')
-          .map((part) => part.trim())
-          .find((part) => part.startsWith('biu_account='))
-        const token = url.searchParams.get('token') ?? (encoded ? decodeURIComponent(encoded.slice('biu_account='.length)) : '')
-        const workspaceId = url.searchParams.get('workspaceId') ?? ''
-        let accountId = ''
-        if (token) {
-          try {
-            const store = (ctx.get('account') as { store?: { accountByToken(token: string): { id: string } | null; isMember?(accountId: string, workspaceId: string): boolean } } | undefined)?.store
-            accountId = store?.accountByToken(token)?.id ?? ''
-            if (accountId && workspaceId && store?.isMember && !store.isMember(accountId, workspaceId)) {
-              socket.close(4403, 'workspace')
-              return
-            }
-          } catch {
-            accountId = ''
-          }
-        }
-        if (process.env.BIU_ONLINE === '1' && (!accountId || !workspaceId)) {
-          socket.close(4401, 'tenant')
+        const auth = this.authenticateSocket(request)
+        if (auth.error) {
+          socket.close(auth.error, auth.error === 4403 ? 'workspace' : 'tenant')
           return
         }
-        this.socketMeta.set(socket, { accountId, workspaceId })
+        this.socketMeta.set(socket, auth)
         this.sockets.add(socket)
-        socket.send(JSON.stringify({ type: 'hello', payload: { ok: true, workspaceId } }))
+        socket.send(JSON.stringify({ type: 'hello', payload: { ok: true, workspaceId: auth.workspaceId } }))
         socket.on('close', () => {
           this.sockets.delete(socket)
           this.socketMeta.delete(socket)
@@ -309,7 +289,16 @@ export class HttpService extends Service {
   ws(path: string, handler: (socket: WebSocket, request: IncomingMessage) => void) {
     return this.ctx.effect(() => {
       const wss = new WebSocketServer({ noServer: true })
-      wss.on('connection', handler)
+      wss.on('connection', (socket, request) => {
+        if (process.env.BIU_ONLINE === '1') {
+          const auth = this.authenticateSocket(request)
+          if (auth.error) {
+            socket.close(auth.error, auth.error === 4403 ? 'workspace' : 'tenant')
+            return
+          }
+        }
+        handler(socket, request)
+      })
       this.wsServers.set(path, wss)
       return () => {
         if (this.wsServers.get(path) === wss) this.wsServers.delete(path)
@@ -320,9 +309,23 @@ export class HttpService extends Service {
 
   broadcast(type: string, payload: unknown, workspaceId?: string, accountId?: string) {
     if (payload && typeof payload === 'object') {
-      const scoped = payload as { workspaceId?: unknown; accountId?: unknown }
+      const scoped = payload as { workspaceId?: unknown; accountId?: unknown; sessionId?: unknown }
       workspaceId ||= typeof scoped.workspaceId === 'string' ? scoped.workspaceId : ''
       accountId ||= typeof scoped.accountId === 'string' ? scoped.accountId : ''
+      if ((!workspaceId || !accountId) && typeof scoped.sessionId === 'string') {
+        const tenant = (
+          this.ctx.get('account') as {
+            store?: {
+              tenantForRecord?(collection: string, recordId: string): {
+                workspaceId: string
+                accountId: string
+              } | null
+            }
+          } | undefined
+        )?.store?.tenantForRecord?.('/sessions', scoped.sessionId)
+        workspaceId ||= tenant?.workspaceId ?? ''
+        accountId ||= tenant?.accountId ?? ''
+      }
     }
     workspaceId ||= currentRequestWorkspaceId()
     accountId ||= currentAccountId()
@@ -332,10 +335,16 @@ export class HttpService extends Service {
       if (meta?.accountId && meta.workspaceId) {
         const store = (
           this.ctx.get('account') as {
-            store?: { isMember?(accountId: string, workspaceId: string): boolean }
+            store?: {
+              accountByToken?(token: string): { id: string } | null
+              isMember?(accountId: string, workspaceId: string): boolean
+            }
           } | undefined
         )?.store
-        if (store?.isMember && !store.isMember(meta.accountId, meta.workspaceId)) {
+        if (
+          (store?.accountByToken && store.accountByToken(meta.token)?.id !== meta.accountId) ||
+          (store?.isMember && !store.isMember(meta.accountId, meta.workspaceId))
+        ) {
           socket.close(4403, 'membership revoked')
           continue
         }
@@ -365,6 +374,51 @@ export class HttpService extends Service {
         socket.close(4403, 'membership revoked')
       }
     }
+  }
+
+  disconnectRevokedSessions(accountId: string) {
+    const store = (
+      this.ctx.get('account') as { store?: { accountByToken?(token: string): { id: string } | null } } | undefined
+    )?.store
+    for (const socket of this.sockets) {
+      const meta = this.socketMeta.get(socket)
+      if (meta?.accountId === accountId && store?.accountByToken?.(meta.token)?.id !== accountId) {
+        socket.close(4401, 'session revoked')
+      }
+    }
+  }
+
+  private authenticateSocket(request: IncomingMessage) {
+    const url = new URL(request.url ?? '/', 'http://localhost')
+    const cookie = String(request.headers.cookie ?? '')
+    const encoded = cookie
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('biu_account=') || part.startsWith('biu_legacy_account='))
+    const cookieToken = encoded ? decodeURIComponent(encoded.slice(encoded.indexOf('=') + 1)) : ''
+    const token = url.searchParams.get('token') ?? cookieToken
+    const workspaceId = url.searchParams.get('workspaceId') ?? ''
+    let accountId = ''
+    const store = (
+      this.ctx.get('account') as {
+        store?: {
+          accountByToken?(token: string): { id: string } | null
+          isMember?(accountId: string, workspaceId: string): boolean
+        }
+      } | undefined
+    )?.store
+    try {
+      accountId = token ? store?.accountByToken?.(token)?.id ?? '' : ''
+    } catch {
+      accountId = ''
+    }
+    if (accountId && workspaceId && store?.isMember && !store.isMember(accountId, workspaceId)) {
+      return { accountId, workspaceId, token, error: 4403 as const }
+    }
+    if (process.env.BIU_ONLINE === '1' && (!accountId || !workspaceId)) {
+      return { accountId, workspaceId, token, error: 4401 as const }
+    }
+    return { accountId, workspaceId, token, error: 0 as const }
   }
 
   listRoutes() {

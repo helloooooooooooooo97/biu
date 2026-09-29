@@ -7,6 +7,7 @@ import {
   currentAccountId,
   currentMcpTenant,
   currentRequestWorkspaceId,
+  type McpTenant,
   runWithAccount,
   runWithMcpTenant,
   runWithRequestWorkspace,
@@ -91,7 +92,7 @@ export function createBiuMcpServer(ctx: Context) {
       const tenant = currentMcpTenant()
       const schemas = ctx.tools
         .schemas()
-        .filter((item) => !tenant?.allowedTools.length || tenant.allowedTools.includes(item.function.name))
+        .filter((item) => !tenant || tenant.allowedTools.includes(item.function.name))
       return {
         tools: schemas.map((item) => ({
           name: item.function.name,
@@ -110,13 +111,13 @@ export function createBiuMcpServer(ctx: Context) {
       if (!tenant) return
       const store = (
         ctx.get('account') as {
-          store?: { auditMcp?(tenant: typeof tenant, toolName: string, success: boolean): void }
+          store?: { auditMcp?(tenant: McpTenant, toolName: string, success: boolean): void }
         } | undefined
       )?.store
       store?.auditMcp?.(tenant, name, success)
     }
     try {
-      if (tenant?.allowedTools.length && !tenant.allowedTools.includes(name)) {
+      if (tenant && !tenant.allowedTools.includes(name)) {
         throw new Error('这个 MCP 凭证不允许使用该工具')
       }
       if (tenant?.role === 'viewer' && MCP_WRITE_TOOLS.has(name)) {

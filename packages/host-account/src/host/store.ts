@@ -332,6 +332,26 @@ export class CollabStore {
       .run(tenant.credentialId, tenant.accountId, tenant.workspaceId, toolName, success ? 1 : 0, now)
   }
 
+  listMcpAudit(accountId: string, workspaceId: string, limit = 100) {
+    this.requireManager(accountId, workspaceId)
+    return this.db
+      .prepare(
+        `SELECT id, credential_id, account_id, workspace_id, tool_name, success, created_at
+         FROM mcp_audit_log WHERE workspace_id = ? ORDER BY id DESC LIMIT ?`,
+      )
+      .all(workspaceId, Math.max(1, Math.min(500, limit)))
+  }
+
+  tenantForRecord(collection: string, recordId: string) {
+    const row = this.db
+      .prepare(
+        `SELECT workspace_id, owner_id FROM record_owners
+         WHERE collection = ? AND record_id = ? LIMIT 1`,
+      )
+      .get(collection, recordId) as { workspace_id: string; owner_id: string } | undefined
+    return row ? { workspaceId: row.workspace_id, accountId: row.owner_id } : null
+  }
+
   revokeMcpForMember(accountId: string, workspaceId: string, now = Date.now()) {
     this.db
       .prepare('UPDATE mcp_credentials SET revoked_at = ? WHERE account_id = ? AND workspace_id = ? AND revoked_at IS NULL')

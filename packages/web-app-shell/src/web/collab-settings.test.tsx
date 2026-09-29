@@ -3,10 +3,12 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, test } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import {
   AuthGate,
   ShellSettingsAccount,
   ShellSettingsMembers,
+  ShellSettingsMcp,
   ShellSettingsWorkspace,
   ShellWorkspaceSwitcher,
 } from './shell-chrome.tsx'
@@ -127,6 +129,19 @@ test('account settings are global and workspace switcher lives in the sidebar he
   globalThis.fetch = (async (path: string) => {
     const url = String(path)
     if (url.endsWith('/me')) return json({ id: 'acc_1', name: 'ada@example.com', email: 'ada@example.com' })
+    if (url.endsWith('/sessions')) {
+      return json({
+        sessions: [
+          {
+            id: 'ses_1',
+            device_name: 'Test Browser',
+            expires_at: Date.now() + 60_000,
+            last_seen_at: Date.now(),
+            revoked_at: null,
+          },
+        ],
+      })
+    }
     if (url.endsWith('/active')) return json({ workspaceId: 'ws_1' })
     if (url.endsWith('/workspaces')) {
       return json({
@@ -140,6 +155,8 @@ test('account settings are global and workspace switcher lives in the sidebar he
   }) as typeof fetch
   render(<ShellSettingsAccount />)
   await waitFor(() => assert.equal(screen.getByTestId('settings-account-global-name').textContent, 'ada@example.com'))
+  assert.match(screen.getByTestId('settings-account-sessions').textContent ?? '', /Test Browser/)
+  assert.match(screen.getByTestId('settings-account-sessions').textContent ?? '', /到期/)
   assert.equal(screen.queryByLabelText('空间昵称'), null)
   assert.equal(screen.queryByTestId('settings-account-logout'), null)
   cleanup()
@@ -157,4 +174,31 @@ test('account settings are global and workspace switcher lives in the sidebar he
   assert.match(screen.getByTestId('shell-workspace-menu').textContent ?? '', /退出登录/)
   fireEvent.click(screen.getByText('空间设置'))
   assert.equal(settingsOpened, true)
+})
+
+test('online MCP settings choose tools and manage scoped credentials', async () => {
+  localStorage.setItem('biu.account.token', 'tok')
+  sessionStorage.setItem('biu.workspaceId', 'ws_1')
+  let createBody: Record<string, unknown> | null = null
+  globalThis.fetch = (async (path: string, init?: RequestInit) => {
+    const url = String(path)
+    if (url.endsWith('/api/mcp/info')) {
+      return json({ online: true, workspaceId: 'ws_1', url: 'http://localhost/api/mcp', token: '', tools: ['db_list', 'db_update'] })
+    }
+    if (url.includes('/api/account/mcp/credentials?')) return json({ credentials: [] })
+    if (url.includes('/api/account/mcp/audit?')) return json({ events: [] })
+    if (url.endsWith('/api/account/mcp/credentials') && init?.method === 'POST') {
+      createBody = JSON.parse(String(init.body))
+      return json({ id: 'mcp_1', token: 'secret' }, 201)
+    }
+    return json({})
+  }) as typeof fetch
+  render(<MemoryRouter><ShellSettingsMcp /></MemoryRouter>)
+  await screen.findByTestId('settings-mcp-allowed-tools')
+  assert.equal((screen.getByLabelText('db_list') as HTMLInputElement).checked, true)
+  assert.equal((screen.getByLabelText('db_update') as HTMLInputElement).checked, false)
+  fireEvent.click(screen.getByTestId('settings-mcp-rotate'))
+  fireEvent.click(await screen.findByText('生成'))
+  await waitFor(() => assert.deepEqual(createBody?.allowedTools, ['db_list']))
+  assert.equal((screen.getByTestId('settings-mcp-token') as HTMLInputElement).value, 'secret')
 })

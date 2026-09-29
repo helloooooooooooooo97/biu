@@ -124,7 +124,10 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   })
 
   ctx.http.route('POST', '/api/account/logout', async (route) => {
-    account.store.revokeSession(bearer(route))
+    const token = bearer(route)
+    const found = token ? account.store.accountByToken(token) : null
+    account.store.revokeSession(token)
+    if (found) ctx.http.disconnectRevokedSessions(found.id)
     route.res.setHeader('set-cookie', [
       'biu_account=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0',
       'biu_legacy_account=; Path=/; SameSite=Strict; Max-Age=0',
@@ -136,7 +139,9 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     try {
       const me = actor(route)
       const body = (await route.json()) as { currentPassword?: string; nextPassword?: string }
-      route.send(200, account.store.changePassword(me.id, String(body.currentPassword ?? ''), String(body.nextPassword ?? ''), bearer(route)))
+      const changed = account.store.changePassword(me.id, String(body.currentPassword ?? ''), String(body.nextPassword ?? ''), bearer(route))
+      ctx.http.disconnectRevokedSessions(me.id)
+      route.send(200, changed)
     } catch (error) {
       fail(route, error)
     }
@@ -154,7 +159,9 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   ctx.http.route('DELETE', '/api/account/sessions/:id', async (route) => {
     try {
       const me = actor(route)
-      route.send(200, account.store.revokeSessionById(me.id, String(route.params.id ?? '')))
+      const revoked = account.store.revokeSessionById(me.id, String(route.params.id ?? ''))
+      ctx.http.disconnectRevokedSessions(me.id)
+      route.send(200, revoked)
     } catch (error) {
       fail(route, error)
     }
@@ -194,6 +201,19 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   ctx.http.route('DELETE', '/api/account/mcp/credentials/:id', async (route) => {
     try {
       route.send(200, account.store.revokeMcpCredential(actor(route).id, String(route.params.id ?? '')))
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('GET', '/api/account/mcp/audit', async (route) => {
+    try {
+      const me = actor(route)
+      const workspaceId = String(route.query.get('workspaceId') ?? '').trim()
+      if (!workspaceId) throw new CollabError('需要空间', 400)
+      route.send(200, {
+        events: account.store.listMcpAudit(me.id, workspaceId, Number(route.query.get('limit') ?? 100)),
+      })
     } catch (error) {
       fail(route, error)
     }

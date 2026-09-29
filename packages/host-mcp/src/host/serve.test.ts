@@ -137,16 +137,16 @@ test('online MCP enforces workspace credentials, tool allowlists, viewer writes,
   const audits: Array<{ toolName: string; success: boolean }> = []
   class FakeAccount extends Service {
     store = {
-      accountByToken: () => null,
+      accountByToken: (token: string) => token === 'web-token' ? { id: 'bob' } : null,
       isMember: (accountId: string, workspaceId: string) => accountId === 'bob' && workspaceId === 'ws-a',
       resolveMcpCredential: (token: string) =>
-        token === 'viewer-token'
+        token === 'viewer-token' || token === 'limited-token'
           ? {
-              credentialId: 'mcp-1',
+              credentialId: token === 'viewer-token' ? 'mcp-1' : 'mcp-2',
               accountId: 'bob',
               workspaceId: 'ws-a',
-              role: 'viewer',
-              allowedTools: ['db_list', 'db_update'],
+              role: token === 'viewer-token' ? 'viewer' : 'owner',
+              allowedTools: token === 'viewer-token' ? ['db_list', 'db_update'] : ['db_list'],
             }
           : null,
       auditMcp: (_tenant: unknown, toolName: string, success: boolean) => audits.push({ toolName, success }),
@@ -174,6 +174,11 @@ test('online MCP enforces workspace credentials, tool allowlists, viewer writes,
   await ctx.plugin(mcp)
   const port = await ready
   try {
+    const safeInfo = await fetch(`http://127.0.0.1:${port}/api/mcp/info`, {
+      headers: { Authorization: 'Bearer web-token', 'X-Biu-Workspace-Id': 'ws-a' },
+    })
+    assert.equal(safeInfo.status, 200)
+    assert.equal(((await safeInfo.json()) as { token?: string }).token, '')
     const denied = await fetch(`http://127.0.0.1:${port}/api/mcp`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', Authorization: 'Bearer wrong' },
@@ -185,8 +190,13 @@ test('online MCP enforces workspace credentials, tool allowlists, viewer writes,
     assert.equal((await client.callTool({ name: 'db_list', arguments: {} })).isError, undefined)
     assert.equal((await client.callTool({ name: 'db_update', arguments: {} })).isError, true)
     await client.close()
+    const limited = await mcpClient(`http://127.0.0.1:${port}/api/mcp`, 'limited-token')
+    assert.deepEqual((await limited.listTools()).tools.map((tool) => tool.name), ['db_list'])
+    assert.equal((await limited.callTool({ name: 'db_update', arguments: {} })).isError, true)
+    await limited.close()
     assert.deepEqual(audits, [
       { toolName: 'db_list', success: true },
+      { toolName: 'db_update', success: false },
       { toolName: 'db_update', success: false },
     ])
   } finally {

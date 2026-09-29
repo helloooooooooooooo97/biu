@@ -231,7 +231,9 @@ export function ShellSettingsAccount() {
               <div className="settings-member-row" key={String(session.id)}>
                 <span>{String(session.device_name || '设备')}</span>
                 <span className="settings-muted">
-                  {session.revoked_at ? '已退出' : `最近使用：${new Date(Number(session.last_seen_at)).toLocaleString()}`}
+                  {session.revoked_at
+                    ? '已退出'
+                    : `最近使用：${new Date(Number(session.last_seen_at)).toLocaleString()} · 到期：${new Date(Number(session.expires_at)).toLocaleString()}`}
                 </span>
                 {!session.revoked_at ? (
                   <button
@@ -1156,6 +1158,20 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
   const [copied, setCopied] = useState('')
   const [rotating, setRotating] = useState(false)
   const [confirmRotate, setConfirmRotate] = useState(false)
+  const [allowedTools, setAllowedTools] = useState<string[]>(['db_list', 'db_read', 'db_stat', 'db_content'])
+  const [credentials, setCredentials] = useState<Array<Record<string, unknown>>>([])
+  const [auditEvents, setAuditEvents] = useState<Array<Record<string, unknown>>>([])
+
+  const loadCredentialData = useCallback((workspaceId: string) => {
+    const token = readAccountToken()
+    void Promise.all([
+      accountFetch(token, `/api/account/mcp/credentials?workspaceId=${encodeURIComponent(workspaceId)}`),
+      accountFetch(token, `/api/account/mcp/audit?workspaceId=${encodeURIComponent(workspaceId)}`).catch(() => ({ events: [] })),
+    ]).then(([credentialsBody, auditBody]) => {
+      setCredentials((credentialsBody.credentials as Array<Record<string, unknown>>) ?? [])
+      setAuditEvents((auditBody.events as Array<Record<string, unknown>>) ?? [])
+    })
+  }, [])
 
   const load = useCallback(() => {
     void fetch('/api/mcp/info')
@@ -1173,10 +1189,15 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
           online: data.online,
           workspaceId: data.workspaceId,
         })
+        if (data.online) {
+          const available = new Set(data.tools ?? [])
+          setAllowedTools((current) => current.filter((tool) => available.has(tool)))
+        }
+        if (data.online && data.workspaceId) loadCredentialData(data.workspaceId)
         setError('')
       })
       .catch((err) => setError(String(err instanceof Error ? err.message : err)))
-  }, [])
+  }, [loadCredentialData])
 
   useEffect(() => {
     load()
@@ -1204,7 +1225,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
         }
         const created = await accountFetch(token, '/api/account/mcp/credentials', {
           method: 'POST',
-          body: JSON.stringify({ workspaceId: info.workspaceId, expiresInHours: 24 * 90 }),
+          body: JSON.stringify({ workspaceId: info.workspaceId, expiresInHours: 24 * 90, allowedTools }),
         })
         setInfo({
           ...info,
@@ -1212,6 +1233,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
           credentialId: String(created.id ?? ''),
         })
         setReveal(true)
+        loadCredentialData(String(info.workspaceId ?? ''))
         setError('')
         return
       }
@@ -1359,6 +1381,60 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
           </article>
         ))}
       </div>
+      {info?.online ? (
+        <>
+          <h4 className="settings-pane-subtitle">允许的工具</h4>
+          <div className="settings-mcp-grid" data-testid="settings-mcp-allowed-tools">
+            {(info.tools ?? []).map((tool) => (
+              <label key={tool} className="settings-mcp-card">
+                <input
+                  type="checkbox"
+                  checked={allowedTools.includes(tool)}
+                  onChange={(event) =>
+                    setAllowedTools((current) =>
+                      event.target.checked ? [...new Set([...current, tool])] : current.filter((name) => name !== tool),
+                    )
+                  }
+                />
+                <code>{tool}</code>
+              </label>
+            ))}
+          </div>
+          <h4 className="settings-pane-subtitle">空间凭证</h4>
+          <div className="settings-mcp-fields" data-testid="settings-mcp-credentials">
+            {credentials.map((credential) => (
+              <div className="settings-mcp-field-row" key={String(credential.id)}>
+                <code>{String(credential.id)}</code>
+                <span className="settings-muted">
+                  {credential.revoked_at ? '已撤销' : `到期：${new Date(Number(credential.expires_at)).toLocaleString()}`}
+                </span>
+                {!credential.revoked_at ? (
+                  <button
+                    type="button"
+                    className="settings-mcp-rotate"
+                    onClick={() => {
+                      void accountFetch(readAccountToken(), `/api/account/mcp/credentials/${encodeURIComponent(String(credential.id))}`, { method: 'DELETE' })
+                        .then(() => loadCredentialData(String(info.workspaceId ?? '')))
+                    }}
+                  >
+                    撤销
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          <h4 className="settings-pane-subtitle">最近调用</h4>
+          <div className="settings-mcp-fields" data-testid="settings-mcp-audit">
+            {auditEvents.map((event) => (
+              <div className="settings-mcp-field-row" key={String(event.id)}>
+                <code>{String(event.tool_name)}</code>
+                <span className="settings-muted">{event.success ? '成功' : '失败'}</span>
+                <span className="settings-muted">{new Date(Number(event.created_at)).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
       {confirmRotate ? (
         <ConfirmDialog
           title={info?.token ? '重新生成 MCP token' : '生成空间 MCP token'}

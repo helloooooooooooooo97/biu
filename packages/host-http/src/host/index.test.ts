@@ -199,11 +199,15 @@ test('online HTTP and WebSocket enforce account and workspace boundaries', async
   await mkdir(publicDir, { recursive: true })
   await writeFile(join(publicDir, 'index.html'), '<html></html>')
   const memberships = new Set(['ada:ws-a', 'bob:ws-b'])
+  const validTokens = new Set(['ada-token', 'bob-token'])
   const ctx = new Context()
   class FakeAccount extends Service {
     store = {
-      accountByToken: (token: string) => token === 'ada-token' ? { id: 'ada' } : token === 'bob-token' ? { id: 'bob' } : null,
+      accountByToken: (token: string) =>
+        validTokens.has(token) ? token === 'ada-token' ? { id: 'ada' } : { id: 'bob' } : null,
       isMember: (accountId: string, workspaceId: string) => memberships.has(`${accountId}:${workspaceId}`),
+      tenantForRecord: (_collection: string, recordId: string) =>
+        recordId === 'session-a' ? { workspaceId: 'ws-a', accountId: 'ada' } : null,
     }
     constructor(inner: Context) {
       super(inner, 'account')
@@ -214,6 +218,7 @@ test('online HTTP and WebSocket enforce account and workspace boundaries', async
   const fiber = await ctx.plugin(http, { port: 0, host: '127.0.0.1', publicDir, sharePort: 0 })
   const port = await ready
   ctx.http.route('GET', '/api/db/list', (route) => route.send(200, { ok: true }))
+  ctx.http.ws('/ws/plugin-extra', (socket) => socket.send('secured'))
   try {
     assert.equal((await fetch(`http://127.0.0.1:${port}/api/db/list`)).status, 401)
     assert.equal((await fetch(`http://127.0.0.1:${port}/api/db/list`, { headers: { Authorization: 'Bearer ada-token' } })).status, 400)
@@ -233,6 +238,22 @@ test('online HTTP and WebSocket enforce account and workspace boundaries', async
       ).status,
       200,
     )
+    const unauthenticatedWs = await new Promise<number>((resolve) => {
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/ws/plugin-extra`)
+      socket.once('close', (code) => resolve(code))
+    })
+    assert.equal(unauthenticatedWs, 4401)
+    const securedWs = await new Promise<string>((resolve, reject) => {
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/ws/plugin-extra?workspaceId=ws-a`, {
+        headers: { Cookie: 'biu_account=ada-token' },
+      })
+      socket.once('message', (raw) => {
+        resolve(String(raw))
+        socket.close()
+      })
+      socket.once('error', reject)
+    })
+    assert.equal(securedWs, 'secured')
 
     const connect = (token: string, workspaceId: string) =>
       new Promise<WebSocket>((resolve, reject) => {
@@ -243,6 +264,9 @@ test('online HTTP and WebSocket enforce account and workspace boundaries', async
         socket.once('error', reject)
       })
     const [ada, bob] = await Promise.all([connect('ada-token', 'ws-a'), connect('bob-token', 'ws-b')])
+    const inferredSessionMessage = new Promise<string>((resolve) => ada.once('message', (raw) => resolve(String(raw))))
+    ctx.http.broadcast('session', { sessionId: 'session-a', event: { type: 'done' } })
+    assert.match(await inferredSessionMessage, /"session-a"/)
     const adaMessage = new Promise<string>((resolve) => ada.once('message', (raw) => resolve(String(raw))))
     let bobReceived = false
     bob.once('message', () => {
@@ -255,11 +279,14 @@ test('online HTTP and WebSocket enforce account and workspace boundaries', async
     const bobAccountMessage = new Promise<string>((resolve) => bob.once('message', (raw) => resolve(String(raw))))
     ctx.http.broadcastAccount('bob', 'inbox', { accountOnly: true })
     assert.match(await bobAccountMessage, /"accountOnly":true/)
+    const bobClosed = new Promise<number>((resolve) => bob.once('close', (code) => resolve(code)))
+    validTokens.delete('bob-token')
+    ctx.http.disconnectRevokedSessions('bob')
+    assert.equal(await bobClosed, 4401)
     const closed = new Promise<number>((resolve) => ada.once('close', (code) => resolve(code)))
     memberships.delete('ada:ws-a')
     ctx.http.disconnectTenant('ada', 'ws-a')
     assert.equal(await closed, 4403)
-    bob.close()
   } finally {
     await fiber.dispose()
     if (previous === undefined) delete process.env.BIU_ONLINE

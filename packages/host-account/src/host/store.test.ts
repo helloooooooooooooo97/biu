@@ -342,7 +342,12 @@ test('a temporary guest gets an expiring identity scoped to one record', () => {
 
 test('login sessions are hashed and can be revoked', () => {
   const collab = store()
-  collab.register('', Date.now(), 'secret1', 'ada@example.com')
+  const registered = collab.register('', Date.now(), 'secret1', 'ada@example.com')
+  const previous = process.env.BIU_ONLINE
+  process.env.BIU_ONLINE = '1'
+  assert.equal(collab.accountByToken(registered.token), null)
+  if (previous === undefined) delete process.env.BIU_ONLINE
+  else process.env.BIU_ONLINE = previous
   const loggedIn = collab.login('ada@example.com', 'secret1')
   assert.equal(collab.accountByToken(loggedIn.token)?.id, loggedIn.id)
   const active = collab.listSessions(loggedIn.id).find((row) => row.revoked_at == null)
@@ -361,12 +366,16 @@ test('mcp credentials stay inside one workspace and die with membership', () => 
   collab.updateMemberRole(ada.id, spaceA.id, bob.id, 'viewer')
   const adaToken = collab.issueMcpCredential(ada.id, spaceA.id, { allowedTools: ['db_list'] })
   const bobToken = collab.issueMcpCredential(bob.id, spaceA.id)
+  const issuedAt = Date.now()
+  const shortLived = collab.issueMcpCredential(ada.id, spaceA.id, { expiresAt: issuedAt + 1_000 }, issuedAt)
   assert.equal(collab.resolveMcpCredential(adaToken.token)?.workspaceId, spaceA.id)
   assert.deepEqual(collab.resolveMcpCredential(adaToken.token)?.allowedTools, ['db_list'])
   assert.ok(adaToken.expiresAt > Date.now())
-  assert.equal(collab.listMcpCredentials(ada.id, spaceA.id).length, 1)
+  assert.equal(collab.listMcpCredentials(ada.id, spaceA.id).length, 2)
   collab.auditMcp(collab.resolveMcpCredential(adaToken.token)!, 'db_list', true)
+  assert.equal(collab.listMcpAudit(ada.id, spaceA.id)[0]?.tool_name, 'db_list')
   assert.equal(collab.resolveMcpCredential(bobToken.token)?.role, 'viewer')
+  assert.equal(collab.resolveMcpCredential(shortLived.token, issuedAt + 1_001), null)
   assert.throws(() => collab.issueMcpCredential(ada.id, spaceB.id), CollabError)
   collab.removeMember(ada.id, spaceA.id, bob.id)
   assert.equal(collab.resolveMcpCredential(bobToken.token), null)
@@ -391,8 +400,10 @@ test('cross-workspace matrix denies strangers, viewers who write, and revoked se
     runWithAccount(ada.id, () =>
       runWithRequestWorkspace(spaceA.id, () => {
         collab.attach(spaceA.id, '/pages', 'shared-page', now, { ownership: 'workspace', accessMode: 'members' })
+        collab.attach(spaceA.id, '/sessions', 'session-a', now)
       }),
     )
+    assert.deepEqual(collab.tenantForRecord('/sessions', 'session-a'), { workspaceId: spaceA.id, accountId: ada.id })
     const read = (accountId: string, workspaceId: string) =>
       runWithAccount(accountId, () => runWithRequestWorkspace(workspaceId, () => collab.canReadRecord('/pages', 'shared-page')))
     const update = (accountId: string, workspaceId: string) =>
