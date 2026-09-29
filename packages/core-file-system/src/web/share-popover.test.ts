@@ -48,3 +48,18 @@ test('share panel no longer offers member-group grants', () => {
   assert.doesNotMatch(src, /availableGroups|groupId|添加成员组/)
   assert.doesNotMatch(src, /\/groups`\)/)
 })
+
+test('share panel separates public sharing from internal and external collaboration', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './share-popover.tsx'), 'utf8')
+  const accountHost = readFileSync(resolve(import.meta.dirname, '../../../host-account/src/host/index.ts'), 'utf8')
+  const databaseHost = readFileSync(resolve(import.meta.dirname, '../host/index.ts'), 'utf8')
+  assert.match(src, /公开分享/)
+  assert.match(src, /邀请协作/)
+  assert.match(src, /内部协作者/)
+  assert.match(src, /外部协作者/)
+  assert.match(src, /collaboratorKind/)
+  assert.match(src, /method: 'DELETE'/)
+  assert.match(accountHost, /DELETE', '\/api\/account\/access'/)
+  assert.match(databaseHost, /externallySharedRecords/)
+  assert.match(databaseHost, /collab:/)
+})

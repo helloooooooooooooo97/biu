@@ -683,6 +683,18 @@ button.fsdb-detail-title-icon:hover{background:color-mix(in srgb,var(--dsw-hover
 .fsdb-share-head{padding:16px 16px 12px}
 .fsdb-share-head strong{display:block;font-size:14px;font-weight:700;color:var(--dsw-label)}
 .fsdb-share-head p,.fsdb-share-perm{margin:4px 0 0;color:var(--dsw-label-2);font-size:12px;line-height:1.5;font-weight:500}
+.fsdb-share-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:0 16px 14px;border-radius:8px;background:var(--dsw-input);padding:3px}
+.fsdb-share-tabs button,.fsdb-share-collab-tabs button{height:30px;border:0;border-radius:6px;background:transparent;color:var(--dsw-label-2);font:inherit;font-size:12px;font-weight:650;cursor:pointer}
+.fsdb-share-tabs button.is-on,.fsdb-share-collab-tabs button.is-on{background:var(--dsw-surface,var(--dsw-sidebar));color:var(--dsw-label);box-shadow:0 1px 3px color-mix(in srgb,#000 15%,transparent)}
+.fsdb-share-collab-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;border-bottom:1px solid var(--dsw-border)}
+.fsdb-share-collab-tabs button{border-radius:6px 6px 0 0}
+.fsdb-share-collab-tabs button.is-on{box-shadow:inset 0 -2px var(--dsw-pick,#2383e2)}
+.fsdb-share-scope{margin:8px 0;color:var(--dsw-label);font-size:12px;font-weight:650}
+.fsdb-share-collaborators{display:flex;flex-direction:column;gap:2px;margin:8px 0;padding:0;list-style:none}
+.fsdb-share-collaborators li{display:flex;min-height:30px;align-items:center;justify-content:space-between;gap:8px;color:var(--dsw-label-2);font-size:12px}
+.fsdb-share-collaborators li span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fsdb-share-remove{flex:none;border:0;border-radius:5px;background:transparent;padding:4px 6px;color:var(--dsw-danger);font:inherit;font-size:11px;cursor:pointer}
+.fsdb-share-remove:hover{background:color-mix(in srgb,var(--dsw-danger) 8%,transparent)}
 .fsdb-share-link-section{padding:0 16px 14px}
 .fsdb-share-empty-title{margin:0;color:var(--dsw-label);font-size:13px;font-weight:650}
 .fsdb-share-empty-copy{margin:3px 0 12px;color:var(--dsw-label-2);font-size:12px;line-height:1.45;font-weight:500}
