@@ -132,6 +132,16 @@ export function builtinScopeView(view: SavedView, scope: DataScope): SavedView {
   })
 }
 
+/** 空间与私人区拥有各自的视图集合；历史未标 scope 的用户视图归入私人数据。 */
+export function viewsForScope(views: SavedView[], scope: DataScope): SavedView[] {
+  return views.flatMap((view) => {
+    if (view.builtin) return [builtinScopeView(view, scope)]
+    const declared = view.filters?.$scope
+    if ((declared || 'personal') !== scope) return []
+    return [normalizeSavedView({ ...view, filters: { ...view.filters, $scope: scope } })]
+  })
+}
+
 export function stubBuiltinScopeView(id: string, listed: SavedView[] = []): SavedView | null {
   const parsed = parseBuiltinScopeViewId(id)
   if (!parsed) return null

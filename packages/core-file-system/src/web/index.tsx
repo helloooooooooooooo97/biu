@@ -25,6 +25,7 @@ import { viewsChrome } from './views-chrome.ts'
 import { pageBlocksChrome } from './page-blocks-chrome.ts'
 import { viewsForRegisteredCollection } from './collection-nav.ts'
 import { builtinAllViewId } from '../catalog-views.ts'
+import type { DataScope } from '../catalog-views.ts'
 import { normalizeCollectionPath } from '../paths.ts'
 
 type SlotsService = {
@@ -72,6 +73,11 @@ function CollectionPage(props: SlotProps) {
   const [expandedViewKey, setExpandedViewKey] = useState<string | null>(null)
   const parsed = useMemo(() => parseAppPath(location.pathname, [DATA_MODULE]), [location.pathname])
   const dataHome = parsed.kind === 'module' && parsed.moduleId === DATA_MODULE_ID
+  const scopeHome = useMemo<DataScope | null>(() => {
+    if (!dataHome) return null
+    const scope = new URLSearchParams(location.search).get('scope')
+    return scope === 'personal' || scope === 'workspace' ? scope : null
+  }, [dataHome, location.search])
   const storedHome = useMemo(
     () => (dataHome ? pickMainDataRoute(readMainDataRoute(), orderedTables) : ''),
     [dataHome, orderedTables],
@@ -147,6 +153,7 @@ function CollectionPage(props: SlotProps) {
   useLayoutEffect(() => {
     if (!orderedTables.length) return
     if (!dataHome) return
+    if (scopeHome) return
     const stored = pickMainDataRoute(readMainDataRoute(), orderedTables)
     if (stored) {
       navigate(stored, { replace: true })
@@ -154,7 +161,7 @@ function CollectionPage(props: SlotProps) {
     }
     const first = orderedTables[0]!
     go({ collection: first.path, viewId: builtinAllViewId(first.path) }, { replace: true })
-  }, [dataHome, orderedTables])
+  }, [dataHome, orderedTables, scopeHome])
 
   useEffect(() => {
     if (parsed.kind !== 'collection-view' || parsed.viewId || recordFromRoute) return
@@ -185,6 +192,8 @@ function CollectionPage(props: SlotProps) {
       routeViewId={viewFromRoute}
       expandedViewKey={expandedViewKey}
       onExpandedViewKeyChange={setExpandedViewKey}
+      scopeHome={scopeHome}
+      onOpenScopeHome={(scope) => navigate(`${DATA_MODULE_PATH}?scope=${scope}`)}
       onOpenTable={(path, viewId) =>
           go({
             collection: path,
