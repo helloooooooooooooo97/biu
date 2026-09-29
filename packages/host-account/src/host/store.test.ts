@@ -405,7 +405,9 @@ test('a private record stays hidden until the owner shares it with a workspace m
   runWithAccount(ada.id, () => collab.attach(workspaceId, '/pages', 'secret'))
   assert.equal(runWithAccount(ada.id, () => collab.canReadRecord('/pages', 'secret')), true)
   assert.equal(runWithAccount(bob.id, () => collab.canReadRecord('/pages', 'secret')), false)
-  const shared = runWithAccount(ada.id, () => collab.shareWithEmail(ada.id, '/pages', 'secret', 'bob@example.com'))
+  const shared = runWithAccount(ada.id, () =>
+    collab.shareWithEmail(ada.id, '/pages', 'secret', 'bob@example.com', 'editor', 'internal'),
+  )
   assert.equal(shared.people.some((row) => row.email === 'bob@example.com'), true)
   assert.equal(runWithAccount(bob.id, () => collab.canReadRecord('/pages', 'secret')), true)
   assert.throws(() => runWithAccount(bob.id, () => collab.shareWithEmail(bob.id, '/pages', 'other', 'ada@example.com')), CollabError)
@@ -425,6 +427,57 @@ test('sharing with a registered outsider adds an external member limited to expl
   assert.equal(external?.member_kind, 'external')
   collab.setActive(bob.id, workspaceId)
   assert.equal(runWithAccount(bob.id, () => collab.canReadRecord('/pages', 'private-external')), true)
+})
+
+test('collaborators move a record between personal, workspace, and shared scopes', () => {
+  const collab = store()
+  const ada = collab.register('', Date.now(), 'secret1', 'scope-ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'scope-bob@example.com')
+  const cara = collab.register('', Date.now(), 'secret1', 'scope-cara@example.com')
+  const workspaceId = collab.enter(ada.id)
+  collab.enter(bob.id)
+  collab.enter(cara.id)
+  collab.addMemberByEmail(ada.id, workspaceId, bob.email)
+
+  const asAda = <T>(op: () => T) =>
+    runWithAccount(ada.id, () => runWithRequestWorkspace(workspaceId, op))
+  asAda(() => collab.attach(workspaceId, '/pages', 'scope-page'))
+  assert.equal(asAda(() => collab.recordAccess(ada.id, '/pages', 'scope-page')).scope, 'personal')
+  assert.throws(
+    () => asAda(() => collab.shareWithEmail(ada.id, '/pages', 'scope-page', bob.email, 'editor', 'external')),
+    /已经是内部空间成员/,
+  )
+  assert.throws(
+    () => asAda(() => collab.shareWithEmail(ada.id, '/pages', 'scope-page', cara.email, 'editor', 'internal')),
+    /必须先加入当前空间/,
+  )
+
+  const workspaceAccess = asAda(() =>
+    collab.shareWithEmail(ada.id, '/pages', 'scope-page', bob.email, 'editor', 'internal'),
+  )
+  assert.equal(workspaceAccess.scope, 'workspace')
+  assert.equal(workspaceAccess.people.find((row) => row.id === bob.id)?.memberKind, 'member')
+
+  const sharedAccess = asAda(() =>
+    collab.shareWithEmail(ada.id, '/pages', 'scope-page', cara.email, 'viewer', 'external'),
+  )
+  assert.equal(sharedAccess.scope, 'shared')
+  assert.equal(sharedAccess.people.find((row) => row.id === cara.id)?.memberKind, 'external')
+  assert.deepEqual(collab.externallySharedRecords(ada.id, workspaceId), [
+    { collection: '/pages', record_id: 'scope-page' },
+  ])
+
+  const backToWorkspace = asAda(() =>
+    collab.revokeRecordGrant(ada.id, '/pages', 'scope-page', 'account', cara.id),
+  )
+  assert.equal(backToWorkspace.scope, 'workspace')
+  assert.equal(collab.members(ada.id, workspaceId).some((row) => row.id === cara.id), false)
+
+  const backToPersonal = asAda(() =>
+    collab.revokeRecordGrant(ada.id, '/pages', 'scope-page', 'account', bob.id),
+  )
+  assert.equal(backToPersonal.scope, 'personal')
+  assert.equal(backToPersonal.private, true)
 })
 
 test('an account can join as a workspace member through a one-use invite link', () => {

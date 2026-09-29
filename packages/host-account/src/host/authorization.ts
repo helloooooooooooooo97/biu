@@ -50,7 +50,7 @@ export type Decision =
     }
 
 export type ResourcePolicyInput = {
-  ownership?: 'personal' | 'workspace'
+  ownership?: 'personal' | 'workspace' | 'shared'
   accessMode?: AccessMode
   memberDefaultRole?: 'viewer' | 'editor'
   parentCollection?: string
@@ -61,7 +61,7 @@ type PolicyRow = {
   workspace_id: string
   collection: string
   record_id: string
-  ownership: 'personal' | 'workspace'
+  ownership: 'personal' | 'workspace' | 'shared'
   owner_account_id: string
   access_mode: AccessMode
   member_default_role: 'viewer' | 'editor'
@@ -201,7 +201,7 @@ export class AuthorizationService {
     return resources.filter(({ resource }) => this.authorize(actor, action, resource).allowed).map(({ value }) => value)
   }
 
-  scopeCurrent(resource: Extract<ResourceRef, { type: 'record' }>): 'personal' | 'workspace' | null {
+  scopeCurrent(resource: Extract<ResourceRef, { type: 'record' }>): 'personal' | 'workspace' | 'shared' | null {
     const actor = this.currentActor()
     if (!actor || actor.workspaceId !== resource.workspaceId) return null
     return this.resourceScope(resource, new Set(), 0)
@@ -211,7 +211,7 @@ export class AuthorizationService {
     resource: Extract<ResourceRef, { type: 'record' }>,
     visited: Set<string>,
     depth: number,
-  ): 'personal' | 'workspace' | null {
+  ): 'personal' | 'workspace' | 'shared' | null {
     const key = `${resource.workspaceId}\t${resource.collection}\t${resource.recordId}`
     if (visited.has(key) || depth > 64) return null
     visited.add(key)
@@ -237,6 +237,7 @@ export class AuthorizationService {
         depth + 1,
       )
     }
+    if (policy.ownership === 'shared') return 'shared'
     return policy.ownership === 'workspace' || policy.access_mode === 'members' ? 'workspace' : 'personal'
   }
 

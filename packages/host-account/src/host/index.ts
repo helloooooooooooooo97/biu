@@ -567,6 +567,7 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
         groupId?: string
         memberViewId?: string
         role?: ResourceRole
+        collaboratorKind?: 'internal' | 'external'
       }
       const collection = String(body.collection ?? '')
       const recordId = String(body.recordId ?? '')
@@ -578,7 +579,40 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
           ? account.store.grantMemberView(me.id, collection, recordId, String(body.memberViewId), role)
           : body.groupId
           ? account.store.grantGroup(me.id, collection, recordId, String(body.groupId), role)
-          : account.store.shareWithEmail(me.id, collection, recordId, String(body.email ?? ''), role),
+          : account.store.shareWithEmail(
+              me.id,
+              collection,
+              recordId,
+              String(body.email ?? ''),
+              role,
+              body.collaboratorKind === 'internal' ? 'internal' : 'external',
+            ),
+      )
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('DELETE', '/api/account/access', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as {
+        collection?: string
+        recordId?: string
+        subjectType?: 'account' | 'group' | 'member_view'
+        subjectId?: string
+      }
+      const subjectType =
+        body.subjectType === 'group' || body.subjectType === 'member_view' ? body.subjectType : 'account'
+      route.send(
+        200,
+        account.store.revokeRecordGrant(
+          me.id,
+          String(body.collection ?? ''),
+          String(body.recordId ?? ''),
+          subjectType,
+          String(body.subjectId ?? ''),
+        ),
       )
     } catch (error) {
       fail(route, error)

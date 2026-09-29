@@ -7,6 +7,7 @@ import {
   dataPath,
   EditorContentConflictError,
   currentAccountId,
+  currentRequestWorkspaceId,
   readEditorContent,
   readEditorContentRecord,
   writeEditorContent,
@@ -2105,6 +2106,10 @@ export function apply(ctx: Context) {
         member_kind: 'member' | 'external'
         created_at: number
       }>
+      externallySharedRecords?: (
+        accountId: string,
+        workspaceId: string,
+      ) => Array<{ collection: string; record_id: string }>
     }
   } | undefined
   account?.authorization?.setMemberViewMatcher((workspaceId, viewId, accountId) => {
@@ -2654,6 +2659,7 @@ export function apply(ctx: Context) {
     const collection = route.query.get('collection') || ''
     if (!collection) {
       const items = []
+      const listedRecords = new Set<string>()
       for (const share of shares.list()) {
         try {
           await db.requirePath(
@@ -2692,6 +2698,34 @@ export function apply(ctx: Context) {
           )
         }
         items.push({ ...share, title, url: publicShareUrl(route.req, share.token) })
+        if (share.kind === 'record' && share.recordId) {
+          listedRecords.add(`${share.collection}\t${share.recordId}`)
+        }
+      }
+      const accountId = currentAccountId()
+      const workspaceId = currentRequestWorkspaceId()
+      if (accountId && workspaceId && account?.store?.externallySharedRecords) {
+        for (const record of account.store.externallySharedRecords(accountId, workspaceId)) {
+          const key = `${record.collection}\t${record.record_id}`
+          if (listedRecords.has(key)) continue
+          try {
+            const got = (await db.read(`${record.collection}/${record.record_id}`)) as {
+              value?: { title?: unknown; name?: unknown }
+            }
+            items.push({
+              token: `collab:${encodeURIComponent(record.collection)}:${encodeURIComponent(record.record_id)}`,
+              kind: 'record',
+              collection: record.collection,
+              viewId: '',
+              recordId: record.record_id,
+              title: String(got.value?.title ?? got.value?.name ?? record.record_id),
+              url: '',
+            })
+            listedRecords.add(key)
+          } catch {
+            /* The record was removed or this account no longer has access. */
+          }
+        }
       }
       route.send(200, { shares: items })
       return
