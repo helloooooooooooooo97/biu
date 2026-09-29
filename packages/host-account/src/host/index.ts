@@ -6,7 +6,7 @@ import { CollabError, CollabStore } from './store.ts'
 import type { AuthorizationService, ResourceRole } from './authorization.ts'
 import { workspaceMembersCollection } from './workspace-members-collection.ts'
 
-export type { Actor, Action, ResourceRef, ResourceRole, Decision } from './authorization.ts'
+export type { Actor, Action, ResourceRef, ResourceRole, WorkspaceRole, Decision } from './authorization.ts'
 
 export const name = 'account'
 export const inject = ['http']
@@ -220,7 +220,9 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       const me = actor(route)
       const body = (await route.json()) as { role?: string }
       const role = String(body.role ?? '')
-      if (role !== 'admin' && role !== 'member') throw new CollabError('角色只能是 admin 或 member', 400)
+      if (role !== 'admin' && role !== 'member' && role !== 'viewer') {
+        throw new CollabError('角色只能是 admin、member 或 viewer', 400)
+      }
       account.store.updateMemberRole(me.id, route.params.id!, route.params.accountId!, role)
       route.send(200, { members: account.store.members(me.id, route.params.id!) })
     } catch (error) {

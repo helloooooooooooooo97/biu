@@ -1,7 +1,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { currentAccountId } from '@biu/host-plugin-loader/data-dir'
-import { AuthorizationService, type ResourcePolicyInput, type ResourceRole } from './authorization.ts'
+import { AuthorizationService, type ResourcePolicyInput, type ResourceRole, type WorkspaceRole } from './authorization.ts'
 
 export const PRESENCE_STALE_MS = 30_000
 export const DEFAULT_LOCK_MS = 60_000
@@ -17,7 +17,7 @@ export class CollabError extends Error {
 }
 
 export type Account = { id: string; name: string; email: string; createdAt: number }
-export type Workspace = { id: string; name: string; ownerId: string; role: string; createdAt: number }
+export type Workspace = { id: string; name: string; ownerId: string; role: WorkspaceRole; createdAt: number }
 export type RecordHead = {
   workspaceId: string
   collection: string
@@ -283,7 +283,7 @@ export class CollabStore {
     return { id: accountId }
   }
 
-  updateMemberRole(actorId: string, workspaceId: string, accountId: string, role: 'admin' | 'member') {
+  updateMemberRole(actorId: string, workspaceId: string, accountId: string, role: 'admin' | 'member' | 'viewer') {
     this.requireRole(actorId, workspaceId, 'owner')
     const target = this.db
       .prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND account_id = ?')

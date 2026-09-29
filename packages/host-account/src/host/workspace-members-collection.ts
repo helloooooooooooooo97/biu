@@ -60,7 +60,7 @@ export function workspaceMembersCollection(store: CollabStore): CollectionSpec {
       title: '空间成员',
       inspector: false,
       blurb:
-        '当前工作区成员目录。db_list 查看成员；Owner 可用 db_update 修改 role=admin|member；Owner/Admin 可用 db_create 邀请、db_delete 移除其有权管理的成员。修改 tags 等元数据不会改变角色。',
+        '当前工作区成员目录。db_list 查看成员；Owner 可用 db_update 修改 role=admin|member|viewer；Owner/Admin 可用 db_create 邀请、db_delete 移除其有权管理的成员。viewer 只能查看获准的数据，不能创建或编辑。修改 tags 等元数据不会改变角色。',
       order: 18,
       icon: 'users',
     },
@@ -73,7 +73,7 @@ export function workspaceMembersCollection(store: CollabStore): CollectionSpec {
         title: { type: 'string', label: '账号名' },
         name: { type: 'string', label: '空间账号名' },
         email: { type: 'string', label: '登录邮箱', writable: true },
-        role: { type: 'select', label: '角色', enum: ['owner', 'admin', 'member'], writable: true },
+        role: { type: 'select', label: '角色', enum: ['owner', 'admin', 'member', 'viewer'], writable: true },
         joinedAt: { type: 'datetime', label: '加入时间', sortable: true },
       },
     },
@@ -120,7 +120,9 @@ export function workspaceMembersCollection(store: CollabStore): CollectionSpec {
         return current
       }
       const role = String(patch.role ?? '')
-      if (role !== 'admin' && role !== 'member') throw new Error('role must be admin or member')
+      if (role !== 'admin' && role !== 'member' && role !== 'viewer') {
+        throw new Error('role must be admin, member or viewer')
+      }
       return asRecord(store.updateMemberRole(actorId, workspaceId, id, role))
     },
     remove: async (query) => {

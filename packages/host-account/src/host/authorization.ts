@@ -29,6 +29,7 @@ export type ResourceRef =
 
 export type ResourceRole = 'viewer' | 'editor' | 'manager' | 'owner'
 export type AccessMode = 'inherit' | 'private' | 'members' | 'restricted'
+export type WorkspaceRole = 'viewer' | 'member' | 'admin' | 'owner'
 
 export type Decision =
   | {
@@ -139,7 +140,11 @@ export class AuthorizationService {
       }
       return {
         allowed: true,
-        effectiveRole: membership === 'owner' || membership === 'admin' ? 'manager' : 'editor',
+        effectiveRole: membership === 'owner' || membership === 'admin'
+          ? 'manager'
+          : membership === 'viewer'
+            ? 'viewer'
+            : 'editor',
         source: 'workspace-default',
       }
     }
@@ -152,7 +157,8 @@ export class AuthorizationService {
         : { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
     }
     if (resource.collection === '/views') {
-      const effectiveRole: ResourceRole = membership === 'owner' ? 'owner' : 'manager'
+      const effectiveRole: ResourceRole =
+        membership === 'owner' ? 'owner' : membership === 'viewer' ? 'viewer' : 'manager'
       return ROLE_RANK[effectiveRole] >= ROLE_RANK[requiredRole(action)]
         ? { allowed: true, effectiveRole, source: 'workspace-default' }
         : { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
@@ -161,10 +167,13 @@ export class AuthorizationService {
     const resolved = this.effectiveRole(actor.accountId, resource, new Set(), 0)
     if (!resolved) return { allowed: false, reason: 'PRIVATE_RESOURCE' }
     if ('reason' in resolved) return resolved
-    if (ROLE_RANK[resolved.effectiveRole] < ROLE_RANK[requiredRole(action)]) {
+    const effective = membership === 'viewer'
+      ? { effectiveRole: 'viewer' as const, source: resolved.source }
+      : resolved
+    if (ROLE_RANK[effective.effectiveRole] < ROLE_RANK[requiredRole(action)]) {
       return { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
     }
-    return { allowed: true, ...resolved }
+    return { allowed: true, ...effective }
   }
 
   authorizeCurrent(action: Action, resource: ResourceRef) {
@@ -180,6 +189,45 @@ export class AuthorizationService {
   filterCurrent<T>(action: Action, resources: Array<{ resource: ResourceRef; value: T }>) {
     const actor = this.currentActor()
     return resources.filter(({ resource }) => this.authorize(actor, action, resource).allowed).map(({ value }) => value)
+  }
+
+  scopeCurrent(resource: Extract<ResourceRef, { type: 'record' }>): 'personal' | 'workspace' | null {
+    const actor = this.currentActor()
+    if (!actor || actor.workspaceId !== resource.workspaceId) return null
+    return this.resourceScope(resource, new Set(), 0)
+  }
+
+  private resourceScope(
+    resource: Extract<ResourceRef, { type: 'record' }>,
+    visited: Set<string>,
+    depth: number,
+  ): 'personal' | 'workspace' | null {
+    const key = `${resource.workspaceId}\t${resource.collection}\t${resource.recordId}`
+    if (visited.has(key) || depth > 64) return null
+    visited.add(key)
+    const policy = this.policy(resource)
+    if (!policy) {
+      const legacy = this.db
+        .prepare(
+          `SELECT 1 AS ok FROM record_owners
+           WHERE workspace_id = ? AND collection = ? AND record_id = ?`,
+        )
+        .get(resource.workspaceId, resource.collection, resource.recordId)
+      return legacy ? 'workspace' : null
+    }
+    if (policy.access_mode === 'inherit' && policy.parent_record_id) {
+      return this.resourceScope(
+        {
+          type: 'record',
+          workspaceId: resource.workspaceId,
+          collection: policy.parent_collection || resource.collection,
+          recordId: policy.parent_record_id,
+        },
+        visited,
+        depth + 1,
+      )
+    }
+    return policy.ownership === 'workspace' || policy.access_mode === 'members' ? 'workspace' : 'personal'
   }
 
   attach(
@@ -317,11 +365,16 @@ export class AuthorizationService {
     if (!policy) {
       const legacy = this.db
         .prepare(
-          `SELECT 1 AS ok FROM record_owners
+          `SELECT owner_id FROM record_owners
            WHERE workspace_id = ? AND collection = ? AND record_id = ?`,
         )
-        .get(resource.workspaceId, resource.collection, resource.recordId) as { ok: number } | undefined
-      return legacy ? { effectiveRole: 'editor', source: 'legacy' } : null
+        .get(resource.workspaceId, resource.collection, resource.recordId) as { owner_id: string } | undefined
+      if (!legacy) return null
+      if (legacy.owner_id === accountId) return { effectiveRole: 'owner', source: 'legacy' }
+      return {
+        effectiveRole: this.membership(accountId, resource.workspaceId) === 'viewer' ? 'viewer' : 'editor',
+        source: 'legacy',
+      }
     }
     if (policy.owner_account_id === accountId) return { effectiveRole: 'owner', source: 'ownership' }
 
@@ -399,10 +452,12 @@ export class AuthorizationService {
       .get(resource.workspaceId, resource.collection, resource.recordId) as PolicyRow | undefined
   }
 
-  private membership(accountId: string, workspaceId: string) {
+  private membership(accountId: string, workspaceId: string): WorkspaceRole | null {
     const row = this.db
       .prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
       .get(workspaceId, accountId) as { role: string } | undefined
-    return row?.role ?? null
+    return row?.role === 'owner' || row?.role === 'admin' || row?.role === 'member' || row?.role === 'viewer'
+      ? row.role
+      : null
   }
 }

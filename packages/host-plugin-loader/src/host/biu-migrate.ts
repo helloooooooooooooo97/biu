@@ -397,6 +397,9 @@ export const BIU_MIGRATIONS: Migration[] = [
   { version: 27, module: 'host-account', name: 'account.admin-role', up: (db) => {
     db.exec(`UPDATE workspace_members SET role = 'member' WHERE role NOT IN ('owner', 'admin', 'member')`)
   } },
+  { version: 28, module: 'host-account', name: 'account.viewer-role', up: (db) => {
+    db.exec(`UPDATE workspace_members SET role = 'member' WHERE role NOT IN ('owner', 'admin', 'member', 'viewer')`)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

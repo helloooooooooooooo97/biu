@@ -499,13 +499,13 @@ export function ShellSettingsCollab() {
             {members.length ? members.map((row) => (
               <li key={row.id}>
                 {row.name}{row.email ? ` · ${row.email}` : ''} · {
-                  row.role === 'owner' ? '所有者' : row.role === 'admin' ? '管理员' : '成员'
+                  row.role === 'owner' ? '所有者' : row.role === 'admin' ? '管理员' : row.role === 'viewer' ? '查看者' : '成员'
                 }
                 {canChangeRoles && row.role !== 'owner' ? (
                   <select
                     className="settings-account-input"
                     aria-label={`修改 ${row.name || row.email} 的角色`}
-                    value={row.role === 'admin' ? 'admin' : 'member'}
+                    value={row.role === 'admin' || row.role === 'viewer' ? row.role : 'member'}
                     onChange={(event) => {
                       void accountFetch(token, `/api/account/workspaces/${workspaceId}/members/${row.id}`, {
                         method: 'PATCH',
@@ -519,10 +519,11 @@ export function ShellSettingsCollab() {
                     }}
                   >
                     <option value="member">成员</option>
+                    <option value="viewer">查看者（只读）</option>
                     <option value="admin">管理员</option>
                   </select>
                 ) : null}
-                {canManage && row.role !== 'owner' && (workspaceRole === 'owner' || row.role === 'member') ? (
+                {canManage && row.role !== 'owner' && (workspaceRole === 'owner' || row.role === 'member' || row.role === 'viewer') ? (
                   <button
                     type="button"
                     className="settings-account-clear"

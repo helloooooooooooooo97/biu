@@ -80,6 +80,23 @@ test('saved views remain workspace system metadata for all members', () => {
   assert.equal(auth.authorize(actor(bob.id), 'resource:delete', view).allowed, true)
 })
 
+test('workspace viewers can only read resources made visible to them', () => {
+  const { store, auth, ada, bob, workspace, actor, page } = setup()
+  store.updateMemberRole(ada.id, workspace.id, bob.id, 'viewer')
+  const collection = { type: 'collection' as const, workspaceId: workspace.id, collection: '/pages' }
+  assert.equal(auth.authorize(actor(bob.id), 'resource:read', collection).allowed, true)
+  assert.equal(auth.authorize(actor(bob.id), 'resource:create', collection).allowed, false)
+
+  auth.attach(actor(ada.id), page('shared'), { ownership: 'workspace', accessMode: 'members' })
+  assert.equal(auth.authorize(actor(bob.id), 'resource:read', page('shared')).allowed, true)
+  assert.equal(auth.authorize(actor(bob.id), 'resource:update', page('shared')).allowed, false)
+  auth.grant(ada.id, page('shared'), 'account', bob.id, 'editor')
+  assert.equal(auth.authorize(actor(bob.id), 'resource:update', page('shared')).allowed, false)
+
+  auth.attach(actor(ada.id), page('private-viewer'), { ownership: 'personal', accessMode: 'private' })
+  assert.equal(auth.authorize(actor(bob.id), 'resource:read', page('private-viewer')).allowed, false)
+})
+
 test('a group grant applies dynamically to its workspace members', () => {
   const { store, auth, ada, bob, actor, page, workspace } = setup()
   auth.attach(actor(ada.id), page('roadmap'), { ownership: 'workspace', accessMode: 'restricted' })
