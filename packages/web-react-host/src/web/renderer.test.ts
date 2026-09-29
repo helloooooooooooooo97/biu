@@ -12,7 +12,7 @@ import { renderRoot } from './renderer.tsx'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-test('shell renderer paints slot tree through SlotOutlet', async () => {
+test('shell renderer keeps the auth boundary through SlotOutlet', async () => {
   const ctx = new Context()
   await ctx.plugin(slots)
   await ctx.plugin(appModules)
@@ -22,7 +22,7 @@ test('shell renderer paints slot tree through SlotOutlet', async () => {
   await ctx.plugin(shell)
   const html = renderToStaticMarkup(renderRoot(ctx.slots, ctx.appModules))
   assert.doesNotMatch(html, /Activity bar/)
-  assert.match(html, /data-testid="app-shell"/)
+  assert.match(html, /data-testid="auth-gate"/)
   const src = readFileSync(resolve(import.meta.dirname, './renderer.tsx'), 'utf8')
   assert.match(src, /SlotOutlet/)
   assert.doesNotMatch(src, /function Outlet/)

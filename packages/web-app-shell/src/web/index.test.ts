@@ -185,7 +185,7 @@ test('settings appearance toggles day and night themes', () => {
   assert.match(css, /html:not\(\.dark\) \.hljs/)
   assert.match(html, /color-scheme/)
   assert.doesNotMatch(html, /localStorage/)
-  assert.doesNotMatch(html, /biu\.theme/)
+  assert.match(html, /biu\.theme\.bootstrap/)
 })
 
 test('settings lists an MCP pane for host token and clients', () => {
