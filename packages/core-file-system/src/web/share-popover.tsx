@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowPathIcon, CheckIcon, LinkIcon, ShareIcon } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
-import { readJson } from './db-client.ts'
+import { listCollection, readJson } from './db-client.ts'
 import { mintSharePin, shareClipboardText, type ShareResourceStats } from '../share-resources.ts'
 
 export type ShareKind = 'view' | 'record'
@@ -118,6 +118,169 @@ export function ShareButton({
       ) : null}
     </div>
   )
+}
+
+function WorkspaceAccess({ collection, recordId }: { collection: string; recordId: string }) {
+  const [email, setEmail] = useState('')
+  const [people, setPeople] = useState<Array<{ id: string; name: string; email: string; role: string }>>([])
+  const [groups, setGroups] = useState<Array<{ id: string; name: string; role: string }>>([])
+  const [memberViews, setMemberViews] = useState<Array<{ id: string; name: string; role?: string }>>([])
+  const [availableMemberViews, setAvailableMemberViews] = useState<Array<{ id: string; name: string }>>([])
+  const [memberViewId, setMemberViewId] = useState('')
+  const [role, setRole] = useState<'viewer' | 'editor' | 'manager'>('editor')
+  const [guestUrl, setGuestUrl] = useState('')
+  const [guestCopied, setGuestCopied] = useState(false)
+  const [error, setError] = useState('')
+
+  async function load() {
+    const data = await readJson<{
+      people?: Array<{ id: string; name: string; email: string; role: string }>
+      groups?: Array<{ id: string; name: string; role: string }>
+      memberViews?: Array<{ id: string; role: string }>
+    }>(
+      `/api/account/access?collection=${encodeURIComponent(collection)}&recordId=${encodeURIComponent(recordId)}`,
+    )
+    setPeople(data.people ?? [])
+    setGroups(data.groups ?? [])
+    setMemberViews((data.memberViews ?? []).map((item) => ({
+      ...item,
+      name: availableMemberViews.find((view) => view.id === item.id)?.name ?? item.id,
+    })))
+  }
+
+  useEffect(() => {
+    void load().catch(() => setPeople([]))
+    void listCollection({
+      path: '/views',
+      limit: 200,
+      filters: { tablePath: '/workspace-members' },
+      columns: ['title', 'tablePath', 'viewId'],
+    })
+      .then((page) => {
+        const rows = page.items.flatMap((row) => {
+          const id = String(row.viewId ?? '').trim()
+          return id ? [{ id, name: String(row.title ?? id) }] : []
+        })
+        setAvailableMemberViews(rows)
+        setMemberViews((current) => current.map((item) => ({
+          ...item,
+          name: rows.find((view) => view.id === item.id)?.name ?? item.name,
+        })))
+        setMemberViewId((current) => current || rows[0]?.id || '')
+      })
+      .catch(() => setAvailableMemberViews([]))
+  }, [collection, recordId])
+
+  function grant(input: { email?: string; memberViewId?: string }) {
+    setError('')
+    return readJson(`/api/account/access`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ collection, recordId, role, ...input }),
+    })
+      .then(() => {
+        setEmail('')
+        return load()
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : '无法授权'))
+  }
+
+  async function createGuestLink() {
+    setError('')
+    try {
+      const data = await readJson<{ path: string }>('/api/account/access/guest-invite', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          collection,
+          recordId,
+          role: role === 'editor' ? 'editor' : 'viewer',
+          expiresInHours: 24,
+        }),
+      })
+      const url = new URL(data.path, window.location.origin).toString()
+      setGuestUrl(url)
+      await navigator.clipboard.writeText(url)
+      setGuestCopied(true)
+      window.setTimeout(() => setGuestCopied(false), 1600)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '无法生成临时访客链接')
+    }
+  }
+
+  return (
+    <form
+      className="fsdb-share-link-section"
+      data-testid="fsdb-share-members"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (email.trim()) void grant({ email: email.trim() })
+      }}
+    >
+      <p className="fsdb-share-empty-title">工作区成员</p>
+      <ul>
+        {people.length ? people.map((row) => (
+          <li key={row.id}>{row.name}{row.email ? ` · ${row.email}` : ''} · {roleLabel(row.role)}</li>
+        )) : <li>还没有单独授权。新建的文档只有创建者能看，旧文档在授权前工作区成员都能看。</li>}
+        {groups.map((row) => <li key={`group:${row.id}`}>{row.name} · 成员组 · {roleLabel(row.role)}</li>)}
+        {memberViews.map((row) => <li key={`view:${row.id}`}>{row.name} · 动态成员视图 · {roleLabel(row.role ?? '')}</li>)}
+      </ul>
+      <div className="fsdb-share-link-row">
+        <input
+          className="fsdb-share-link-field"
+          type="email"
+          value={email}
+          placeholder="成员的登录邮箱"
+          data-testid="fsdb-share-member-email"
+          onChange={(event) => setEmail(event.target.value)}
+        />
+        <select value={role} aria-label="权限" onChange={(event) => setRole(event.target.value as typeof role)}>
+          <option value="viewer">可查看</option>
+          <option value="editor">可编辑</option>
+          <option value="manager">可管理</option>
+        </select>
+        <button type="submit" className="fsdb-share-publish" data-testid="fsdb-share-member-add">添加</button>
+      </div>
+      {availableMemberViews.length ? (
+        <div className="fsdb-share-link-row" data-testid="fsdb-share-member-view">
+          <select value={memberViewId} aria-label="成员视图" onChange={(event) => setMemberViewId(event.target.value)}>
+            {availableMemberViews.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+          </select>
+          <button
+            type="button"
+            className="fsdb-share-publish"
+            disabled={!memberViewId}
+            onClick={() => void grant({ memberViewId })}
+          >
+            按视图动态授权
+          </button>
+        </div>
+      ) : null}
+      {availableMemberViews.length ? <p>满足该成员视图条件的账号会自动获得权限；视图条件变化会立即生效。</p> : null}
+      <div className="fsdb-share-link-row" data-testid="fsdb-share-guest">
+        {guestUrl ? (
+          <input
+            className="fsdb-share-link-field"
+            readOnly
+            aria-label="临时访客链接"
+            value={guestUrl}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+        ) : <p>临时访客无需账号，仅可访问这条内容，24 小时后自动失效。</p>}
+        <button type="button" className="fsdb-share-publish" onClick={() => void createGuestLink()}>
+          {guestCopied ? '已复制' : guestUrl ? '重新生成并复制' : '生成临时访客链接'}
+        </button>
+      </div>
+      {error ? <p>{error}</p> : null}
+    </form>
+  )
+}
+
+function roleLabel(role: string) {
+  if (role === 'owner') return '创建者'
+  if (role === 'manager') return '可管理'
+  if (role === 'viewer') return '可查看'
+  return '可编辑'
 }
 
 export function SharePanel({ target, embedded = false }: { target: ShareTarget; embedded?: boolean }) {
@@ -258,8 +421,9 @@ export function SharePanel({ target, embedded = false }: { target: ShareTarget; 
     <div className={`fsdb-share-panel${embedded ? ' is-embedded' : ''}`} role="dialog" aria-label="分享" data-testid="fsdb-share-panel">
       <header className="fsdb-share-head">
         <strong>分享</strong>
-        <p>通过链接邀请他人查看此内容。</p>
+        <p>文档默认只有你自己能看。把工作区里的成员加进来，他们才能打开。</p>
       </header>
+      {target.kind === 'record' && target.recordId ? <WorkspaceAccess collection={target.collection} recordId={target.recordId} /> : null}
       <section className="fsdb-share-link-section">
         {!share ? (
           <div className="fsdb-share-empty">

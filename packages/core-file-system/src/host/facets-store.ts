@@ -582,6 +582,16 @@ export class FacetStore {
     return [...names].sort()
   }
 
+  recordsReferencingAsset(name: string) {
+    return this.ensure()
+      .prepare(
+        `SELECT collection, record_id FROM content_refs WHERE name = ?
+         UNION
+         SELECT collection, record_id FROM block_refs WHERE name = ?`,
+      )
+      .all(name, name) as Array<{ collection: string; record_id: string }>
+  }
+
   stampedIds(collection: string, tagIdOrLabel: string): Set<string> {
     const tag = this.get(tagIdOrLabel)
     const tagId = tag?.id ?? tagIdOrLabel

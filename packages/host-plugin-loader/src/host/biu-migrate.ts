@@ -217,6 +217,226 @@ export const BIU_MIGRATIONS: Migration[] = [
   { version: 17, module: 'core-file-system', name: 'editor_content.version', up: (db) => {
     addColumn(db, 'editor_content', 'version', 'version INTEGER NOT NULL DEFAULT 1')
   } },
+  { version: 18, module: 'host-account', name: 'collab.tables', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS accounts_token ON accounts(token);
+      CREATE TABLE IF NOT EXISTS workspaces (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        owner_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS workspace_members (
+        workspace_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, account_id)
+      );
+      CREATE INDEX IF NOT EXISTS workspace_members_account ON workspace_members(account_id);
+      CREATE TABLE IF NOT EXISTS record_owners (
+        workspace_id TEXT NOT NULL,
+        collection TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        owner_id TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, collection, record_id)
+      );
+      CREATE TABLE IF NOT EXISTS sync_ops (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        workspace_id TEXT NOT NULL,
+        collection TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        field TEXT NOT NULL,
+        value_json TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        author_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS sync_ops_ws ON sync_ops(workspace_id, id);
+      CREATE TABLE IF NOT EXISTS edit_locks (
+        workspace_id TEXT NOT NULL,
+        collection TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, collection, record_id)
+      );
+      CREATE TABLE IF NOT EXISTS presence (
+        workspace_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        collection TEXT NOT NULL DEFAULT '',
+        record_id TEXT NOT NULL DEFAULT '',
+        seen_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, account_id)
+      );
+    `)
+  } },
+  { version: 19, module: 'host-account', name: 'collab.bootstrap', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS collab_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `)
+  } },
+  { version: 20, module: 'host-account', name: 'account.password', up: (db) => {
+    const columns = tableColumnNames(db, 'accounts')
+    if (!columns.includes('password_hash')) {
+      db.exec(`ALTER TABLE accounts ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''`)
+    }
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS accounts_name ON accounts(name)`)
+  } },
+  { version: 21, module: 'host-account', name: 'account.workspace-profile', up: (db) => {
+    const columns = tableColumnNames(db, 'workspace_members')
+    if (!columns.includes('display_name')) {
+      db.exec(`ALTER TABLE workspace_members ADD COLUMN display_name TEXT NOT NULL DEFAULT ''`)
+    }
+    if (!columns.includes('avatar')) {
+      db.exec(`ALTER TABLE workspace_members ADD COLUMN avatar TEXT NOT NULL DEFAULT ''`)
+    }
+  } },
+  { version: 22, module: 'host-account', name: 'account.email', up: (db) => {
+    db.exec('DROP INDEX IF EXISTS accounts_name')
+    const columns = tableColumnNames(db, 'accounts')
+    if (!columns.includes('email')) {
+      db.exec(`ALTER TABLE accounts ADD COLUMN email TEXT`)
+    }
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS accounts_email ON accounts(email) WHERE email IS NOT NULL AND length(email) > 0`)
+  } },
+  { version: 23, module: 'host-account', name: 'account.active-workspace', up: (db) => {
+    const columns = tableColumnNames(db, 'accounts')
+    if (!columns.includes('active_workspace_id')) {
+      db.exec(`ALTER TABLE accounts ADD COLUMN active_workspace_id TEXT NOT NULL DEFAULT ''`)
+    }
+  } },
+  { version: 24, module: 'host-account', name: 'account.record-grants', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS record_grants (
+        workspace_id TEXT NOT NULL,
+        collection TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, collection, record_id, account_id)
+      );
+    `)
+  } },
+  { version: 25, module: 'host-account', name: 'account.authorization-model', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS workspace_groups (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS workspace_groups_workspace ON workspace_groups(workspace_id);
+      CREATE TABLE IF NOT EXISTS workspace_group_members (
+        group_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (group_id, account_id)
+      );
+      CREATE INDEX IF NOT EXISTS workspace_group_members_account ON workspace_group_members(account_id);
+      CREATE TABLE IF NOT EXISTS resource_policies (
+        workspace_id TEXT NOT NULL,
+        collection TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        ownership TEXT NOT NULL,
+        owner_account_id TEXT NOT NULL,
+        access_mode TEXT NOT NULL,
+        member_default_role TEXT NOT NULL DEFAULT 'viewer',
+        parent_collection TEXT NOT NULL DEFAULT '',
+        parent_record_id TEXT NOT NULL DEFAULT '',
+        created_by TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, collection, record_id)
+      );
+      CREATE INDEX IF NOT EXISTS resource_policies_parent
+        ON resource_policies(workspace_id, parent_collection, parent_record_id);
+    `)
+    const columns = tableColumnNames(db, 'record_grants')
+    if (columns.includes('account_id')) {
+      db.exec(`
+        ALTER TABLE record_grants RENAME TO record_grants_v24;
+        CREATE TABLE record_grants (
+          workspace_id TEXT NOT NULL,
+          collection TEXT NOT NULL,
+          record_id TEXT NOT NULL,
+          subject_type TEXT NOT NULL,
+          subject_id TEXT NOT NULL,
+          role TEXT NOT NULL,
+          granted_by TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          PRIMARY KEY (workspace_id, collection, record_id, subject_type, subject_id)
+        );
+        INSERT INTO record_grants
+          (workspace_id, collection, record_id, subject_type, subject_id, role, granted_by, created_at)
+        SELECT workspace_id, collection, record_id, 'account', account_id, role, account_id, created_at
+        FROM record_grants_v24;
+        DROP TABLE record_grants_v24;
+      `)
+    }
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS record_grants_subject
+        ON record_grants(workspace_id, subject_type, subject_id);
+    `)
+  } },
+  { version: 26, module: 'host-account', name: 'account.member-roles', up: (db) => {
+    db.exec(`UPDATE workspace_members SET role = 'member' WHERE role NOT IN ('owner', 'admin', 'member')`)
+  } },
+  { version: 27, module: 'host-account', name: 'account.admin-role', up: (db) => {
+    db.exec(`UPDATE workspace_members SET role = 'member' WHERE role NOT IN ('owner', 'admin', 'member')`)
+  } },
+  { version: 28, module: 'host-account', name: 'account.viewer-role', up: (db) => {
+    db.exec(`UPDATE workspace_members SET role = 'member' WHERE role NOT IN ('owner', 'admin', 'member', 'viewer')`)
+  } },
+  { version: 29, module: 'host-account', name: 'account.external-members', up: (db) => {
+    if (!tableColumnNames(db, 'workspace_members').includes('member_kind')) {
+      db.exec(`ALTER TABLE workspace_members ADD COLUMN member_kind TEXT NOT NULL DEFAULT 'member'`)
+    }
+  } },
+  { version: 30, module: 'host-account', name: 'account.invites-and-guests', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS workspace_invites (
+        id TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL UNIQUE,
+        workspace_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        role TEXT NOT NULL,
+        collection TEXT NOT NULL DEFAULT '',
+        record_id TEXT NOT NULL DEFAULT '',
+        resource_role TEXT NOT NULL DEFAULT 'viewer',
+        expires_at INTEGER NOT NULL,
+        max_uses INTEGER NOT NULL DEFAULT 1,
+        use_count INTEGER NOT NULL DEFAULT 0,
+        created_by TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        revoked_at INTEGER
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS workspace_invites_token ON workspace_invites(token_hash);
+      CREATE INDEX IF NOT EXISTS workspace_invites_workspace ON workspace_invites(workspace_id, created_at);
+      CREATE TABLE IF NOT EXISTS guest_sessions (
+        id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL UNIQUE,
+        workspace_id TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        revoked_at INTEGER,
+        created_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS guest_sessions_account ON guest_sessions(account_id);
+    `)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

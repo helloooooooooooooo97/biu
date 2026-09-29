@@ -13,7 +13,7 @@ import { FieldEditor, fieldDraftValue, parseFieldValue } from './fsdb-cells.tsx'
 import { loadFacets, persistFacets, slugFacetId, subscribeFacets } from './facet-catalog.ts'
 import { PersonPickPanel } from './person-cell.tsx'
 import { RecordPickPanel } from './record-link-cell.tsx'
-import { asStringList, isRecordLinkField, isSingleRefField, parseFacetFlatColumnKey, resolveFieldType } from './fields.ts'
+import { asStringList, enumDisplayLabel, isRecordLinkField, isSingleRefField, parseFacetFlatColumnKey, resolveFieldType } from './fields.ts'
 
 type TagOption = { value: string; label: string }
 
@@ -21,12 +21,14 @@ function TagPickPanel({
   values,
   options,
   multiple,
+  allowCreate = true,
   onChange,
   onPicked,
 }: {
   values: string[]
   options: TagOption[]
   multiple: boolean
+  allowCreate?: boolean
   onChange: (next: string[]) => void
   onPicked?: () => void
 }) {
@@ -42,6 +44,7 @@ function TagPickPanel({
   )
   const draft = query.trim()
   const canCreate =
+    allowCreate &&
     Boolean(draft) &&
     !values.includes(draft) &&
     !options.some((item) => item.value === draft || item.label === draft)
@@ -228,12 +231,13 @@ export function CellPopDraft({
 
   if (kind === 'select' || kind === 'multi-select') {
     const selected = kind === 'multi-select' ? asStringList(raw) : text ? [text] : asStringList(raw)
-    const list = [...new Set([...options, ...selected])].filter(Boolean)
+    const list = field.enum?.length ? field.enum : [...new Set([...options, ...selected])].filter(Boolean)
     return (
       <TagPickPanel
         values={selected}
-        options={list.map((item) => ({ value: item, label: item }))}
+        options={list.map((item) => ({ value: item, label: enumDisplayLabel(field, item) }))}
         multiple={kind === 'multi-select'}
+        allowCreate={!field.enum?.length}
         onChange={(next) => {
           const value = kind === 'multi-select' ? next : next[0] ?? ''
           setText(kind === 'multi-select' ? next.join(', ') : value)

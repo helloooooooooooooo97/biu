@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
+import { profilePath } from '@biu/host-plugin-loader/data-dir'
 
 export type ThemeMode = 'light' | 'dark'
 export type BodyScale = 'sm' | 'md' | 'lg'
@@ -55,7 +55,7 @@ export function parsePagePrefs(value: unknown, fallback: PagePrefs = DEFAULT_PAG
 }
 
 export function workspaceProfilePath() {
-  return process.env.BIU_PROFILE || dataPath(dataHome(), 'profile.json')
+  return profilePath()
 }
 
 export function readWorkspaceProfile(): WorkspaceProfile {

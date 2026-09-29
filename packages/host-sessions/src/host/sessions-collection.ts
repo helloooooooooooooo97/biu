@@ -238,6 +238,7 @@ export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
     actions: [
       {
         id: 'inspect',
+        requiredAction: 'resource:read',
         label: '检查',
         for: 'agent',
         placement: [],
@@ -266,6 +267,7 @@ export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
       },
       {
         id: 'progress',
+        requiredAction: 'resource:read',
         label: '进度',
         for: 'agent',
         placement: [],
@@ -347,6 +349,7 @@ export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
       },
       {
         id: 'retrieve',
+        requiredAction: 'resource:read',
         label: '检索历史',
         for: 'agent',
         placement: [],
@@ -378,6 +381,7 @@ export function sessionsCollection(sessions: SessionsLike): CollectionSpec {
       },
       {
         id: 'status',
+        requiredAction: 'resource:read',
         label: '上下文占用',
         for: 'agent',
         placement: [],

@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, posix, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
-import { dataHome, dataPath, openAndMigrateBiu, readEditorContent, writeEditorContent } from '@biu/host-plugin-loader/data-dir'
+import { biuSqlitePath, dataHome, dataPath, openAndMigrateBiu, readEditorContent, writeEditorContent } from '@biu/host-plugin-loader/data-dir'
 
 export type SkillRecord = {
   id: string
@@ -315,7 +315,7 @@ export class SkillsStore {
       if (!existsSync(file) || !statSync(file).isFile()) return null
       const loaded = loadSkill(id, readFileSync(file, 'utf8'))
       try {
-        const db = openAndMigrateBiu(dataPath(dataHome(), 'biu.sqlite'))
+        const db = openAndMigrateBiu(biuSqlitePath())
         const body = readEditorContent(db, '/skills', loaded.id)
         db.close()
         if (body) loaded.notes = body
@@ -343,7 +343,7 @@ export class SkillsStore {
     }
     writeFileSync(skillFile(this.ensureRoot(), next.id), dumpSkill(next))
     try {
-      const db = openAndMigrateBiu(dataPath(dataHome(), 'biu.sqlite'))
+      const db = openAndMigrateBiu(biuSqlitePath())
       writeEditorContent(db, '/skills', next.id, next.notes)
       db.close()
     } catch {

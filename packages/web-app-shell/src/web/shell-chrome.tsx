@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
+  ArrowRightStartOnRectangleIcon,
   ArrowDownTrayIcon,
   BellIcon,
   ChatBubbleLeftRightIcon,
@@ -12,9 +13,9 @@ import {
   EyeIcon,
   EyeSlashIcon,
   MagnifyingGlassIcon,
+  PlusIcon,
 } from '@heroicons/react/16/solid'
-import { AnchorMenu } from '@biu/public-ui'
-import { setChatOverlay } from './chat-overlay.ts'
+import { AnchorMenu, ConfirmDialog } from '@biu/public-ui'
 import { chromeIcon } from './chrome-icon.ts'
 import { applyNoticeClick, noticeIdOf } from './notice-open.ts'
 import { readMainDataRoute } from '@biu/core-file-system/main-data-route'
@@ -22,6 +23,17 @@ import { persistTheme, readTheme, type ThemeMode } from './theme.ts'
 import { persistWorkspaceProfile, useWorkspaceProfile } from '@biu/public-ui'
 import { LayoutPrefsMenu } from '@biu/core-file-system/layout-prefs-menu'
 import { getPagePrefs, hydratePagePrefs, subscribePageWidth } from '@biu/core-file-system/page-width'
+
+if (typeof window !== 'undefined') {
+  const originalFetch = window.fetch.bind(window)
+  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const token = localStorage.getItem('biu.account.token') ?? ''
+    if (!token) return originalFetch(input, init)
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+    if (!headers.has('authorization')) headers.set('authorization', `Bearer ${token}`)
+    return originalFetch(input, { ...init, headers })
+  }
+}
 
 async function readAvatarFile(file: File) {
   const url = URL.createObjectURL(file)
@@ -46,7 +58,7 @@ async function readAvatarFile(file: File) {
   }
 }
 
-export function ShellSettingsAccount() {
+function WorkspaceMemberProfile() {
   const profile = useWorkspaceProfile()
   const [name, setName] = useState(profile.name)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -54,15 +66,14 @@ export function ShellSettingsAccount() {
   useEffect(() => {
     setName(profile.name)
   }, [profile.name])
-
   const initial = (profile.name.trim() || '用户').slice(0, 1)
 
   return (
     <section className="settings-account" data-testid="settings-account">
       <header className="settings-account-head">
-        <h3 className="settings-account-title">我的账户</h3>
+        <h3 className="settings-account-title">我的成员资料</h3>
         <p className="settings-muted settings-account-lead">
-          头像和昵称会出现在左上角、创建人，以及你发出的分享上。
+          头像和空间昵称只用于当前空间，不会修改全局账号。
         </p>
       </header>
       <div className="settings-account-row">
@@ -118,9 +129,9 @@ export function ShellSettingsAccount() {
       <div className="settings-account-row">
         <div className="settings-account-copy">
           <label className="settings-account-label" htmlFor="settings-account-name">
-            首选名称
+            空间昵称
           </label>
-          <p className="settings-muted settings-account-hint">别人看到你时会用这个名字。</p>
+          <p className="settings-muted settings-account-hint">只在当前工作区里使用，可以和别人重名。</p>
         </div>
         <input
           id="settings-account-name"
@@ -140,6 +151,762 @@ export function ShellSettingsAccount() {
       </div>
     </section>
   )
+}
+
+export function ShellSettingsAccount() {
+  const [account, setAccount] = useState<{ name: string; email: string }>({ name: '', email: '' })
+  useEffect(() => {
+    const token = localStorage.getItem(ACCOUNT_KEY) ?? ''
+    if (!token) return
+    void accountFetch(token, '/api/account/me')
+      .then((body) => setAccount({ name: String(body.name ?? body.email ?? ''), email: String(body.email ?? '') }))
+      .catch(() => setAccount({ name: '', email: '' }))
+  }, [])
+  return (
+    <section className="settings-account" data-testid="settings-account">
+      <header className="settings-account-head">
+        <h3 className="settings-account-title">账户</h3>
+        <p className="settings-muted settings-account-lead">同一个账号用于所有空间。账号名和登录邮箱不可修改。</p>
+      </header>
+      <div className="settings-account-row">
+        <div className="settings-account-copy">
+          <p className="settings-account-label">账号名</p>
+          <p className="settings-muted settings-account-hint" data-testid="settings-account-global-name">
+            {account.name || account.email || '未设置'}
+          </p>
+        </div>
+      </div>
+      <div className="settings-account-row">
+        <div className="settings-account-copy">
+          <p className="settings-account-label">登录邮箱</p>
+          <p className="settings-muted settings-account-hint" data-testid="settings-account-email">
+            {account.email || '未设置'}
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+const ACCOUNT_KEY = 'biu.account.token'
+const ACCOUNT_EVENT = 'biu:account-token'
+
+function bridgeLegacyAccountCookie() {
+  if (typeof localStorage === 'undefined' || typeof document === 'undefined') return
+  const token = localStorage.getItem(ACCOUNT_KEY) ?? ''
+  if (token) document.cookie = `biu_legacy_account=${encodeURIComponent(token)}; Path=/; SameSite=Strict`
+}
+
+bridgeLegacyAccountCookie()
+
+export function readAccountToken() {
+  if (typeof localStorage === 'undefined') return ''
+  return localStorage.getItem(ACCOUNT_KEY) ?? ''
+}
+
+export function writeAccountToken(next: string) {
+  if (!next && typeof window !== 'undefined') {
+    void fetch('/api/account/logout', { method: 'POST' }).catch(() => undefined)
+  }
+  if (next) localStorage.setItem(ACCOUNT_KEY, next)
+  else localStorage.removeItem(ACCOUNT_KEY)
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ACCOUNT_EVENT))
+}
+
+export function AuthGate({ children }: { children: ReactNode }) {
+  const [token, setToken] = useState(readAccountToken)
+  const [verified, setVerified] = useState(false)
+  const [joining, setJoining] = useState(false)
+  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [name, setName] = useState('')
+  const [guestName, setGuestName] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const workspaceInvite = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('workspaceInvite') ?? ''
+  const guestInvite = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('guestInvite') ?? ''
+
+  useEffect(() => {
+    const sync = () => setToken(readAccountToken())
+    window.addEventListener(ACCOUNT_EVENT, sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener(ACCOUNT_EVENT, sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!token) {
+      setVerified(false)
+      return
+    }
+    let live = true
+    setVerified(false)
+    void accountFetch(token, '/api/account/me')
+      .then(() => {
+        if (live) setVerified(true)
+      })
+      .catch((err) => {
+        if (!live) return
+        writeAccountToken('')
+        setError(err instanceof Error ? err.message : '登录已失效')
+      })
+    return () => {
+      live = false
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (!token || !verified || !workspaceInvite) return
+    let live = true
+    setJoining(true)
+    void accountFetch(token, `/api/account/invites/${encodeURIComponent(workspaceInvite)}/accept`, { method: 'POST' })
+      .then(() => {
+        if (!live) return
+        const url = new URL(window.location.href)
+        url.searchParams.delete('workspaceInvite')
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+        setError('')
+      })
+      .catch((err) => {
+        if (live) setError(err instanceof Error ? err.message : '无法加入空间')
+      })
+      .finally(() => {
+        if (live) setJoining(false)
+      })
+    return () => {
+      live = false
+    }
+  }, [token, verified, workspaceInvite])
+
+  if (token && verified && !joining) return children
+  if (token) return <div className="auth-gate" data-testid="auth-verifying">正在验证登录状态…</div>
+
+  return (
+    <div className="auth-gate" data-testid="auth-gate">
+      {guestInvite ? (
+        <form
+          className="settings-account auth-gate-card"
+          data-testid="auth-guest-invite"
+          onSubmit={(event) => {
+            event.preventDefault()
+            setJoining(true)
+            void accountFetch('', `/api/account/guest-invites/${encodeURIComponent(guestInvite)}/accept`, {
+              method: 'POST',
+              body: JSON.stringify({ name: guestName.trim() }),
+            })
+              .then((body) => {
+                const url = new URL(window.location.href)
+                url.searchParams.delete('guestInvite')
+                window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+                writeAccountToken(String(body.token ?? ''))
+                setError('')
+              })
+              .catch((err) => setError(err instanceof Error ? err.message : '临时访客链接无效'))
+              .finally(() => setJoining(false))
+          }}
+        >
+          <header className="settings-account-head">
+            <h3 className="settings-account-title">以临时访客身份进入</h3>
+            <p className="settings-muted settings-account-lead">无需注册，只能访问链接指定的内容；权限会在链接设定的时间后自动失效。</p>
+          </header>
+          {error ? <p className="settings-account-error">{error}</p> : null}
+          <div className="settings-account-actions auth-gate-fields">
+            <input
+              className="settings-account-input"
+              value={guestName}
+              maxLength={40}
+              placeholder="你的称呼（可选）"
+              data-testid="auth-guest-name"
+              onChange={(event) => setGuestName(event.target.value)}
+            />
+            <button type="submit" className="settings-account-action" disabled={joining}>
+              {joining ? '正在进入…' : '进入分享内容'}
+            </button>
+          </div>
+        </form>
+      ) : (
+      <form
+        className="settings-account auth-gate-card"
+        onSubmit={(event) => {
+          event.preventDefault()
+          const path = mode === 'register' ? '/api/account/register' : '/api/account/login'
+          void accountFetch('', path, {
+            method: 'POST',
+            body: JSON.stringify({ email: name.trim(), password }),
+          })
+            .then((body) => {
+              writeAccountToken(String(body.token ?? ''))
+              setPassword('')
+              setError('')
+            })
+            .catch((err) => setError(err instanceof Error ? err.message : '登录失败'))
+        }}
+      >
+        <header className="settings-account-head">
+          <h3 className="settings-account-title">{mode === 'register' ? '注册' : '登录'}</h3>
+          <p className="settings-muted settings-account-lead">
+            {workspaceInvite ? '登录或注册后即可通过邀请链接加入空间。' : '登录之后才能进入。登录邮箱和密码在所有工作区都一样。'}
+          </p>
+        </header>
+        {error ? <p className="settings-account-error">{error}</p> : null}
+        <div className="settings-account-actions auth-gate-fields">
+          <input
+            className="settings-account-input"
+            value={name}
+            maxLength={40}
+            placeholder="登录邮箱"
+            type="email"
+            autoComplete="email"
+            data-testid="auth-name"
+            onChange={(event) => setName(event.target.value)}
+          />
+          <input
+            className="settings-account-input"
+            type="password"
+            value={password}
+            placeholder="密码"
+            autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+            data-testid="auth-password"
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          <button type="submit" className="settings-account-action" data-testid="auth-submit">
+            {mode === 'register' ? '注册并进入' : '登录'}
+          </button>
+          <button
+            type="button"
+            className="settings-account-action"
+            data-testid="auth-switch"
+            onClick={() => setMode((current) => (current === 'login' ? 'register' : 'login'))}
+          >
+            {mode === 'register' ? '已有账号，去登录' : '没有账号，去注册'}
+          </button>
+        </div>
+      </form>
+      )}
+    </div>
+  )
+}
+
+type CollabWorkspace = { id: string; name: string; role: string }
+type CollabMember = { id: string; name: string; email?: string; role: string }
+type CollabPresence = { accountId: string; name: string; collection: string; recordId: string }
+
+function workspaceRoleLabel(role: string) {
+  if (role === 'owner') return '所有者'
+  if (role === 'admin') return '管理者'
+  if (role === 'viewer') return '查看者'
+  return '编辑者'
+}
+
+async function accountFetch(token: string, path: string, init?: RequestInit) {
+  const res = await fetch(path, {
+    ...init,
+    headers: {
+      'content-type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
+  })
+  const body = (await res.json().catch(() => ({}))) as { error?: string }
+  if (!res.ok) throw new Error(body.error || '请求失败')
+  return body as Record<string, unknown>
+}
+
+export function ShellWorkspaceSwitcher({ onWorkspaceSettings }: { onWorkspaceSettings?: () => void }) {
+  const [workspaces, setWorkspaces] = useState<CollabWorkspace[]>([])
+  const [active, setActive] = useState('')
+  const [open, setOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newWorkspaceName, setNewWorkspaceName] = useState('')
+  const [createError, setCreateError] = useState('')
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const token = readAccountToken()
+      if (!token) return
+      try {
+        const [listed, current] = await Promise.all([
+          accountFetch(token, '/api/account/workspaces') as Promise<{ workspaces?: CollabWorkspace[] }>,
+          accountFetch(token, '/api/account/active') as Promise<{ workspaceId?: string }>,
+        ])
+        if (cancelled) return
+        setWorkspaces(listed.workspaces ?? [])
+        setActive(String(current.workspaceId ?? ''))
+      } catch {
+        if (!cancelled) setWorkspaces([])
+      }
+    }
+    void load()
+    window.addEventListener(ACCOUNT_EVENT, load)
+    return () => {
+      cancelled = true
+      window.removeEventListener(ACCOUNT_EVENT, load)
+    }
+  }, [])
+
+  if (!workspaces.length) return null
+  const current = workspaces.find((workspace) => workspace.id === active) ?? workspaces[0]!
+  const switchTo = (workspaceId: string) => {
+    const token = readAccountToken()
+    setOpen(false)
+    if (!token || !workspaceId || workspaceId === active) return
+    setActive(workspaceId)
+    void accountFetch(token, '/api/account/active', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId }),
+    }).then(() => window.location.reload())
+  }
+  const createWorkspace = () => {
+    const token = readAccountToken()
+    const name = newWorkspaceName.trim()
+    if (!token || !name) return
+    setCreateError('')
+    void accountFetch(token, '/api/account/workspaces', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    })
+      .then(async (body) => {
+        const created = body as CollabWorkspace
+        await accountFetch(token, '/api/account/active', {
+          method: 'POST',
+          body: JSON.stringify({ workspaceId: created.id }),
+        })
+        window.location.reload()
+      })
+      .catch((error) => setCreateError(error instanceof Error ? error.message : '创建失败'))
+  }
+  return (
+    <div className="shell-workspace-switch-wrap">
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`shell-workspace-switcher${open ? ' is-open' : ''}`}
+        aria-label="切换空间"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-testid="shell-workspace-switcher"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="shell-workspace-switch-copy">
+          <strong>{current.name}</strong>
+        </span>
+      </button>
+      {open ? (
+        <AnchorMenu
+          anchor={triggerRef.current}
+          onClose={() => setOpen(false)}
+          placement="bottom"
+          minWidth={240}
+          zIndex={100}
+          className="shell-workspace-menu"
+          role="menu"
+          aria-label="选择空间"
+          data-testid="shell-workspace-menu"
+        >
+          <p className="shell-workspace-menu-title">切换空间</p>
+          <div className="shell-workspace-menu-list">
+            {workspaces.map((workspace) => (
+              <button
+                key={workspace.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={workspace.id === active}
+                className={`shell-workspace-menu-item${workspace.id === active ? ' is-active' : ''}`}
+                onClick={() => switchTo(workspace.id)}
+              >
+                <span className="shell-workspace-menu-copy">
+                  <strong>{workspace.name}</strong>
+                  <small>{workspaceRoleLabel(workspace.role)}</small>
+                </span>
+                {workspace.id === active ? <CheckIcon className="size-4" /> : null}
+              </button>
+            ))}
+          </div>
+          <div className="shell-workspace-menu-actions">
+            {creating ? (
+              <form
+                className="shell-workspace-create"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  createWorkspace()
+                }}
+              >
+                <input
+                  autoFocus
+                  value={newWorkspaceName}
+                  maxLength={40}
+                  aria-label="新空间名称"
+                  placeholder="新空间名称"
+                  onChange={(event) => setNewWorkspaceName(event.target.value)}
+                />
+                {createError ? <p>{createError}</p> : null}
+                <div>
+                  <button type="button" onClick={() => {
+                    setCreating(false)
+                    setNewWorkspaceName('')
+                    setCreateError('')
+                  }}>取消</button>
+                  <button type="submit" disabled={!newWorkspaceName.trim()}>创建</button>
+                </div>
+              </form>
+            ) : (
+              <button type="button" className="shell-workspace-menu-action" onClick={() => setCreating(true)}>
+                <PlusIcon className="size-4" />
+                <span>创建新空间</span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="shell-workspace-menu-action"
+              onClick={() => {
+                setOpen(false)
+                onWorkspaceSettings?.()
+              }}
+            >
+              <Cog6ToothIcon className="size-4" />
+              <span>空间设置</span>
+            </button>
+            <button
+              type="button"
+              className="shell-workspace-menu-action is-logout"
+              onClick={() => {
+                setOpen(false)
+                writeAccountToken('')
+              }}
+            >
+              <ArrowRightStartOnRectangleIcon className="size-4" />
+              <span>退出登录</span>
+            </button>
+          </div>
+        </AnchorMenu>
+      ) : null}
+    </div>
+  )
+}
+
+export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace' | 'members' }) {
+  const [token, setToken] = useState(() => localStorage.getItem(ACCOUNT_KEY) ?? '')
+  const [workspaces, setWorkspaces] = useState<CollabWorkspace[]>([])
+  const [workspaceId, setWorkspaceId] = useState('')
+  const [workspaceName, setWorkspaceName] = useState('')
+  const [members, setMembers] = useState<CollabMember[]>([])
+  const [inviteId, setInviteId] = useState('')
+  const [inviteRole, setInviteRole] = useState<'member' | 'viewer'>('viewer')
+  const [workspaceInviteUrl, setWorkspaceInviteUrl] = useState('')
+  const [presence, setPresence] = useState<CollabPresence[]>([])
+  const [pendingRemove, setPendingRemove] = useState<CollabMember | null>(null)
+  const [error, setError] = useState('')
+
+  const remember = (next: string) => {
+    setToken(next)
+    writeAccountToken(next)
+  }
+
+  const loadWorkspace = useCallback(async (current: string, id: string) => {
+    if (!current || !id) {
+      setMembers([])
+      setPresence([])
+      return
+    }
+    const listed = await accountFetch(current, `/api/account/workspaces/${id}/members`) as { members?: CollabMember[] }
+    setMembers(listed.members ?? [])
+    const here = (await accountFetch(current, '/api/account/presence', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId: id }),
+    })) as { presence?: CollabPresence[] }
+    setPresence(here.presence ?? [])
+  }, [])
+
+  useEffect(() => {
+    if (!token) {
+      setWorkspaces([])
+      return
+    }
+    let gone = false
+    void (async () => {
+      try {
+        const listed = (await accountFetch(token, '/api/account/workspaces')) as { workspaces?: CollabWorkspace[] }
+        const active = (await accountFetch(token, '/api/account/active')) as { workspaceId?: string }
+        if (gone) return
+        const rows = listed.workspaces ?? []
+        const nextWorkspaceId = String(active.workspaceId || rows[0]?.id || '')
+        setWorkspaces(rows)
+        setWorkspaceId(nextWorkspaceId)
+        setWorkspaceName(rows.find((row) => row.id === nextWorkspaceId)?.name ?? '')
+        setError('')
+      } catch (err) {
+        if (gone) return
+        remember('')
+        setError(err instanceof Error ? err.message : '无法读取账号')
+      }
+    })()
+    return () => {
+      gone = true
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (!token || !workspaceId) return
+    void loadWorkspace(token, workspaceId).catch((err) => {
+      setError(err instanceof Error ? err.message : '无法读取工作区')
+    })
+  }, [token, workspaceId, loadWorkspace])
+
+  const workspaceRole = workspaces.find((row) => row.id === workspaceId)?.role
+  const canManage = workspaceRole === 'owner' || workspaceRole === 'admin'
+  const canChangeRoles = workspaceRole === 'owner'
+  const removePendingMember = () => {
+    if (!pendingRemove) return
+    const accountId = pendingRemove.id
+    setPendingRemove(null)
+    void accountFetch(token, `/api/account/workspaces/${workspaceId}/members/${accountId}`, {
+      method: 'DELETE',
+    })
+      .then((body) => {
+        setMembers(((body as { members?: CollabMember[] }).members) ?? [])
+        setError('')
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : '移除成员失败'))
+  }
+
+  return (
+    <section className="settings-account" data-testid="settings-collab">
+      <header className="settings-account-head">
+        <h3 className="settings-account-title">{panel === 'workspace' ? '空间设置' : '成员设置'}</h3>
+        <p className="settings-muted settings-account-lead">
+          {panel === 'workspace'
+            ? '设置当前选中的空间。空间切换和新建空间请使用左上角菜单。'
+            : '管理当前空间的个人资料、成员和邀请。需要分类时，可在成员数据中添加标签并保存视图。'}
+        </p>
+      </header>
+      {error ? <p className="settings-account-error" data-testid="settings-collab-error">{error}</p> : null}
+      {panel === 'workspace' ? (
+      <form
+        className="settings-account-row"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!token || !workspaceId || !canManage || !workspaceName.trim()) return
+          void accountFetch(token, `/api/account/workspaces/${workspaceId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ name: workspaceName }),
+          })
+            .then((body) => {
+              const updated = body as CollabWorkspace
+              setWorkspaces((rows) => rows.map((row) => row.id === updated.id ? updated : row))
+              setError('')
+              window.dispatchEvent(new Event(ACCOUNT_EVENT))
+            })
+            .catch((err) => setError(err instanceof Error ? err.message : '保存失败'))
+        }}
+      >
+        <div className="settings-account-copy">
+          <label className="settings-account-label" htmlFor="settings-collab-workspace">空间名称</label>
+          <p className="settings-muted settings-account-hint" data-testid="settings-current-workspace">
+            {canManage ? '修改当前选中空间的名称。' : '只有空间所有者或管理者可以修改名称。'}
+          </p>
+        </div>
+        <div className="settings-account-actions">
+          <input
+            id="settings-collab-workspace"
+            className="settings-account-input"
+            value={workspaceName}
+            maxLength={40}
+            placeholder="空间名称"
+            data-testid="settings-collab-workspace"
+            disabled={!canManage}
+            onChange={(event) => setWorkspaceName(event.target.value)}
+          />
+          <button
+            type="submit"
+            className="settings-account-action"
+            disabled={!token || !workspaceId || !canManage || !workspaceName.trim()}
+            data-testid="settings-collab-save"
+          >
+            保存
+          </button>
+        </div>
+      </form>
+      ) : null}
+      {panel === 'members' ? (
+      <>
+      <WorkspaceMemberProfile />
+      <form
+        className="settings-account-row settings-members-section"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!token || !workspaceId || !inviteId.trim()) return
+          void accountFetch(token, `/api/account/workspaces/${workspaceId}/members`, {
+            method: 'POST',
+            body: JSON.stringify({ email: inviteId.trim() }),
+          })
+            .then((body) => {
+              setMembers(((body as { members?: CollabMember[] }).members) ?? [])
+              setInviteId('')
+              setError('')
+            })
+            .catch((err) => setError(err instanceof Error ? err.message : '邀请失败'))
+        }}
+      >
+        <div className="settings-account-copy">
+          <label className="settings-account-label" htmlFor="settings-collab-invite">空间成员</label>
+          <p className="settings-muted settings-account-hint">
+            所有者管理管理员；管理员可以邀请和移除普通成员。
+          </p>
+          <ul className="settings-account-people" data-testid="settings-collab-members">
+            {members.length ? members.map((row) => (
+              <li key={row.id} className="settings-member-row">
+                <span className="settings-member-identity">
+                  <strong title={row.name || row.email}>{row.name || row.email || '未命名成员'}</strong>
+                  {row.email && row.email !== row.name ? <small title={row.email}>{row.email}</small> : null}
+                </span>
+                <span className="settings-member-controls">
+                  {canChangeRoles && row.role !== 'owner' ? (
+                  <select
+                    className="settings-account-input settings-member-role"
+                    aria-label={`修改 ${row.name || row.email} 的角色`}
+                    value={row.role === 'admin' || row.role === 'viewer' ? row.role : 'member'}
+                    onChange={(event) => {
+                      const nextRole = event.target.value
+                      void accountFetch(token, `/api/account/workspaces/${workspaceId}/members/${row.id}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ role: nextRole }),
+                      })
+                        .then((body) => {
+                          setMembers(((body as { members?: CollabMember[] }).members) ?? [])
+                          if (nextRole === 'owner') {
+                            setWorkspaces((rows) => rows.map((workspace) =>
+                              workspace.id === workspaceId ? { ...workspace, role: 'admin' } : workspace,
+                            ))
+                          }
+                          setError('')
+                        })
+                        .catch((err) => setError(err instanceof Error ? err.message : '修改角色失败'))
+                    }}
+                  >
+                    <option value="owner">所有者</option>
+                    <option value="admin">管理者</option>
+                    <option value="member">编辑者</option>
+                    <option value="viewer">查看者（只读）</option>
+                  </select>
+                  ) : (
+                    <span className="settings-member-role-label">
+                      {row.role === 'owner' ? '所有者' : row.role === 'admin' ? '管理者' : row.role === 'viewer' ? '查看者' : '编辑者'}
+                    </span>
+                  )}
+                  {canManage && row.role !== 'owner' && (workspaceRole === 'owner' || row.role === 'member' || row.role === 'viewer') ? (
+                  <button
+                    type="button"
+                    className="settings-account-clear"
+                    onClick={() => setPendingRemove(row)}
+                  >
+                    移除
+                  </button>
+                  ) : null}
+                </span>
+              </li>
+            )) : <li className="settings-muted">当前空间还没有其他成员。</li>}
+          </ul>
+        </div>
+        {canManage ? (
+          <div className="settings-member-invite">
+            <p className="settings-account-label">邀请成员</p>
+            <div className="settings-member-invite-row">
+              <input
+                id="settings-collab-invite"
+                className="settings-account-input"
+                value={inviteId}
+                placeholder="成员的登录邮箱"
+                type="email"
+                data-testid="settings-collab-invite"
+                onChange={(event) => setInviteId(event.target.value)}
+              />
+              <button type="submit" className="settings-account-action" disabled={!token || !workspaceId || !inviteId.trim()}>
+                邀请
+              </button>
+            </div>
+            <p className="settings-account-label">邀请链接</p>
+            <div className="settings-member-invite-row">
+              <select
+                className="settings-account-input"
+                aria-label="邀请链接角色"
+                value={inviteRole}
+                onChange={(event) => setInviteRole(event.target.value === 'member' ? 'member' : 'viewer')}
+              >
+                <option value="viewer">查看者</option>
+                <option value="member">编辑者</option>
+              </select>
+              <button
+                type="button"
+                className="settings-account-action"
+                data-testid="settings-collab-invite-link"
+                onClick={() => {
+                  void accountFetch(token, `/api/account/workspaces/${workspaceId}/invites`, {
+                    method: 'POST',
+                    body: JSON.stringify({ role: inviteRole, expiresInHours: 168 }),
+                  })
+                    .then(async (body) => {
+                      const url = new URL(String(body.path ?? '/'), window.location.origin).toString()
+                      setWorkspaceInviteUrl(url)
+                      await navigator.clipboard.writeText(url).catch(() => undefined)
+                      setError('')
+                    })
+                    .catch((err) => setError(err instanceof Error ? err.message : '生成邀请链接失败'))
+                }}
+              >
+                生成链接
+              </button>
+            </div>
+            {workspaceInviteUrl ? (
+            <input
+              className="settings-account-input settings-member-invite-url"
+              aria-label="空间邀请链接"
+              readOnly
+              value={workspaceInviteUrl}
+              onFocus={(event) => event.currentTarget.select()}
+            />
+            ) : null}
+          </div>
+        ) : null}
+      </form>
+      <div className="settings-account-row">
+        <div className="settings-account-copy">
+          <p className="settings-account-label">正在看</p>
+          <ul className="settings-account-people" data-testid="settings-collab-presence">
+            {presence.length ? presence.map((row) => (
+              <li key={row.accountId}>
+                {row.name}
+                {row.collection && row.recordId ? ` · ${row.collection}/${row.recordId}` : ''}
+              </li>
+            )) : <li className="settings-muted">打开工作区后，30 秒内有心跳的人会出现在这里。</li>}
+          </ul>
+        </div>
+      </div>
+      </>
+      ) : null}
+      {pendingRemove ? (
+        <ConfirmDialog
+          title="移除空间成员"
+          message={<>确定将“{pendingRemove.name || pendingRemove.email || '该成员'}”移出当前空间吗？移除后，对方将无法继续访问空间数据。</>}
+          confirmLabel="移除成员"
+          danger
+          testId="settings-member-remove-dialog"
+          onCancel={() => setPendingRemove(null)}
+          onConfirm={removePendingMember}
+        />
+      ) : null}
+    </section>
+  )
+}
+
+export function ShellSettingsWorkspace() {
+  return <ShellSettingsCollab panel="workspace" />
+}
+
+export function ShellSettingsMembers() {
+  return <ShellSettingsCollab panel="members" />
 }
 
 export function ShellSettingsAppearance() {
@@ -316,6 +1083,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
   const [reveal, setReveal] = useState(false)
   const [copied, setCopied] = useState('')
   const [rotating, setRotating] = useState(false)
+  const [confirmRotate, setConfirmRotate] = useState(false)
 
   const load = useCallback(() => {
     void fetch('/api/mcp/info')
@@ -352,7 +1120,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
 
   async function rotate() {
     if (!info || rotating) return
-    if (!window.confirm('重新生成后，已经配好的客户端会立刻失效，需要重新复制配置。')) return
+    setConfirmRotate(false)
     setRotating(true)
     try {
       const res = await fetch('/api/mcp/rotate', {
@@ -458,7 +1226,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
             className="settings-mcp-rotate"
             disabled={!info || rotating}
             data-testid="settings-mcp-rotate"
-            onClick={() => void rotate()}
+            onClick={() => setConfirmRotate(true)}
           >
             {rotating ? '正在生成…' : '重新生成 token'}
           </button>
@@ -499,6 +1267,17 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
           </article>
         ))}
       </div>
+      {confirmRotate ? (
+        <ConfirmDialog
+          title="重新生成 MCP token"
+          message="重新生成后，已经配置好的客户端会立即失效，需要重新复制并更新所有客户端配置。"
+          confirmLabel="重新生成"
+          danger
+          testId="settings-mcp-rotate-dialog"
+          onCancel={() => setConfirmRotate(false)}
+          onConfirm={() => void rotate()}
+        />
+      ) : null}
     </section>
   )
 }
@@ -661,7 +1440,6 @@ function NoticeBell({
       .catch(() => load())
     onOpenChange(false)
     if (!href) return
-    setChatOverlay(false)
     navigate(href)
   }
 
@@ -782,7 +1560,6 @@ export function ShellSidePlaces({
         testId="chrome-chat-panel"
         icon={<ChatBubbleLeftRightIcon {...chromeIcon} />}
         onClick={() => {
-          setChatOverlay(false)
           navigate(agentHref)
         }}
       />
@@ -792,7 +1569,6 @@ export function ShellSidePlaces({
         testId="chrome-data-panel"
         icon={<CircleStackIcon {...chromeIcon} />}
         onClick={() => {
-          setChatOverlay(false)
           navigate(readMainDataRoute() || '/database')
         }}
       />

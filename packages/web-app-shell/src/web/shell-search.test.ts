@@ -89,6 +89,8 @@ test('empty search lists every kind by updatedAt instead of skipping remotes', (
   assert.match(src, /sort: 'updatedAt'/)
   assert.match(src, /item.id === 'session' \? '\/sessions'/)
   assert.match(src, /空着时视图、会话、任务、页面、插件、合集各按更新时间列最近/)
+  assert.doesNotMatch(src, /window\.confirm/)
+  assert.match(src, /<ConfirmDialog/)
 })
 
 test('plugin search hits show an enabled dot next to the title', () => {

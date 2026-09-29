@@ -17,6 +17,7 @@
     "cordis": "4.0.0-rc.8"
   },
   "dependencies": {
+    "@biu/host-account": "0.1.0",
     "@biu/type-file-system": "0.1.0",
     "@biu/host-plugin-loader": "0.1.0"
   }
