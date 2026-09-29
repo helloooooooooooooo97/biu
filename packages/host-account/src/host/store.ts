@@ -242,6 +242,17 @@ export class CollabStore {
     return { ...workspace, role: 'owner' }
   }
 
+  renameWorkspace(actorId: string, workspaceId: string, name: string): Workspace {
+    this.requireManager(actorId, workspaceId)
+    const trimmed = name.trim()
+    if (!trimmed) throw new CollabError('空间名称不能为空', 400)
+    if (trimmed.length > 40) throw new CollabError('空间名称不能超过 40 个字符', 400)
+    this.db.prepare('UPDATE workspaces SET name = ? WHERE id = ?').run(trimmed, workspaceId)
+    const workspace = this.listWorkspaces(actorId).find((row) => row.id === workspaceId)
+    if (!workspace) throw new CollabError('空间不存在', 404)
+    return workspace
+  }
+
   addMember(actorId: string, workspaceId: string, accountId: string, now = Date.now()) {
     this.requireManager(actorId, workspaceId)
     this.requireAccount(accountId)

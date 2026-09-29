@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
+  ArrowRightStartOnRectangleIcon,
   ArrowDownTrayIcon,
   BellIcon,
   ChatBubbleLeftRightIcon,
@@ -12,6 +13,7 @@ import {
   EyeIcon,
   EyeSlashIcon,
   MagnifyingGlassIcon,
+  PlusIcon,
 } from '@heroicons/react/16/solid'
 import { AnchorMenu } from '@biu/public-ui'
 import { chromeIcon } from './chrome-icon.ts'
@@ -181,14 +183,6 @@ export function ShellSettingsAccount() {
             {account.email || '未设置'}
           </p>
         </div>
-        <button
-          type="button"
-          className="settings-account-action"
-          data-testid="settings-account-logout"
-          onClick={() => writeAccountToken('')}
-        >
-          退出
-        </button>
       </div>
     </section>
   )
@@ -419,10 +413,13 @@ async function accountFetch(token: string, path: string, init?: RequestInit) {
   return body as Record<string, unknown>
 }
 
-export function ShellWorkspaceSwitcher() {
+export function ShellWorkspaceSwitcher({ onWorkspaceSettings }: { onWorkspaceSettings?: () => void }) {
   const [workspaces, setWorkspaces] = useState<CollabWorkspace[]>([])
   const [active, setActive] = useState('')
   const [open, setOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newWorkspaceName, setNewWorkspaceName] = useState('')
+  const [createError, setCreateError] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -461,6 +458,25 @@ export function ShellWorkspaceSwitcher() {
       method: 'POST',
       body: JSON.stringify({ workspaceId }),
     }).then(() => window.location.reload())
+  }
+  const createWorkspace = () => {
+    const token = readAccountToken()
+    const name = newWorkspaceName.trim()
+    if (!token || !name) return
+    setCreateError('')
+    void accountFetch(token, '/api/account/workspaces', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    })
+      .then(async (body) => {
+        const created = body as CollabWorkspace
+        await accountFetch(token, '/api/account/active', {
+          method: 'POST',
+          body: JSON.stringify({ workspaceId: created.id }),
+        })
+        window.location.reload()
+      })
+      .catch((error) => setCreateError(error instanceof Error ? error.message : '创建失败'))
   }
   return (
     <div className="shell-workspace-switch-wrap">
@@ -508,6 +524,62 @@ export function ShellWorkspaceSwitcher() {
                 {workspace.id === active ? <CheckIcon className="size-4" /> : null}
               </button>
             ))}
+          </div>
+          <div className="shell-workspace-menu-actions">
+            {creating ? (
+              <form
+                className="shell-workspace-create"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  createWorkspace()
+                }}
+              >
+                <input
+                  autoFocus
+                  value={newWorkspaceName}
+                  maxLength={40}
+                  aria-label="新空间名称"
+                  placeholder="新空间名称"
+                  onChange={(event) => setNewWorkspaceName(event.target.value)}
+                />
+                {createError ? <p>{createError}</p> : null}
+                <div>
+                  <button type="button" onClick={() => {
+                    setCreating(false)
+                    setNewWorkspaceName('')
+                    setCreateError('')
+                  }}>取消</button>
+                  <button type="submit" disabled={!newWorkspaceName.trim()}>创建</button>
+                </div>
+              </form>
+            ) : (
+              <button type="button" className="shell-workspace-menu-action" onClick={() => setCreating(true)}>
+                <PlusIcon className="size-4" />
+                <span>创建新空间</span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="shell-workspace-menu-action"
+              onClick={() => {
+                setOpen(false)
+                onWorkspaceSettings?.()
+              }}
+            >
+              <Cog6ToothIcon className="size-4" />
+              <span>空间设置</span>
+            </button>
+            <button
+              type="button"
+              className="shell-workspace-menu-action is-logout"
+              onClick={() => {
+                setOpen(false)
+                writeAccountToken('')
+              }}
+            >
+              <ArrowRightStartOnRectangleIcon className="size-4" />
+              <span>退出登录</span>
+            </button>
           </div>
         </AnchorMenu>
       ) : null}
@@ -559,8 +631,10 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
         const active = (await accountFetch(token, '/api/account/active')) as { workspaceId?: string }
         if (gone) return
         const rows = listed.workspaces ?? []
+        const nextWorkspaceId = String(active.workspaceId || rows[0]?.id || '')
         setWorkspaces(rows)
-        setWorkspaceId(String(active.workspaceId || rows[0]?.id || ''))
+        setWorkspaceId(nextWorkspaceId)
+        setWorkspaceName(rows.find((row) => row.id === nextWorkspaceId)?.name ?? '')
         setError('')
       } catch (err) {
         if (gone) return
@@ -590,7 +664,7 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
         <h3 className="settings-account-title">{panel === 'workspace' ? '空间设置' : '成员设置'}</h3>
         <p className="settings-muted settings-account-lead">
           {panel === 'workspace'
-            ? '管理当前空间或新建空间。空间切换请使用左上角菜单。'
+            ? '设置当前选中的空间。空间切换和新建空间请使用左上角菜单。'
             : '管理当前空间的个人资料、成员和邀请。需要分类时，可在成员数据中添加标签并保存视图。'}
         </p>
       </header>
@@ -600,29 +674,24 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
         className="settings-account-row"
         onSubmit={(event) => {
           event.preventDefault()
-          if (!token) return
-          void accountFetch(token, '/api/account/workspaces', {
-            method: 'POST',
+          if (!token || !workspaceId || !canManage || !workspaceName.trim()) return
+          void accountFetch(token, `/api/account/workspaces/${workspaceId}`, {
+            method: 'PATCH',
             body: JSON.stringify({ name: workspaceName }),
           })
-            .then(async (body) => {
-              const created = body as CollabWorkspace
-              setWorkspaces((rows) => [...rows, created])
-              setWorkspaceId(created.id)
-              await accountFetch(token, '/api/account/active', {
-                method: 'POST',
-                body: JSON.stringify({ workspaceId: created.id }),
-              })
-              setWorkspaceName('')
+            .then((body) => {
+              const updated = body as CollabWorkspace
+              setWorkspaces((rows) => rows.map((row) => row.id === updated.id ? updated : row))
               setError('')
+              window.dispatchEvent(new Event(ACCOUNT_EVENT))
             })
-            .catch((err) => setError(err instanceof Error ? err.message : '创建失败'))
+            .catch((err) => setError(err instanceof Error ? err.message : '保存失败'))
         }}
       >
         <div className="settings-account-copy">
-          <label className="settings-account-label" htmlFor="settings-collab-workspace">当前空间</label>
+          <label className="settings-account-label" htmlFor="settings-collab-workspace">空间名称</label>
           <p className="settings-muted settings-account-hint" data-testid="settings-current-workspace">
-            {workspaces.find((row) => row.id === workspaceId)?.name || '还没有空间'}
+            {canManage ? '修改当前选中空间的名称。' : '只有空间所有者或管理者可以修改名称。'}
           </p>
         </div>
         <div className="settings-account-actions">
@@ -631,12 +700,18 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
             className="settings-account-input"
             value={workspaceName}
             maxLength={40}
-            placeholder="新工作区"
+            placeholder="空间名称"
             data-testid="settings-collab-workspace"
+            disabled={!canManage}
             onChange={(event) => setWorkspaceName(event.target.value)}
           />
-          <button type="submit" className="settings-account-action" disabled={!token} data-testid="settings-collab-create">
-            新建
+          <button
+            type="submit"
+            className="settings-account-action"
+            disabled={!token || !workspaceId || !canManage || !workspaceName.trim()}
+            data-testid="settings-collab-save"
+          >
+            保存
           </button>
         </div>
       </form>

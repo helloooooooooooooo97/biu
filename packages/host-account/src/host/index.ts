@@ -182,6 +182,16 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     }
   })
 
+  ctx.http.route('PATCH', '/api/account/workspaces/:id', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as { name?: string }
+      route.send(200, account.store.renameWorkspace(me.id, route.params.id!, String(body.name ?? '')))
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
   ctx.http.route('GET', '/api/account/workspaces/:id/members', async (route) => {
     try {
       const me = actor(route)

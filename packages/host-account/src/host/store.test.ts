@@ -45,6 +45,22 @@ test('owner can add a member by email and a stranger cannot sync', () => {
   )
 })
 
+test('owners and managers can rename a workspace but regular members cannot', () => {
+  const collab = store()
+  const ada = collab.register('Ada')
+  const bob = collab.register('Bob')
+  const cara = collab.register('Cara')
+  const workspace = collab.createWorkspace(ada.id, 'Notes')
+  collab.addMember(ada.id, workspace.id, bob.id)
+  collab.addMember(ada.id, workspace.id, cara.id)
+  collab.updateMemberRole(ada.id, workspace.id, bob.id, 'admin')
+
+  assert.equal(collab.renameWorkspace(ada.id, workspace.id, '团队空间').name, '团队空间')
+  assert.equal(collab.renameWorkspace(bob.id, workspace.id, '项目空间').name, '项目空间')
+  assert.throws(() => collab.renameWorkspace(cara.id, workspace.id, '不能修改'), /管理员/)
+  assert.throws(() => collab.renameWorkspace(ada.id, workspace.id, '  '), /不能为空/)
+})
+
 test('sync bumps version and rejects a stale writer while a lock is held', () => {
   const collab = store()
   const ada = collab.register('Ada')

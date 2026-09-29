@@ -67,8 +67,8 @@ test('workspace and member settings are separate and workspace switching stays o
       return json({ workspaces: [{ id: 'ws_1', name: 'Main', role: 'owner' }] })
     }
     if (url.endsWith('/active')) return json({ workspaceId: 'ws_1' })
-    if (url.endsWith('/workspaces') && init?.method === 'POST') {
-      return json({ id: 'ws_2', name: 'Notes', role: 'owner' }, 201)
+    if (url.endsWith('/workspaces/ws_1') && init?.method === 'PATCH') {
+      return json({ id: 'ws_1', name: 'Notes', role: 'owner' })
     }
     if (url.includes('/members')) return json({ members: [{ id: 'acc_1', name: 'Ada', role: 'owner' }] })
     if (url.endsWith('/presence')) return json({ presence: [{ accountId: 'acc_1', name: 'Ada', collection: '', recordId: '' }] })
@@ -84,9 +84,11 @@ test('workspace and member settings are separate and workspace switching stays o
   assert.equal(screen.queryByTestId('settings-collab-workspaces'), null)
   fireEvent.change(screen.getByTestId('settings-collab-workspace'), { target: { value: 'Notes' } })
   await act(async () => {
-    fireEvent.click(screen.getByTestId('settings-collab-create'))
+    fireEvent.click(screen.getByTestId('settings-collab-save'))
   })
-  assert.match(screen.getByTestId('settings-current-workspace').textContent ?? '', /Notes/)
+  await waitFor(() => assert.equal(calls.includes('PATCH /api/account/workspaces/ws_1'), true))
+  assert.equal((screen.getByTestId('settings-collab-workspace') as HTMLInputElement).value, 'Notes')
+  assert.equal(screen.queryByText('新建'), null)
   cleanup()
   render(<ShellSettingsMembers />)
   await waitFor(() => assert.match(screen.getByTestId('settings-collab-members').textContent ?? '', /所有者/))
@@ -120,8 +122,10 @@ test('account settings are global and workspace switcher lives in the sidebar he
   render(<ShellSettingsAccount />)
   await waitFor(() => assert.equal(screen.getByTestId('settings-account-global-name').textContent, 'ada@example.com'))
   assert.equal(screen.queryByLabelText('空间昵称'), null)
+  assert.equal(screen.queryByTestId('settings-account-logout'), null)
   cleanup()
-  render(<ShellWorkspaceSwitcher />)
+  let settingsOpened = false
+  render(<ShellWorkspaceSwitcher onWorkspaceSettings={() => { settingsOpened = true }} />)
   const switcher = await screen.findByTestId('shell-workspace-switcher')
   assert.match(switcher.textContent ?? '', /Main/)
   assert.doesNotMatch(switcher.textContent ?? '', /所有者/)
@@ -130,4 +134,8 @@ test('account settings are global and workspace switcher lives in the sidebar he
   assert.match(screen.getByTestId('shell-workspace-menu').textContent ?? '', /所有者/)
   assert.match(screen.getByTestId('shell-workspace-menu').textContent ?? '', /Notes/)
   assert.match(screen.getByTestId('shell-workspace-menu').textContent ?? '', /查看者/)
+  assert.match(screen.getByTestId('shell-workspace-menu').textContent ?? '', /创建新空间/)
+  assert.match(screen.getByTestId('shell-workspace-menu').textContent ?? '', /退出登录/)
+  fireEvent.click(screen.getByText('空间设置'))
+  assert.equal(settingsOpened, true)
 })

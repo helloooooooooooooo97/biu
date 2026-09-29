@@ -20,7 +20,7 @@ export type ShellSidebarFrameProps = {
   testId?: string
   activeId?: string
   agentHref?: string
-  onSettings?: () => void
+  onSettings?: (tab?: string) => void
   onSearch?: () => void
   searchOpen?: boolean
   children: ReactNode
@@ -159,7 +159,7 @@ export const ShellSidebarFrame = memo(function ShellSidebarFrame({
       ) : null}
       <div className="app-side-bar-head app-side-bar-head-brand" data-biu-ignore>
         <div className="shell-workspace-head">
-          <ShellWorkspaceSwitcher />
+          <ShellWorkspaceSwitcher onWorkspaceSettings={() => onSettings?.('workspace')} />
         </div>
         {!visible || narrow ? (
           <button
@@ -190,7 +190,7 @@ export const ShellSidebarFrame = memo(function ShellSidebarFrame({
           <ShellSidePlaces
             activeId={activeId}
             agentHref={agentHref}
-            onSettings={onSettings}
+            onSettings={() => onSettings()}
             onSearch={onSearch}
             searchOpen={searchOpen}
           />

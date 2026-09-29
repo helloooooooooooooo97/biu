@@ -349,7 +349,10 @@ function Shell(props: SlotProps) {
     },
     [persistSidebar, sidebarWidth],
   )
-  const openSettings = useCallback(() => setSettingsOpen(true), [])
+  const openSettings = useCallback((tab?: string) => {
+    if (tab) setSettingsTab(tab)
+    setSettingsOpen(true)
+  }, [])
   useEffect(() => {
     void hydrateWorkspaceProfile()
     const onLibrary = () => {

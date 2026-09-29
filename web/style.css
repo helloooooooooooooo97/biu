@@ -1567,6 +1567,98 @@ body {
   font-weight: 500;
 }
 
+.shell-workspace-menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--dsw-border);
+}
+
+.shell-workspace-menu-action {
+  display: flex;
+  width: 100%;
+  height: 34px;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--dsw-label-2);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shell-workspace-menu-action:hover {
+  background: var(--dsw-hover);
+  color: var(--dsw-label);
+}
+
+.shell-workspace-menu-action.is-logout {
+  margin-top: 4px;
+  border-top: 1px solid var(--dsw-border);
+  border-radius: 0 0 7px 7px;
+  padding-top: 4px;
+  height: 39px;
+}
+
+.shell-workspace-create {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px;
+}
+
+.shell-workspace-create input {
+  width: 100%;
+  height: 32px;
+  border: 1px solid var(--dsw-border);
+  border-radius: 7px;
+  padding: 0 8px;
+  outline: none;
+  background: var(--dsw-surface);
+  color: var(--dsw-label);
+  font: inherit;
+  font-size: 13px;
+}
+
+.shell-workspace-create input:focus {
+  border-color: var(--dsw-pick);
+}
+
+.shell-workspace-create p {
+  margin: 0;
+  color: var(--dsw-danger);
+  font-size: 11px;
+}
+
+.shell-workspace-create > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.shell-workspace-create button {
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 9px;
+  background: var(--dsw-hover);
+  color: var(--dsw-label);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.shell-workspace-create button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .sidebar-brand-mascot,
 .sidebar-brand-avatar {
   flex-shrink: 0;
