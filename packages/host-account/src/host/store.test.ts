@@ -83,6 +83,68 @@ test('owners and managers can rename a workspace but regular members cannot', ()
   assert.throws(() => collab.renameWorkspace(ada.id, workspace.id, '  '), /不能为空/)
 })
 
+test('instance roles are independent, composable, and keep one super admin', () => {
+  const collab = store()
+  const ada = collab.register('Ada')
+  const bob = collab.register('Bob')
+  assert.equal(collab.hasInstancePermission(ada.id, 'instance.roles.manage'), true)
+  assert.equal(collab.hasInstancePermission(bob.id, 'instance.roles.manage'), false)
+
+  collab.assignInstanceRole(ada.id, bob.id, 'plugin-developer')
+  collab.assignInstanceRole(ada.id, bob.id, 'plugin-reviewer')
+  assert.equal(collab.hasInstancePermission(bob.id, 'plugin.drafts.create'), true)
+  assert.equal(collab.hasInstancePermission(bob.id, 'plugin.reviews.approve'), true)
+  assert.equal(collab.hasInstancePermission(bob.id, 'plugin.packages.install'), false)
+  assert.throws(() => collab.removeInstanceRole(ada.id, ada.id, 'super-admin'), /最后一个超级管理员/)
+
+  collab.assignInstanceRole(ada.id, bob.id, 'super-admin')
+  collab.removeInstanceRole(ada.id, ada.id, 'super-admin')
+  assert.equal(collab.hasInstancePermission(bob.id, 'instance.roles.manage'), true)
+})
+
+test('plugin grants are isolated by account and workspace', () => {
+  const collab = store()
+  const ada = collab.register('Ada')
+  const bob = collab.register('Bob')
+  const cara = collab.register('Cara')
+  const workspaceA = collab.createWorkspace(ada.id, 'A')
+  const workspaceB = collab.createWorkspace(bob.id, 'B')
+  collab.addMember(ada.id, workspaceA.id, bob.id)
+  collab.addMember(ada.id, workspaceA.id, cara.id)
+
+  collab.grantPluginAssignment(ada.id, workspaceA.id, 'page-html-blocks', { type: 'account', id: bob.id })
+  assert.equal(collab.canAccessPlugin(bob.id, workspaceA.id, 'page-html-blocks'), true)
+  assert.equal(collab.canAccessPlugin(cara.id, workspaceA.id, 'page-html-blocks'), false)
+  assert.equal(collab.canAccessPlugin(bob.id, workspaceB.id, 'page-html-blocks'), false)
+
+  collab.grantPluginAssignment(cara.id, workspaceA.id, 'page-html-blocks', { type: 'account', id: cara.id })
+  assert.equal(collab.canAccessPlugin(cara.id, workspaceA.id, 'page-html-blocks'), true)
+  assert.throws(
+    () => collab.grantPluginAssignment(cara.id, workspaceA.id, 'page-html-blocks', { type: 'account', id: bob.id }),
+    /只能为自己/,
+  )
+})
+
+test('plugin member-view grants are evaluated dynamically', () => {
+  const collab = store()
+  const ada = collab.register('Ada')
+  const bob = collab.register('Bob')
+  const workspace = collab.createWorkspace(ada.id, 'A')
+  collab.addMember(ada.id, workspace.id, bob.id)
+  let included = true
+  collab.authorization.setMemberViewMatcher(
+    (workspaceId, viewId, accountId) =>
+      included && workspaceId === workspace.id && viewId === 'designers' && accountId === bob.id,
+  )
+  collab.grantPluginAssignment(ada.id, workspace.id, 'page-excalidraw', {
+    type: 'member_view',
+    id: 'designers',
+  })
+  assert.equal(collab.canAccessPlugin(bob.id, workspace.id, 'page-excalidraw'), true)
+  included = false
+  assert.equal(collab.canAccessPlugin(bob.id, workspace.id, 'page-excalidraw'), false)
+})
+
 test('sync bumps version and rejects a stale writer while a lock is held', () => {
   const collab = store()
   const ada = collab.register('Ada')
