@@ -100,6 +100,9 @@ test('workspace and member settings are separate and workspace switching stays o
 
 test('account settings are global and workspace switcher lives in the sidebar header', async () => {
   localStorage.setItem('biu.account.token', 'tok')
+  const source = readFileSync(resolve(import.meta.dirname, './shell-chrome.tsx'), 'utf8')
+  const switcherSource = source.slice(source.indexOf('export function ShellWorkspaceSwitcher'), source.indexOf('export function ShellSettingsCollab'))
+  assert.doesNotMatch(switcherSource, /ChevronDownIcon|ChevronUpDownIcon/)
   globalThis.fetch = (async (path: string) => {
     const url = String(path)
     if (url.endsWith('/me')) return json({ id: 'acc_1', name: 'ada@example.com', email: 'ada@example.com' })

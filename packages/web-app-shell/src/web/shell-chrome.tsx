@@ -5,7 +5,6 @@ import {
   BellIcon,
   ChatBubbleLeftRightIcon,
   CheckIcon,
-  ChevronDownIcon,
   CircleStackIcon,
   ClipboardDocumentIcon,
   Cog6ToothIcon,
@@ -478,7 +477,6 @@ export function ShellWorkspaceSwitcher() {
         <span className="shell-workspace-switch-copy">
           <strong>{current.name}</strong>
         </span>
-        <ChevronDownIcon className="shell-workspace-switch-chevron size-4 shrink-0" />
       </button>
       {open ? (
         <AnchorMenu

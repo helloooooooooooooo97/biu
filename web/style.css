@@ -1459,7 +1459,7 @@ body {
   justify-content: space-between;
   gap: 6px;
   padding: 0 8px;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 7px;
   background: transparent;
   color: var(--dsw-label);
@@ -1492,17 +1492,7 @@ body {
 .shell-workspace-switcher:hover,
 .shell-workspace-switcher:focus,
 .shell-workspace-switcher.is-open {
-  border-color: var(--dsw-border);
   background: var(--dsw-hover);
-}
-
-.shell-workspace-switch-chevron {
-  color: var(--dsw-label-3);
-  transition: transform 160ms ease;
-}
-
-.shell-workspace-switcher.is-open .shell-workspace-switch-chevron {
-  transform: rotate(180deg);
 }
 
 .shell-workspace-menu {
