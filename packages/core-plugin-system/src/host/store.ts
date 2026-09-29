@@ -22,6 +22,7 @@ import { parseStoreShell, requireDeclaredShell, type StoreShell } from '../shell
 import {
   assetsRootPath,
   biuSqlitePath,
+  DATA_DIR_NAME,
   currentAccountId,
   currentRequestWorkspaceId,
   copyReferencedEditorAssets,
@@ -270,6 +271,15 @@ export class PluginStoreService extends Service {
     this.listCache = null
   }
 
+  private contentSqlitePath() {
+    // Explicit/custom plugin roots represent a self-contained instance (also
+    // used by tests). The default root keeps honoring BIU_HOME/Electron data.
+    if (resolve(this.pluginDir) !== resolve(defaultPluginDir())) {
+      return join(dirname(resolve(this.pluginDir)), DATA_DIR_NAME, 'biu.sqlite')
+    }
+    return biuSqlitePath()
+  }
+
   private isEnabled(id: string) {
     return this.state.enabled.includes(id)
   }
@@ -516,7 +526,7 @@ export class PluginStoreService extends Service {
   }
 
   async readReadme(id: string) {
-    const sqlitePath = biuSqlitePath()
+    const sqlitePath = this.contentSqlitePath()
     if (existsSync(sqlitePath)) {
       try {
         const db = openAndMigrateBiu(sqlitePath)
@@ -544,7 +554,7 @@ export class PluginStoreService extends Service {
   async writeReadme(id: string, markdown: string) {
     this.requireInstancePermission('plugin.drafts.create')
     const text = String(markdown ?? '')
-    const sqlitePath = biuSqlitePath()
+    const sqlitePath = this.contentSqlitePath()
     mkdirSync(dirname(sqlitePath), { recursive: true })
     const db = openAndMigrateBiu(sqlitePath)
     try {
