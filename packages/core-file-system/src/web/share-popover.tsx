@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowPathIcon, CheckIcon, LinkIcon, ShareIcon } from '@heroicons/react/16/solid'
+import { ArrowPathIcon, CheckIcon, LinkIcon, ShareIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
 import { listCollection, readJson } from './db-client.ts'
 import { mintSharePin, shareClipboardText, type ShareResourceStats } from '../share-resources.ts'
@@ -252,6 +252,9 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
       ? row.memberKind === 'member'
       : row.memberKind === 'external' || row.memberKind === 'guest',
   )
+  const hasInternalRules = collaboratorKind === 'internal' && (groups.length > 0 || memberViews.length > 0)
+  const hasCollaborators = shownPeople.length > 0 || hasInternalRules
+  const scopeLabel = scope === 'shared' ? '分享数据' : scope === 'workspace' ? '空间数据' : '私人数据'
 
   return (
     <form
@@ -262,55 +265,69 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
         if (email.trim()) void grant({ email: email.trim() })
       }}
     >
-      <div className="fsdb-share-collab-tabs" role="tablist" aria-label="协作者类型">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={collaboratorKind === 'internal'}
-          className={collaboratorKind === 'internal' ? 'is-on' : ''}
-          onClick={() => setCollaboratorKind('internal')}
-        >
-          内部协作者
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={collaboratorKind === 'external'}
-          className={collaboratorKind === 'external' ? 'is-on' : ''}
-          onClick={() => setCollaboratorKind('external')}
-        >
-          外部协作者
-        </button>
+      <div className="fsdb-share-collab-head">
+        <div className="fsdb-share-collab-tabs" role="tablist" aria-label="协作者类型">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={collaboratorKind === 'internal'}
+            className={collaboratorKind === 'internal' ? 'is-on' : ''}
+            onClick={() => setCollaboratorKind('internal')}
+          >
+            内部协作者
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={collaboratorKind === 'external'}
+            className={collaboratorKind === 'external' ? 'is-on' : ''}
+            onClick={() => setCollaboratorKind('external')}
+          >
+            外部协作者
+          </button>
+        </div>
+        <span className={`fsdb-share-scope is-${scope}`} data-testid="fsdb-share-scope">{scopeLabel}</span>
       </div>
-      <p className="fsdb-share-perm">
-        {collaboratorKind === 'internal'
-          ? '内部协作者必须已经是空间成员；添加后，这条数据归入空间数据。'
-          : '外部协作者只获得这条数据的权限；添加后，这条数据归入分享数据。'}
-      </p>
-      <p className="fsdb-share-scope" data-testid="fsdb-share-scope">
-        当前归属：{scope === 'shared' ? '分享数据' : scope === 'workspace' ? '空间数据' : '私人数据'}
-      </p>
       <ul className="fsdb-share-collaborators">
-        {shownPeople.length ? shownPeople.map((row) => (
+        {shownPeople.map((row) => (
           <li key={row.id}>
-            <span>{row.name}{row.email ? ` · ${row.email}` : ''} · {roleLabel(row.role)}</span>
-            <button type="button" className="fsdb-share-remove" onClick={() => void revoke('account', row.id)}>移除</button>
+            <span className="fsdb-share-collaborator-copy">
+              <strong>{row.name}</strong>
+              {row.email ? <em>{row.email}</em> : null}
+            </span>
+            <span className="fsdb-share-collaborator-role">{roleLabel(row.role)}</span>
+            <button
+              type="button"
+              className="fsdb-share-remove"
+              title="移除协作者"
+              aria-label={`移除 ${row.name}`}
+              onClick={() => void revoke('account', row.id)}
+            >
+              <XMarkIcon aria-hidden className="size-4" />
+            </button>
           </li>
-        )) : <li><span>还没有{collaboratorKind === 'internal' ? '内部' : '外部'}协作者。</span></li>}
+        ))}
         {collaboratorKind === 'internal' ? groups.map((row) => (
           <li key={`group:${row.id}`}>
-            <span>{row.name} · 成员组 · {roleLabel(row.role)}</span>
-            <button type="button" className="fsdb-share-remove" onClick={() => void revoke('group', row.id)}>移除</button>
+            <span className="fsdb-share-collaborator-copy"><strong>{row.name}</strong><em>成员组</em></span>
+            <span className="fsdb-share-collaborator-role">{roleLabel(row.role)}</span>
+            <button type="button" className="fsdb-share-remove" title="移除成员组" aria-label={`移除 ${row.name}`} onClick={() => void revoke('group', row.id)}>
+              <XMarkIcon aria-hidden className="size-4" />
+            </button>
           </li>
         )) : null}
         {collaboratorKind === 'internal' ? memberViews.map((row) => (
           <li key={`view:${row.id}`}>
-            <span>{row.name} · 动态成员视图 · {roleLabel(row.role ?? '')}</span>
-            <button type="button" className="fsdb-share-remove" onClick={() => void revoke('member_view', row.id)}>移除</button>
+            <span className="fsdb-share-collaborator-copy"><strong>{row.name}</strong><em>动态成员视图</em></span>
+            <span className="fsdb-share-collaborator-role">{roleLabel(row.role ?? '')}</span>
+            <button type="button" className="fsdb-share-remove" title="移除成员视图" aria-label={`移除 ${row.name}`} onClick={() => void revoke('member_view', row.id)}>
+              <XMarkIcon aria-hidden className="size-4" />
+            </button>
           </li>
         )) : null}
+        {!hasCollaborators ? <li className="is-empty">尚未添加协作者</li> : null}
       </ul>
-      <div className="fsdb-share-link-row">
+      <div className="fsdb-share-invite-row">
         <input
           className="fsdb-share-link-field"
           type="email"
@@ -327,38 +344,36 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
         <button type="submit" className="fsdb-share-publish" data-testid="fsdb-share-member-add">添加</button>
       </div>
       {collaboratorKind === 'internal' && availableMemberViews.length ? (
-        <div className="fsdb-share-link-row" data-testid="fsdb-share-member-view">
-          <select value={memberViewId} aria-label="成员视图" onChange={(event) => setMemberViewId(event.target.value)}>
-            {availableMemberViews.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-          </select>
-          <button
-            type="button"
-            className="fsdb-share-publish"
-            disabled={!memberViewId}
-            onClick={() => void grant({ memberViewId })}
-          >
-            按视图动态授权
-          </button>
-        </div>
+        <details className="fsdb-share-advanced" data-testid="fsdb-share-member-view">
+          <summary>按成员视图批量授权</summary>
+          <div className="fsdb-share-link-row">
+            <select value={memberViewId} aria-label="成员视图" onChange={(event) => setMemberViewId(event.target.value)}>
+              {availableMemberViews.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+            </select>
+            <button
+              type="button"
+              className="fsdb-share-publish"
+              disabled={!memberViewId}
+              onClick={() => void grant({ memberViewId })}
+            >
+              授权
+            </button>
+          </div>
+        </details>
       ) : null}
-      {collaboratorKind === 'internal' && availableMemberViews.length
-        ? <p>满足该成员视图条件的账号会自动获得权限；视图条件变化会立即生效。</p>
-        : null}
-      {collaboratorKind === 'external' ? <div className="fsdb-share-link-row" data-testid="fsdb-share-guest">
-        {guestUrl ? (
-          <input
-            className="fsdb-share-link-field"
-            readOnly
-            aria-label="临时访客链接"
-            value={guestUrl}
-            onFocus={(event) => event.currentTarget.select()}
-          />
-        ) : <p>临时访客无需账号，仅可访问这条内容，24 小时后自动失效。</p>}
-        <button type="button" className="fsdb-share-publish" onClick={() => void createGuestLink()}>
-          {guestCopied ? '已复制' : guestUrl ? '重新生成并复制' : '生成临时访客链接'}
+      {collaboratorKind === 'external' ? <div className="fsdb-share-guest-row" data-testid="fsdb-share-guest">
+        <span>
+          <strong>临时访客</strong>
+          <em>{guestUrl ? '链接有效期 24 小时' : '无需注册，仅可访问此内容'}</em>
+        </span>
+        <button type="button" onClick={() => void createGuestLink()}>
+          {guestCopied ? '已复制' : guestUrl ? '重新生成' : '生成链接'}
         </button>
       </div> : null}
-      {error ? <p>{error}</p> : null}
+      <p className="fsdb-share-collab-hint">
+        {collaboratorKind === 'internal' ? '仅可添加当前空间成员' : '外部账号只获得此内容的权限'}
+      </p>
+      {error ? <p className="fsdb-share-error is-inline">{error}</p> : null}
     </form>
   )
 }
@@ -509,7 +524,7 @@ export function SharePanel({ target, embedded = false }: { target: ShareTarget; 
     <div className={`fsdb-share-panel${embedded ? ' is-embedded' : ''}`} role="dialog" aria-label="分享" data-testid="fsdb-share-panel">
       <header className="fsdb-share-head">
         <strong>分享</strong>
-        <p>公开链接用于对外查看；邀请协作用于授予已登录账号访问权限。</p>
+        <span title={target.title}>{target.title}</span>
       </header>
       <div className="fsdb-share-tabs" role="tablist" aria-label="分享方式">
         <button
@@ -541,8 +556,10 @@ export function SharePanel({ target, embedded = false }: { target: ShareTarget; 
       {tab === 'public' ? <><section className="fsdb-share-link-section">
         {!share ? (
           <div className="fsdb-share-empty">
-            <p className="fsdb-share-empty-title">链接分享尚未开启</p>
-            <p className="fsdb-share-empty-copy">开启后，任何获得链接的人都可以查看。</p>
+            <span>
+              <p className="fsdb-share-empty-title">公开链接</p>
+              <p className="fsdb-share-empty-copy">获得链接的人可以查看</p>
+            </span>
             <button
               type="button"
               className="fsdb-share-publish"
@@ -550,11 +567,22 @@ export function SharePanel({ target, embedded = false }: { target: ShareTarget; 
               data-testid="fsdb-share-enable"
               onClick={() => void copyShare()}
             >
-              {busy ? '正在生成…' : copied ? '已生成并复制' : '生成并复制链接'}
+              {busy ? '正在开启…' : copied ? '已复制' : '开启并复制'}
             </button>
           </div>
         ) : (
           <>
+            <div className="fsdb-share-public-state">
+              <span><i aria-hidden />公开链接已开启</span>
+              <button
+                type="button"
+                disabled={busy}
+                data-testid="fsdb-share-stop"
+                onClick={() => void publish({ enabled: false })}
+              >
+                关闭
+              </button>
+            </div>
             <div className="fsdb-share-link-row">
               <div className="fsdb-share-link-field">
                 <LinkIcon aria-hidden className="size-4" />
@@ -591,12 +619,10 @@ export function SharePanel({ target, embedded = false }: { target: ShareTarget; 
       </section>
       {share ? (
         <>
-          <section className="fsdb-share-settings">
-            <h3>链接设置</h3>
+          <section className="fsdb-share-settings" aria-label="公开链接设置">
             <div className="fsdb-share-setting">
               <span className="fsdb-share-setting-copy">
                 <strong>密码保护</strong>
-                <em>开启后自动生成 6 位密码</em>
               </span>
               <ShareToggle
                 on={usePassword}
@@ -622,7 +648,6 @@ export function SharePanel({ target, embedded = false }: { target: ShareTarget; 
             <div className="fsdb-share-setting">
               <span className="fsdb-share-setting-copy">
                 <strong>分享插件</strong>
-                <em>允许对方下载此内容使用的插件</em>
               </span>
               <ShareToggle
                 on={share.sharePlugins}
@@ -637,7 +662,6 @@ export function SharePanel({ target, embedded = false }: { target: ShareTarget; 
             <div className="fsdb-share-setting">
               <span className="fsdb-share-setting-copy">
                 <strong>允许复制</strong>
-                <em>允许对方复制或下载页面内容</em>
               </span>
               <ShareToggle
                 on={share.allowCopy !== false}
@@ -650,17 +674,6 @@ export function SharePanel({ target, embedded = false }: { target: ShareTarget; 
               />
             </div>
           </section>
-          <footer className="fsdb-share-footer">
-            <button
-              type="button"
-              className="fsdb-share-stop"
-              disabled={busy}
-              data-testid="fsdb-share-stop"
-              onClick={() => void publish({ enabled: false })}
-            >
-              停止分享
-            </button>
-          </footer>
         </>
       ) : null}
       </> : null}
