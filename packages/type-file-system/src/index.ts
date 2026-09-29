@@ -49,6 +49,7 @@ export type PersonKind = 'user' | 'agent' | 'system'
 export type PersonValue = {
   kind: PersonKind
   name: string
+  accountId?: string
   sessionId?: string
   mascot?: { shape: string; color: string; eye?: number }
 }
@@ -75,6 +76,7 @@ export function asPerson(value: unknown): PersonValue | null {
   }
   if (typeof value !== 'object' || Array.isArray(value)) return null
   const rec = value as Record<string, unknown>
+  const accountId = String(rec.accountId ?? '').trim()
   const sessionId = String(rec.sessionId ?? rec.id ?? '').trim()
   const kind: PersonKind =
     rec.kind === 'system' || rec.kind === 'agent' || rec.kind === 'user'
@@ -87,12 +89,18 @@ export function asPerson(value: unknown): PersonValue | null {
     (kind === 'system' ? '系统' : kind === 'user' ? '用户' : sessionId.slice(0, 8) || '')
   if (!name && !sessionId) return null
   const mascot = personMascot(rec.mascot)
-  return { kind, name: name || 'Agent', ...(sessionId ? { sessionId } : {}), ...(mascot ? { mascot } : {}) }
+  return {
+    kind,
+    name: name || 'Agent',
+    ...(accountId ? { accountId } : {}),
+    ...(sessionId ? { sessionId } : {}),
+    ...(mascot ? { mascot } : {}),
+  }
 }
 
 export function personKey(person: PersonValue | null | undefined): string {
   if (!person) return ''
-  if (person.kind === 'user') return 'user'
+  if (person.kind === 'user') return person.accountId ? `user:${person.accountId}` : 'user'
   if (person.kind === 'system') return 'system'
   return person.sessionId || person.name
 }

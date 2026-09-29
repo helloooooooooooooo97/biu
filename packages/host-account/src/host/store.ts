@@ -656,6 +656,20 @@ export class CollabStore {
     return { workspaceId, email: row.login_email ?? '', name: row.display_name.trim(), avatar: row.avatar }
   }
 
+  workspacePerson(actorId: string) {
+    const workspaceId = this.accountActiveWorkspace(actorId)
+    if (!workspaceId) return null
+    const row = this.db
+      .prepare(
+        `SELECT COALESCE(NULLIF(m.display_name, ''), NULLIF(a.name, ''), NULLIF(a.email, ''), '用户') AS name
+         FROM workspace_members m
+         JOIN accounts a ON a.id = m.account_id
+         WHERE m.workspace_id = ? AND m.account_id = ?`,
+      )
+      .get(workspaceId, actorId) as { name: string } | undefined
+    return row ? { accountId: actorId, workspaceId, name: row.name } : null
+  }
+
   saveWorkspaceProfile(actorId: string, patch: { name?: string; avatar?: string }) {
     const current = this.workspaceProfile(actorId)
     const name = patch.name !== undefined ? patch.name.trim().slice(0, 40) : current.name

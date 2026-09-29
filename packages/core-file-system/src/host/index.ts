@@ -570,6 +570,7 @@ type WorkspaceMembership = {
 
 type WorkspaceFiles = {
   activeWorkspaceId(): string | null
+  workspacePerson?(accountId: string): { accountId: string; workspaceId: string; name: string } | null
   membership(): WorkspaceMembership
   attach(
     workspaceId: string,
@@ -1137,6 +1138,9 @@ export class DatabaseService extends Service implements Database {
   private async currentPerson(): Promise<PersonValue> {
     const sid = currentSessionId()?.trim()
     if (!sid) {
+      const accountId = currentAccountId()
+      const member = accountId ? this.collabStore()?.workspacePerson?.(accountId) : null
+      if (member?.name) return { kind: 'user', name: member.name, accountId }
       const name = readWorkspaceProfile().name.trim() || '用户'
       return { kind: 'user', name }
     }
@@ -1145,6 +1149,10 @@ export class DatabaseService extends Service implements Database {
   }
 
   private namedPerson(person: PersonValue): PersonValue {
+    if (person.kind === 'user' && person.accountId) {
+      const member = this.collabStore()?.workspacePerson?.(person.accountId)
+      return member?.name ? { ...person, name: member.name } : person
+    }
     if (person.kind !== 'agent' || !person.sessionId) return person
     const peeked = this.peekSessionName(person.sessionId)
     return peeked ? { ...person, name: peeked } : person

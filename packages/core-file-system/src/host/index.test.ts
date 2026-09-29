@@ -1723,11 +1723,15 @@ test('file-system CRUD uses the unified account authorization decision', async (
   collab.setActive(bob.id, workspace.id)
   runWithAccount(ada.id, () => collab.attach(workspace.id, '/notes', 'n1'))
   runWithAccount(bob.id, () => collab.attach(workspace.id, '/notes', 'n2'))
+  collab.saveWorkspaceProfile(ada.id, { name: 'Ada 空间昵称', avatar: '' })
 
   const adaList = await runWithAccount(ada.id, () => db.list('/notes'))
   const bobList = await runWithAccount(bob.id, () => db.list('/notes'))
   if (adaList.kind === 'collection') assert.deepEqual(adaList.items.map((row) => row.id), ['n1'])
   if (bobList.kind === 'collection') assert.deepEqual(bobList.items.map((row) => row.id), ['n2'])
+  const stamped = await runWithAccount(ada.id, () => db.update('/notes/n1', { status: 'done' }))
+  assert.deepEqual(stamped.value.createdBy, { kind: 'user', name: 'Ada 空间昵称', accountId: ada.id })
+  assert.deepEqual(stamped.value.updatedBy, [{ kind: 'user', name: 'Ada 空间昵称', accountId: ada.id }])
   await assert.rejects(
     () => runWithAccount(bob.id, () => db.update('/notes/n1', { title: '偷改' })),
     /unknown record/,
