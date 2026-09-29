@@ -1989,26 +1989,33 @@ export class CollabStore {
 
   private ensureBuiltInRoot(now = Date.now()) {
     if (process.env.BIU_ONLINE !== '1') return false
-    const count = this.db.prepare('SELECT COUNT(*) AS count FROM accounts').get() as { count: number }
-    if (Number(count.count) > 0) return false
-    const accountId = 'acc_root'
+    const existing = this.db
+      .prepare(`SELECT id FROM accounts WHERE lower(email) = 'root' LIMIT 1`)
+      .get() as { id?: string } | undefined
+    const accountId = existing?.id ?? (
+      this.db.prepare(`SELECT 1 AS ok FROM accounts WHERE id = 'acc_root'`).get() ? id('acc') : 'acc_root'
+    )
     this.db.exec('BEGIN IMMEDIATE')
     try {
+      if (!existing) {
+        this.db
+          .prepare(
+            `INSERT INTO accounts
+              (id, name, token, password_hash, created_at, email, active_workspace_id, must_change_password)
+             VALUES (?, 'root', ?, ?, ?, 'root', '', 0)`,
+          )
+          .run(accountId, randomBytes(24).toString('hex'), hashPassword('123456'), now)
+      } else {
+        this.db.prepare('UPDATE accounts SET must_change_password = 0 WHERE id = ?').run(accountId)
+      }
       this.db
         .prepare(
-          `INSERT INTO accounts
-            (id, name, token, password_hash, created_at, email, active_workspace_id, must_change_password)
-           VALUES (?, 'root', ?, ?, ?, 'root', '', 1)`,
-        )
-        .run(accountId, randomBytes(24).toString('hex'), hashPassword('123456'), now)
-      this.db
-        .prepare(
-          `INSERT INTO instance_role_members (role_id, account_id, assigned_by, created_at)
+          `INSERT OR IGNORE INTO instance_role_members (role_id, account_id, assigned_by, created_at)
            VALUES ('super-admin', ?, ?, ?)`,
         )
         .run(accountId, accountId, now)
       this.db.exec('COMMIT')
-      return true
+      return !existing
     } catch (error) {
       this.db.exec('ROLLBACK')
       throw error

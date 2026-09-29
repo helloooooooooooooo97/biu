@@ -67,20 +67,41 @@ test('online mode denies record reads without an account context', () => {
   }
 })
 
-test('a fresh online instance seeds root as super admin and forces a password change', () => {
+test('an online instance seeds root as super admin with the default password', () => {
   const previous = process.env.BIU_ONLINE
   process.env.BIU_ONLINE = '1'
   try {
     const collab = store()
     const root = collab.login('root', '123456')
     assert.equal(root.name, 'root')
-    assert.equal(root.mustChangePassword, true)
+    assert.equal(root.mustChangePassword, false)
     assert.equal(collab.hasInstancePermission(root.id, 'instance.roles.manage'), true)
-    assert.equal(collab.requiresPasswordChange(root.id), true)
+    assert.equal(collab.requiresPasswordChange(root.id), false)
     collab.changePassword(root.id, '123456', 'new-secret', root.token)
     assert.equal(collab.requiresPasswordChange(root.id), false)
     assert.throws(() => collab.login('root', '123456'), /邮箱或密码不对/)
-    assert.equal(collab.login('root', 'new-secret').id, root.id)
+    const db = (collab as unknown as { db: import('node:sqlite').DatabaseSync }).db
+    const restarted = new CollabStore(db)
+    assert.throws(() => restarted.login('root', '123456'), /邮箱或密码不对/)
+    assert.equal(restarted.login('root', 'new-secret').id, root.id)
+  } finally {
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
+  }
+})
+
+test('online startup adds root to a database that already has accounts', () => {
+  const previous = process.env.BIU_ONLINE
+  delete process.env.BIU_ONLINE
+  try {
+    const collab = store()
+    const ada = collab.register('Ada')
+    const db = (collab as unknown as { db: import('node:sqlite').DatabaseSync }).db
+    process.env.BIU_ONLINE = '1'
+    const online = new CollabStore(db)
+    const root = online.login('root', '123456')
+    assert.notEqual(root.id, ada.id)
+    assert.equal(online.hasInstancePermission(root.id, 'instance.roles.manage'), true)
   } finally {
     if (previous === undefined) delete process.env.BIU_ONLINE
     else process.env.BIU_ONLINE = previous
