@@ -66,3 +66,13 @@ test('share panel separates public sharing from internal and external collaborat
   assert.match(databaseHost, /externallySharedRecords/)
   assert.match(databaseHost, /collab:/)
 })
+
+test('collaborator sections are stacked without a redundant popover heading', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './share-popover.tsx'), 'utf8')
+  const internalAt = src.indexOf('<h3>内部协作者</h3>')
+  const externalAt = src.indexOf('<h3>外部协作者</h3>')
+  assert.ok(internalAt >= 0)
+  assert.ok(externalAt > internalAt)
+  assert.doesNotMatch(src, /<header className="fsdb-share-head">/)
+  assert.doesNotMatch(src, /aria-label="协作者类型"/)
+})
