@@ -1,6 +1,6 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
-import { currentAccountId } from '@biu/host-plugin-loader/data-dir'
+import { currentAccountId, currentRequestWorkspaceId } from '@biu/host-plugin-loader/data-dir'
 import { AuthorizationService, type ResourcePolicyInput, type ResourceRole, type WorkspaceRole } from './authorization.ts'
 
 export const PRESENCE_STALE_MS = 30_000
@@ -178,9 +178,22 @@ export class CollabStore {
   }
 
   activeWorkspaceId() {
+    const requested = currentRequestWorkspaceId()
     const caller = currentAccountId()
+    if (requested) {
+      if (caller && !this.isMember(caller, requested)) return null
+      return requested
+    }
+    if (process.env.BIU_ONLINE === '1') return caller ? this.accountActiveWorkspace(caller) : null
     if (caller) return this.accountActiveWorkspace(caller)
     return this.stateValue('active')
+  }
+
+  isMember(accountId: string, workspaceId: string) {
+    const row = this.db
+      .prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
+      .get(workspaceId, accountId) as { role?: string } | undefined
+    return Boolean(row)
   }
 
   accountByToken(token: string): Account | null {
@@ -721,6 +734,13 @@ export class CollabStore {
     this.db.exec('BEGIN IMMEDIATE')
     try {
       const current = this.head(workspaceId, key.collection, key.recordId)
+      const elsewhere = this.db
+        .prepare(
+          `SELECT workspace_id FROM record_owners
+           WHERE collection = ? AND record_id = ? AND workspace_id != ? LIMIT 1`,
+        )
+        .get(key.collection, key.recordId, workspaceId) as { workspace_id?: string } | undefined
+      if (elsewhere) throw new CollabError('这条记录已经属于另一个空间', 409)
       if (!current) {
         this.db
           .prepare(
@@ -1036,6 +1056,13 @@ export class CollabStore {
     if (!owner) throw new CollabError('工作区不存在', 404)
     const caller = currentAccountId()
     const recordOwner = caller || owner.owner_id
+    const elsewhere = this.db
+      .prepare(
+        `SELECT workspace_id FROM record_owners
+         WHERE collection = ? AND record_id = ? AND workspace_id != ? LIMIT 1`,
+      )
+      .get(collection, recordId, workspaceId) as { workspace_id?: string } | undefined
+    if (elsewhere) throw new CollabError('这条记录已经属于另一个空间', 409)
     this.db
       .prepare(
         `INSERT INTO record_owners (workspace_id, collection, record_id, owner_id, version, updated_at)
@@ -1073,6 +1100,7 @@ export class CollabStore {
   canReadRecord(collection: string, recordId: string) {
     const caller = currentAccountId()
     const workspaceId = this.activeWorkspaceId()
+    if (process.env.BIU_ONLINE === '1' && (!caller || !workspaceId)) return false
     if (!caller || !workspaceId) return true
     return this.authorization.authorize(
       { type: 'account', accountId: caller, workspaceId },

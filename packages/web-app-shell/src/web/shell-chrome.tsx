@@ -28,9 +28,11 @@ if (typeof window !== 'undefined') {
   const originalFetch = window.fetch.bind(window)
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const token = localStorage.getItem('biu.account.token') ?? ''
-    if (!token) return originalFetch(input, init)
+    const workspaceId = sessionStorage.getItem('biu.workspaceId') ?? ''
+    if (!token && !workspaceId) return originalFetch(input, init)
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
-    if (!headers.has('authorization')) headers.set('authorization', `Bearer ${token}`)
+    if (token && !headers.has('authorization')) headers.set('authorization', `Bearer ${token}`)
+    if (workspaceId && !headers.has('x-biu-workspace-id')) headers.set('x-biu-workspace-id', workspaceId)
     return originalFetch(input, { ...init, headers })
   }
 }
@@ -434,7 +436,9 @@ export function ShellWorkspaceSwitcher({ onWorkspaceSettings }: { onWorkspaceSet
         ])
         if (cancelled) return
         setWorkspaces(listed.workspaces ?? [])
-        setActive(String(current.workspaceId ?? ''))
+        const workspaceId = String(current.workspaceId ?? '')
+        setActive(workspaceId)
+        if (workspaceId) sessionStorage.setItem('biu.workspaceId', workspaceId)
       } catch {
         if (!cancelled) setWorkspaces([])
       }
@@ -454,6 +458,7 @@ export function ShellWorkspaceSwitcher({ onWorkspaceSettings }: { onWorkspaceSet
     setOpen(false)
     if (!token || !workspaceId || workspaceId === active) return
     setActive(workspaceId)
+    sessionStorage.setItem('biu.workspaceId', workspaceId)
     void accountFetch(token, '/api/account/active', {
       method: 'POST',
       body: JSON.stringify({ workspaceId }),

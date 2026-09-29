@@ -7,7 +7,7 @@ import { Service, type Context } from 'cordis'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { HUB_CHANGE } from '@biu/type-http'
 import type { Method, RouteContext, RouteHandler } from '@biu/type-http'
-import { profilePath, runWithAccount } from '@biu/host-plugin-loader/data-dir'
+import { profilePath, runWithAccount, runWithRequestWorkspace } from '@biu/host-plugin-loader/data-dir'
 import { isShareApiPath, isSharePublicPath } from './share-gate.ts'
 
 interface Route {
@@ -373,7 +373,13 @@ export class HttpService extends Service {
           context.send(401, { error: '需要登录' })
           return
         }
-        await runWithAccount(accountId, () => match.handler(context))
+        const requestedWorkspace = String(req.headers['x-biu-workspace-id'] ?? '').trim()
+        const accountStore = (this.ctx.get('account') as { store?: { isMember?(accountId: string, workspaceId: string): boolean } } | undefined)?.store
+        if (accountId && requestedWorkspace && accountStore?.isMember && !accountStore.isMember(accountId, requestedWorkspace)) {
+          context.send(403, { error: '不在这个空间' })
+          return
+        }
+        await runWithAccount(accountId, () => runWithRequestWorkspace(requestedWorkspace, () => match.handler(context)))
       } catch (error) {
         this.ctx.logger('http').error(error)
         if (!res.headersSent) context.send(500, { error: String(error) })

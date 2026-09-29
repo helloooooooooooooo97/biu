@@ -64,12 +64,7 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   }
 
   ctx.http.route('POST', '/api/account/bootstrap', async (route) => {
-    try {
-      const profile = readWorkspaceProfile()
-      route.send(200, account.store.bootstrapLocal({ accountName: profile.name || '我', workspaceName: '本机' }))
-    } catch (error) {
-      fail(route, error)
-    }
+    route.send(410, { error: '在线模式不提供本机初始化。请使用登录或邀请链接。' })
   })
 
   ctx.http.route('GET', '/api/account/active', async (route) => {

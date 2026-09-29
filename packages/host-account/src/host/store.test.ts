@@ -45,6 +45,29 @@ test('owner can add a member by email and a stranger cannot sync', () => {
   )
 })
 
+test('a record cannot be claimed by two workspaces', () => {
+  const collab = store()
+  const ada = collab.register('Ada')
+  const bob = collab.register('Bob')
+  const adaWorkspace = collab.createWorkspace(ada.id, 'A')
+  const bobWorkspace = collab.createWorkspace(bob.id, 'B')
+  collab.claim(ada.id, adaWorkspace.id, '/pages', 'shared-id')
+  assert.throws(() => collab.claim(bob.id, bobWorkspace.id, '/pages', 'shared-id'), /另一个空间/)
+  assert.throws(() => collab.attach(bobWorkspace.id, '/pages', 'shared-id'), /另一个空间/)
+})
+
+test('online mode denies record reads without an account context', () => {
+  const previous = process.env.BIU_ONLINE
+  process.env.BIU_ONLINE = '1'
+  try {
+    const collab = store()
+    assert.equal(collab.canReadRecord('/pages', 'hidden'), false)
+  } finally {
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
+  }
+})
+
 test('owners and managers can rename a workspace but regular members cannot', () => {
   const collab = store()
   const ada = collab.register('Ada')

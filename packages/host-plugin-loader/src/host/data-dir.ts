@@ -142,15 +142,26 @@ export function runWithWorkspace<T>(scope: WorkspaceScope, fn: () => T): T {
 }
 
 const accountScope = new AsyncLocalStorage<string>()
+const requestWorkspaceScope = new AsyncLocalStorage<string>()
 
 export function currentAccountId() {
   return accountScope.getStore() || ''
+}
+
+/** 浏览器这次请求显式选择的空间。没有请求头时为空。 */
+export function currentRequestWorkspaceId() {
+  return requestWorkspaceScope.getStore() || ''
 }
 
 /** 这次 HTTP 请求是哪个登录账号。没有 token 时是空字符串。 */
 export function runWithAccount<T>(accountId: string, fn: () => T): T {
   if (!accountId) return fn()
   return accountScope.run(accountId, fn)
+}
+
+export function runWithRequestWorkspace<T>(workspaceId: string, fn: () => T): T {
+  if (!workspaceId) return fn()
+  return requestWorkspaceScope.run(workspaceId, fn)
 }
 
 /** Packaged Electron sets BIU_HOME to userData so replacing the .app does not wipe notes. */
