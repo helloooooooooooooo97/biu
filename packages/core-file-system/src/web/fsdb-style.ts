@@ -713,6 +713,16 @@ button.fsdb-detail-title-icon:hover{background:color-mix(in srgb,var(--dsw-hover
 .fsdb-share-invite-row{display:grid;grid-template-columns:minmax(0,1fr) 78px 52px;gap:6px}
 .fsdb-share-invite-row .fsdb-share-publish{width:52px;padding:0}
 .fsdb-share-invite-row select,.fsdb-share-advanced select{min-width:0;height:34px;border:1px solid var(--dsw-border);border-radius:7px;background:var(--dsw-input);padding:0 6px;color:var(--dsw-label);font:inherit;font-size:11px;outline:0}
+.fsdb-share-member-picker{position:relative;min-width:0}
+.fsdb-share-member-picker>input.fsdb-share-link-field{width:100%;outline:0;color:var(--dsw-label);font:inherit;font-size:12px}
+.fsdb-share-member-picker>input[type=search]::-webkit-search-cancel-button{display:none}
+.fsdb-share-member-options{position:absolute;top:calc(100% + 4px);right:0;left:0;z-index:3;max-height:190px;overflow:auto;border:1px solid var(--dsw-border);border-radius:8px;background:var(--dsw-surface,var(--dsw-sidebar));padding:4px;box-shadow:var(--dsw-shadow)}
+.fsdb-share-member-options button{display:flex;width:100%;min-width:0;flex-direction:column;border:0;border-radius:5px;background:transparent;padding:6px 7px;color:var(--dsw-label);font:inherit;text-align:left;cursor:pointer}
+.fsdb-share-member-options button:hover,.fsdb-share-member-options button[aria-selected=true]{background:var(--dsw-hover)}
+.fsdb-share-member-options span,.fsdb-share-member-options em{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fsdb-share-member-options span{font-size:12px;font-weight:600}
+.fsdb-share-member-options em{color:var(--dsw-label-3);font-size:10px;font-style:normal}
+.fsdb-share-member-options p{margin:0;padding:8px;color:var(--dsw-label-3);font-size:11px;text-align:center}
 .fsdb-share-publish:hover,.fsdb-share-panel .fsdb-share-copy:hover{filter:brightness(.94)}
 .fsdb-share-link-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
 .fsdb-share-link-field{display:flex;min-width:0;height:34px;align-items:center;gap:7px;border:1px solid var(--dsw-border);border-radius:7px;background:var(--dsw-input);padding:0 9px}

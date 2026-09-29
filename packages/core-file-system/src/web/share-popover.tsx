@@ -124,6 +124,7 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
   const [email, setEmail] = useState('')
   const [collaboratorKind, setCollaboratorKind] = useState<'internal' | 'external'>('internal')
   const [scope, setScope] = useState<'personal' | 'workspace' | 'shared'>('personal')
+  const [ownerId, setOwnerId] = useState('')
   const [people, setPeople] = useState<Array<{
     id: string
     name: string
@@ -135,6 +136,15 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
   const [memberViews, setMemberViews] = useState<Array<{ id: string; name: string; role?: string }>>([])
   const [availableMemberViews, setAvailableMemberViews] = useState<Array<{ id: string; name: string }>>([])
   const [memberViewId, setMemberViewId] = useState('')
+  const [workspaceMembers, setWorkspaceMembers] = useState<Array<{
+    id: string
+    name: string
+    email: string
+    role: string
+  }>>([])
+  const [memberQuery, setMemberQuery] = useState('')
+  const [selectedMemberId, setSelectedMemberId] = useState('')
+  const [memberPickerOpen, setMemberPickerOpen] = useState(false)
   const [role, setRole] = useState<'viewer' | 'editor' | 'manager'>('editor')
   const [guestUrl, setGuestUrl] = useState('')
   const [guestCopied, setGuestCopied] = useState(false)
@@ -143,6 +153,7 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
   async function load() {
     const data = await readJson<{
       scope?: 'personal' | 'workspace' | 'shared'
+      ownerId?: string
       people?: Array<{
         id: string
         name: string
@@ -156,6 +167,7 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
       `/api/account/access?collection=${encodeURIComponent(collection)}&recordId=${encodeURIComponent(recordId)}`,
     )
     setScope(data.scope ?? 'personal')
+    setOwnerId(data.ownerId ?? '')
     setPeople(data.people ?? [])
     setGroups(data.groups ?? [])
     setMemberViews((data.memberViews ?? []).map((item) => ({
@@ -185,6 +197,25 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
         setMemberViewId((current) => current || rows[0]?.id || '')
       })
       .catch(() => setAvailableMemberViews([]))
+    void listCollection({
+      path: '/workspace-members',
+      limit: 200,
+      columns: ['title', 'name', 'email', 'role', 'membershipKind'],
+    })
+      .then((page) => {
+        setWorkspaceMembers(page.items.flatMap((row) => {
+          const id = String(row.id ?? '').trim()
+          const email = String(row.email ?? '').trim()
+          if (!id || !email || row.membershipKind !== 'member') return []
+          return [{
+            id,
+            email,
+            name: String(row.name ?? row.title ?? email).trim() || email,
+            role: String(row.role ?? ''),
+          }]
+        }))
+      })
+      .catch(() => setWorkspaceMembers([]))
   }, [collection, recordId])
 
   function grant(input: { email?: string; memberViewId?: string }) {
@@ -202,6 +233,9 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
     })
       .then(() => {
         setEmail('')
+        setMemberQuery('')
+        setSelectedMemberId('')
+        setMemberPickerOpen(false)
         window.dispatchEvent(new Event('fsdb:shares-change'))
         return load()
       })
@@ -255,6 +289,13 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
   const hasInternalRules = collaboratorKind === 'internal' && (groups.length > 0 || memberViews.length > 0)
   const hasCollaborators = shownPeople.length > 0 || hasInternalRules
   const scopeLabel = scope === 'shared' ? '分享数据' : scope === 'workspace' ? '空间数据' : '私人数据'
+  const grantedAccountIds = new Set(people.map((row) => row.id))
+  const normalizedMemberQuery = memberQuery.trim().toLowerCase()
+  const matchingMembers = workspaceMembers
+    .filter((row) => row.id !== ownerId && !grantedAccountIds.has(row.id))
+    .filter((row) => !normalizedMemberQuery || `${row.name} ${row.email}`.toLowerCase().includes(normalizedMemberQuery))
+    .slice(0, 8)
+  const selectedMember = workspaceMembers.find((row) => row.id === selectedMemberId)
 
   return (
     <form
@@ -262,7 +303,8 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
       data-testid="fsdb-share-members"
       onSubmit={(event) => {
         event.preventDefault()
-        if (email.trim()) void grant({ email: email.trim() })
+        const targetEmail = collaboratorKind === 'internal' ? selectedMember?.email ?? '' : email.trim()
+        if (targetEmail) void grant({ email: targetEmail })
       }}
     >
       <div className="fsdb-share-collab-head">
@@ -272,7 +314,10 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
             role="tab"
             aria-selected={collaboratorKind === 'internal'}
             className={collaboratorKind === 'internal' ? 'is-on' : ''}
-            onClick={() => setCollaboratorKind('internal')}
+            onClick={() => {
+              setCollaboratorKind('internal')
+              setEmail('')
+            }}
           >
             内部协作者
           </button>
@@ -281,7 +326,10 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
             role="tab"
             aria-selected={collaboratorKind === 'external'}
             className={collaboratorKind === 'external' ? 'is-on' : ''}
-            onClick={() => setCollaboratorKind('external')}
+            onClick={() => {
+              setCollaboratorKind('external')
+              setMemberPickerOpen(false)
+            }}
           >
             外部协作者
           </button>
@@ -328,20 +376,73 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
         {!hasCollaborators ? <li className="is-empty">尚未添加协作者</li> : null}
       </ul>
       <div className="fsdb-share-invite-row">
-        <input
-          className="fsdb-share-link-field"
-          type="email"
-          value={email}
-          placeholder={collaboratorKind === 'internal' ? '空间成员的登录邮箱' : '外部协作者的登录邮箱'}
-          data-testid="fsdb-share-member-email"
-          onChange={(event) => setEmail(event.target.value)}
-        />
+        {collaboratorKind === 'internal' ? (
+          <div className="fsdb-share-member-picker">
+            <input
+              className="fsdb-share-link-field"
+              type="search"
+              role="combobox"
+              aria-label="搜索空间成员"
+              aria-expanded={memberPickerOpen}
+              aria-controls="fsdb-share-member-options"
+              autoComplete="off"
+              value={memberQuery}
+              placeholder="搜索空间成员"
+              data-testid="fsdb-share-member-search"
+              onFocus={() => setMemberPickerOpen(true)}
+              onBlur={() => window.setTimeout(() => setMemberPickerOpen(false), 120)}
+              onChange={(event) => {
+                setMemberQuery(event.target.value)
+                setSelectedMemberId('')
+                setMemberPickerOpen(true)
+              }}
+            />
+            {memberPickerOpen ? (
+              <div className="fsdb-share-member-options" id="fsdb-share-member-options" role="listbox">
+                {matchingMembers.map((row) => (
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={row.id === selectedMemberId}
+                    key={row.id}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      setSelectedMemberId(row.id)
+                      setMemberQuery(row.name)
+                      setMemberPickerOpen(false)
+                    }}
+                  >
+                    <span>{row.name}</span>
+                    <em>{row.email}</em>
+                  </button>
+                ))}
+                {!matchingMembers.length ? <p>没有可添加的空间成员</p> : null}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <input
+            className="fsdb-share-link-field"
+            type="email"
+            value={email}
+            placeholder="外部协作者的登录邮箱"
+            data-testid="fsdb-share-member-email"
+            onChange={(event) => setEmail(event.target.value)}
+          />
+        )}
         <select value={role} aria-label="权限" onChange={(event) => setRole(event.target.value as typeof role)}>
           <option value="viewer">可查看</option>
           <option value="editor">可编辑</option>
           <option value="manager">可管理</option>
         </select>
-        <button type="submit" className="fsdb-share-publish" data-testid="fsdb-share-member-add">添加</button>
+        <button
+          type="submit"
+          className="fsdb-share-publish"
+          disabled={collaboratorKind === 'internal' ? !selectedMember : !email.trim()}
+          data-testid="fsdb-share-member-add"
+        >
+          添加
+        </button>
       </div>
       {collaboratorKind === 'internal' && availableMemberViews.length ? (
         <details className="fsdb-share-advanced" data-testid="fsdb-share-member-view">
