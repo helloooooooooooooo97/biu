@@ -1140,7 +1140,20 @@ export function ShellSettingsPlugins() {
           </div>
           <ul className="settings-account-people">
             {instanceMembers.map((item) => (
-              <li key={`${item.role_id}:${item.account_id}`}>{String(item.name || item.email)} · {String(item.role_id)}</li>
+              <li key={`${item.role_id}:${item.account_id}`}>
+                {String(item.name || item.email)} · {String(item.role_id)}
+                <button
+                  type="button"
+                  className="settings-account-clear"
+                  onClick={() => void accountFetch(
+                    token,
+                    `/api/account/instance/roles/${encodeURIComponent(String(item.role_id))}/members/${encodeURIComponent(String(item.account_id))}`,
+                    { method: 'DELETE' },
+                  ).then(load).catch((error) => setMessage(error instanceof Error ? error.message : '移除失败'))}
+                >
+                  移除
+                </button>
+              </li>
             ))}
           </ul>
         </>

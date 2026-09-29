@@ -111,6 +111,18 @@ test('plugin grants are isolated by account and workspace', () => {
   const workspaceB = collab.createWorkspace(bob.id, 'B')
   collab.addMember(ada.id, workspaceA.id, bob.id)
   collab.addMember(ada.id, workspaceA.id, cara.id)
+  collab.recordPluginPackage(ada.id, {
+    id: 'page-html-blocks',
+    version: 'v1',
+    packageHash: 'hash',
+    packagePath: '/plugin/page-html-blocks',
+    sourceKind: 'test',
+    trustState: 'approved',
+    tenantMode: 'assigned',
+    hasWeb: true,
+    hasHost: false,
+    manifest: {},
+  })
 
   collab.grantPluginAssignment(ada.id, workspaceA.id, 'page-html-blocks', { type: 'account', id: bob.id })
   assert.equal(collab.canAccessPlugin(bob.id, workspaceA.id, 'page-html-blocks'), true)
@@ -131,6 +143,18 @@ test('plugin member-view grants are evaluated dynamically', () => {
   const bob = collab.register('Bob')
   const workspace = collab.createWorkspace(ada.id, 'A')
   collab.addMember(ada.id, workspace.id, bob.id)
+  collab.recordPluginPackage(ada.id, {
+    id: 'page-excalidraw',
+    version: 'v1',
+    packageHash: 'hash',
+    packagePath: '/plugin/page-excalidraw',
+    sourceKind: 'test',
+    trustState: 'approved',
+    tenantMode: 'assigned',
+    hasWeb: true,
+    hasHost: false,
+    manifest: {},
+  })
   let included = true
   collab.authorization.setMemberViewMatcher(
     (workspaceId, viewId, accountId) =>

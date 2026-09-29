@@ -234,6 +234,7 @@ export class PluginStoreService extends Service {
           canAccessPlugin?(accountId: string, workspaceId: string, pluginId: string): boolean
           ensurePluginOwnerAssignments?(pluginId: string): number
           recordPluginPackage?(accountId: string, input: Record<string, unknown>): void
+          syncInstalledPluginPackage?(input: Record<string, unknown>): boolean
           removePluginPackage?(accountId: string, pluginId: string): void
         }
       } | undefined
@@ -565,8 +566,25 @@ export class PluginStoreService extends Service {
       const hit = await this.findPluginDir(id)
       if (!hit) continue
       try {
+        const manifest = await readManifest(hit)
+        const stats = await pluginDirStats(hit)
+        const codeVersion = (await hashInstalledPluginCode(hit)) ?? 'empty'
+        if (process.env.BIU_ONLINE === '1') {
+          this.accountStore()?.syncInstalledPluginPackage?.({
+            id: manifest.id,
+            version: codeVersion,
+            packageHash: codeVersion,
+            packagePath: hit,
+            sourceKind: 'legacy-installed',
+            trustState: 'approved',
+            tenantMode: 'assigned',
+            hasWeb: stats.hasWeb,
+            hasHost: stats.hasHost,
+            manifest,
+          })
+        }
         if (process.env.BIU_ONLINE === '1') this.accountStore()?.ensurePluginOwnerAssignments?.(id)
-        await this.mountFromDisk(await readManifest(hit), hit)
+        await this.mountFromDisk(manifest, hit)
       } catch (error) {
         this.ctx.logger('core-plugin-system').error(error)
       }

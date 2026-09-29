@@ -11,10 +11,11 @@ function stubStore(partial: Partial<PluginStoreService>): PluginStoreService {
     listSandboxes: () => Promise.resolve([]),
     readReadme: async () => '',
     writeReadme: async () => {},
-    openPlugin() {},
-    close() {},
-    pack() {},
-    uninstall() {},
+    openPlugin: async () => undefined,
+    close: async () => {},
+    pack: async (id: string) => ({ id, sandboxPath: '', pluginPath: '' }),
+    uninstall: async () => {},
+    hasInstancePermission: () => true,
     pluginPath: (id: string) => `/workspace/.plugin/${id}`,
     sandboxPath: (id: string) => `/workspace/.plugin-dev/${id}`,
     ...partial,
@@ -61,18 +62,20 @@ test('pluginsCollection lists installed plugins and sandboxes in one table', asy
           updatedAt: 2,
         },
       ]),
-    openPlugin(id: string) {
+    async openPlugin(id: string) {
       calls.push(`open:${id}`)
       items[0]!.enabled = true
+      return undefined
     },
-    close(id: string) {
+    async close(id: string) {
       calls.push(`close:${id}`)
       items[0]!.enabled = false
     },
-    pack(id: string) {
+    async pack(id: string) {
       calls.push(`pack:${id}`)
+      return { id, sandboxPath: '', pluginPath: '' }
     },
-    uninstall(id: string) {
+    async uninstall(id: string) {
       calls.push(`uninstall:${id}`)
     },
   }))
@@ -151,10 +154,10 @@ test('headless plugins omit shell columns', async () => {
         },
       ]),
     listSandboxes: () => Promise.resolve([]),
-    openPlugin() {},
-    close() {},
-    pack() {},
-    uninstall() {},
+    openPlugin: async () => undefined,
+    close: async () => {},
+    pack: async (id: string) => ({ id, sandboxPath: '', pluginPath: '' }),
+    uninstall: async () => {},
   }))
   const listed = await spec.list()
   assert.equal(listed[0]?.headless, true)
@@ -199,10 +202,10 @@ test('same id with sandbox and install merges into one row', async () => {
           updatedAt: 9,
         },
       ]),
-    openPlugin() {},
-    close() {},
-    pack() {},
-    uninstall() {},
+    openPlugin: async () => undefined,
+    close: async () => {},
+    pack: async (id: string) => ({ id, sandboxPath: '', pluginPath: '' }),
+    uninstall: async () => {},
   }))
   const listed = await spec.list()
   assert.equal(listed.length, 1)

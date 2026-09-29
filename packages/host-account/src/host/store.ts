@@ -69,6 +69,19 @@ export type PluginAssignmentSubject =
   | { type: 'account'; id: string }
   | { type: 'member_view'; id: string }
 
+export type PluginPackageInput = {
+  id: string
+  version: string
+  packageHash: string
+  packagePath: string
+  sourceKind: string
+  trustState: string
+  tenantMode: string
+  hasWeb: boolean
+  hasHost: boolean
+  manifest: unknown
+}
+
 export class CollabError extends Error {
   constructor(
     message: string,
@@ -1198,6 +1211,14 @@ export class CollabStore {
     if (subject.type !== 'account' && subject.type !== 'member_view') {
       throw new CollabError('插件授权对象不合法', 400)
     }
+    const approved = this.db
+      .prepare(
+        `SELECT 1 AS ok FROM plugin_packages
+         WHERE id = ? AND trust_state = 'approved'
+         LIMIT 1`,
+      )
+      .get(normalizedPlugin)
+    if (!approved) throw new CollabError('插件未安装或尚未批准', 409)
     this.db
       .prepare(
         `INSERT INTO plugin_assignments
@@ -1262,18 +1283,7 @@ export class CollabStore {
 
   recordPluginPackage(
     actorId: string,
-    input: {
-      id: string
-      version: string
-      packageHash: string
-      packagePath: string
-      sourceKind: string
-      trustState: string
-      tenantMode: string
-      hasWeb: boolean
-      hasHost: boolean
-      manifest: unknown
-    },
+    input: PluginPackageInput,
     now = Date.now(),
   ) {
     this.requireInstancePermission(actorId, 'plugin.packages.install')
@@ -1310,6 +1320,21 @@ export class CollabStore {
         now,
       )
     this.auditPlugin(actorId, '', input.id, 'package.install', { version: input.version }, now)
+  }
+
+  syncInstalledPluginPackage(
+    input: PluginPackageInput,
+    now = Date.now(),
+  ) {
+    const actor = this.db
+      .prepare(
+        `SELECT account_id FROM instance_role_members
+         WHERE role_id = 'super-admin' ORDER BY created_at, account_id LIMIT 1`,
+      )
+      .get() as { account_id?: string } | undefined
+    if (!actor?.account_id) return false
+    this.recordPluginPackage(actor.account_id, input, now)
+    return true
   }
 
   removePluginPackage(actorId: string, pluginId: string, now = Date.now()) {
