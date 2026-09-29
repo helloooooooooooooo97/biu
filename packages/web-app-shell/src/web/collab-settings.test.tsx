@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { test } from 'vitest'
+import { afterEach, test } from 'vitest'
 import {
   AuthGate,
   ShellSettingsAccount,
@@ -10,6 +10,8 @@ import {
   ShellSettingsWorkspace,
   ShellWorkspaceSwitcher,
 } from './shell-chrome.tsx'
+
+afterEach(() => cleanup())
 
 function json(body: unknown, status = 200) {
   return Promise.resolve({
