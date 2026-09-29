@@ -221,7 +221,136 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
 
   ctx.http.route('GET', '/api/account/me', async (route) => {
     try {
-      route.send(200, actor(route))
+      const me = actor(route)
+      route.send(200, {
+        ...me,
+        instanceRoles: account.store.instanceRoles(me.id),
+        instancePermissions: account.store.instancePermissions(me.id),
+      })
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('GET', '/api/account/instance/roles', async (route) => {
+    try {
+      const me = actor(route)
+      route.send(200, {
+        roles: account.store.listInstanceRoles(me.id),
+        members: account.store.listInstanceRoleMembers(me.id),
+      })
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/account/instance/roles/:roleId/members', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as { accountId?: unknown }
+      route.send(
+        201,
+        account.store.assignInstanceRole(me.id, String(body.accountId ?? ''), String(route.params.roleId ?? '')),
+      )
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('DELETE', '/api/account/instance/roles/:roleId/members/:accountId', async (route) => {
+    try {
+      const me = actor(route)
+      route.send(
+        200,
+        account.store.removeInstanceRole(
+          me.id,
+          String(route.params.accountId ?? ''),
+          String(route.params.roleId ?? ''),
+        ),
+      )
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('GET', '/api/account/plugins/assignments', async (route) => {
+    try {
+      const me = actor(route)
+      const workspaceId = String(route.query.get('workspaceId') ?? '').trim()
+      if (!workspaceId) throw new CollabError('需要空间', 400)
+      route.send(200, {
+        assignments: account.store.listPluginAssignments(
+          me.id,
+          workspaceId,
+          String(route.query.get('pluginId') ?? ''),
+        ),
+        availablePluginIds: account.store.availablePluginIds(me.id, workspaceId),
+      })
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/account/plugins/assignments', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as {
+        workspaceId?: unknown
+        pluginId?: unknown
+        pluginVersion?: unknown
+        subjectType?: unknown
+        subjectId?: unknown
+      }
+      const subjectType = body.subjectType === 'member_view' ? 'member_view' : 'account'
+      const subjectId = String(body.subjectId ?? (subjectType === 'account' ? me.id : ''))
+      const result = account.store.grantPluginAssignment(
+        me.id,
+        String(body.workspaceId ?? ''),
+        String(body.pluginId ?? ''),
+        { type: subjectType, id: subjectId },
+        String(body.pluginVersion ?? ''),
+      )
+      ctx.http.broadcastWorkspace(result.workspaceId, 'plugins/changed', { workspaceId: result.workspaceId })
+      route.send(201, result)
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('DELETE', '/api/account/plugins/assignments', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as {
+        workspaceId?: unknown
+        pluginId?: unknown
+        subjectType?: unknown
+        subjectId?: unknown
+      }
+      const subjectType = body.subjectType === 'member_view' ? 'member_view' : 'account'
+      const subjectId = String(body.subjectId ?? (subjectType === 'account' ? me.id : ''))
+      const result = account.store.revokePluginAssignment(
+        me.id,
+        String(body.workspaceId ?? ''),
+        String(body.pluginId ?? ''),
+        { type: subjectType, id: subjectId },
+      )
+      ctx.http.broadcastWorkspace(result.workspaceId, 'plugins/changed', { workspaceId: result.workspaceId })
+      route.send(200, result)
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('GET', '/api/account/plugins/audit', async (route) => {
+    try {
+      const me = actor(route)
+      route.send(200, {
+        events: account.store.listPluginAudit(
+          me.id,
+          String(route.query.get('workspaceId') ?? ''),
+          Number(route.query.get('limit') ?? 100),
+        ),
+      })
     } catch (error) {
       fail(route, error)
     }

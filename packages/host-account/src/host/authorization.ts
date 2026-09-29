@@ -114,6 +114,10 @@ export class AuthorizationService {
     this.memberViewMatcher = matcher
   }
 
+  matchesMemberView(workspaceId: string, viewId: string, accountId: string) {
+    return Boolean(this.memberViewMatcher?.(workspaceId, viewId, accountId))
+  }
+
   authorize(actor: Actor | null, action: Action, resource: ResourceRef): Decision {
     if (!actor || actor.type === 'public-link') return { allowed: false, reason: 'UNAUTHENTICATED' }
     if (actor.workspaceId !== resource.workspaceId) return { allowed: false, reason: 'WRONG_WORKSPACE' }

@@ -477,6 +477,11 @@ export const BIU_MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS mcp_audit_workspace ON mcp_audit_log(workspace_id, created_at);
     `)
   } },
+  { version: 33, module: 'host-account', name: 'instance.roles-and-plugin-access', up: (db) => {
+    // These tables are part of CREATE_CORE_SQL so fresh databases and upgraded
+    // databases always receive exactly the same contract.
+    db.exec(CREATE_CORE_SQL)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

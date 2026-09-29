@@ -228,9 +228,55 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     columns: ['key', 'value'],
     indexes: [],
   },
+  instance_roles: {
+    columns: ['id', 'name', 'builtin', 'created_by', 'created_at'],
+    indexes: [],
+  },
+  instance_role_permissions: {
+    columns: ['role_id', 'permission'],
+    indexes: ['instance_role_permissions_permission'],
+  },
+  instance_role_members: {
+    columns: ['role_id', 'account_id', 'assigned_by', 'created_at'],
+    indexes: ['instance_role_members_account'],
+  },
+  plugin_packages: {
+    columns: [
+      'id',
+      'version',
+      'package_hash',
+      'package_path',
+      'source_kind',
+      'trust_state',
+      'tenant_mode',
+      'has_web',
+      'has_host',
+      'manifest_json',
+      'installed_by',
+      'created_at',
+      'updated_at',
+    ],
+    indexes: ['plugin_packages_trust'],
+  },
+  plugin_assignments: {
+    columns: ['workspace_id', 'plugin_id', 'plugin_version', 'subject_type', 'subject_id', 'created_by', 'created_at'],
+    indexes: ['plugin_assignments_subject', 'plugin_assignments_plugin'],
+  },
+  plugin_workspace_config: {
+    columns: ['workspace_id', 'plugin_id', 'config_json', 'updated_by', 'updated_at'],
+    indexes: [],
+  },
+  plugin_account_config: {
+    columns: ['workspace_id', 'plugin_id', 'account_id', 'config_json', 'updated_at'],
+    indexes: ['plugin_account_config_account'],
+  },
+  plugin_audit_log: {
+    columns: ['id', 'account_id', 'workspace_id', 'plugin_id', 'action', 'detail_json', 'created_at'],
+    indexes: ['plugin_audit_created', 'plugin_audit_workspace'],
+  },
 }
 
-export const LATEST_BIU_SCHEMA = 32
+export const LATEST_BIU_SCHEMA = 33
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -581,6 +627,92 @@ CREATE TABLE IF NOT EXISTS collab_state (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS instance_roles (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  builtin INTEGER NOT NULL DEFAULT 0,
+  created_by TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS instance_role_permissions (
+  role_id TEXT NOT NULL,
+  permission TEXT NOT NULL,
+  PRIMARY KEY (role_id, permission)
+);
+CREATE INDEX IF NOT EXISTS instance_role_permissions_permission
+  ON instance_role_permissions(permission, role_id);
+CREATE TABLE IF NOT EXISTS instance_role_members (
+  role_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  assigned_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (role_id, account_id)
+);
+CREATE INDEX IF NOT EXISTS instance_role_members_account
+  ON instance_role_members(account_id, role_id);
+CREATE TABLE IF NOT EXISTS plugin_packages (
+  id TEXT NOT NULL,
+  version TEXT NOT NULL,
+  package_hash TEXT NOT NULL,
+  package_path TEXT NOT NULL,
+  source_kind TEXT NOT NULL,
+  trust_state TEXT NOT NULL,
+  tenant_mode TEXT NOT NULL,
+  has_web INTEGER NOT NULL DEFAULT 0,
+  has_host INTEGER NOT NULL DEFAULT 0,
+  manifest_json TEXT NOT NULL DEFAULT '{}',
+  installed_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (id, version)
+);
+CREATE INDEX IF NOT EXISTS plugin_packages_trust
+  ON plugin_packages(trust_state, id);
+CREATE TABLE IF NOT EXISTS plugin_assignments (
+  workspace_id TEXT NOT NULL,
+  plugin_id TEXT NOT NULL,
+  plugin_version TEXT NOT NULL DEFAULT '',
+  subject_type TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, plugin_id, subject_type, subject_id)
+);
+CREATE INDEX IF NOT EXISTS plugin_assignments_subject
+  ON plugin_assignments(workspace_id, subject_type, subject_id);
+CREATE INDEX IF NOT EXISTS plugin_assignments_plugin
+  ON plugin_assignments(workspace_id, plugin_id);
+CREATE TABLE IF NOT EXISTS plugin_workspace_config (
+  workspace_id TEXT NOT NULL,
+  plugin_id TEXT NOT NULL,
+  config_json TEXT NOT NULL DEFAULT '{}',
+  updated_by TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, plugin_id)
+);
+CREATE TABLE IF NOT EXISTS plugin_account_config (
+  workspace_id TEXT NOT NULL,
+  plugin_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  config_json TEXT NOT NULL DEFAULT '{}',
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, plugin_id, account_id)
+);
+CREATE INDEX IF NOT EXISTS plugin_account_config_account
+  ON plugin_account_config(account_id, workspace_id);
+CREATE TABLE IF NOT EXISTS plugin_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL DEFAULT '',
+  plugin_id TEXT NOT NULL DEFAULT '',
+  action TEXT NOT NULL,
+  detail_json TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS plugin_audit_created
+  ON plugin_audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS plugin_audit_workspace
+  ON plugin_audit_log(workspace_id, created_at DESC);
 `
 
 export const CREATE_EDITOR_SQL = `
