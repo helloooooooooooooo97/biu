@@ -14,6 +14,11 @@ export function readTheme(): ThemeMode {
 export function applyTheme(mode: ThemeMode) {
   current = mode
   if (typeof document === 'undefined') return
+  try {
+    sessionStorage.setItem('biu.theme.bootstrap', mode)
+  } catch {
+    /* sessionStorage may be unavailable in embedded/webview contexts */
+  }
   const root = document.documentElement
   root.classList.toggle('dark', mode === 'dark')
   root.classList.toggle('light', mode === 'light')

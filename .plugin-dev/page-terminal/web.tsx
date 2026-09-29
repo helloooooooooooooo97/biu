@@ -643,7 +643,8 @@ function TerminalSurface({
         const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
         socket = new WebSocket(
           `${protocol}//${location.host}/ws/page-terminal` +
-            `?cols=${term.cols}&rows=${term.rows}&session=${encodeURIComponent(sessionKey)}`,
+            `?cols=${term.cols}&rows=${term.rows}&session=${encodeURIComponent(sessionKey)}` +
+            `&workspaceId=${encodeURIComponent(sessionStorage.getItem('biu.workspaceId') ?? '')}`,
         )
         socket.binaryType = 'arraybuffer'
         socket.addEventListener('open', () => {

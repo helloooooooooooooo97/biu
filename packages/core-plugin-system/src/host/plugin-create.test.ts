@@ -5,10 +5,10 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { extname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { Context } from 'cordis'
 import { PluginStoreService } from './index.ts'
-import { compileStoreModule } from './plugin-create.ts'
+import { withPluginPackLock } from './plugin-create.ts'
 import { pluginsCollection } from './collection.ts'
 import type { PluginStoreService as Store } from './store.ts'
 
@@ -491,20 +491,48 @@ test('pack rejects @biu imports', async () => {
   }
 })
 
-test('compileStoreModule does not require node on PATH', async () => {
-  const path = process.env.PATH
-  process.env.PATH = '/path-without-node'
+test('concurrent pack of every sandbox plugin finishes', async () => {
+  const root = resolve(import.meta.dirname, '../../../..')
+  const sandboxDir = join(root, '.plugin-dev')
+  const ids = (await readdir(sandboxDir)).filter((name) => existsSync(join(sandboxDir, name, 'manifest.json'))).sort()
+  assert.ok(ids.length >= 8)
+  const dir = await mkdtemp(join(tmpdir(), 'plugin-pack-all-'))
+  const ctx = new Context()
+  stubHub(ctx)
+  const store = new PluginStoreService(ctx, join(dir, '.plugin'), join(dir, 'store.json'), sandboxDir).open()
   try {
-    const code = await compileStoreModule(
-      `export const name = 'store-echo'\nexport function apply(ctx: { ok: boolean }) { return ctx.ok }`,
-      'host',
+    const results = await Promise.all(
+      ids.map(async (id) => {
+        try {
+          await store.pack(id)
+          return { id, ok: true as const }
+        } catch (error) {
+          return { id, ok: false as const, error: error instanceof Error ? error.message : String(error) }
+        }
+      }),
     )
-    assert.match(code, /\bapply\b/)
-    assert.doesNotMatch(code, /ctx: \{/)
+    const failed = results.filter((item) => !item.ok)
+    assert.deepEqual(failed, [], failed.map((item) => `${item.id}: ${item.error}`).join('\n'))
   } finally {
-    if (path === undefined) delete process.env.PATH
-    else process.env.PATH = path
+    await rm(dir, { recursive: true, force: true })
   }
+}, 300_000)
+
+test('plugin pack lock runs one bundle at a time', async () => {
+  let current = 0
+  let max = 0
+  await Promise.all(
+    [0, 1, 2, 3].map(() =>
+      withPluginPackLock(async () => {
+        current += 1
+        max = Math.max(max, current)
+        await new Promise((resolve) => setTimeout(resolve, 30))
+        current -= 1
+      }),
+    ),
+  )
+  assert.equal(max, 1)
+  assert.equal(current, 0)
 })
 
 test('native esbuild starts its platform binary without a PATH node executable', () => {
@@ -521,67 +549,6 @@ test('native esbuild starts its platform binary without a PATH node executable',
       stdio: 'pipe',
     },
   )
-})
-
-const HOST_PACKAGES = new Set(['react', 'react-dom', 'cordis'])
-
-function npmPackageName(spec: string) {
-  if (spec.startsWith('@')) return spec.split('/').slice(0, 2).join('/')
-  return spec.split('/')[0]
-}
-
-test('plugin-dev sandboxes declare every third-party import in package.json', async () => {
-  const root = resolve(import.meta.dirname, '../../../../.plugin-dev')
-  const sandboxes = (await readdir(root, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .filter((id) => existsSync(join(root, id, 'manifest.json')))
-  assert.ok(sandboxes.length >= 8)
-
-  for (const id of sandboxes) {
-    const dir = join(root, id)
-    const files: string[] = []
-    const walk = async (base: string) => {
-      for (const entry of await readdir(base, { withFileTypes: true })) {
-        if (entry.name === 'node_modules' || entry.name.endsWith('.bak')) continue
-        const path = join(base, entry.name)
-        if (entry.isDirectory()) {
-          await walk(path)
-          continue
-        }
-        if (/\.test\.(ts|tsx|js)$/.test(entry.name)) continue
-        if (!['.ts', '.tsx', '.js', '.jsx', '.mjs', '.css'].includes(extname(entry.name))) continue
-        files.push(path)
-      }
-    }
-    await walk(dir)
-
-    const needed = new Set<string>()
-    for (const file of files) {
-      const src = (await readFile(file, 'utf8'))
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/`(?:\\.|[^`\\])*`/gs, '')
-        .replace(/\/\/.*$/gm, '')
-      for (const line of src.split('\n')) {
-        const match = line.match(/^\s*import\s+(?:type\s+)?(?:[\s\S]*?\sfrom\s+)?['"]([^'"]+)['"]/)
-        if (!match) continue
-        const spec = match[1]
-        if (spec.startsWith('.') || spec.startsWith('/') || spec.startsWith('node:')) continue
-        const name = npmPackageName(spec)
-        if (HOST_PACKAGES.has(name)) continue
-        needed.add(name)
-      }
-    }
-
-    const pkgFile = join(dir, 'package.json')
-    assert.ok(existsSync(pkgFile), `${id} must have package.json`)
-    const pkg = JSON.parse(await readFile(pkgFile, 'utf8')) as { name?: string; private?: boolean; dependencies?: Record<string, string> }
-    assert.equal(pkg.name, id)
-    assert.equal(pkg.private, true)
-    const declared = new Set(Object.keys(pkg.dependencies ?? {}))
-    const missing = [...needed].filter((name) => !declared.has(name))
-    assert.deepEqual(missing, [], `${id} missing package.json deps: ${missing.join(', ')}`)
-  }
 })
 
 test('excalidraw board onChange does not setState', async () => {

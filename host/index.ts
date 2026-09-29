@@ -5,6 +5,8 @@ import { adoptPackedUserData } from '@biu/host-plugin-loader/data-dir'
 import { lanIPv4, printReadyBanner } from './banner.ts'
 import './types.ts'
 
+process.env.BIU_ONLINE = process.env.BIU_ONLINE || '1'
+
 const rootDir = findRepoRoot()
 const dataRoot = process.env.BIU_HOME || rootDir
 adoptPackedUserData(rootDir, dataRoot, process.env.CORDIS_WORKSPACE || join(dataRoot, 'workspace'))

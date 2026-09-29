@@ -365,7 +365,7 @@ function FilterRuleRow({
             value={rule.value}
             options={options}
             variant="field"
-            allowCreate
+            allowCreate={!field?.field.enum?.length}
             placeholder="值"
             chips={kind === 'select' || kind === 'multi-select' || kind === 'facet'}
             onSelect={(next) => onChange({ ...rule, value: next })}

@@ -3,10 +3,6 @@ import {
   formatTrajectoryUsage,
   type TrajectoryUsage,
 } from '@biu/web-session-view'
-import { TAG_TONE_GREEN, TAG_TONE_ORANGE } from '@biu/public-ui'
-
-const CACHE_RING = TAG_TONE_GREEN
-const HIST_RING = TAG_TONE_ORANGE
 const CACHE_TRACK = 'var(--dsw-usage-track-cache)'
 const HIST_TRACK = 'var(--dsw-usage-track-hist)'
 const RING_R = 4.5
@@ -14,12 +10,10 @@ const RING_C = 2 * Math.PI * RING_R
 
 function UsageRing({
   fill,
-  color,
   track,
   className,
 }: {
   fill: number
-  color: string
   track: string
   className?: string
 }) {
@@ -31,7 +25,6 @@ function UsageRing({
       height="12"
       viewBox="0 0 12 12"
       aria-hidden
-      style={{ color }}
     >
       <circle cx="6" cy="6" r={RING_R} fill="none" stroke={track} strokeWidth="2.5" />
       {pct > 0 ? (
@@ -93,11 +86,11 @@ export function UsageInline({
     <span className="traj-usage" title={formatTrajectoryUsage(usage)}>
       <span className="traj-usage-in-pair" title={cacheTitle}>
         <span className="traj-usage-in">{formatTok(usage.inputTokens)}</span>
-        <UsageRing className="is-cache" fill={cacheFill} color={CACHE_RING} track={CACHE_TRACK} />
+        <UsageRing className="is-cache" fill={cacheFill} track={CACHE_TRACK} />
       </span>
       {hist != null ? (
         <span title={`历史占比 ${hist}%`} aria-label={`历史占比 ${hist}%`}>
-          <UsageRing className="is-hist" fill={hist} color={HIST_RING} track={HIST_TRACK} />
+          <UsageRing className="is-hist" fill={hist} track={HIST_TRACK} />
         </span>
       ) : null}
       <span className="traj-usage-arrow" aria-hidden>

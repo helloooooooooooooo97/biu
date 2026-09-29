@@ -1,5 +1,6 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 export { BIU_SQLITE, EVENTS_SQLITE, adoptTwoSqlite } from './sqlite-two.ts'
 export {
   contentAddressHash,
@@ -18,7 +19,14 @@ export { openSqlite, configureSqlite, quoteSqlitePath, SQLITE_BUSY_TIMEOUT_MS, S
 export { ensureBiuAssetSchema, LATEST_BIU_SCHEMA, createLatestSchema } from './biu-schema.ts'
 export { migrateBiu, openAndMigrateBiu } from './biu-migrate.ts'
 export { migrateEvents, openAndMigrateEvents, LATEST_EVENTS_SCHEMA } from './events-migrate.ts'
-export { writeEditorContent, readEditorContent, rebuildContentRefs, replaceContentRefs } from './editor-content.ts'
+export {
+  EditorContentConflictError,
+  writeEditorContent,
+  readEditorContent,
+  readEditorContentRecord,
+  rebuildContentRefs,
+  replaceContentRefs,
+} from './editor-content.ts'
 export {
   liveAssetNames,
   gcCasAssets,
@@ -120,17 +128,101 @@ export function migrateDataDir(parent: string): string {
   return dest
 }
 
+export type WorkspaceScope = { id: string; root: string }
+
+const workspaceScope = new AsyncLocalStorage<WorkspaceScope>()
+
+export function currentWorkspace() {
+  return workspaceScope.getStore()
+}
+
+/** 当前请求或任务里的工区。调用方不用把 workspaceId 逐层传下去。 */
+export function runWithWorkspace<T>(scope: WorkspaceScope, fn: () => T): T {
+  return workspaceScope.run(scope, fn)
+}
+
+const accountScope = new AsyncLocalStorage<string>()
+const requestWorkspaceScope = new AsyncLocalStorage<string>()
+const pluginScope = new AsyncLocalStorage<string>()
+
+export type McpTenant = {
+  credentialId: string
+  accountId: string
+  workspaceId: string
+  role: string
+  allowedTools: string[]
+}
+
+const mcpTenantScope = new AsyncLocalStorage<McpTenant>()
+
+export function currentMcpTenant() {
+  return mcpTenantScope.getStore() ?? null
+}
+
+export function runWithMcpTenant<T>(tenant: McpTenant, fn: () => T): T {
+  return mcpTenantScope.run(tenant, fn)
+}
+
+export function currentAccountId() {
+  return accountScope.getStore() || ''
+}
+
+/** 浏览器这次请求显式选择的空间。没有请求头时为空。 */
+export function currentRequestWorkspaceId() {
+  return requestWorkspaceScope.getStore() || ''
+}
+
+/** Store 插件 apply/执行期间的包 ID，供 HTTP、WS 和工具注册边界捕获。 */
+export function currentPluginId() {
+  return pluginScope.getStore() || ''
+}
+
+export function runWithPlugin<T>(pluginId: string, fn: () => T): T {
+  if (!pluginId) return fn()
+  return pluginScope.run(pluginId, fn)
+}
+
+/** 这次 HTTP 请求是哪个登录账号。没有 token 时是空字符串。 */
+export function runWithAccount<T>(accountId: string, fn: () => T): T {
+  if (!accountId) return fn()
+  return accountScope.run(accountId, fn)
+}
+
+export function runWithRequestWorkspace<T>(workspaceId: string, fn: () => T): T {
+  if (!workspaceId) return fn()
+  return requestWorkspaceScope.run(workspaceId, fn)
+}
+
 /** Packaged Electron sets BIU_HOME to userData so replacing the .app does not wipe notes. */
 export function dataHome(): string {
-  return process.env.BIU_HOME || process.cwd()
+  return currentWorkspace()?.root || process.env.BIU_HOME || process.cwd()
 }
 
 export function dataDir(parent = dataHome()): string {
   return migrateDataDir(parent)
 }
 
+/**
+ * `dataPath(home, 'biu.sqlite')` 仍表示某个根下的文件。
+ * `dataPath('biu.sqlite')` 表示当前工区里的文件，避免把文件名当成根目录。
+ */
 export function dataPath(parent = dataHome(), ...parts: string[]): string {
+  if (parts.length === 0 && !isAbsolute(parent) && parent !== dataHome()) {
+    return join(dataDir(), parent)
+  }
   return join(dataDir(parent), ...parts)
+}
+
+export function biuSqlitePath(parent = dataHome()) {
+  return dataPath(parent, 'biu.sqlite')
+}
+
+export function eventsSqlitePath(parent = dataHome()) {
+  return dataPath(parent, 'events.sqlite')
+}
+
+export function profilePath(parent = dataHome()) {
+  return process.env.BIU_PROFILE || dataPath(parent, 'profile.json')
 }
 
 export function assetsRootPath(parent = dataHome()): string {

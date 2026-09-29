@@ -1,6 +1,7 @@
-import { dirname } from 'node:path'
+import { dirname, extname } from 'node:path'
 import {
   adoptCasAssets,
+  ASSET_GC_CANDIDATE_MS,
   gcCasAssets,
   listGcCandidates,
   previewGcCasAssets,
@@ -8,8 +9,20 @@ import {
 } from '@biu/host-plugin-loader/data-dir'
 type DatabaseSync = import('node:sqlite').DatabaseSync
 
+export type NoticeFileCard = {
+  name: string
+  href: string
+  image: boolean
+}
+
 export type AssetGcNoticeSink = {
-  push: (input: { kind: 'session'; title: string; body: string; sourceKey: string }) => unknown
+  push: (input: {
+    kind: 'session'
+    title: string
+    body: string
+    sourceKey: string
+    content?: NoticeFileCard[]
+  }) => unknown
 }
 
 export type AssetGcHooks = {
@@ -27,9 +40,40 @@ function assetGcContext(hooks: AssetGcHooks) {
   }
 }
 
-function notify(hooks: AssetGcHooks, title: string, body: string, sourceKey: string) {
-  hooks.notices?.push({ kind: 'session', title, body, sourceKey })
+function notify(
+  hooks: AssetGcHooks,
+  title: string,
+  body: string,
+  sourceKey: string,
+  content?: NoticeFileCard[],
+) {
+  hooks.notices?.push({ kind: 'session', title, body, sourceKey, ...(content?.length ? { content } : {}) })
 }
+
+const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'])
+
+function assetMime(db: DatabaseSync, name: string) {
+  try {
+    const row = db.prepare('SELECT mime FROM attachments WHERE name = ?').get(name) as { mime?: string } | undefined
+    return String(row?.mime ?? '')
+  } catch {
+    return ''
+  }
+}
+
+/** 详情区卡片用的附件清单。摘要只放一句话，文件不进 body。 */
+export function assetNoticeFiles(db: DatabaseSync, names: string[]): NoticeFileCard[] {
+  return names.map((name) => {
+    const mime = assetMime(db, name)
+    return {
+      name,
+      href: `/api/db/file/${encodeURIComponent(name)}`,
+      image: mime.startsWith('image/') || IMAGE_EXT.has(extname(name).toLowerCase()),
+    }
+  })
+}
+
+const CANDIDATE_DAYS = Math.round(ASSET_GC_CANDIDATE_MS / (24 * 60 * 60 * 1000))
 
 function adoptIfDurable(hooks: AssetGcHooks) {
   if (!hooks.sqlitePath || hooks.sqlitePath === ':memory:') return
@@ -42,25 +86,29 @@ export async function runWorkspaceAssetGc(hooks: AssetGcHooks, opts?: { now?: nu
   const result = await gcCasAssets({ ...ctx, now: opts?.now })
   const candidates = listGcCandidates(hooks.db)
   if (result.fused) {
-    notify(hooks, '资产回收已跳过', '拟删除比例异常，本轮没有删文件。', 'asset-gc:fuse')
+    notify(
+      hooks,
+      '这次没有删附件',
+      '要删的文件比剩下的还多，先停下来，避免误删。',
+      'asset-gc:fuse',
+    )
   }
   if (result.deleted.length) {
     notify(
       hooks,
-      `已回收 ${result.deleted.length} 个资产`,
-      result.deleted.slice(0, 8).join(', '),
+      `删了 ${result.deleted.length} 个没人用的附件`,
+      `这些文件已经 ${CANDIDATE_DAYS} 天没有被页面用到。`,
       'asset-gc:deleted',
+      assetNoticeFiles(hooks.db, result.deleted),
     )
   }
   if (candidates.length) {
     notify(
       hooks,
-      `有 ${candidates.length} 个文件在资产回收观察期`,
-      candidates
-        .map((row) => row.name)
-        .slice(0, 8)
-        .join(', '),
+      `有 ${candidates.length} 个附件没人用了`,
+      `页面和记录都不再用到下面这些文件。还会再留 ${CANDIDATE_DAYS} 天，到时才删。`,
       'asset-gc:candidates',
+      assetNoticeFiles(hooks.db, candidates.map((row) => row.name)),
     )
   }
   return { ...result, candidates }

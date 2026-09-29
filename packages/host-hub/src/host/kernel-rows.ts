@@ -11,5 +11,6 @@ export function kernelCatalogRows(entries: CordisPluginEntry[], layer: 'host' | 
     enabled: true,
     state: 'active',
     ...(item.package ? { packageName: item.package } : {}),
+    ...(item.web ? { web: item.web } : {}),
   }))
 }

@@ -4,9 +4,11 @@ import { builtinAllView, builtinAllViewId, builtinCatalogViewId } from '../catal
 import { VIEWS_COLLECTION_PATH } from './database-path.ts'
 import {
   defaultViewId,
+  loadViews,
   loadRecords,
   persistViewDisplay,
   pickViewForRoute,
+  rememberViews,
   rememberRecords,
   savedViewFromRecord,
   toggleStarredRecord,
@@ -15,6 +17,22 @@ import {
   viewForPath,
   withViewDisplay,
 } from './view-storage.ts'
+
+test('authoritative empty saved views hide stale local workspace data', () => {
+  const path = '/workspace-empty-views'
+  const stale = [{ id: 'old', name: '旧工作区视图', mode: 'table' }]
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key: string) => key === `fsdb.views:${path}` ? JSON.stringify(stale) : null,
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    },
+  })
+  assert.equal(loadViews(path)[0]?.id, 'old')
+  rememberViews(path, [])
+  assert.deepEqual(loadViews(path), [])
+})
 
 test('views collection still resolves catalog stubs from the route', () => {
   assert.equal(viewForPath(VIEWS_COLLECTION_PATH, 'builtin:/events')?.filters.tablePath, '/events')

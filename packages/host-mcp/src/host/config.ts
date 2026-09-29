@@ -4,7 +4,7 @@ import { dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
 
 export type McpTransportKind = 'stdio' | 'http' | 'sse'
 
-/** 工具选择：allow 非空时只放这些，deny 始终排除。两者都认 `*` 通配。 */
+/** 工具选择：allow 非空时只允许这些，deny 始终禁用。两者都认 `*` 通配。 */
 export type McpToolFilter = {
   allow: string[]
   deny: string[]
@@ -96,7 +96,7 @@ export function normalizeServerConfig(id: string, value: unknown): McpServerConf
 /** 还不能连的草稿：stdio 缺命令，远端缺地址。空串表示配置已齐。 */
 export function incompleteReason(config: McpServerConfig) {
   if (config.transport === 'stdio') {
-    return config.command ? '' : '还没填命令（command），填好后点连接'
+    return config.command ? '' : '还没填命令（command），填好后启用'
   }
   return /^https?:\/\//i.test(config.url) ? '' : '还没填地址（url），需要 http(s) 开头'
 }

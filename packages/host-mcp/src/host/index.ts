@@ -435,7 +435,7 @@ export function apply(ctx: Context) {
   })
   ctx.tools.register({
     name: 'mcp_call',
-    description: '调用 MCP 工具。server 与 name 取自 mcp_list；被工具选择排除的工具会直接报错。',
+    description: '调用 MCP 工具。server 与 name 取自 mcp_list；被禁用的工具会直接报错。',
     parameters: {
       type: 'object',
       properties: {

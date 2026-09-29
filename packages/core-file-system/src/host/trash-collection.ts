@@ -47,6 +47,7 @@ function assetGcActions(hooks: () => AssetGcHooks): CollectionAction[] {
       for: 'agent',
       placement: [],
       allowMissing: true,
+      requiredAction: 'resource:delete',
       run: () => previewWorkspaceAssetGc(hooks()),
     },
     {
@@ -56,6 +57,7 @@ function assetGcActions(hooks: () => AssetGcHooks): CollectionAction[] {
       for: 'agent',
       placement: [],
       allowMissing: true,
+      requiredAction: 'resource:delete',
       confirm: '确定清理未引用附件？观察期满的文件会被删除。',
       run: () => runWorkspaceAssetGc(hooks()),
     },
@@ -66,6 +68,7 @@ function assetGcActions(hooks: () => AssetGcHooks): CollectionAction[] {
       for: 'agent',
       placement: [],
       allowMissing: true,
+      requiredAction: 'resource:delete',
       run: () => listWorkspaceGcCandidates(hooks()),
     },
   ]

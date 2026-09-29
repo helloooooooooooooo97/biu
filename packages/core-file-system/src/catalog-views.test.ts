@@ -6,6 +6,9 @@ import {
   builtinBlockKindViewId,
   builtinCatalogViewId,
   builtinCatalogViews,
+  builtinScopeView,
+  builtinScopeViewId,
+  builtinMemberViews,
   isBuiltinBlockKindViewId,
   isBuiltinCatalogViewId,
   isReadOnlyViewId,
@@ -22,7 +25,41 @@ import {
   builtinTagViewId,
   isBuiltinTagViewId,
   stampRowOpenTarget,
+  stubBuiltinScopeView,
+  viewsForScope,
 } from './catalog-views.ts'
+
+test('scoped builtin views preserve their base view and lock data ownership', () => {
+  const base = builtinAllView({ path: '/pages', label: '页面' })
+  const scoped = builtinScopeView(base, 'workspace')
+  assert.equal(scoped.id, builtinScopeViewId('workspace', base.id))
+  assert.deepEqual(scoped.filters, { $scope: 'workspace' })
+  assert.equal(isReadOnlyViewId(scoped.id), true)
+  assert.deepEqual(stubBuiltinScopeView(scoped.id)?.filters, { $scope: 'workspace' })
+  assert.deepEqual(catalogLockFilters(scoped.id), { $scope: 'workspace' })
+})
+
+test('personal and workspace scopes keep independent custom views', () => {
+  const base = builtinAllView({ path: '/pages', label: '页面' })
+  const views = [
+    base,
+    { ...base, id: 'legacy-personal', name: '旧私人视图', builtin: false, filters: {} },
+    { ...base, id: 'workspace-only', name: '空间视图', builtin: false, filters: { $scope: 'workspace' } },
+  ]
+  const personal = viewsForScope(views, 'personal')
+  const workspace = viewsForScope(views, 'workspace')
+  assert.equal(personal.some((view) => view.id === 'legacy-personal'), true)
+  assert.equal(personal.some((view) => view.id === 'workspace-only'), false)
+  assert.equal(workspace.some((view) => view.id === 'legacy-personal'), false)
+  assert.equal(workspace.some((view) => view.id === 'workspace-only'), true)
+  assert.deepEqual(personal.find((view) => view.id === 'legacy-personal')?.filters, { $scope: 'personal' })
+})
+
+test('member directory exposes builtin audience views', () => {
+  const views = mergeTableViews({ path: '/workspace-members', label: '成员' }, [])
+  assert.deepEqual(views.slice(1).map((view) => view.name), ['空间成员', '外部成员', '临时访客'])
+  assert.deepEqual(builtinMemberViews().map((view) => view.filters.membershipKind), ['member', 'external', 'guest'])
+})
 
 test('each registered table gets a builtin catalog view', () => {
   const tables = [

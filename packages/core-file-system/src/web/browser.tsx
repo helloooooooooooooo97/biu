@@ -57,6 +57,7 @@ import {
   fieldEntries,
   flattenTree,
   formatField,
+  fieldValueOptions,
   groupField,
   groupRecords,
   groupableFields,
@@ -77,9 +78,10 @@ import {
 import { DbMenu, DbSearchOption } from '@biu/database-ui'
 import { AppDialog, CellSelect, CheckRow, LocalText } from './controls.tsx'
 import { DataSidebar } from './data-sidebar.tsx'
+import { ScopeOverview } from './scope-overview.tsx'
 import { buildCrumbs, type CrumbTarget } from './sidebar-nav.ts'
 import { CrumbTrail } from './crumb-trail.tsx'
-import { pickDomAttrs, recordPickKind } from './pick-dom.ts'
+import { fieldPickAttrs, pickDomAttrs, recordPickKind, recordSourcePath } from './pick-dom.ts'
 import { normalizeRecordEmoji, recordPreviewEmoji, crumbRecordLabel } from './sidebar-preview.ts'
 import { recordPreviewMascot, RecordMark } from './record-mark.tsx'
 import { COL_WIDTH_MAX, COL_WIDTH_MIN, colWidthStyle, normalizeColumnWidths, normalizeSavedView, normalizePageSize, tableWidthStyle, viewStateKey, type SavedView } from './saved-view.ts'
@@ -99,7 +101,7 @@ import {
   visibleActions,
   placedActions,
 } from './fsdb-cells.tsx'
-import { ShareButton } from './share-popover.tsx'
+import { ShareButton, SharePanel } from './share-popover.tsx'
 import { ensureFsdbStyle } from './fsdb-style.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { PageBanner } from './page-banner.tsx'
@@ -134,11 +136,11 @@ import {
   subscribePageWidth,
 } from './page-width.ts'
 import { LayoutPrefsMenu } from './layout-prefs-menu.tsx'
-import { listCollection, readJson } from './db-client.ts'
+import { HttpError, listCollection, readJson } from './db-client.ts'
 import { savedViewRecordPath } from '../paths.ts'
 import { findViewNeighbor, indexOnPage } from './view-adjacent.ts'
 import { rememberPreviewTotal, viewTotalKey } from './sidebar-preview.ts'
-import { catalogLockFilters, isReadOnlyViewId, mergeTableViews, stubBuiltinBlockKindView } from '../catalog-views.ts'
+import { catalogLockFilters, isReadOnlyViewId, mergeTableViews, parseBuiltinScopeViewId, stubBuiltinBlockKindView, viewsForScope, type DataScope } from '../catalog-views.ts'
 import { SAVED_VIEW_EVENT, showRecordInInspector } from './inspector-db-route.ts'
 import { SchemaChips, SchemaFieldEditor, schemaTagTone } from './schema-field.tsx'
 import { CellPop, cellUsesPop } from './cell-pop.tsx'
@@ -492,6 +494,8 @@ export function CollectionBrowser({
   onOpenRecord,
   onCloseRecord,
   onCrumbTarget,
+  scopeHome,
+  onOpenScopeHome,
   embed = false,
   sheet = false,
   onOpenRow,
@@ -513,6 +517,8 @@ export function CollectionBrowser({
   onOpenRecord?: (recordId: string, viewId?: string | null, collection?: string) => void
   onCloseRecord?: () => void
   onCrumbTarget?: (target: CrumbTarget) => void
+  scopeHome?: DataScope | null
+  onOpenScopeHome?: (scope: DataScope) => void
   /** 检查器内页：只有中间舞台，不写侧栏开关/视图存储。 */
   embed?: boolean
   /** 嵌在详情里的收集表：用同一套表组件，但不写视图、不出现视图切换。 */
@@ -523,13 +529,24 @@ export function CollectionBrowser({
 }) {
   ensureFsdbStyle()
   const nested = embed || sheet
+  const routeScope: DataScope | null = (() => {
+    const builtin = routeViewId ? parseBuiltinScopeViewId(routeViewId) : null
+    if (builtin) return builtin.scope
+    const stored = routeViewId ? loadViews(collectionPath).find((view) => view.id === routeViewId && !view.builtin) : null
+    const scope = stored?.filters?.$scope
+    return scope === 'workspace' ? 'workspace' : stored ? 'personal' : null
+  })()
   const listedViews = (path: string, user: SavedView[]) => {
-    if (resolveViews) return resolveViews(path, user)
-    const table = tables.find((item) => item.path === path) ?? {
-      path,
-      label: path === collectionPath ? title : path.replace(/^\//, ''),
-    }
-    return mergeTableViews(table, user)
+    const listed = resolveViews
+      ? resolveViews(path, user)
+      : mergeTableViews(
+          tables.find((item) => item.path === path) ?? {
+            path,
+            label: path === collectionPath ? title : path.replace(/^\//, ''),
+          },
+          user,
+        )
+    return path === collectionPath && routeScope ? viewsForScope(listed, routeScope) : listed
   }
   const dataPath = collectionPath
   const [stat, setStat] = useState<StatResult | null>(null)
@@ -673,6 +690,7 @@ export function CollectionBrowser({
   }, [chrome, columnKeys, customView, facetCatalog, groupBy, stat])
   const listColumnsKey = listColumns?.join('\0') ?? ''
   const [refreshing, setRefreshing] = useState(false)
+  const [createScope, setCreateScope] = useState<'personal' | 'workspace'>('personal')
   const [searchOpen, setSearchOpen] = useState(false)
   const [notice, setNotice] = useState('')
   const [pickedIds, setPickedIds] = useState<string[]>([])
@@ -889,6 +907,12 @@ export function CollectionBrowser({
   const detailIdRef = useRef<string | null>(null)
   detailIdRef.current = detailId
   const contentGen = useRef(0)
+  const contentVersions = useRef(new Map<string, number>())
+  const contentWriteGens = useRef(new Map<string, number>())
+  const contentWriteQueues = useRef(new Map<string, Promise<void>>())
+  const contentWritePending = useRef(new Map<string, number>())
+  const contentConflicts = useRef(new Set<string>())
+  const openedContentPath = useRef('')
   const recordGen = useRef(0)
   const pullDetailBody = useCallback(() => {
     const id = detailIdRef.current
@@ -896,10 +920,17 @@ export function CollectionBrowser({
       setDetailBody(null)
       return
     }
+    const path = `${dataPath}/${id}`
     const gen = ++contentGen.current
-    void readJson<{ value?: unknown }>(`/api/db/content?path=${encodeURIComponent(`${dataPath}/${id}`)}`)
+    void readJson<{ value?: unknown; version?: number }>(`/api/db/content?path=${encodeURIComponent(path)}`)
       .then((data) => {
-        if (gen !== contentGen.current) return
+        if (
+          gen !== contentGen.current ||
+          (contentWritePending.current.get(path) ?? 0) > 0 ||
+          contentConflicts.current.has(path)
+        ) return
+        if (Number.isInteger(data.version)) contentVersions.current.set(path, data.version!)
+        else contentVersions.current.delete(path)
         setDetailBody(data.value ?? null)
       })
       .catch(() => {
@@ -1050,7 +1081,12 @@ export function CollectionBrowser({
         if (cancelled || !row?.id) return
         setDetailRow(row)
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        if (cancelled || !(error instanceof HttpError) || error.status !== 404) return
+        setOpenDetailId(null)
+        setDetailRow(null)
+        queueMicrotask(() => onCloseRecord?.())
+      })
     return () => {
       cancelled = true
     }
@@ -1388,13 +1424,18 @@ export function CollectionBrowser({
   }, [bodyKey, detailBody, detailId, schema])
 
   useEffect(() => {
-    if (!detailId) {
+    const path = detailId ? `${dataPath}/${detailId}` : ''
+    if (openedContentPath.current !== path) {
+      if (path) contentConflicts.current.delete(path)
+      openedContentPath.current = path
+    }
+    if (!detailId || detailRow?.id !== detailId) {
       contentGen.current += 1
       setDetailBody(null)
       return
     }
     pullDetailBody()
-  }, [collectionPath, dataPath, detailId, pullDetailBody])
+  }, [collectionPath, dataPath, detailId, detailRow, pullDetailBody])
 
   useEffect(() => {
     if (dlg?.kind !== 'rename') return
@@ -1500,7 +1541,7 @@ export function CollectionBrowser({
   }
   syncViewsRef.current = async () => {
     if (sheet) return
-    await pullSavedViews()
+    await pullSavedViews([collectionPath])
     const listed = listedViews(collectionPath, loadViews(collectionPath)).map((view) =>
       withViewDisplay(collectionPath, view),
     )
@@ -1553,16 +1594,23 @@ export function CollectionBrowser({
     return `${base} ${n}`
   }
 
-  function addEmptyView(path = collectionPath) {
+  function addEmptyView(path = collectionPath, scope?: DataScope) {
     const target = path || collectionPath
-    const listed = target === collectionPath ? views : loadViews(target)
+    const effectiveScope = scope ?? (target === collectionPath ? routeScope ?? undefined : undefined)
+    const stored = loadViews(target)
+    const allListed = listedViews(target, stored)
+    const listed = target === collectionPath
+      ? views
+      : effectiveScope
+        ? viewsForScope(allListed, effectiveScope)
+        : allListed
     const view: SavedView = {
       id: `${Date.now()}`,
       name: uniqueViewName('新视图', listed),
       mode: 'table',
       sortField: 'title',
       sortDir: 'asc',
-      filters: { ...catalogLocks },
+      filters: { ...catalogLocks, ...(effectiveScope ? { $scope: effectiveScope } : {}) },
       columns: target === collectionPath ? [...schemaDefaultKeys] : [],
       groupBy: '',
       tree: true,
@@ -1570,7 +1618,7 @@ export function CollectionBrowser({
       truncate: true,
       query: '',
     }
-    persistViewsFor(target, [...listed.filter((item) => !item.builtin), view])
+    persistViewsFor(target, [...stored.filter((item) => !item.builtin), view])
     if (target === collectionPath) {
       selectView(view)
       return
@@ -1748,13 +1796,49 @@ export function CollectionBrowser({
       const keys = Object.keys(content)
       quietUntil.current = Date.now() + 800
       if (bodyKey && keys.length === 1 && keys[0] === bodyKey && schema?.fields[bodyKey]?.type === 'file') {
-        const data = await readJson<{ value?: unknown }>('/api/db/content', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ path: `${dataPath}/${row.id}`, value: content[bodyKey] }),
-        })
-        const value = data.value ?? content[bodyKey]
+        const path = `${dataPath}/${row.id}`
+        if (contentConflicts.current.has(path)) return
+        const value = content[bodyKey]
+        const gen = (contentWriteGens.current.get(path) ?? 0) + 1
+        contentWriteGens.current.set(path, gen)
+        contentGen.current += 1
+        contentWritePending.current.set(path, (contentWritePending.current.get(path) ?? 0) + 1)
         setDetailBody(value)
+        const previous = contentWriteQueues.current.get(path) ?? Promise.resolve()
+        const run = previous.catch(() => undefined).then(async () => {
+          if (contentConflicts.current.has(path)) return
+          const data = await readJson<{ value?: unknown; version?: number }>('/api/db/content', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              path,
+              value,
+              version: contentVersions.current.get(path),
+            }),
+          })
+          if (Number.isInteger(data.version)) contentVersions.current.set(path, data.version!)
+          if (detailIdRef.current === row.id && gen === contentWriteGens.current.get(path)) {
+            setDetailBody(data.value ?? value)
+          }
+          window.dispatchEvent(new Event('fsdb:change'))
+        }).catch((error) => {
+          if (error instanceof HttpError && error.status === 409) {
+            contentConflicts.current.add(path)
+            setDlg({
+              kind: 'alert',
+              title: '正文保存冲突',
+              body: `${error.message}\n\n正文已被其他编辑者更新。当前输入仍保留在编辑器中，请复制需要保留的内容后刷新页面再合并。`,
+            })
+          }
+          throw error
+        }).finally(() => {
+          const pending = Math.max(0, (contentWritePending.current.get(path) ?? 1) - 1)
+          if (pending) contentWritePending.current.set(path, pending)
+          else contentWritePending.current.delete(path)
+          if (contentWriteQueues.current.get(path) === run) contentWriteQueues.current.delete(path)
+        })
+        contentWriteQueues.current.set(path, run)
+        await run
         const field = schema?.fields[bodyKey]
         if (field && field.type !== 'file') {
           const stored = value && typeof value === 'object' ? JSON.stringify(value) : value
@@ -1762,7 +1846,6 @@ export function CollectionBrowser({
           setItems((prev) => prev.map(merge))
           setDetailRow((prev) => (prev?.id === row.id ? merge(prev) : prev))
         }
-        window.dispatchEvent(new Event('fsdb:change'))
         return
       }
       const data = await readJson<{ value?: DbRecord }>('/api/db/update', {
@@ -1792,7 +1875,7 @@ export function CollectionBrowser({
       const data = await readJson<{ items?: Array<{ value?: DbRecord }> }>('/api/db/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ path: dataPath, records: [{}] }),
+        body: JSON.stringify({ path: dataPath, records: [{}], scope: createScope }),
       })
       quietUntil.current = 0
       await reload()
@@ -1950,7 +2033,20 @@ export function CollectionBrowser({
   )
   const currentTable = tables.find((item) => item.path === collectionPath)
   const recordKind = recordPickKind(currentTable?.view?.moduleId || currentTable?.id)
-  const recordPick = (row: DbRecord) => pickDomAttrs(recordKind, row.id, labelOf(row))
+  const recordPathOf = (row: DbRecord) => recordSourcePath(collectionPath, row.id)
+  const recordPick = (row: DbRecord) =>
+    pickDomAttrs(recordKind, row.id, labelOf(row), { path: recordPathOf(row), title: labelOf(row) })
+  const cellValueText = (row: DbRecord, key: string, field: FieldSpec) => {
+    const raw = parseFacetFlatColumnKey(key) ? readFacetFlatValue(row, key, facetSourceKey(schema)) : row[key]
+    return formatField(field, raw)
+  }
+  const cellPickOf = (row: DbRecord, key: string, field: FieldSpec) =>
+    fieldPickAttrs(recordKind, row.id, key, {
+      label: field.label ?? key,
+      title: labelOf(row),
+      path: recordPathOf(row),
+      text: cellValueText(row, key, field),
+    })
 
   function renderCell(row: DbRecord, key: string, field: FieldSpec, surface: 'table' | 'detail' = 'detail') {
     const kind = resolveFieldType(field)
@@ -2274,6 +2370,7 @@ export function CollectionBrowser({
             type="button"
             className="tasks-icon-btn tasks-title-open"
             data-testid="record-title-open"
+            {...recordPick(row)}
             data-biu-action="open"
             aria-label="查看详情"
             title="查看详情"
@@ -2464,6 +2561,7 @@ export function CollectionBrowser({
             {columns.map((col) => (
               <td
                 key={col.key}
+                {...cellPickOf(row, col.key, col.field)}
                 style={colWidthStyle(columnWidths[col.key])}
                 className={
                   cellPick?.id === row.id && cellPick.key === col.key
@@ -2617,6 +2715,7 @@ export function CollectionBrowser({
           onRenameView={renameView}
           onDeleteView={deleteView}
           onAddView={addEmptyView}
+          onOpenScopeHome={onOpenScopeHome}
           onOpenRecord={(path, view, recordId, row) => {
             if (path === collectionPath) {
               applyView(view)
@@ -2630,6 +2729,14 @@ export function CollectionBrowser({
           onCollapse={toggleViewsOpen}
         />
       ) : null}
+      {scopeHome && !nested ? (
+        <ScopeOverview
+          scope={scopeHome}
+          tables={tables}
+          onOpenTable={(path, viewId) => onOpenTable?.(path, viewId)}
+          onOpenRecord={(path, viewId, recordId) => onOpenRecord?.(recordId, viewId, path)}
+        />
+      ) : (
       <div className="fsdb-right">
         {nested ? null : (
         <header className="chat-view-header" data-biu-ignore>
@@ -3046,7 +3153,7 @@ export function CollectionBrowser({
                             value: option,
                             label: loadFacets().find((tag) => tag.id === option)?.label ?? option,
                           }))
-                        : uniqueValues(items, item.key, item.field).map((option) => ({ value: option, label: option }))
+                        : fieldValueOptions(items, item.key, item.field)
                   }
                   onChange={setFilterTree}
                 />
@@ -3193,16 +3300,28 @@ export function CollectionBrowser({
               ) : null}
             </div>
             {canCreate ? (
-              <button
-                type="button"
-                className="fsdb-create-btn"
-                aria-label="新建记录"
-                title="新建"
-                onClick={() => void createRecord()}
-              >
-                <PlusIcon aria-hidden className="size-[14px]" />
-                新建
-              </button>
+              <div className="flex items-center gap-1">
+                <select
+                  className="tasks-refresh tasks-rbar-btn min-w-auto px-1"
+                  aria-label="新建数据归属"
+                  title={createScope === 'personal' ? '私人：仅自己和被授权成员可见' : '空间：空间成员可查看'}
+                  value={createScope}
+                  onChange={(event) => setCreateScope(event.target.value === 'workspace' ? 'workspace' : 'personal')}
+                >
+                  <option value="personal">私人</option>
+                  <option value="workspace">空间</option>
+                </select>
+                <button
+                  type="button"
+                  className="fsdb-create-btn"
+                  aria-label={`新建${createScope === 'personal' ? '私人' : '空间'}记录`}
+                  title={`新建${createScope === 'personal' ? '私人' : '空间'}记录`}
+                  onClick={() => void createRecord()}
+                >
+                  <PlusIcon aria-hidden className="size-[14px]" />
+                  新建
+                </button>
+              </div>
             ) : null}
           </div>
         </div>
@@ -3446,8 +3565,8 @@ export function CollectionBrowser({
           toolbar={<RecordActions row={selected} place="detail" />}
           share={
             nested && detailId ? (
-              <ShareButton
-                buttonClassName="fsdb-detail-float-btn"
+              <SharePanel
+                embedded
                 target={{
                   kind: 'record',
                   collection: collectionPath,
@@ -3465,11 +3584,13 @@ export function CollectionBrowser({
           canPrev={viewIndex == null ? total > 1 : viewIndex > 0}
           canNext={viewIndex == null ? total > 1 : viewIndex < total - 1}
           collectionPath={collectionPath}
+          recordKind={recordKind}
         />
       ) : null}
         </div>
         </div>
       </div>
+      )}
       {dlg?.kind === 'rename' ? (
         <AppDialog
           key={dlg.view.id}

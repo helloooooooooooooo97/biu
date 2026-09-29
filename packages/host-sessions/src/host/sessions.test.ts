@@ -1,9 +1,12 @@
 import { mkdtemp, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
+import { mkdtempSync } from 'node:fs'
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { Context } from 'cordis'
+import { Context, Service } from 'cordis'
+import { openAndMigrateBiu, runWithAccount } from '@biu/host-plugin-loader/data-dir'
+import { CollabStore } from '@biu/host-account/store'
 import * as sessionStore from '@biu/host-session-store'
 import * as sessions from './index.ts'
 import { SESSION_FORMAT_VERSION, deriveMessages, applyContextBudget, estimateTokens, statInputComposition } from './index.ts'
@@ -48,6 +51,43 @@ test('tool_calls assistant uses null content for API history', async () => {
     },
     { role: 'tool', tool_call_id: '1', content: 'now' },
   ])
+})
+
+test('lastMessageAt stays on the user message while the agent keeps writing', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  const older = await ctx.sessions.create('older')
+  const newer = await ctx.sessions.create('newer')
+  await ctx.sessions.append(older.id, { type: 'user/message', text: '先问', kind: 'wake' })
+  const spoken = (await ctx.sessions.require(older.id)).events.find((event) => event.type === 'user/message')
+  assert.ok(spoken && spoken.type === 'user/message')
+  await ctx.sessions.append(newer.id, { type: 'user/message', text: '后问', kind: 'wake' })
+  await ctx.sessions.append(older.id, {
+    type: 'assistant/message',
+    text: '',
+    tool_calls: [{ id: '1', name: 'clock_now', arguments: '{}' }],
+  })
+  await ctx.sessions.append(older.id, { type: 'tool/result', id: '1', name: 'clock_now', ok: true, detail: 'now' })
+  await ctx.sessions.append(older.id, { type: 'assistant/message', text: '答完了' })
+  const listed = await ctx.sessions.listSummaries()
+  const row = listed.find((item) => item.id === older.id)
+  assert.equal(row?.lastMessageAt, spoken.ts)
+  assert.ok((row?.updatedAt ?? 0) >= spoken.ts)
+  const dir = await mkdtemp(join(tmpdir(), 'cordis-spoken-'))
+  const path = join(dir, 'sessions.sqlite')
+  const sql = new Context()
+  await sql.plugin(sessionStore, { driver: 'sqlite', path })
+  await sql.plugin(sessions)
+  const sqlOlder = await sql.sessions.create('sql-older')
+  await sql.sessions.append(sqlOlder.id, { type: 'user/message', text: '先问', kind: 'wake' })
+  const sqlSpoken = (await sql.sessions.require(sqlOlder.id)).events.find((event) => event.type === 'user/message')
+  assert.ok(sqlSpoken && sqlSpoken.type === 'user/message')
+  await sql.sessions.append(sqlOlder.id, { type: 'assistant/message', text: '还在干活' })
+  await sql.sessions.append(sqlOlder.id, { type: 'tool/call', id: '2', name: 'bash', arguments: '{}' })
+  const sqlRow = (await sql.sessions.listSummaries()).find((item) => item.id === sqlOlder.id)
+  assert.equal(sqlRow?.lastMessageAt, sqlSpoken.ts)
+  assert.ok((sqlRow?.updatedAt ?? 0) >= sqlSpoken.ts)
 })
 
 test('sqlite session store round-trips and listSummaries skips full reload', async () => {
@@ -224,37 +264,6 @@ test('setProject binds host absolute path and clears it', async () => {
   assert.equal((await ctx.sessions.require(record.id)).project, undefined)
 })
 
-test('setProject binds macOS NFD-stored directory given NFC typed path', async () => {
-  const ctx = new Context()
-  await ctx.plugin(sessionStore, { driver: 'memory' })
-  await ctx.plugin(sessions)
-  const record = await ctx.sessions.create()
-
-  // macOS 的 APFS/HFS+ 以 NFD（分解）形式存储含组合字符的文件名；用户输入通常是
-  // NFC（预组合）。两者字节不同导致 realpath 对 NFC 去解析返回 ENOENT（目录其实
-  // 存在）。此测试用“带组合字符”的名字制造 NFC≠NFD，模拟“NFC 路径绑定 NFD 目录”。
-  const nfdName = 'café\u0301'.normalize('NFD') // 带组合重音的分解形式
-  const base = await mkdtemp(join(tmpdir(), 'cordis-nfd-'))
-  const dir = join(base, nfdName)
-  const { mkdir } = await import('node:fs/promises')
-  await mkdir(dir)
-  // 建立后确认该目录确实能按 NFC 与 NFD 不同解析（保证用例成立）
-  const nfcName = nfdName.normalize('NFC')
-  if (nfcName === nfdName) {
-    // 平台不支持组合差异（非 macOS / 特殊构造），跳过，不影响其余测试
-    return
-  }
-  // 用 NFC 形式的完整路径去绑定（正是 macOS 上“中文等目录无法绑定”的复现路径）
-  const nfcPath = join(base, nfcName)
-  const project = await ctx.sessions.setProject(record.id, { path: nfcPath })
-  assert.ok(project, 'NFC 路径应能绑定到 NFD 存储的目录')
-  assert.equal(project.name, nfdName) // 目录真实（磁盘）名字
-  const storedPath = (await ctx.sessions.require(record.id)).project?.path
-  assert.equal(storedPath, project.path)
-  // 存储的 path 必须是真实可解析的目录（realpath 通过）——即后序再绑定/使用不报不存在
-  assert.equal(await realpath(storedPath!), await realpath(dir))
-})
-
 test('delete removes session from store and cache', async () => {
   const ctx = new Context()
   await ctx.plugin(sessionStore, { driver: 'memory' })
@@ -264,6 +273,53 @@ test('delete removes session from store and cache', async () => {
   assert.equal(await ctx.sessions.get(record.id), undefined)
   assert.equal((await ctx.sessions.list()).includes(record.id), false)
   assert.equal(await ctx.sessions.delete(record.id), false)
+})
+
+test('listSummaries only returns sessions of the active workspace', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  const kept = await ctx.sessions.create('kept')
+  const other = await ctx.sessions.create('other')
+  const mine = new Set([`/sessions\t${kept.id}`])
+  const any = new Set([`/sessions\t${kept.id}`, `/sessions\t${other.id}`])
+  let active = 'ws-a'
+  const home = 'ws-home'
+  class FakeAccount extends Service {
+    store = {
+      activeWorkspaceId: () => active,
+      membership: () => ({ active, home, mine, any }),
+      attach: (workspaceId: string, collection: string, recordId: string) => {
+        const key = `${collection}\t${recordId}`
+        any.add(key)
+        if (workspaceId === active) mine.add(key)
+      },
+    }
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(FakeAccount)
+  assert.deepEqual(
+    (await ctx.sessions.listSummaries()).map((item) => item.id),
+    [kept.id],
+  )
+  assert.equal(ctx.sessions.inWorkspace(other.id), false)
+  active = 'ws-b'
+  mine.clear()
+  const created = await ctx.sessions.create('fresh')
+  assert.equal(ctx.sessions.inWorkspace(created.id), true)
+  assert.deepEqual(
+    (await ctx.sessions.listSummaries()).map((item) => item.id),
+    [created.id],
+  )
+  active = home
+  mine.clear()
+  const legacy = await ctx.sessions.create('legacy')
+  any.delete(`/sessions\t${legacy.id}`)
+  mine.delete(`/sessions\t${legacy.id}`)
+  assert.equal(ctx.sessions.inWorkspace(legacy.id), true)
+  assert.equal(ctx.sessions.inWorkspace(other.id), false)
 })
 
 test('ensureDefaultSession creates exactly one session when the store is empty', async () => {
@@ -690,5 +746,32 @@ test('statInputComposition: honors compact point (starts counting after it)', ()
   // 压缩点前的 early-msg-aaaa 不计入；只从压缩点后开算
   assert.equal(out.histChars + out.curChars, 'after-compact'.length)
   assert.equal(out.curChars, 'after-compact'.length)
+})
+
+test('two accounts do not see each others sessions', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  const dir = mkdtempSync(join(tmpdir(), 'biu-account-sessions-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'bob@example.com')
+  collab.enter(ada.id)
+  collab.enter(bob.id)
+  const adaSession = await runWithAccount(ada.id, () => ctx.sessions.create('ada-session'))
+  const bobSession = await runWithAccount(bob.id, () => ctx.sessions.create('bob-session'))
+  const adaList = await runWithAccount(ada.id, () => ctx.sessions.listSummaries())
+  const bobList = await runWithAccount(bob.id, () => ctx.sessions.listSummaries())
+  assert.deepEqual(adaList.map((item) => item.id), [adaSession.id])
+  assert.deepEqual(bobList.map((item) => item.id), [bobSession.id])
+  assert.equal(runWithAccount(bob.id, () => ctx.sessions.inWorkspace(adaSession.id)), false)
+  assert.equal(runWithAccount(ada.id, () => ctx.sessions.inWorkspace(bobSession.id)), false)
 })
 

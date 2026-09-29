@@ -20,10 +20,15 @@ import {
 } from './plugin-create.ts'
 import { parseStoreShell, requireDeclaredShell, type StoreShell } from '../shell.ts'
 import {
+  assetsRootPath,
+  biuSqlitePath,
   DATA_DIR_NAME,
+  currentAccountId,
+  currentRequestWorkspaceId,
   copyReferencedEditorAssets,
   openAndMigrateBiu,
   readEditorContent,
+  runWithRequestWorkspace,
   writeEditorContent,
 } from '@biu/host-plugin-loader/data-dir'
 
@@ -222,6 +227,31 @@ export class PluginStoreService extends Service {
     return this.ctx.hub as unknown as StoreHub
   }
 
+  private accountStore() {
+    return (
+      this.ctx.get('account') as {
+        store?: {
+          hasInstancePermission?(accountId: string, permission: string): boolean
+          canAccessPlugin?(accountId: string, workspaceId: string, pluginId: string): boolean
+          ensurePluginOwnerAssignments?(pluginId: string): number
+          recordPluginPackage?(accountId: string, input: Record<string, unknown>): void
+          syncInstalledPluginPackage?(input: Record<string, unknown>): boolean
+          removePluginPackage?(accountId: string, pluginId: string): void
+        }
+      } | undefined
+    )?.store
+  }
+
+  hasInstancePermission(permission: string) {
+    if (process.env.BIU_ONLINE !== '1') return true
+    const accountId = currentAccountId()
+    return Boolean(accountId && this.accountStore()?.hasInstancePermission?.(accountId, permission))
+  }
+
+  private requireInstancePermission(permission: string) {
+    if (!this.hasInstancePermission(permission)) throw new Error(`permission denied: ${permission}`)
+  }
+
   private readState(): StoreState {
     if (!existsSync(this.statePath)) return emptyState()
     try {
@@ -239,6 +269,15 @@ export class PluginStoreService extends Service {
 
   private invalidateList() {
     this.listCache = null
+  }
+
+  private contentSqlitePath() {
+    // Explicit/custom plugin roots represent a self-contained instance (also
+    // used by tests). The default root keeps honoring BIU_HOME/Electron data.
+    if (resolve(this.pluginDir) !== resolve(defaultPluginDir())) {
+      return join(dirname(resolve(this.pluginDir)), DATA_DIR_NAME, 'biu.sqlite')
+    }
+    return biuSqlitePath()
   }
 
   private isEnabled(id: string) {
@@ -268,6 +307,7 @@ export class PluginStoreService extends Service {
 
   /** 在 .plugin-dev/<id>/ 开沙箱，不写入已安装目录。 */
   async initSandbox(input: PluginCreateInput) {
+    this.requireInstancePermission('plugin.drafts.create')
     const id = String(input.id ?? '').trim()
     const name = String(input.name ?? '').trim()
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
@@ -290,6 +330,7 @@ export class PluginStoreService extends Service {
 
   /** 把沙箱 bundle 进 .plugin/<id>/。 */
   async pack(id: string) {
+    this.requireInstancePermission('plugin.packages.install')
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
     const sandbox = this.sandboxPath(id)
     if (!existsSync(join(sandbox, 'manifest.json'))) throw new Error(`sandbox not found: ${sandbox}`)
@@ -313,22 +354,37 @@ export class PluginStoreService extends Service {
     if (webEntry) await writeFile(join(dest, 'web.js'), await bundleStoreEntry(webEntry, 'web'))
     else if (existsSync(join(dest, 'web.js'))) await rm(join(dest, 'web.js'))
     copyPluginRuntimeDependencies(sandbox, dest)
-    const workspace = dirname(this.sandboxDir)
-    let readme = await this.readReadme(id)
+    // Pack the source tree's README. The shared editor_content cache may still
+    // contain text from an older installation with the same plugin id.
+    let readme = await this.readDiskReadme(id)
     if (!readme.trim()) readme = `# ${manifest.name}\n\n${manifest.blurb.trim()}\n`
     const packed = copyReferencedEditorAssets({
       body: readme,
-      assetsDir: join(workspace, DATA_DIR_NAME, 'assets'),
+      assetsDir: assetsRootPath(),
       destDir: dest,
     })
     await writeFile(join(dest, README_FILE), packed)
     await copyPackedMedia(sandbox, dest)
+    const codeVersion = (await hashInstalledPluginCode(dest)) ?? 'empty'
+    this.accountStore()?.recordPluginPackage?.(currentAccountId(), {
+      id: manifest.id,
+      version: codeVersion,
+      packageHash: codeVersion,
+      packagePath: dest,
+      sourceKind: 'sandbox',
+      trustState: 'approved',
+      tenantMode: 'assigned',
+      hasWeb: Boolean(webEntry),
+      hasHost: Boolean(hostEntry),
+      manifest,
+    })
     // 运行中才重新挂载；停着的下次 start 会从磁盘再挂。
     if (this.isEnabled(manifest.id)) await this.mountFromDisk(manifest, dest)
     return { id: manifest.id, sandboxPath: sandbox, pluginPath: dest }
   }
 
   async listSandboxes() {
+    if (!this.hasInstancePermission('plugin.drafts.read-all')) return []
     const names = existsSync(this.sandboxDir) ? await readdir(this.sandboxDir) : []
     const items: Array<{
       id: string
@@ -403,6 +459,7 @@ export class PluginStoreService extends Service {
   }
 
   async openPlugin(id: string) {
+    this.requireInstancePermission('plugin.packages.install')
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
     const hit = await this.findPluginDir(id)
     if (!hit) throw new Error(`unknown store plugin: ${id}`)
@@ -416,6 +473,7 @@ export class PluginStoreService extends Service {
 
   /** 关闭：停运行，.plugin 代码留着。 */
   async close(id: string) {
+    this.requireInstancePermission('plugin.packages.update')
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
     await this.hub().drop(id)
     this.setEnabled(id, false)
@@ -424,6 +482,7 @@ export class PluginStoreService extends Service {
 
   /** 卸载：停运行，只删 .plugin/<id>/，不动 .plugin-dev。 */
   async uninstall(id: string) {
+    this.requireInstancePermission('plugin.packages.uninstall')
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
     await this.hub().drop(id)
     this.setEnabled(id, false)
@@ -436,6 +495,7 @@ export class PluginStoreService extends Service {
     delete lastRunAt[id]
     this.state = { ...this.state, lastRunAt }
     this.writeState()
+    this.accountStore()?.removePluginPackage?.(currentAccountId(), id)
   }
 
   private readmeDir(id: string) {
@@ -466,8 +526,7 @@ export class PluginStoreService extends Service {
   }
 
   async readReadme(id: string) {
-    const workspace = dirname(this.sandboxDir)
-    const sqlitePath = join(workspace, DATA_DIR_NAME, 'biu.sqlite')
+    const sqlitePath = this.contentSqlitePath()
     if (existsSync(sqlitePath)) {
       try {
         const db = openAndMigrateBiu(sqlitePath)
@@ -493,10 +552,11 @@ export class PluginStoreService extends Service {
   }
 
   async writeReadme(id: string, markdown: string) {
+    this.requireInstancePermission('plugin.drafts.create')
     const text = String(markdown ?? '')
-    const workspace = dirname(this.sandboxDir)
-    mkdirSync(join(workspace, DATA_DIR_NAME), { recursive: true })
-    const db = openAndMigrateBiu(join(workspace, DATA_DIR_NAME, 'biu.sqlite'))
+    const sqlitePath = this.contentSqlitePath()
+    mkdirSync(dirname(sqlitePath), { recursive: true })
+    const db = openAndMigrateBiu(sqlitePath)
     try {
       writeEditorContent(db, '/plugins', id, text)
     } finally {
@@ -518,7 +578,25 @@ export class PluginStoreService extends Service {
       const hit = await this.findPluginDir(id)
       if (!hit) continue
       try {
-        await this.mountFromDisk(await readManifest(hit), hit)
+        const manifest = await readManifest(hit)
+        const stats = await pluginDirStats(hit)
+        const codeVersion = (await hashInstalledPluginCode(hit)) ?? 'empty'
+        if (process.env.BIU_ONLINE === '1') {
+          this.accountStore()?.syncInstalledPluginPackage?.({
+            id: manifest.id,
+            version: codeVersion,
+            packageHash: codeVersion,
+            packagePath: hit,
+            sourceKind: 'legacy-installed',
+            trustState: 'approved',
+            tenantMode: 'assigned',
+            hasWeb: stats.hasWeb,
+            hasHost: stats.hasHost,
+            manifest,
+          })
+        }
+        if (process.env.BIU_ONLINE === '1') this.accountStore()?.ensurePluginOwnerAssignments?.(id)
+        await this.mountFromDisk(manifest, hit)
       } catch (error) {
         this.ctx.logger('core-plugin-system').error(error)
       }
@@ -528,6 +606,13 @@ export class PluginStoreService extends Service {
   async readInstalledFile(id: string, file: string) {
     if (!isSafeId(id) || !ALLOWED_FILES.has(file)) throw new Error('not found')
     if (!this.isEnabled(id)) throw new Error('not found')
+    if (process.env.BIU_ONLINE === '1') {
+      const accountId = currentAccountId()
+      const workspaceId = currentRequestWorkspaceId()
+      if (!accountId || !workspaceId || !this.accountStore()?.canAccessPlugin?.(accountId, workspaceId, id)) {
+        throw new Error('not found')
+      }
+    }
     const hit = await this.findPluginDir(id)
     if (!hit) throw new Error('not found')
     const path = join(hit, file)
@@ -586,7 +671,18 @@ export async function openStore(ctx: Context) {
 
   ctx.http.route('GET', '/api/plugin-store/files/:id/:file', async (route) => {
     try {
-      const body = await store.readInstalledFile(route.params.id, route.params.file)
+      const requestedWorkspace = String(route.query.get('workspaceId') ?? currentRequestWorkspaceId()).trim()
+      if (process.env.BIU_ONLINE === '1' && !currentAccountId()) {
+        route.send(401, { error: '需要登录' })
+        return
+      }
+      if (process.env.BIU_ONLINE === '1' && !requestedWorkspace) {
+        route.send(400, { error: '需要空间' })
+        return
+      }
+      const body = await runWithRequestWorkspace(requestedWorkspace, () =>
+        store.readInstalledFile(route.params.id, route.params.file),
+      )
       const mime = route.params.file.endsWith('.js')
         ? 'text/javascript; charset=utf-8'
         : 'application/json; charset=utf-8'
@@ -599,6 +695,33 @@ export async function openStore(ctx: Context) {
     } catch {
       route.send(404, { error: 'not found' })
     }
+  })
+  ctx.http.route('GET', '/api/plugins/catalog', async (route) => {
+    const accountId = currentAccountId()
+    const workspaceId = currentRequestWorkspaceId()
+    const account = (
+      ctx.get('account') as {
+        store?: {
+          canAccessPlugin?(accountId: string, workspaceId: string, pluginId: string): boolean
+          hasInstancePermission?(accountId: string, permission: string): boolean
+        }
+      } | undefined
+    )?.store
+    const canManagePackages = Boolean(
+      account?.hasInstancePermission?.(accountId, 'plugin.packages.install'),
+    )
+    const plugins = (await store.list()).map((item) => ({
+      id: item.id,
+      name: item.name,
+      blurb: item.blurb,
+      version: item.codeVersion ?? '',
+      hasWeb: item.hasWeb,
+      hasHost: item.hasHost,
+      available: item.enabled,
+      assigned: Boolean(account?.canAccessPlugin?.(accountId, workspaceId, item.id)),
+      ...(canManagePackages ? { running: item.running, bytes: item.bytes, updatedAt: item.updatedAt } : {}),
+    }))
+    route.send(200, { plugins, canManagePackages })
   })
   return store
 }

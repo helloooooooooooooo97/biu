@@ -1,14 +1,16 @@
-import { dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
+import { biuSqlitePath, eventsSqlitePath } from '@biu/host-plugin-loader/data-dir'
 import { Service, type Context } from 'cordis'
 import {
   type SessionRecord,
   type SessionStore,
   type SessionSummary,
+  lastSpokenAt,
   sessionDisplayTitle,
 } from '@biu/type-session'
 
 function toSummary(record: SessionRecord, updatedAt?: number): SessionSummary {
   const touched = updatedAt ?? record.events.at(-1)?.ts ?? 0
+  const spoken = lastSpokenAt(record.events)
   const createdAt = Number(record.config?.createdAt)
   const stamp = Number.isFinite(createdAt) && createdAt > 0 ? createdAt : (record.events[0]?.ts ?? touched)
   return {
@@ -17,6 +19,7 @@ function toSummary(record: SessionRecord, updatedAt?: number): SessionSummary {
     eventCount: record.events.length,
     title: sessionDisplayTitle(record),
     updatedAt: touched,
+    ...(spoken > 0 ? { lastMessageAt: spoken } : {}),
     ...(record.project ? { project: record.project } : {}),
     ...(record.mascot ? { mascot: record.mascot } : {}),
     ...(record.config || stamp
@@ -94,8 +97,8 @@ export async function apply(
 ) {
   const envDriver = process.env.CORDIS_SESSION_STORE as SessionStoreDriver | undefined
   const driver = config.driver ?? (envDriver === 'memory' || envDriver === 'sqlite' ? envDriver : 'sqlite')
-  const sqlitePath = config.path ?? dataPath(dataHome(), 'biu.sqlite')
-  const eventsPath = config.eventsPath ?? (config.path ? undefined : dataPath(dataHome(), 'events.sqlite'))
+  const sqlitePath = config.path ?? biuSqlitePath()
+  const eventsPath = config.eventsPath ?? (config.path ? undefined : eventsSqlitePath())
 
   let inner: SessionStore
   if (driver === 'memory') {

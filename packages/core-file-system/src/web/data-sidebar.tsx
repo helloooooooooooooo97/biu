@@ -14,7 +14,7 @@ import {
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import type { CollectionInfo, CollectionSchema, DbRecord } from '@biu/type-file-system'
 import { groupField, groupRecords, parentFieldKey, treeChildren } from './fields.ts'
-import { builtinAllViewId } from '../catalog-views.ts'
+import { builtinAllViewId, builtinScopeViewId, viewsForScope, type DataScope } from '../catalog-views.ts'
 import { isRecordTreeCollection, isSystemCollection, sortDataCollections } from './database-path.ts'
 import { readJson } from './db-client.ts'
 import { viewsForRegisteredCollection } from './collection-nav.ts'
@@ -467,6 +467,7 @@ export const DataSidebar = memo(function DataSidebar({
   onDeleteView,
   onAddView,
   onOpenRecord,
+  onOpenScopeHome,
   expandedViewKey: expandedViewKeyProp,
   onExpandedViewKeyChange,
   onCollapse,
@@ -480,8 +481,9 @@ export const DataSidebar = memo(function DataSidebar({
   onApplyView: (view: SavedView) => void
   onRenameView: (view: SavedView) => void
   onDeleteView: (view: SavedView) => void
-  onAddView: (path?: string) => void
+  onAddView: (path?: string, scope?: DataScope) => void
   onOpenRecord?: (path: string, view: SavedView, recordId: string, row?: DbRecord) => void
+  onOpenScopeHome?: (scope: DataScope) => void
   expandedViewKey?: string | null
   onExpandedViewKeyChange?: (key: string | null) => void
   onCollapse?: () => void
@@ -492,7 +494,10 @@ export const DataSidebar = memo(function DataSidebar({
     return [...user, ...system]
   }, [collectionPath, tables, title])
   const { user: userTables, system: systemTables } = useMemo(() => sortDataCollections(listedTables), [listedTables])
-  const [openTables, setOpenTables] = useState<Record<string, boolean>>(() => ({ [collectionPath]: true }))
+  const [openTables, setOpenTables] = useState<Record<string, boolean>>(() => ({
+    [`personal:${collectionPath}`]: true,
+    [`workspace:${collectionPath}`]: true,
+  }))
   useSyncExternalStore(subscribeStarredViews, getStarredViewsVersion, () => 0)
   useSyncExternalStore(subscribeStarredRecords, getStarredRecordsVersion, () => 0)
   const starredViews = getStarredViews()
@@ -513,14 +518,19 @@ export const DataSidebar = memo(function DataSidebar({
     }
   })
   const [userOpen, setUserOpen] = useState(true)
+  const [workspaceOpen, setWorkspaceOpen] = useState(true)
   const [systemOpen, setSystemOpen] = useState(false)
+  const [scopeExpandedViewKeys, setScopeExpandedViewKeys] = useState<Record<DataScope, string | null>>({
+    personal: null,
+    workspace: null,
+  })
   const [expandedViewKeyLocal, setExpandedViewKeyLocal] = useState<string | null>(null)
   const expandedViewKey = expandedViewKeyProp !== undefined ? expandedViewKeyProp : expandedViewKeyLocal
   const setExpandedViewKey = onExpandedViewKeyChange ?? setExpandedViewKeyLocal
   usePreviewTotalsVersion()
 
   function viewsFor(path: string) {
-    const listed = path === collectionPath ? views : loadViews(path)
+    const listed = loadViews(path)
     return viewsForRegisteredCollection(path, tables, listed).map((view) => withViewDisplay(path, view))
   }
 
@@ -569,20 +579,27 @@ export const DataSidebar = memo(function DataSidebar({
     }
     if (userOpen) {
       for (const table of userTables) {
-        if (openTables[table.path]) {
-          for (const view of viewsFor(table.path)) jobs.push({ path: table.path, view })
+        if (openTables[`personal:${table.path}`]) {
+          for (const view of viewsForScope(viewsFor(table.path), 'personal')) jobs.push({ path: table.path, view })
+        }
+      }
+    }
+    if (workspaceOpen) {
+      for (const table of userTables) {
+        if (openTables[`workspace:${table.path}`]) {
+          for (const view of viewsForScope(viewsFor(table.path), 'workspace')) jobs.push({ path: table.path, view })
         }
       }
     }
     if (systemOpen) {
       for (const table of systemTables) {
-        if (openTables[table.path]) {
+        if (openTables[`system:${table.path}`]) {
           for (const view of viewsFor(table.path)) jobs.push({ path: table.path, view })
         }
       }
     }
     return jobs
-  }, [userOpen, systemOpen, favOpen, userTables, systemTables, listedTables, openTables, starredRows, tables, views, collectionPath])
+  }, [userOpen, workspaceOpen, systemOpen, favOpen, userTables, systemTables, listedTables, openTables, starredRows, tables, views, collectionPath])
 
   const countJobKey = countJobs.map((job) => viewTotalKey(job.path, job.view)).join('|')
   useEffect(() => {
@@ -674,7 +691,14 @@ export const DataSidebar = memo(function DataSidebar({
     onOpenTable?.(path, viewId)
   }
 
-  function toggleViewPreview(key: string) {
+  function toggleViewPreview(key: string, scope?: DataScope) {
+    if (scope) {
+      setScopeExpandedViewKeys((prev) => ({
+        ...prev,
+        [scope]: toggleExpandedViewKey(prev[scope], key),
+      }))
+      return
+    }
     const next = toggleExpandedViewKey(expandedViewKey, key)
     if (onExpandedViewKeyChange) onExpandedViewKeyChange(next)
     else setExpandedViewKeyLocal(next)
@@ -684,14 +708,15 @@ export const DataSidebar = memo(function DataSidebar({
     onOpenRecord?.(path, view, recordId, row)
   }
 
-  function renderTableRows(rows: CollectionInfo[]) {
+  function renderTableRows(rows: CollectionInfo[], scope?: DataScope) {
     return rows.map((table) => {
       const name = table.view?.title ?? table.label
-      const open = openTables[table.path] ?? false
-      const listed = viewsFor(table.path)
+      const tableStateKey = `${scope ?? 'system'}:${table.path}`
+      const open = openTables[tableStateKey] ?? false
+      const listed = scope ? viewsForScope(viewsFor(table.path), scope) : viewsFor(table.path)
       const system = isSystemCollection(table.path)
       return (
-        <div key={table.path} className="flex min-w-0 flex-col gap-px" data-collection-kind={system ? 'system' : 'user'}>
+        <div key={`${scope ?? 'system'}:${table.path}`} className="flex min-w-0 flex-col gap-px" data-collection-kind={system ? 'system' : scope ?? 'personal'}>
           <div className="sidebar-group-head">
             <div
               className="flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md text-left text-[14px] font-medium tracking-normal text-inherit"
@@ -704,7 +729,7 @@ export const DataSidebar = memo(function DataSidebar({
                 className="grid size-6 shrink-0 place-items-center border-0 bg-transparent p-0 text-inherit"
                 title={open ? '收起视图' : '展开视图'}
                 aria-label={open ? '收起视图' : '展开视图'}
-                onClick={() => setOpenTables((prev) => ({ ...prev, [table.path]: !open }))}
+                onClick={() => setOpenTables((prev) => ({ ...prev, [tableStateKey]: !open }))}
               >
                 <span className="sidebar-rail-icon sidebar-group-fold" aria-hidden>
                   <span className="sidebar-group-fold-face">
@@ -722,7 +747,10 @@ export const DataSidebar = memo(function DataSidebar({
               <button
                 type="button"
                 className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-left font-medium text-inherit outline-none hover:text-(--dsw-sidebar-fg-active) focus-visible:ring-1 focus-visible:ring-(--dsw-border)"
-                onClick={() => onOpenTable?.(table.path, builtinAllViewId(table.path))}
+                onClick={() => onOpenTable?.(
+                  table.path,
+                  scope ? builtinScopeViewId(scope, builtinAllViewId(table.path)) : builtinAllViewId(table.path),
+                )}
               >
                 {name}
               </button>
@@ -736,8 +764,8 @@ export const DataSidebar = memo(function DataSidebar({
                 data-testid={`sidebar-add-view-${table.path}`}
                 onClick={(event) => {
                   event.stopPropagation()
-                  setOpenTables((prev) => ({ ...prev, [table.path]: true }))
-                  onAddView(table.path)
+                  setOpenTables((prev) => ({ ...prev, [tableStateKey]: true }))
+                  onAddView(table.path, scope)
                 }}
               >
                 <PlusIcon className="size-4 shrink-0" />
@@ -747,8 +775,8 @@ export const DataSidebar = memo(function DataSidebar({
             {listed.map((view) => {
               const starred = isViewStarred(starredViews, table.path, view.id)
               const active = table.path === collectionPath && view.id === activeViewId
-              const previewKey = `${table.path}:${view.id}`
-              const expanded = expandedViewKey === previewKey
+              const previewKey = `${scope ?? 'system'}:${table.path}:${view.id}`
+              const expanded = scope ? scopeExpandedViewKeys[scope] === previewKey : expandedViewKey === previewKey
               return (
                 <div key={view.id} className="min-w-0">
                   <div
@@ -761,7 +789,7 @@ export const DataSidebar = memo(function DataSidebar({
                         className="grid size-6 shrink-0 place-items-center border-0 bg-transparent p-0 text-inherit"
                         title={expanded ? '收起记录' : '展开记录'}
                         aria-expanded={expanded}
-                        onClick={() => toggleViewPreview(previewKey)}
+                        onClick={() => toggleViewPreview(previewKey, scope)}
                       >
                         <span className="sidebar-rail-icon sidebar-group-fold">
                           <span className="sidebar-group-fold-face">
@@ -865,7 +893,7 @@ export const DataSidebar = memo(function DataSidebar({
                     }
                   }}
                 >
-                  <span className="min-w-0 flex-1 truncate tracking-normal">分享</span>
+                  <span className="min-w-0 flex-1 truncate tracking-normal">分享数据</span>
                 </button>
               </div>
               <ChatCount count={shareCount} />
@@ -1167,18 +1195,51 @@ export const DataSidebar = memo(function DataSidebar({
                 <button
                   type="button"
                   className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
-                  aria-expanded={userOpen}
-                  onClick={() => setUserOpen((prev) => !prev)}
+                  aria-expanded={workspaceOpen}
+                  title="打开空间数据概览"
+                  data-testid="sidebar-workspace-home"
+                  onClick={() => {
+                    setWorkspaceOpen((prev) => !prev)
+                    onOpenScopeHome?.('workspace')
+                  }}
                 >
-                  <span className="min-w-0 flex-1 truncate tracking-normal">用户数据</span>
+                  <span className="min-w-0 flex-1 truncate tracking-normal">空间数据</span>
+                </button>
+              </div>
+              <ChatCount count={userTables.length} />
+            </div>
+            <SidebarFold open={workspaceOpen}>
+              <div className="flex min-w-0 flex-col gap-px" data-testid="sidebar-workspace-collections">
+                {userTables.length ? renderTableRows(userTables, 'workspace') : (
+                  <div className="px-1 py-1 text-[12px] text-(--dsw-label-3)">还没有空间数据表</div>
+                )}
+              </div>
+            </SidebarFold>
+          </section>
+
+          <section className="min-w-0">
+            <div className="sidebar-section-head min-w-0">
+              <div className="flex min-h-8 min-w-0 flex-1 items-center">
+                <button
+                  type="button"
+                  className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
+                  aria-expanded={userOpen}
+                  title="打开私人数据概览"
+                  data-testid="sidebar-personal-home"
+                  onClick={() => {
+                    setUserOpen((prev) => !prev)
+                    onOpenScopeHome?.('personal')
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate tracking-normal">私人数据</span>
                 </button>
               </div>
               <ChatCount count={userTables.length} />
             </div>
             <SidebarFold open={userOpen}>
               <div className="flex min-w-0 flex-col gap-px" data-testid="sidebar-user-collections">
-                {userTables.length ? renderTableRows(userTables) : (
-                  <div className="px-1 py-1 text-[12px] text-(--dsw-label-3)">还没有可改的表</div>
+                {userTables.length ? renderTableRows(userTables, 'personal') : (
+                  <div className="px-1 py-1 text-[12px] text-(--dsw-label-3)">还没有私人数据表</div>
                 )}
               </div>
             </SidebarFold>

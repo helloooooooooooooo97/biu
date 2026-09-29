@@ -2,6 +2,7 @@ import { Service, type Context } from 'cordis'
 import type { AssistantReply, ChatOptions, LlmClient, LlmConfig, LlmMessage, LlmUsage } from '@biu/host-llm'
 import { runWithSession } from '@biu/host-sessions/scope'
 import { applyContextBudget, liftToolImages } from '@biu/host-sessions'
+import { autoCompactPostStep, contextWindowTokens } from './auto-compact.ts'
 import { runWithToolPolicy, runWithToolProgress, type AgentToolMode } from '@biu/host-tools'
 
 /** 工具结果写入事件日志( tool/result )时统一上限字符数；超长裁剪，避免上下文被单次工具输出撑爆。 */
@@ -30,8 +31,8 @@ async function mapConcurrent<T, R>(items: readonly T[], limit: number, run: (ite
   return results
 }
 
-export type { AgentTurn, ClaimedInput, PreStepReq, AgentRunner } from '@biu/type-agent-loop'
-import type { AgentTurn, ClaimedInput, AgentRunner, PreStepReq } from '@biu/type-agent-loop'
+export type { AgentTurn, ClaimedInput, PreStepReq, PostStepReq, AgentRunner } from '@biu/type-agent-loop'
+import type { AgentTurn, ClaimedInput, AgentRunner, PreStepReq, PostStepReq } from '@biu/type-agent-loop'
 
 export type AgentLoopFactory = (config: LlmConfig, sessionId: string, signal: AbortSignal) => AgentRunner
 
@@ -74,8 +75,36 @@ export class AgentLoop implements AgentRunner {
     )
   }
 
+  private throwIfAborted() {
+    if (this.signal.aborted) throw new Error('cancelled')
+  }
+
+  /** 落 assistant/message 前走 agent/post-step。钩子只能往 text 上追加。 */
+  private async applyPostStep(
+    turn: number,
+    step: number,
+    text: string,
+    inputTokens: number | undefined,
+    toolCalls: PostStepReq['toolCalls'],
+  ): Promise<string> {
+    const config = (await this.ctx.sessions.get(this.sessionId))?.config
+    const chat = this.ctx.get('chat') as { contextWindowFor?: (id: string) => string } | undefined
+    const req: PostStepReq = {
+      sessionId: this.sessionId,
+      turn,
+      step,
+      text,
+      toolCalls,
+      contextWindowTokens: contextWindowTokens(chat?.contextWindowFor?.(this.sessionId)),
+      ...(inputTokens != null ? { inputTokens } : {}),
+      ...(config ? { config } : {}),
+    }
+    return this.ctx.waterfall('agent/post-step', req, () => req).text
+  }
+
   private async runInSession(claimed: ClaimedInput[]): Promise<AgentTurn> {
     const session = this.ctx.sessions
+    this.throwIfAborted()
     // turn = 已有 turn/start 数 + 1，即「回合」序号（每次用户输入=一个回合）。
     // 不用 deriveMessages 的 user 数：会受上下文压缩影响而回跳；也不用 user/message 数：
     // 一个回合可能 append 多条 user/message（多段输入/派工），不等价于回合数。
@@ -98,6 +127,10 @@ export class AgentLoop implements AgentRunner {
     }
 
     for (const item of req.messages) {
+      if (this.signal.aborted) {
+        await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
+        throw new Error('cancelled')
+      }
       await session.append(this.sessionId, {
         type: 'user/message',
         text: item.text,
@@ -107,6 +140,10 @@ export class AgentLoop implements AgentRunner {
       })
     }
 
+    if (this.signal.aborted) {
+      await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
+      throw new Error('cancelled')
+    }
     // 分段 prompt 只在 turn 开头写入一次，避免每 step 污染权威日志；derive 取最后一条 system/prompt。
     const live = [...claimed].reverse().find((item) => item.liveContext)?.liveContext
     await session.append(this.sessionId, { type: 'system/prompt', text: this.ctx.systemPrompt.assemble(live) })
@@ -192,10 +229,22 @@ export class AgentLoop implements AgentRunner {
       }
       this.ctx.emit('agent/status', { sessionId: this.sessionId, status: 'running', step })
       await session.append(this.sessionId, { type: 'step/start', turn, step })
+      if (this.signal.aborted) {
+        await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
+        throw new Error('cancelled')
+      }
       // 让 step/start 先从 WS 出去，再去做可能很重的 derive / 等首 token
       await new Promise<void>((resolve) => setImmediate(resolve))
+      if (this.signal.aborted) {
+        await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
+        throw new Error('cancelled')
+      }
 
       const rawMessages = await liftToolImages(session.deriveMessages(this.sessionId), this.sessionId)
+      if (this.signal.aborted) {
+        await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
+        throw new Error('cancelled')
+      }
       const inputComp = session.statInputComposition(this.sessionId)
       const attachUsage = (usage?: LlmUsage) =>
         usage !== undefined
@@ -238,8 +287,8 @@ export class AgentLoop implements AgentRunner {
       }
 
       if (!reply.toolCalls.length) {
-        final = reply.content?.trim() || '（空回复）'
         const usage = attachUsage(reply.usage)
+        final = await this.applyPostStep(turn, step, reply.content?.trim() || '（空回复）', usage?.inputTokens, [])
         await session.append(this.sessionId, {
           type: 'assistant/message',
           text: final,
@@ -252,9 +301,10 @@ export class AgentLoop implements AgentRunner {
       }
 
       const usage = attachUsage(reply.usage)
+      const text = await this.applyPostStep(turn, step, reply.content ?? '', usage?.inputTokens, reply.toolCalls)
       await session.append(this.sessionId, {
         type: 'assistant/message',
-        text: reply.content ?? '',
+        text,
         tool_calls: reply.toolCalls,
         ...(usage ? { usage } : {}),
       })
@@ -412,4 +462,5 @@ export const inject = ['llm', 'tools', 'sessions', 'systemPrompt']
 
 export function apply(ctx: Context) {
   new AgentLoopService(ctx)
+  ctx.on('agent/post-step', (req, next) => autoCompactPostStep(next()))
 }
