@@ -1136,6 +1136,22 @@ export class CollabStore {
       .filter((pluginId) => this.canAccessPlugin(accountId, workspaceId, pluginId))
   }
 
+  ensurePluginOwnerAssignments(pluginId: string, now = Date.now()) {
+    const existing = this.db
+      .prepare('SELECT 1 AS ok FROM plugin_assignments WHERE plugin_id = ? LIMIT 1')
+      .get(pluginId)
+    if (existing) return 0
+    const inserted = this.db
+      .prepare(
+        `INSERT OR IGNORE INTO plugin_assignments
+          (workspace_id, plugin_id, plugin_version, subject_type, subject_id, created_by, created_at)
+         SELECT w.id, ?, '', 'account', w.owner_id, w.owner_id, ?
+         FROM workspaces w`,
+      )
+      .run(pluginId, now)
+    return Number(inserted.changes)
+  }
+
   listPluginAssignments(actorId: string, workspaceId: string, pluginId = '') {
     this.requireMember(actorId, workspaceId)
     const role = this.workspaceRole(actorId, workspaceId)
@@ -1242,6 +1258,74 @@ export class CollabStore {
         const value = row as Record<string, unknown>
         return { ...value, detail: JSON.parse(String(value.detail_json || '{}')) }
       })
+  }
+
+  recordPluginPackage(
+    actorId: string,
+    input: {
+      id: string
+      version: string
+      packageHash: string
+      packagePath: string
+      sourceKind: string
+      trustState: string
+      tenantMode: string
+      hasWeb: boolean
+      hasHost: boolean
+      manifest: unknown
+    },
+    now = Date.now(),
+  ) {
+    this.requireInstancePermission(actorId, 'plugin.packages.install')
+    this.db
+      .prepare(
+        `INSERT INTO plugin_packages
+          (id, version, package_hash, package_path, source_kind, trust_state, tenant_mode,
+           has_web, has_host, manifest_json, installed_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id, version) DO UPDATE SET
+           package_hash = excluded.package_hash,
+           package_path = excluded.package_path,
+           trust_state = excluded.trust_state,
+           tenant_mode = excluded.tenant_mode,
+           has_web = excluded.has_web,
+           has_host = excluded.has_host,
+           manifest_json = excluded.manifest_json,
+           installed_by = excluded.installed_by,
+           updated_at = excluded.updated_at`,
+      )
+      .run(
+        input.id,
+        input.version,
+        input.packageHash,
+        input.packagePath,
+        input.sourceKind,
+        input.trustState,
+        input.tenantMode,
+        input.hasWeb ? 1 : 0,
+        input.hasHost ? 1 : 0,
+        JSON.stringify(input.manifest ?? {}),
+        actorId,
+        now,
+        now,
+      )
+    this.auditPlugin(actorId, '', input.id, 'package.install', { version: input.version }, now)
+  }
+
+  removePluginPackage(actorId: string, pluginId: string, now = Date.now()) {
+    this.requireInstancePermission(actorId, 'plugin.packages.uninstall')
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      this.db.prepare('DELETE FROM plugin_assignments WHERE plugin_id = ?').run(pluginId)
+      this.db.prepare('DELETE FROM plugin_workspace_config WHERE plugin_id = ?').run(pluginId)
+      this.db.prepare('DELETE FROM plugin_account_config WHERE plugin_id = ?').run(pluginId)
+      this.db.prepare('DELETE FROM plugin_packages WHERE id = ?').run(pluginId)
+      this.auditPlugin(actorId, '', pluginId, 'package.uninstall', {}, now)
+      this.db.exec('COMMIT')
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
   }
 
   claim(actorId: string, workspaceId: string, collection: string, recordId: string, now = Date.now()): RecordHead {

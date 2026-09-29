@@ -23,6 +23,7 @@ function omitEmpty(row: DbRecord): DbRecord {
 
 function asInstalledRecord(row: StoreListing, store: PluginStoreService): DbRecord {
   const shell = row.shell
+  const canReadDrafts = store.hasInstancePermission('plugin.drafts.read-all')
   return omitEmpty({
     id: row.id,
     name: row.name,
@@ -32,7 +33,7 @@ function asInstalledRecord(row: StoreListing, store: PluginStoreService): DbReco
     author: row.author,
     authorUrl: row.authorUrl,
     installed: true,
-    pluginPath: store.pluginPath(row.id),
+    ...(canReadDrafts ? { pluginPath: store.pluginPath(row.id) } : {}),
     enabled: row.enabled,
     running: row.running,
     bytes: row.bytes,
@@ -56,6 +57,7 @@ function asInstalledRecord(row: StoreListing, store: PluginStoreService): DbReco
 }
 
 function asSandboxRecord(row: SandboxListing, store: PluginStoreService): DbRecord {
+  const canReadDrafts = store.hasInstancePermission('plugin.drafts.read-all')
   return omitEmpty({
     id: row.id,
     name: row.name,
@@ -65,7 +67,7 @@ function asSandboxRecord(row: SandboxListing, store: PluginStoreService): DbReco
     author: row.author,
     authorUrl: row.authorUrl,
     sandbox: true,
-    sandboxPath: store.sandboxPath(row.id),
+    ...(canReadDrafts ? { sandboxPath: store.sandboxPath(row.id) } : {}),
     hasHost: row.hasHost,
     hasWeb: row.hasWeb,
     headless: row.headless === true,
@@ -80,10 +82,11 @@ function mergeLifecycle(
   store: PluginStoreService,
 ): DbRecord {
   if (installed && sandbox) {
+    const canReadDrafts = store.hasInstancePermission('plugin.drafts.read-all')
     return omitEmpty({
       ...asInstalledRecord(installed, store),
       sandbox: true,
-      sandboxPath: store.sandboxPath(sandbox.id),
+      ...(canReadDrafts ? { sandboxPath: store.sandboxPath(sandbox.id) } : {}),
       updatedAt: Math.max(installed.updatedAt, sandbox.updatedAt),
     })
   }

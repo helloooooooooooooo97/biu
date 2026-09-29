@@ -9,6 +9,7 @@ import { HUB_CHANGE } from '@biu/type-http'
 import type { Method, RouteContext, RouteHandler } from '@biu/type-http'
 import {
   currentAccountId,
+  currentPluginId,
   currentRequestWorkspaceId,
   profilePath,
   runWithAccount,
@@ -22,6 +23,7 @@ interface Route {
   keys: string[]
   regexp: RegExp
   handler: RouteHandler
+  pluginId?: string
 }
 
 const MIME: Record<string, string> = {
@@ -273,9 +275,10 @@ export class HttpService extends Service {
   }
 
   route(method: Method, pattern: string, handler: RouteHandler) {
+    const pluginId = currentPluginId()
     return this.ctx.effect(() => {
       const { keys, regexp } = compile(pattern)
-      const item: Route = { method, pattern, keys, regexp, handler }
+      const item: Route = { method, pattern, keys, regexp, handler, ...(pluginId ? { pluginId } : {}) }
       this.routes.push(item)
       this.ctx.emit(HUB_CHANGE)
       return () => {
@@ -288,6 +291,7 @@ export class HttpService extends Service {
 
   /** 在已有 HTTP 服务上再挂一条 WebSocket 路径（和 /ws 共用一条 upgrade 分发，互不 abort）。 */
   ws(path: string, handler: (socket: WebSocket, request: IncomingMessage) => void) {
+    const pluginId = currentPluginId()
     return this.ctx.effect(() => {
       const wss = new WebSocketServer({ noServer: true })
       wss.on('connection', (socket, request) => {
@@ -295,6 +299,15 @@ export class HttpService extends Service {
           const auth = this.authenticateSocket(request)
           if (auth.error) {
             socket.close(auth.error, auth.error === 4403 ? 'workspace' : 'tenant')
+            return
+          }
+          const store = (
+            this.ctx.get('account') as {
+              store?: { canAccessPlugin?(accountId: string, workspaceId: string, pluginId: string): boolean }
+            } | undefined
+          )?.store
+          if (pluginId && !store?.canAccessPlugin?.(auth.accountId, auth.workspaceId, pluginId)) {
+            socket.close(4403, 'plugin access')
             return
           }
         }
@@ -538,6 +551,17 @@ export class HttpService extends Service {
         if (accountId && requestedWorkspace && accountStore?.isMember && !accountStore.isMember(accountId, requestedWorkspace)) {
           context.send(403, { error: '不在这个空间' })
           return
+        }
+        if (process.env.BIU_ONLINE === '1' && match.pluginId) {
+          const allowed = (
+            this.ctx.get('account') as {
+              store?: { canAccessPlugin?(accountId: string, workspaceId: string, pluginId: string): boolean }
+            } | undefined
+          )?.store?.canAccessPlugin?.(accountId, requestedWorkspace, match.pluginId)
+          if (!allowed) {
+            context.send(404, { error: 'not found' })
+            return
+          }
         }
         await runWithAccount(accountId, () => runWithRequestWorkspace(requestedWorkspace, () => match.handler(context)))
       } catch (error) {

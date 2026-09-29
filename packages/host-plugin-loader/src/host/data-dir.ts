@@ -143,6 +143,7 @@ export function runWithWorkspace<T>(scope: WorkspaceScope, fn: () => T): T {
 
 const accountScope = new AsyncLocalStorage<string>()
 const requestWorkspaceScope = new AsyncLocalStorage<string>()
+const pluginScope = new AsyncLocalStorage<string>()
 
 export type McpTenant = {
   credentialId: string
@@ -169,6 +170,16 @@ export function currentAccountId() {
 /** 浏览器这次请求显式选择的空间。没有请求头时为空。 */
 export function currentRequestWorkspaceId() {
   return requestWorkspaceScope.getStore() || ''
+}
+
+/** Store 插件 apply/执行期间的包 ID，供 HTTP、WS 和工具注册边界捕获。 */
+export function currentPluginId() {
+  return pluginScope.getStore() || ''
+}
+
+export function runWithPlugin<T>(pluginId: string, fn: () => T): T {
+  if (!pluginId) return fn()
+  return pluginScope.run(pluginId, fn)
 }
 
 /** 这次 HTTP 请求是哪个登录账号。没有 token 时是空字符串。 */

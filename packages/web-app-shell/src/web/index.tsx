@@ -44,7 +44,7 @@ import { SessionInspector } from './session-inspector.tsx'
 import { SessionConfigDialog } from '@biu/web-session-view/dialog'
 import { FolderGlyph } from '@biu/web-session-view/folder-glyph'
 import { OverlayChatWindow } from './overlay-window.tsx'
-import { AuthGate, ShellSettingsAbout, ShellSettingsAccount, ShellSettingsAppearance, ShellSettingsMembers, ShellSettingsMcp, ShellSettingsShortcuts, ShellSettingsUpdate, ShellSettingsWorkspace } from './shell-chrome.tsx'
+import { AuthGate, ShellSettingsAbout, ShellSettingsAccount, ShellSettingsAppearance, ShellSettingsMembers, ShellSettingsMcp, ShellSettingsPlugins, ShellSettingsShortcuts, ShellSettingsUpdate, ShellSettingsWorkspace } from './shell-chrome.tsx'
 import { hydrateWorkspaceProfile } from '@biu/public-ui'
 import { hydrateTheme } from './theme.ts'
 import { hydratePagePrefs } from '@biu/core-file-system/page-width'
@@ -904,13 +904,7 @@ function Shell(props: SlotProps) {
                   {settingsTab === 'workspace' ? <ShellSettingsWorkspace /> : null}
                   {settingsTab === 'members' ? <ShellSettingsMembers /> : null}
                   {settingsTab === 'appearance' ? <ShellSettingsAppearance /> : null}
-                  {settingsTab === 'plugins' ? (
-                    <section>
-                      <h3 className="settings-pane-title">插件</h3>
-                      <p className="settings-muted settings-pane-lead">安装、开关和管理页面块。</p>
-                      {props.renderSlot('sidebar')}
-                    </section>
-                  ) : null}
+                  {settingsTab === 'plugins' ? <ShellSettingsPlugins /> : null}
                   {settingsTab === 'mcp' ? <ShellSettingsMcp onLeave={() => setSettingsOpen(false)} /> : null}
                   {settingsTab === 'shortcuts' ? <ShellSettingsShortcuts /> : null}
                   {settingsTab === 'routes' ? (
