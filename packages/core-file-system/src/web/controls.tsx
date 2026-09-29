@@ -15,7 +15,7 @@ export function TokenMultiSelect({
   autoOpen = false,
 }: {
   values: string[]
-  options: string[]
+  options: Array<string | { value: string; label: string }>
   onChange: (next: string[]) => void
   allowCreate?: boolean
   multiple?: boolean
@@ -24,7 +24,7 @@ export function TokenMultiSelect({
   return (
     <CellMulti
       values={values}
-      options={options.map((item) => ({ value: item, label: item }))}
+      options={options.map((item) => typeof item === 'string' ? { value: item, label: item } : item)}
       onChange={onChange}
       allowCreate={allowCreate}
       multiple={multiple}

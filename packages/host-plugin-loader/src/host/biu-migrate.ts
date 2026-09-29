@@ -400,6 +400,11 @@ export const BIU_MIGRATIONS: Migration[] = [
   { version: 28, module: 'host-account', name: 'account.viewer-role', up: (db) => {
     db.exec(`UPDATE workspace_members SET role = 'member' WHERE role NOT IN ('owner', 'admin', 'member', 'viewer')`)
   } },
+  { version: 29, module: 'host-account', name: 'account.external-members', up: (db) => {
+    if (!tableColumnNames(db, 'workspace_members').includes('member_kind')) {
+      db.exec(`ALTER TABLE workspace_members ADD COLUMN member_kind TEXT NOT NULL DEFAULT 'member'`)
+    }
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

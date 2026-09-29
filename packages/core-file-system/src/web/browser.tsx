@@ -57,6 +57,7 @@ import {
   fieldEntries,
   flattenTree,
   formatField,
+  fieldValueOptions,
   groupField,
   groupRecords,
   groupableFields,
@@ -3120,7 +3121,7 @@ export function CollectionBrowser({
                             value: option,
                             label: loadFacets().find((tag) => tag.id === option)?.label ?? option,
                           }))
-                        : uniqueValues(items, item.key, item.field).map((option) => ({ value: option, label: option }))
+                        : fieldValueOptions(items, item.key, item.field)
                   }
                   onChange={setFilterTree}
                 />

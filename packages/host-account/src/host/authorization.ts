@@ -35,7 +35,7 @@ export type Decision =
   | {
       allowed: true
       effectiveRole: ResourceRole
-      source: 'ownership' | 'direct-grant' | 'group-grant' | 'workspace-default' | 'inherited' | 'legacy'
+      source: 'ownership' | 'direct-grant' | 'group-grant' | 'view-grant' | 'workspace-default' | 'inherited' | 'legacy'
     }
   | {
       allowed: false
@@ -96,6 +96,8 @@ function requiredRole(action: Action): ResourceRole {
 }
 
 export class AuthorizationService {
+  private memberViewMatcher?: (workspaceId: string, viewId: string, accountId: string) => boolean
+
   constructor(
     private db: DatabaseSync,
     private activeWorkspaceFor: (accountId: string) => string | null,
@@ -108,11 +110,16 @@ export class AuthorizationService {
     return workspaceId ? { type: 'account', accountId, workspaceId } : null
   }
 
+  setMemberViewMatcher(matcher: (workspaceId: string, viewId: string, accountId: string) => boolean) {
+    this.memberViewMatcher = matcher
+  }
+
   authorize(actor: Actor | null, action: Action, resource: ResourceRef): Decision {
     if (!actor || actor.type === 'public-link') return { allowed: false, reason: 'UNAUTHENTICATED' }
     if (actor.workspaceId !== resource.workspaceId) return { allowed: false, reason: 'WRONG_WORKSPACE' }
     const membership = this.membership(actor.accountId, resource.workspaceId)
     if (!membership) return { allowed: false, reason: 'NOT_A_MEMBER' }
+    const memberKind = this.membershipKind(actor.accountId, resource.workspaceId)
 
     if (resource.type === 'workspace') {
       const allowed =
@@ -140,7 +147,7 @@ export class AuthorizationService {
       }
       const effectiveRole: ResourceRole = membership === 'owner' || membership === 'admin'
         ? 'manager'
-        : membership === 'viewer'
+        : membership === 'viewer' || memberKind === 'external'
           ? 'viewer'
           : 'editor'
       return ROLE_RANK[effectiveRole] >= ROLE_RANK[requiredRole(action)]
@@ -266,7 +273,7 @@ export class AuthorizationService {
   grant(
     actorId: string,
     resource: Extract<ResourceRef, { type: 'record' }>,
-    subjectType: 'account' | 'group' | 'workspace_role',
+    subjectType: 'account' | 'group' | 'workspace_role' | 'member_view',
     subjectId: string,
     role: ResourceRole,
     now = Date.now(),
@@ -382,6 +389,7 @@ export class AuthorizationService {
 
     if (policy.access_mode === 'private' || policy.access_mode === 'restricted') return null
     if (policy.access_mode === 'members') {
+      if (this.membershipKind(accountId, resource.workspaceId) === 'external') return null
       return { effectiveRole: policy.member_default_role, source: 'workspace-default' }
     }
     if (policy.access_mode === 'inherit' && policy.parent_record_id) {
@@ -405,7 +413,7 @@ export class AuthorizationService {
   private directRole(accountId: string, resource: Extract<ResourceRef, { type: 'record' }>) {
     const rows = this.db
       .prepare(
-        `SELECT g.subject_type, g.role
+        `SELECT g.subject_type, g.subject_id, g.role
          FROM record_grants g
          WHERE g.workspace_id = ? AND g.collection = ? AND g.record_id = ?
            AND (
@@ -420,6 +428,7 @@ export class AuthorizationService {
                    AND wg.workspace_id = g.workspace_id
                )
              )
+             OR g.subject_type = 'member_view'
            )`,
       )
       .all(
@@ -429,14 +438,24 @@ export class AuthorizationService {
         accountId,
         this.membership(accountId, resource.workspaceId) ?? '',
         accountId,
-      ) as Array<{ subject_type: 'account' | 'group' | 'workspace_role'; role: ResourceRole }>
-    const role = maxRole(rows.map((row) => row.role))
+      ) as Array<{
+        subject_type: 'account' | 'group' | 'workspace_role' | 'member_view'
+        subject_id: string
+        role: ResourceRole
+      }>
+    const matched = rows.filter((row) =>
+      row.subject_type !== 'member_view'
+      || Boolean(this.memberViewMatcher?.(resource.workspaceId, row.subject_id, accountId)),
+    )
+    const role = maxRole(matched.map((row) => row.role))
     if (!role) return null
-    const source = rows.some((row) => row.subject_type === 'account' && row.role === role)
+    const source = matched.some((row) => row.subject_type === 'account' && row.role === role)
       ? 'direct-grant'
-      : rows.some((row) => row.subject_type === 'group' && row.role === role)
+      : matched.some((row) => row.subject_type === 'group' && row.role === role)
         ? 'group-grant'
-        : 'workspace-default'
+        : matched.some((row) => row.subject_type === 'member_view' && row.role === role)
+          ? 'view-grant'
+          : 'workspace-default'
     return { effectiveRole: role, source } as const
   }
 
@@ -458,5 +477,12 @@ export class AuthorizationService {
     return row?.role === 'owner' || row?.role === 'admin' || row?.role === 'member' || row?.role === 'viewer'
       ? row.role
       : null
+  }
+
+  private membershipKind(accountId: string, workspaceId: string): 'member' | 'external' {
+    const row = this.db
+      .prepare('SELECT member_kind FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
+      .get(workspaceId, accountId) as { member_kind?: string } | undefined
+    return row?.member_kind === 'external' ? 'external' : 'member'
   }
 }

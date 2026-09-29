@@ -28,6 +28,8 @@ export type FieldSpec = {
   format?: 'datetime' | 'url' | 'image' | 'attachment' | 'file'
   /** select / multi-select 的选项 */
   enum?: string[]
+  /** enum 存储值对应的展示文案；未配置时直接显示存储值。 */
+  enumLabels?: Record<string, string>
   /** 给 Agent / db_stat：这个字段怎么写。不进单元格 UI。 */
   description?: string
   /** action 字段绑定的动作 id，缺省为字段 key */
@@ -386,6 +388,13 @@ export function normalizeSchemaPack(raw: unknown): CollectionSchemaPack | null {
       writable: row.writable !== false,
     }
     if (Array.isArray(row.enum)) field.enum = row.enum.map((option) => String(option)).filter(Boolean)
+    if (row.enumLabels && typeof row.enumLabels === 'object' && !Array.isArray(row.enumLabels)) {
+      field.enumLabels = Object.fromEntries(
+        Object.entries(row.enumLabels as Record<string, unknown>)
+          .map(([value, text]) => [value, String(text ?? '').trim()])
+          .filter(([value, text]) => Boolean(value && text && field.enum?.includes(value))),
+      )
+    }
     fields.push(field)
   }
   return { id, label, fields }

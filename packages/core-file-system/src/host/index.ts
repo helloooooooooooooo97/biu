@@ -291,9 +291,24 @@ function coerceUrl(value: unknown) {
 }
 
 function coerce(field: FieldSpec, value: unknown) {
-  const kind = field.type === 'string[]' ? 'multi-select' : field.format && field.type === 'string' ? field.format : field.type
+  const kind = field.type === 'string[]'
+    ? 'multi-select'
+    : field.type === 'string' && field.enum?.length
+      ? 'select'
+      : field.format && field.type === 'string'
+        ? field.format
+        : field.type
   if (kind === 'boolean') return value === true || value === 'true'
-  if (kind === 'multi-select') return coerceList(value)
+  if (kind === 'multi-select') {
+    const list = coerceList(value)
+    if (field.enum?.length && list.some((item) => !field.enum!.includes(item))) throw new Error('value not in enum')
+    return list
+  }
+  if (kind === 'select') {
+    const selected = String(value ?? '')
+    if (selected && field.enum?.length && !field.enum.includes(selected)) throw new Error('value not in enum')
+    return selected
+  }
   if (kind === 'number' || kind === 'datetime') {
     if (value == null || value === '') return null
     const n = Number(value)
@@ -2071,6 +2086,40 @@ export function apply(ctx: Context) {
   const assets = db.assets
   const savedViews = new SavedViewsStore()
   savedViews.open(process.env.VITEST ? ':memory:' : biuSqlitePath())
+  const account = ctx.get('account') as {
+    authorization?: AuthorizationService
+    store?: {
+      members: (accountId: string, workspaceId: string) => Array<{
+        id: string
+        name: string
+        email: string
+        role: string
+        member_kind: 'member' | 'external'
+        created_at: number
+      }>
+    }
+  } | undefined
+  account?.authorization?.setMemberViewMatcher((workspaceId, viewId, accountId) => {
+    const view = savedViews.viewsFor('/workspace-members').find((item) => item.id === viewId)
+    if (!view || !account.store) return false
+    const member = account.store.members(accountId, workspaceId).find((item) => item.id === accountId)
+    if (!member) return false
+    return matchListFilterRecord(
+      {
+        id: member.id,
+        title: member.name || member.email,
+        name: member.name,
+        email: member.email,
+        role: member.role,
+        membershipKind: member.member_kind,
+        joinedAt: member.created_at,
+      },
+      {
+        ...(view.filters ?? {}),
+        ...(view.filterTree ? { $tree: view.filterTree } : {}),
+      },
+    )
+  })
   const shares = db.shares
   shares.open(process.env.VITEST ? ':memory:' : biuSqlitePath())
   const facets = db.facets

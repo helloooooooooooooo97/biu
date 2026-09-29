@@ -241,3 +241,19 @@ test('a private record stays hidden until the owner shares it with a workspace m
   assert.equal(runWithAccount(bob.id, () => collab.canReadRecord('/pages', 'secret')), true)
   assert.throws(() => runWithAccount(bob.id, () => collab.shareWithEmail(bob.id, '/pages', 'other', 'ada@example.com')), CollabError)
 })
+
+test('sharing with a registered outsider adds an external member limited to explicit grants', () => {
+  const collab = store()
+  const ada = collab.register('', Date.now(), 'secret1', 'external-ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'external-bob@example.com')
+  const workspaceId = collab.enter(ada.id)
+  collab.enter(bob.id)
+  runWithAccount(ada.id, () => collab.attach(workspaceId, '/pages', 'private-external'))
+  runWithAccount(ada.id, () =>
+    collab.shareWithEmail(ada.id, '/pages', 'private-external', bob.email, 'editor'),
+  )
+  const external = collab.members(ada.id, workspaceId).find((row) => row.id === bob.id)
+  assert.equal(external?.member_kind, 'external')
+  collab.setActive(bob.id, workspaceId)
+  assert.equal(runWithAccount(bob.id, () => collab.canReadRecord('/pages', 'private-external')), true)
+})

@@ -67,6 +67,15 @@ test('workspace member directory is readable by members and managed by owners or
   assert.equal(auth.authorize(actor(bob.id), 'resource:delete', member).allowed, true)
 })
 
+test('workspace ownership can be transferred to another member', () => {
+  const { store, ada, bob, workspace } = setup()
+  store.updateMemberRole(ada.id, workspace.id, bob.id, 'owner')
+  const members = store.members(bob.id, workspace.id)
+  assert.equal(members.find((row) => row.id === bob.id)?.role, 'owner')
+  assert.equal(members.find((row) => row.id === ada.id)?.role, 'admin')
+  assert.equal(store.listWorkspaces(bob.id).find((row) => row.id === workspace.id)?.ownerId, bob.id)
+})
+
 test('saved views remain workspace system metadata for all members', () => {
   const { auth, bob, workspace, actor } = setup()
   const view = {
@@ -107,6 +116,19 @@ test('a group grant applies dynamically to its workspace members', () => {
   const decision = auth.authorize(actor(bob.id), 'resource:update', page('roadmap'))
   assert.equal(decision.allowed, true)
   if (decision.allowed) assert.equal(decision.source, 'group-grant')
+})
+
+test('a member-view grant evaluates its audience dynamically', () => {
+  const { auth, ada, bob, cara, actor, page } = setup()
+  auth.attach(actor(ada.id), page('dynamic'), { ownership: 'personal', accessMode: 'private' })
+  let matching = new Set([bob.id])
+  auth.setMemberViewMatcher((_workspaceId, viewId, accountId) => viewId === 'product-view' && matching.has(accountId))
+  auth.grant(ada.id, page('dynamic'), 'member_view', 'product-view', 'viewer')
+  assert.equal(auth.authorize(actor(bob.id), 'resource:read', page('dynamic')).allowed, true)
+  assert.equal(auth.authorize(actor(cara.id), 'resource:read', page('dynamic')).allowed, false)
+  matching = new Set([cara.id])
+  assert.equal(auth.authorize(actor(bob.id), 'resource:read', page('dynamic')).allowed, false)
+  assert.equal(auth.authorize(actor(cara.id), 'resource:read', page('dynamic')).allowed, true)
 })
 
 test('nested pages inherit, while a restricted child cuts inheritance', () => {

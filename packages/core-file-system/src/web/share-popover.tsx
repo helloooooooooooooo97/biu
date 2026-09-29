@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowPathIcon, CheckIcon, LinkIcon, ShareIcon } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
-import { readJson } from './db-client.ts'
+import { listCollection, readJson } from './db-client.ts'
 import { mintSharePin, shareClipboardText, type ShareResourceStats } from '../share-resources.ts'
 
 export type ShareKind = 'view' | 'record'
@@ -125,7 +125,10 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
   const [people, setPeople] = useState<Array<{ id: string; name: string; email: string; role: string }>>([])
   const [groups, setGroups] = useState<Array<{ id: string; name: string; role: string }>>([])
   const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string }>>([])
+  const [memberViews, setMemberViews] = useState<Array<{ id: string; name: string; role?: string }>>([])
+  const [availableMemberViews, setAvailableMemberViews] = useState<Array<{ id: string; name: string }>>([])
   const [groupId, setGroupId] = useState('')
+  const [memberViewId, setMemberViewId] = useState('')
   const [role, setRole] = useState<'viewer' | 'editor' | 'manager'>('editor')
   const [error, setError] = useState('')
 
@@ -133,11 +136,16 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
     const data = await readJson<{
       people?: Array<{ id: string; name: string; email: string; role: string }>
       groups?: Array<{ id: string; name: string; role: string }>
+      memberViews?: Array<{ id: string; role: string }>
     }>(
       `/api/account/access?collection=${encodeURIComponent(collection)}&recordId=${encodeURIComponent(recordId)}`,
     )
     setPeople(data.people ?? [])
     setGroups(data.groups ?? [])
+    setMemberViews((data.memberViews ?? []).map((item) => ({
+      ...item,
+      name: availableMemberViews.find((view) => view.id === item.id)?.name ?? item.id,
+    })))
   }
 
   useEffect(() => {
@@ -152,9 +160,28 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
         setGroupId((current) => current || rows[0]?.id || '')
       })
       .catch(() => setAvailableGroups([]))
+    void listCollection({
+      path: '/views',
+      limit: 200,
+      filters: { tablePath: '/workspace-members' },
+      columns: ['title', 'tablePath', 'viewId'],
+    })
+      .then((page) => {
+        const rows = page.items.flatMap((row) => {
+          const id = String(row.viewId ?? '').trim()
+          return id ? [{ id, name: String(row.title ?? id) }] : []
+        })
+        setAvailableMemberViews(rows)
+        setMemberViews((current) => current.map((item) => ({
+          ...item,
+          name: rows.find((view) => view.id === item.id)?.name ?? item.name,
+        })))
+        setMemberViewId((current) => current || rows[0]?.id || '')
+      })
+      .catch(() => setAvailableMemberViews([]))
   }, [collection, recordId])
 
-  function grant(input: { email?: string; groupId?: string }) {
+  function grant(input: { email?: string; groupId?: string; memberViewId?: string }) {
     setError('')
     return readJson(`/api/account/access`, {
       method: 'POST',
@@ -183,6 +210,7 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
           <li key={row.id}>{row.name}{row.email ? ` · ${row.email}` : ''} · {roleLabel(row.role)}</li>
         )) : <li>还没有单独授权。新建的文档只有创建者能看，旧文档在授权前工作区成员都能看。</li>}
         {groups.map((row) => <li key={`group:${row.id}`}>{row.name} · 成员组 · {roleLabel(row.role)}</li>)}
+        {memberViews.map((row) => <li key={`view:${row.id}`}>{row.name} · 动态成员视图 · {roleLabel(row.role ?? '')}</li>)}
       </ul>
       <div className="fsdb-share-link-row">
         <input
@@ -215,6 +243,22 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
           </button>
         </div>
       ) : null}
+      {availableMemberViews.length ? (
+        <div className="fsdb-share-link-row" data-testid="fsdb-share-member-view">
+          <select value={memberViewId} aria-label="成员视图" onChange={(event) => setMemberViewId(event.target.value)}>
+            {availableMemberViews.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+          </select>
+          <button
+            type="button"
+            className="fsdb-share-publish"
+            disabled={!memberViewId}
+            onClick={() => void grant({ memberViewId })}
+          >
+            按视图动态授权
+          </button>
+        </div>
+      ) : null}
+      {availableMemberViews.length ? <p>满足该成员视图条件的账号会自动获得权限；视图条件变化会立即生效。</p> : null}
       {error ? <p>{error}</p> : null}
     </form>
   )

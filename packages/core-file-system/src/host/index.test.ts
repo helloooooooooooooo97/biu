@@ -119,6 +119,7 @@ test('root lists registered collections; record read/update follows schema', asy
 
   const written = await db.update('/notes/n1', { status: 'done' })
   assert.equal(written.value.status, 'done')
+  await assert.rejects(() => db.update('/notes/n1', { status: 'invalid' }), /value not in enum/)
   await assert.rejects(() => db.update('/notes/n1', { pinned: true }), /not writable/)
   await assert.rejects(() => db.update('/notes/n1', { nope: 1 }), /unknown field/)
 })

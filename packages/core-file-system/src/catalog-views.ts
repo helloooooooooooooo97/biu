@@ -4,6 +4,7 @@ import { normalizeSavedView, type SavedView } from './web/saved-view.ts'
 
 const ALL_PREFIX = 'builtin-all:'
 const SCOPE_PREFIX = 'builtin-scope:'
+const MEMBER_PREFIX = 'builtin-member:'
 export type DataScope = 'personal' | 'workspace'
 
 export const BUILTIN_VIEW_SORT_FIELD = 'updatedAt'
@@ -66,7 +67,37 @@ export function isBuiltinAllViewForCollection(id: string, collectionPath: string
 }
 
 export function isReadOnlyViewId(id: string) {
-  return isBuiltinAllViewId(id) || isBuiltinCatalogViewId(id) || isBuiltinTagViewId(id) || isBuiltinBlockKindViewId(id) || isBuiltinScopeViewId(id)
+  return isBuiltinAllViewId(id) || isBuiltinCatalogViewId(id) || isBuiltinTagViewId(id) || isBuiltinBlockKindViewId(id) || isBuiltinScopeViewId(id) || isBuiltinMemberViewId(id)
+}
+
+const MEMBER_VIEWS = [
+  { kind: 'member', name: '空间成员' },
+  { kind: 'external', name: '外部成员' },
+  { kind: 'guest', name: '临时访客' },
+] as const
+
+export function isBuiltinMemberViewId(id: string) {
+  return id.startsWith(MEMBER_PREFIX)
+}
+
+export function stubBuiltinMemberView(id: string): SavedView | null {
+  if (!isBuiltinMemberViewId(id)) return null
+  const kind = id.slice(MEMBER_PREFIX.length)
+  const found = MEMBER_VIEWS.find((item) => item.kind === kind)
+  if (!found) return null
+  return normalizeSavedView({
+    id: `${MEMBER_PREFIX}${found.kind}`,
+    name: found.name,
+    mode: 'table',
+    ...builtinViewLayout(),
+    filters: { membershipKind: found.kind },
+    columns: ['title', 'email', 'role', 'joinedAt'],
+    builtin: true,
+  })
+}
+
+export function builtinMemberViews() {
+  return MEMBER_VIEWS.map((item) => stubBuiltinMemberView(`${MEMBER_PREFIX}${item.kind}`)!)
 }
 
 export function builtinScopeViewId(scope: DataScope, viewId: string) {
@@ -130,6 +161,7 @@ export function displayNameForView(viewId: string, table: TableRef, storedName?:
   }
   if (isBuiltinTagViewId(id)) return stubBuiltinTagView(id)?.name || collectionNoun(table)
   if (isBuiltinBlockKindViewId(id)) return stubBuiltinBlockKindView(id)?.name || collectionNoun(table)
+  if (isBuiltinMemberViewId(id)) return stubBuiltinMemberView(id)?.name || collectionNoun(table)
   if (isBuiltinScopeViewId(id)) return stubBuiltinScopeView(id)?.name || collectionNoun(table)
   return collectionNoun(table)
 }
@@ -194,6 +226,9 @@ export function mergeCatalogViews(tables: CollectionInfo[], user: SavedView[]): 
 export function mergeTableViews(table: TableRef | undefined, user: SavedView[]): SavedView[] {
   const extra = userViews(user)
   if (!table?.path || table.path === '/') return extra
+  if (normalizeCollectionPath(table.path) === '/workspace-members') {
+    return [builtinAllView(table), ...builtinMemberViews(), ...extra]
+  }
   return [builtinAllView(table), ...extra]
 }
 
@@ -237,6 +272,7 @@ export function stubBuiltinBlockKindView(id: string): SavedView | null {
 
 export function stubAnyBuiltinView(id: string, listed: SavedView[] = []): SavedView | null {
   return stubBuiltinScopeView(id, listed)
+    ?? stubBuiltinMemberView(id)
     ?? stubBuiltinBlockKindView(id)
     ?? stubBuiltinCatalogView(id)
     ?? stubBuiltinTagView(id)

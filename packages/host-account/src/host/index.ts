@@ -220,8 +220,8 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       const me = actor(route)
       const body = (await route.json()) as { role?: string }
       const role = String(body.role ?? '')
-      if (role !== 'admin' && role !== 'member' && role !== 'viewer') {
-        throw new CollabError('角色只能是 admin、member 或 viewer', 400)
+      if (role !== 'owner' && role !== 'admin' && role !== 'member' && role !== 'viewer') {
+        throw new CollabError('角色只能是 owner、admin、member 或 viewer', 400)
       }
       account.store.updateMemberRole(me.id, route.params.id!, route.params.accountId!, role)
       route.send(200, { members: account.store.members(me.id, route.params.id!) })
@@ -289,6 +289,7 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
         recordId?: string
         email?: string
         groupId?: string
+        memberViewId?: string
         role?: ResourceRole
       }
       const collection = String(body.collection ?? '')
@@ -297,7 +298,9 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
         body.role === 'viewer' || body.role === 'manager' || body.role === 'owner' ? body.role : 'editor'
       route.send(
         200,
-        body.groupId
+        body.memberViewId
+          ? account.store.grantMemberView(me.id, collection, recordId, String(body.memberViewId), role)
+          : body.groupId
           ? account.store.grantGroup(me.id, collection, recordId, String(body.groupId), role)
           : account.store.shareWithEmail(me.id, collection, recordId, String(body.email ?? ''), role),
       )

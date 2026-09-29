@@ -132,7 +132,7 @@ export class CollabStore {
       const taken = this.db.prepare('SELECT id FROM accounts WHERE email = ?').get(normalized) as { id: string } | undefined
       if (taken) throw new CollabError('这个邮箱已经注册过', 409)
     }
-    const trimmed = name.trim() || (normalized ? normalized.split('@')[0]! : '')
+    const trimmed = name.trim() || normalized
     if (!trimmed) throw new CollabError('名字不能为空', 400)
     const account = {
       id: id('acc'),
@@ -238,13 +238,22 @@ export class CollabStore {
     this.requireMember(actorId, workspaceId)
     return this.db
       .prepare(
-        `SELECT a.id, COALESCE(NULLIF(m.display_name, ''), '未设置') AS name, COALESCE(a.email, '') AS email, m.role, m.created_at
+        `SELECT a.id,
+                COALESCE(NULLIF(m.display_name, ''), NULLIF(a.name, ''), NULLIF(a.email, ''), '未设置') AS name,
+                COALESCE(a.email, '') AS email, m.role, m.member_kind, m.created_at
          FROM workspace_members m
          JOIN accounts a ON a.id = m.account_id
          WHERE m.workspace_id = ?
          ORDER BY m.created_at`,
       )
-      .all(workspaceId) as Array<{ id: string; name: string; email: string; role: string; created_at: number }>
+      .all(workspaceId) as Array<{
+        id: string
+        name: string
+        email: string
+        role: string
+        member_kind: 'member' | 'external'
+        created_at: number
+      }>
   }
 
   currentMembers() {
@@ -283,13 +292,30 @@ export class CollabStore {
     return { id: accountId }
   }
 
-  updateMemberRole(actorId: string, workspaceId: string, accountId: string, role: 'admin' | 'member' | 'viewer') {
+  updateMemberRole(actorId: string, workspaceId: string, accountId: string, role: WorkspaceRole) {
     this.requireRole(actorId, workspaceId, 'owner')
     const target = this.db
       .prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
       .get(workspaceId, accountId) as { role: string } | undefined
     if (!target) throw new CollabError('成员不存在', 404)
-    if (target.role === 'owner') throw new CollabError('不能修改工作区所有者角色', 400)
+    if (target.role === 'owner' && role !== 'owner') throw new CollabError('请先把所有者角色转交给其他成员', 400)
+    if (role === 'owner' && accountId !== actorId) {
+      this.db.exec('BEGIN IMMEDIATE')
+      try {
+        this.db
+          .prepare(`UPDATE workspace_members SET role = 'admin' WHERE workspace_id = ? AND account_id = ?`)
+          .run(workspaceId, actorId)
+        this.db
+          .prepare(`UPDATE workspace_members SET role = 'owner' WHERE workspace_id = ? AND account_id = ?`)
+          .run(workspaceId, accountId)
+        this.db.prepare('UPDATE workspaces SET owner_id = ? WHERE id = ?').run(accountId, workspaceId)
+        this.db.exec('COMMIT')
+      } catch (error) {
+        this.db.exec('ROLLBACK')
+        throw error
+      }
+      return this.members(accountId, workspaceId).find((row) => row.id === accountId)!
+    }
     this.db
       .prepare('UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND account_id = ?')
       .run(role, workspaceId, accountId)
@@ -388,6 +414,27 @@ export class CollabStore {
       { type: 'record', workspaceId, collection, recordId },
       'group',
       groupId,
+      role,
+    )
+    return this.accessRows(workspaceId, collection, recordId)
+  }
+
+  grantMemberView(
+    actorId: string,
+    collection: string,
+    recordId: string,
+    viewId: string,
+    role: ResourceRole,
+  ) {
+    const workspaceId = this.activeWorkspaceId()
+    if (!workspaceId) throw new CollabError('没有工作区', 400)
+    const normalized = viewId.trim()
+    if (!normalized) throw new CollabError('成员视图不能为空', 400)
+    this.authorization.grant(
+      actorId,
+      { type: 'record', workspaceId, collection, recordId },
+      'member_view',
+      normalized,
       role,
     )
     return this.accessRows(workspaceId, collection, recordId)
@@ -836,7 +883,13 @@ export class CollabStore {
     if (!normalized) throw new CollabError('邮箱不能为空', 400)
     const account = this.db.prepare('SELECT id FROM accounts WHERE email = ?').get(normalized) as { id: string } | undefined
     if (!account) throw new CollabError('没有这个邮箱，对方需要先注册', 404)
-    this.requireMember(account.id, workspaceId)
+    this.db
+      .prepare(
+        `INSERT INTO workspace_members (workspace_id, account_id, role, member_kind, created_at)
+         VALUES (?, ?, 'member', 'external', ?)
+         ON CONFLICT(workspace_id, account_id) DO NOTHING`,
+      )
+      .run(workspaceId, account.id, now)
     const resource = { type: 'record' as const, workspaceId, collection, recordId }
     const decision = this.authorization.authorize(
       { type: 'account', accountId: actorId, workspaceId },
@@ -868,7 +921,15 @@ export class CollabStore {
          ORDER BY rg.created_at`,
       )
       .all(workspaceId, collection, recordId) as Array<{ id: string; name: string; role: string }>
-    return { private: rows.length + groups.length > 0, people: rows, groups }
+    const memberViews = this.db
+      .prepare(
+        `SELECT subject_id AS id, role
+         FROM record_grants
+         WHERE workspace_id = ? AND collection = ? AND record_id = ? AND subject_type = 'member_view'
+         ORDER BY created_at`,
+      )
+      .all(workspaceId, collection, recordId) as Array<{ id: string; role: string }>
+    return { private: rows.length + groups.length + memberViews.length > 0, people: rows, groups, memberViews }
   }
 
   private writeState(key: string, value: string) {

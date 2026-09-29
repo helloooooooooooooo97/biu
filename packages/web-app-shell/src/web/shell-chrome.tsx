@@ -499,7 +499,7 @@ export function ShellSettingsCollab() {
             {members.length ? members.map((row) => (
               <li key={row.id}>
                 {row.name}{row.email ? ` · ${row.email}` : ''} · {
-                  row.role === 'owner' ? '所有者' : row.role === 'admin' ? '管理员' : row.role === 'viewer' ? '查看者' : '成员'
+                  row.role === 'owner' ? '所有者' : row.role === 'admin' ? '管理者' : row.role === 'viewer' ? '查看者' : '编辑者'
                 }
                 {canChangeRoles && row.role !== 'owner' ? (
                   <select
@@ -507,20 +507,27 @@ export function ShellSettingsCollab() {
                     aria-label={`修改 ${row.name || row.email} 的角色`}
                     value={row.role === 'admin' || row.role === 'viewer' ? row.role : 'member'}
                     onChange={(event) => {
+                      const nextRole = event.target.value
                       void accountFetch(token, `/api/account/workspaces/${workspaceId}/members/${row.id}`, {
                         method: 'PATCH',
-                        body: JSON.stringify({ role: event.target.value }),
+                        body: JSON.stringify({ role: nextRole }),
                       })
                         .then((body) => {
                           setMembers(((body as { members?: CollabMember[] }).members) ?? [])
+                          if (nextRole === 'owner') {
+                            setWorkspaces((rows) => rows.map((workspace) =>
+                              workspace.id === workspaceId ? { ...workspace, role: 'admin' } : workspace,
+                            ))
+                          }
                           setError('')
                         })
                         .catch((err) => setError(err instanceof Error ? err.message : '修改角色失败'))
                     }}
                   >
-                    <option value="member">成员</option>
+                    <option value="owner">所有者</option>
+                    <option value="admin">管理者</option>
+                    <option value="member">编辑者</option>
                     <option value="viewer">查看者（只读）</option>
-                    <option value="admin">管理员</option>
                   </select>
                 ) : null}
                 {canManage && row.role !== 'owner' && (workspaceRole === 'owner' || row.role === 'member' || row.role === 'viewer') ? (

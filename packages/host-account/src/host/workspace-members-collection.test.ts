@@ -27,6 +27,13 @@ test('workspace members collection lists and manages only the active workspace',
   const collection = workspaceMembersCollection(store)
   assert.equal(collection.records?.update, true)
   assert.equal(typeof collection.update, 'function')
+  assert.deepEqual(collection.schema.fields.role.enumLabels, {
+    owner: '所有者',
+    admin: '管理者',
+    member: '编辑者',
+    viewer: '查看者',
+  })
+  assert.equal(collection.schema.fields.email.writable, undefined)
 
   const before = await runWithAccount(ada.id, () => collection.list())
   assert.deepEqual(before.map((row) => row.email).sort(), ['ada@example.com', 'bob@example.com'])
@@ -41,6 +48,8 @@ test('workspace members collection lists and manages only the active workspace',
 
   const promoted = await runWithAccount(ada.id, () => collection.update!(bob.id, { role: 'admin' }))
   assert.equal(promoted.role, 'admin')
+  const viewer = await runWithAccount(ada.id, () => collection.update!(bob.id, { role: 'viewer' }))
+  assert.equal(viewer.role, 'viewer')
   await assert.rejects(
     () => runWithAccount(bob.id, () => collection.update!(cara.id, { role: 'admin' })),
     /只有所有者可以这样做/,

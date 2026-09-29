@@ -15,6 +15,7 @@ type MemberRow = {
   name: string
   email: string
   role: string
+  member_kind: 'member' | 'external'
   created_at: number
 }
 
@@ -25,6 +26,7 @@ function asRecord(row: MemberRow): DbRecord {
     name: row.name,
     email: row.email,
     role: row.role,
+    membershipKind: row.member_kind,
     joinedAt: row.created_at,
     ...recordBuiltinValues({ createdAt: row.created_at, updatedAt: row.created_at }),
   }
@@ -53,27 +55,39 @@ export function workspaceMembersCollection(store: CollabStore): CollectionSpec {
   return {
     id: 'workspace-members',
     path: WORKSPACE_MEMBERS_COLLECTION_PATH,
-    label: '空间成员',
+    label: '成员',
     view: {
       moduleId: 'workspace-members-db',
       route: '/db-workspace-members',
-      title: '空间成员',
+      title: '成员',
       inspector: false,
       blurb:
-        '当前工作区成员目录。db_list 查看成员；Owner 可用 db_update 修改 role=admin|member|viewer；Owner/Admin 可用 db_create 邀请、db_delete 移除其有权管理的成员。viewer 只能查看获准的数据，不能创建或编辑。修改 tags 等元数据不会改变角色。',
+        '当前工作区成员目录。db_list 查看成员；Owner 可用 db_update 将 role 限定为 owner|admin|member|viewer；Owner/Admin 可用 db_create 邀请、db_delete 移除其有权管理的成员。viewer 只能查看获准的数据，不能创建或编辑。修改 tags 等元数据不会改变角色。',
       order: 18,
       icon: 'users',
     },
     records: { update: true, create: true, delete: true },
     schema: {
       labelField: 'title',
-      columns: ['title', 'email', 'role', 'joinedAt'],
+      columns: ['title', 'email', 'role', 'membershipKind', 'joinedAt'],
       fields: {
         ...REQUIRED_RECORD_FIELDS,
         title: { type: 'string', label: '账号名' },
         name: { type: 'string', label: '空间账号名' },
-        email: { type: 'string', label: '登录邮箱', writable: true },
-        role: { type: 'select', label: '角色', enum: ['owner', 'admin', 'member', 'viewer'], writable: true },
+        email: { type: 'string', label: '登录邮箱' },
+        role: {
+          type: 'select',
+          label: '角色',
+          enum: ['owner', 'admin', 'member', 'viewer'],
+          enumLabels: { owner: '所有者', admin: '管理者', member: '编辑者', viewer: '查看者' },
+          writable: true,
+        },
+        membershipKind: {
+          type: 'select',
+          label: '成员类型',
+          enum: ['member', 'external', 'guest'],
+          enumLabels: { member: '空间成员', external: '外部成员', guest: '临时访客' },
+        },
         joinedAt: { type: 'datetime', label: '加入时间', sortable: true },
       },
     },
@@ -120,8 +134,8 @@ export function workspaceMembersCollection(store: CollabStore): CollectionSpec {
         return current
       }
       const role = String(patch.role ?? '')
-      if (role !== 'admin' && role !== 'member' && role !== 'viewer') {
-        throw new Error('role must be admin, member or viewer')
+      if (role !== 'owner' && role !== 'admin' && role !== 'member' && role !== 'viewer') {
+        throw new Error('role must be owner, admin, member or viewer')
       }
       return asRecord(store.updateMemberRole(actorId, workspaceId, id, role))
     },

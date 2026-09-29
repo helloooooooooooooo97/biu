@@ -8,6 +8,7 @@ import {
   builtinCatalogViews,
   builtinScopeView,
   builtinScopeViewId,
+  builtinMemberViews,
   isBuiltinBlockKindViewId,
   isBuiltinCatalogViewId,
   isReadOnlyViewId,
@@ -35,6 +36,12 @@ test('scoped builtin views preserve their base view and lock data ownership', ()
   assert.equal(isReadOnlyViewId(scoped.id), true)
   assert.deepEqual(stubBuiltinScopeView(scoped.id)?.filters, { $scope: 'workspace' })
   assert.deepEqual(catalogLockFilters(scoped.id), { $scope: 'workspace' })
+})
+
+test('member directory exposes builtin audience views', () => {
+  const views = mergeTableViews({ path: '/workspace-members', label: '成员' }, [])
+  assert.deepEqual(views.slice(1).map((view) => view.name), ['空间成员', '外部成员', '临时访客'])
+  assert.deepEqual(builtinMemberViews().map((view) => view.filters.membershipKind), ['member', 'external', 'guest'])
 })
 
 test('each registered table gets a builtin catalog view', () => {
