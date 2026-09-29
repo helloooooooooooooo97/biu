@@ -14,7 +14,7 @@ import {
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import type { CollectionInfo, CollectionSchema, DbRecord } from '@biu/type-file-system'
 import { groupField, groupRecords, parentFieldKey, treeChildren } from './fields.ts'
-import { builtinAllViewId } from '../catalog-views.ts'
+import { builtinAllViewId, builtinScopeView, builtinScopeViewId, type DataScope } from '../catalog-views.ts'
 import { isRecordTreeCollection, isSystemCollection, sortDataCollections } from './database-path.ts'
 import { readJson } from './db-client.ts'
 import { viewsForRegisteredCollection } from './collection-nav.ts'
@@ -513,6 +513,7 @@ export const DataSidebar = memo(function DataSidebar({
     }
   })
   const [userOpen, setUserOpen] = useState(true)
+  const [workspaceOpen, setWorkspaceOpen] = useState(true)
   const [systemOpen, setSystemOpen] = useState(false)
   const [expandedViewKeyLocal, setExpandedViewKeyLocal] = useState<string | null>(null)
   const expandedViewKey = expandedViewKeyProp !== undefined ? expandedViewKeyProp : expandedViewKeyLocal
@@ -570,7 +571,14 @@ export const DataSidebar = memo(function DataSidebar({
     if (userOpen) {
       for (const table of userTables) {
         if (openTables[table.path]) {
-          for (const view of viewsFor(table.path)) jobs.push({ path: table.path, view })
+          for (const view of viewsFor(table.path)) jobs.push({ path: table.path, view: builtinScopeView(view, 'personal') })
+        }
+      }
+    }
+    if (workspaceOpen) {
+      for (const table of userTables) {
+        if (openTables[table.path]) {
+          for (const view of viewsFor(table.path)) jobs.push({ path: table.path, view: builtinScopeView(view, 'workspace') })
         }
       }
     }
@@ -582,7 +590,7 @@ export const DataSidebar = memo(function DataSidebar({
       }
     }
     return jobs
-  }, [userOpen, systemOpen, favOpen, userTables, systemTables, listedTables, openTables, starredRows, tables, views, collectionPath])
+  }, [userOpen, workspaceOpen, systemOpen, favOpen, userTables, systemTables, listedTables, openTables, starredRows, tables, views, collectionPath])
 
   const countJobKey = countJobs.map((job) => viewTotalKey(job.path, job.view)).join('|')
   useEffect(() => {
@@ -684,14 +692,14 @@ export const DataSidebar = memo(function DataSidebar({
     onOpenRecord?.(path, view, recordId, row)
   }
 
-  function renderTableRows(rows: CollectionInfo[]) {
+  function renderTableRows(rows: CollectionInfo[], scope?: DataScope) {
     return rows.map((table) => {
       const name = table.view?.title ?? table.label
       const open = openTables[table.path] ?? false
-      const listed = viewsFor(table.path)
+      const listed = viewsFor(table.path).map((view) => scope ? builtinScopeView(view, scope) : view)
       const system = isSystemCollection(table.path)
       return (
-        <div key={table.path} className="flex min-w-0 flex-col gap-px" data-collection-kind={system ? 'system' : 'user'}>
+        <div key={`${scope ?? 'system'}:${table.path}`} className="flex min-w-0 flex-col gap-px" data-collection-kind={system ? 'system' : scope ?? 'personal'}>
           <div className="sidebar-group-head">
             <div
               className="flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md text-left text-[14px] font-medium tracking-normal text-inherit"
@@ -722,7 +730,10 @@ export const DataSidebar = memo(function DataSidebar({
               <button
                 type="button"
                 className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-left font-medium text-inherit outline-none hover:text-(--dsw-sidebar-fg-active) focus-visible:ring-1 focus-visible:ring-(--dsw-border)"
-                onClick={() => onOpenTable?.(table.path, builtinAllViewId(table.path))}
+                onClick={() => onOpenTable?.(
+                  table.path,
+                  scope ? builtinScopeViewId(scope, builtinAllViewId(table.path)) : builtinAllViewId(table.path),
+                )}
               >
                 {name}
               </button>
@@ -865,7 +876,7 @@ export const DataSidebar = memo(function DataSidebar({
                     }
                   }}
                 >
-                  <span className="min-w-0 flex-1 truncate tracking-normal">分享</span>
+                  <span className="min-w-0 flex-1 truncate tracking-normal">分享数据</span>
                 </button>
               </div>
               <ChatCount count={shareCount} />
@@ -1167,6 +1178,30 @@ export const DataSidebar = memo(function DataSidebar({
                 <button
                   type="button"
                   className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
+                  aria-expanded={workspaceOpen}
+                  title="空间共同拥有、成员可访问的数据"
+                  onClick={() => setWorkspaceOpen((prev) => !prev)}
+                >
+                  <span className="min-w-0 flex-1 truncate tracking-normal">空间数据</span>
+                </button>
+              </div>
+              <ChatCount count={userTables.length} />
+            </div>
+            <SidebarFold open={workspaceOpen}>
+              <div className="flex min-w-0 flex-col gap-px" data-testid="sidebar-workspace-collections">
+                {userTables.length ? renderTableRows(userTables, 'workspace') : (
+                  <div className="px-1 py-1 text-[12px] text-(--dsw-label-3)">还没有空间数据表</div>
+                )}
+              </div>
+            </SidebarFold>
+          </section>
+
+          <section className="min-w-0">
+            <div className="sidebar-section-head min-w-0">
+              <div className="flex min-h-8 min-w-0 flex-1 items-center">
+                <button
+                  type="button"
+                  className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
                   aria-expanded={userOpen}
                   onClick={() => setUserOpen((prev) => !prev)}
                 >
@@ -1177,7 +1212,7 @@ export const DataSidebar = memo(function DataSidebar({
             </div>
             <SidebarFold open={userOpen}>
               <div className="flex min-w-0 flex-col gap-px" data-testid="sidebar-user-collections">
-                {userTables.length ? renderTableRows(userTables) : (
+                {userTables.length ? renderTableRows(userTables, 'personal') : (
                   <div className="px-1 py-1 text-[12px] text-(--dsw-label-3)">还没有可改的表</div>
                 )}
               </div>

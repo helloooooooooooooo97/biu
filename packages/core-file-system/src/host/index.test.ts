@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseService, apply as applyFileSystem, databaseHttpFailure } from './index.ts'
 import { FileSystemAssets } from './assets-store.ts'
-import type { CollectionSpec } from '@biu/type-file-system'
+import type { CollectionSpec, DbRecord } from '@biu/type-file-system'
 import { REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
 import { facetsCollection } from './facets-collection.ts'
 import { trashCollection } from './trash-collection.ts'
@@ -1748,6 +1748,76 @@ test('file-system CRUD uses the unified account authorization decision', async (
   assert.throws(
     () => runWithAccount(bob.id, () => db.requireAsset('private.png', 'resource:update')),
     /permission denied/,
+  )
+})
+
+test('create scope separates personal and workspace records and viewers stay read-only', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, DbRecord>()
+  let seq = 0
+  db.register({
+    id: 'docs',
+    path: '/docs',
+    schema: {
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+      },
+    },
+    records: { create: true, update: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: (records) => records.map((record) => {
+      const row = { id: `d${++seq}`, title: String(record.title ?? `Doc ${seq}`) }
+      rows.set(row.id, row)
+      return row
+    }),
+    update: (id, patch) => {
+      const row = { ...rows.get(id)!, ...patch, id }
+      rows.set(id, row)
+      return row
+    },
+  })
+  const dir = mkdtempSync(join(tmpdir(), 'biu-db-create-scope-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'scope-ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'scope-bob@example.com')
+  const workspace = collab.createWorkspace(ada.id, 'Scoped')
+  collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+  collab.setActive(ada.id, workspace.id)
+  collab.setActive(bob.id, workspace.id)
+
+  await runWithAccount(ada.id, () => db.create('/docs', [{ title: 'Private' }], { scope: 'personal' }))
+  await runWithAccount(ada.id, () => db.create('/docs', [{ title: 'Shared' }], { scope: 'workspace' }))
+  const personal = await runWithAccount(ada.id, () => db.list('/docs', { $scope: 'personal' }))
+  const shared = await runWithAccount(ada.id, () => db.list('/docs', { $scope: 'workspace' }))
+  assert.deepEqual(personal.items.map((row) => row.title), ['Private'])
+  assert.deepEqual(shared.items.map((row) => row.title), ['Shared'])
+  assert.deepEqual((await runWithAccount(bob.id, () => db.list('/docs'))).items.map((row) => row.title), ['Shared'])
+
+  collab.updateMemberRole(ada.id, workspace.id, bob.id, 'viewer')
+  const viewerStat = await runWithAccount(bob.id, () => db.stat('/docs'))
+  assert.equal(viewerStat.kind, 'collection')
+  if (viewerStat.kind === 'collection') {
+    assert.equal(viewerStat.schema.records?.create, false)
+    assert.equal(viewerStat.schema.fields.title?.writable, false)
+  }
+  await assert.rejects(
+    () => runWithAccount(bob.id, () => db.create('/docs', [{ title: 'Blocked' }], { scope: 'workspace' })),
+    /permission denied/,
+  )
+  await assert.rejects(
+    () => runWithAccount(bob.id, () => db.update('/docs/d2', { title: 'Blocked' })),
+    /unknown record/,
   )
 })
 

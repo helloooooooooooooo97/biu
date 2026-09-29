@@ -6,6 +6,8 @@ import {
   builtinBlockKindViewId,
   builtinCatalogViewId,
   builtinCatalogViews,
+  builtinScopeView,
+  builtinScopeViewId,
   isBuiltinBlockKindViewId,
   isBuiltinCatalogViewId,
   isReadOnlyViewId,
@@ -22,7 +24,18 @@ import {
   builtinTagViewId,
   isBuiltinTagViewId,
   stampRowOpenTarget,
+  stubBuiltinScopeView,
 } from './catalog-views.ts'
+
+test('scoped builtin views preserve their base view and lock data ownership', () => {
+  const base = builtinAllView({ path: '/pages', label: '页面' })
+  const scoped = builtinScopeView(base, 'workspace')
+  assert.equal(scoped.id, builtinScopeViewId('workspace', base.id))
+  assert.deepEqual(scoped.filters, { $scope: 'workspace' })
+  assert.equal(isReadOnlyViewId(scoped.id), true)
+  assert.deepEqual(stubBuiltinScopeView(scoped.id)?.filters, { $scope: 'workspace' })
+  assert.deepEqual(catalogLockFilters(scoped.id), { $scope: 'workspace' })
+})
 
 test('each registered table gets a builtin catalog view', () => {
   const tables = [

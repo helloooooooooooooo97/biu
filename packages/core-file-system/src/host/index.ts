@@ -668,6 +668,29 @@ export class DatabaseService extends Service implements Database {
     }
   }
 
+  private schemaForCurrent(spec: CollectionSpec, schema = schemaFor(spec)) {
+    const authorization = this.authorization()
+    const actor = authorization?.currentActor()
+    if (!authorization || !actor) return schema
+    const resource = { type: 'collection' as const, workspaceId: actor.workspaceId, collection: spec.path }
+    const canUpdate = authorization.authorize(actor, 'resource:update', resource).allowed
+    const canCreate = authorization.authorize(actor, 'resource:create', resource).allowed
+    const canDelete = authorization.authorize(actor, 'resource:delete', resource).allowed
+    if (canUpdate && canCreate && canDelete) return schema
+    return {
+      ...schema,
+      fields: canUpdate
+        ? schema.fields
+        : Object.fromEntries(Object.entries(schema.fields).map(([key, field]) => [key, { ...field, writable: false }])),
+      records: {
+        ...schema.records,
+        update: Boolean(schema.records?.update && canUpdate),
+        create: Boolean(schema.records?.create && canCreate),
+        delete: Boolean(schema.records?.delete && canDelete),
+      },
+    }
+  }
+
   private workspaceMembership() {
     const store = this.collabStore()
     if (!store?.activeWorkspaceId()) return null
@@ -748,6 +771,26 @@ export class DatabaseService extends Service implements Database {
       const people = map.get(target.id)
       if (!people || people.size === 0) return true
       return people.has(currentAccountId())
+    })
+  }
+
+  private recordsInScope<T extends { id?: unknown; pageId?: unknown; collection?: unknown; sessionId?: unknown; sourceId?: unknown; tablePath?: unknown }>(
+    collection: string,
+    rows: T[],
+    scope: 'personal' | 'workspace' | '',
+  ) {
+    if (!scope) return rows
+    const authorization = this.authorization()
+    const actor = authorization?.currentActor()
+    if (!authorization || !actor) return rows
+    return rows.filter((row) => {
+      const target = this.scopeTarget(collection, String(row.id ?? ''), row)
+      return authorization.scopeCurrent({
+        type: 'record',
+        workspaceId: actor.workspaceId,
+        collection: target.collection,
+        recordId: target.id,
+      }) === scope
     })
   }
 
@@ -922,7 +965,7 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const caps = collectionCaps(spec)
     if (parts.length === 1) {
-      return { kind: 'collection' as const, path: spec.path, id: spec.id, label: spec.label ?? spec.id, view: spec.view ?? null, schema: schemaFor(spec), caps }
+      return { kind: 'collection' as const, path: spec.path, id: spec.id, label: spec.label ?? spec.id, view: spec.view ?? null, schema: this.schemaForCurrent(spec), caps }
     }
     if (parts.length === 2) {
       const record = await spec.get(parts[1]!)
@@ -933,7 +976,7 @@ export class DatabaseService extends Service implements Database {
         path: `${spec.path}/${record.id}`,
         id: spec.id,
         label: spec.label ?? spec.id,
-        schema: schemaFor(spec),
+        schema: this.schemaForCurrent(spec),
         caps,
         value: withoutContent(spec, this.withBanner(spec, this.decorateRecord(spec, record))),
       }
@@ -959,12 +1002,14 @@ export class DatabaseService extends Service implements Database {
     const sortField = page?.sortField?.trim() || 'title'
     const sortDir = page?.sortDir === 'desc' ? 'desc' : 'asc'
     const schemaFilter = filter?.facet != null && filter.facet !== '' ? String(filter.facet) : ''
+    const scopeFilter = filter?.$scope === 'workspace' || filter?.$scope === 'personal' ? filter.$scope : ''
     const columnKeys = listedColumnKeys(page?.columns, schema.labelField ?? 'title')
     const trash = filter?.deleted === true || filter?.trash === true
     const liveFilter = filter ? { ...filter } : undefined
     if (liveFilter) {
       delete liveFilter.deleted
       delete liveFilter.trash
+      delete liveFilter.$scope
     }
     const query: CollectionListQuery = { q, filter: liveFilter, trash }
     if (schemaFilter && schema.fields.facet && spec.path !== '/facets') {
@@ -976,7 +1021,7 @@ export class DatabaseService extends Service implements Database {
           id: spec.id,
           label: spec.label ?? spec.id,
           view: spec.view ?? null,
-          schema,
+          schema: this.schemaForCurrent(spec, schema),
           total: 0,
           offset,
           limit,
@@ -988,7 +1033,8 @@ export class DatabaseService extends Service implements Database {
     const matched = await this.matchCollectionRows(spec, query, liveFilter, q)
     const tagFilter = spec.path === '/facets' ? String(filter?.facetId ?? '').trim() : ''
     if (tagFilter) schema = schemaWithTagPack(schema, this.facets.get(tagFilter))
-    const sorted = this.visibleRecords(spec.path, sortRecords(matched, sortField, sortDir, page?.sorts))
+    const visible = this.visibleRecords(spec.path, sortRecords(matched, sortField, sortDir, page?.sorts))
+    const sorted = this.recordsInScope(spec.path, visible, scopeFilter)
     const total = sorted.length
     const slice = sorted.slice(offset, offset + limit)
     return {
@@ -997,7 +1043,7 @@ export class DatabaseService extends Service implements Database {
       id: spec.id,
       label: spec.label ?? spec.id,
       view: spec.view ?? null,
-      schema,
+      schema: this.schemaForCurrent(spec, schema),
       total,
       offset,
       limit,
@@ -1175,7 +1221,7 @@ export class DatabaseService extends Service implements Database {
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
     this.assertLiveRecord(spec, record.id)
-    return { kind: 'record' as const, path: `${spec.path}/${record.id}`, schema: schemaFor(spec), value: withoutContent(spec, this.withBanner(spec, this.decorateRecord(spec, record))) }
+    return { kind: 'record' as const, path: `${spec.path}/${record.id}`, schema: this.schemaForCurrent(spec), value: withoutContent(spec, this.withBanner(spec, this.decorateRecord(spec, record))) }
   }
 
   async update(path: string, content: unknown) {
@@ -1297,7 +1343,7 @@ export class DatabaseService extends Service implements Database {
     return { kind: 'record' as const, path: `${spec.path}/${record.id}`, value: withoutContent(spec, this.withBanner(spec, this.decorateRecord(spec, record))) }
   }
 
-  async create(path: string, content?: unknown) {
+  async create(path: string, content?: unknown, options: { scope?: 'personal' | 'workspace' } = {}) {
     const parts = splitPath(path)
     if (parts.length !== 1) throw new Error(`cannot create: ${normalizeCollectionPath(path)}`)
     const spec = this.collection(`/${parts[0]}`)
@@ -1347,9 +1393,10 @@ export class DatabaseService extends Service implements Database {
       const parentField = spec.schema.parentField
       const parentRecordId = parentField ? String(record[parentField] ?? '').trim() : ''
       if (spec.path !== '/workspace-members') {
+        const workspaceOwned = options.scope === 'workspace'
         this.attachWorkspaceRecord(spec.path, record.id, {
-          ownership: parentRecordId ? 'workspace' : 'personal',
-          accessMode: parentRecordId ? 'inherit' : 'private',
+          ownership: parentRecordId || workspaceOwned ? 'workspace' : 'personal',
+          accessMode: parentRecordId ? 'inherit' : workspaceOwned ? 'members' : 'private',
           ...(parentRecordId ? { parentCollection: spec.path, parentRecordId } : {}),
         })
       }
@@ -2159,11 +2206,20 @@ export function apply(ctx: Context) {
           items: { type: 'object' },
           description: '要创建的记录（非空对象数组），按 schema 可写字段给初值；不要附加空对象',
         },
+        scope: {
+          type: 'string',
+          enum: ['personal', 'workspace'],
+          description: '根记录归属：personal 私人（默认，仅自己可见）；workspace 空间共享（成员可查看）。子记录始终继承父记录。',
+        },
       },
       required: ['path', 'records'],
     },
     execute: (args) =>
-      withInspectorReveal(ctx, String(args.path), () => db.create(String(args.path), asCreateRecords(args))).then(
+      withInspectorReveal(ctx, String(args.path), () =>
+        db.create(String(args.path), asCreateRecords(args), {
+          scope: args.scope === 'workspace' ? 'workspace' : 'personal',
+        }),
+      ).then(
         (body) => agentDbCompact.write(body),
       ),
   })
@@ -2465,8 +2521,17 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('POST', '/api/db/create', async (route) => {
     try {
-      const body = (await route.json()) as { path?: string; records?: unknown; content?: unknown }
-      route.send(200, await db.create(String(body?.path ?? ''), body?.records ?? body?.content))
+      const body = (await route.json()) as {
+        path?: string
+        records?: unknown
+        content?: unknown
+        scope?: 'personal' | 'workspace'
+      }
+      route.send(200, await db.create(
+        String(body?.path ?? ''),
+        body?.records ?? body?.content,
+        { scope: body?.scope === 'workspace' ? 'workspace' : 'personal' },
+      ))
     } catch (error) {
       route.send(400, { error: String(error) })
     }

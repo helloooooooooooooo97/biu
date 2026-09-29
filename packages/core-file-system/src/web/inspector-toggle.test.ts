@@ -52,12 +52,14 @@ test('data sidebar brand sits left with a collapse control on the right', () => 
   assert.match(sidebar, /shell-module-sidebar/)
 })
 
-test('user and system collection sections fold independently', () => {
+test('workspace, user and system collection sections fold independently', () => {
   const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
   const fold = readFileSync(resolve(import.meta.dirname, '../../../public-ui/src/sidebar-fold.tsx'), 'utf8')
   assert.match(sidebar, /const \[userOpen, setUserOpen\] = useState\(true\)/)
+  assert.match(sidebar, /const \[workspaceOpen, setWorkspaceOpen\] = useState\(true\)/)
   assert.match(sidebar, /const \[systemOpen, setSystemOpen\] = useState\(false\)/)
   assert.match(sidebar, /onClick=\{\(\) => setUserOpen\(\(prev\) => !prev\)\}/)
+  assert.match(sidebar, /onClick=\{\(\) => setWorkspaceOpen\(\(prev\) => !prev\)\}/)
   assert.match(sidebar, /onClick=\{\(\) => setSystemOpen\(\(prev\) => !prev\)\}/)
   assert.match(sidebar, /<SidebarFold/)
   assert.match(fold, /function SidebarFold/)
@@ -66,6 +68,11 @@ test('user and system collection sections fold independently', () => {
   assert.doesNotMatch(sidebar, /\{userOpen \?/)
   assert.doesNotMatch(sidebar, /\{systemOpen \?/)
   assert.doesNotMatch(sidebar, /\{favOpen \?/)
+  assert.match(sidebar, />分享数据</)
+  assert.match(sidebar, />空间数据</)
+  assert.match(sidebar, /sidebar-workspace-collections/)
+  assert.match(sidebar, /renderTableRows\(userTables, 'workspace'\)/)
+  assert.match(sidebar, /renderTableRows\(userTables, 'personal'\)/)
 })
 
 test('grouped views nest a foldable group layer in the sidebar', () => {
@@ -433,7 +440,10 @@ test('create record sits at the right of the toolbar with a blue label', () => {
   assert.doesNotMatch(columnsBtn, /tasks-sort-dot|tasks-filter-dot/)
   assert.doesNotMatch(configBtn, /tasks-sort-dot|tasks-filter-dot/)
   assert.match(browser, /className="fsdb-create-btn"/)
-  assert.match(browser, /新建记录/)
+  assert.match(browser, /aria-label="新建数据归属"/)
+  assert.match(browser, /<option value="personal">私人<\/option>/)
+  assert.match(browser, /<option value="workspace">空间<\/option>/)
+  assert.match(browser, /scope: createScope/)
   assert.match(browser, /<PlusIcon[\s\S]*新建/)
   assert.doesNotMatch(
     browser,

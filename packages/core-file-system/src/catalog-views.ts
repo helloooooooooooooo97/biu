@@ -3,6 +3,8 @@ import { normalizeCollectionPath } from './paths.ts'
 import { normalizeSavedView, type SavedView } from './web/saved-view.ts'
 
 const ALL_PREFIX = 'builtin-all:'
+const SCOPE_PREFIX = 'builtin-scope:'
+export type DataScope = 'personal' | 'workspace'
 
 export const BUILTIN_VIEW_SORT_FIELD = 'updatedAt'
 export const BUILTIN_VIEW_SORT_DIR = 'desc' as const
@@ -64,7 +66,50 @@ export function isBuiltinAllViewForCollection(id: string, collectionPath: string
 }
 
 export function isReadOnlyViewId(id: string) {
-  return isBuiltinAllViewId(id) || isBuiltinCatalogViewId(id) || isBuiltinTagViewId(id) || isBuiltinBlockKindViewId(id)
+  return isBuiltinAllViewId(id) || isBuiltinCatalogViewId(id) || isBuiltinTagViewId(id) || isBuiltinBlockKindViewId(id) || isBuiltinScopeViewId(id)
+}
+
+export function builtinScopeViewId(scope: DataScope, viewId: string) {
+  return `${SCOPE_PREFIX}${scope}:${encodeURIComponent(viewId)}`
+}
+
+export function isBuiltinScopeViewId(id: string) {
+  return id.startsWith(`${SCOPE_PREFIX}personal:`) || id.startsWith(`${SCOPE_PREFIX}workspace:`)
+}
+
+export function parseBuiltinScopeViewId(id: string): { scope: DataScope; viewId: string } | null {
+  if (!isBuiltinScopeViewId(id)) return null
+  const rest = id.slice(SCOPE_PREFIX.length)
+  const split = rest.indexOf(':')
+  if (split < 0) return null
+  const scope = rest.slice(0, split)
+  if (scope !== 'personal' && scope !== 'workspace') return null
+  try {
+    const viewId = decodeURIComponent(rest.slice(split + 1))
+    return viewId ? { scope, viewId } : null
+  } catch {
+    return null
+  }
+}
+
+export function builtinScopeView(view: SavedView, scope: DataScope): SavedView {
+  return normalizeSavedView({
+    ...view,
+    id: builtinScopeViewId(scope, view.id),
+    filters: { ...view.filters, $scope: scope },
+    builtin: true,
+  })
+}
+
+export function stubBuiltinScopeView(id: string, listed: SavedView[] = []): SavedView | null {
+  const parsed = parseBuiltinScopeViewId(id)
+  if (!parsed) return null
+  const base = listed.find((view) => view.id === parsed.viewId)
+    ?? stubBuiltinBlockKindView(parsed.viewId)
+    ?? stubBuiltinCatalogView(parsed.viewId)
+    ?? stubBuiltinTagView(parsed.viewId)
+    ?? stubBuiltinAllView(parsed.viewId)
+  return base ? builtinScopeView(base, parsed.scope) : null
 }
 
 export function collectionNoun(table: TableRef) {
@@ -85,6 +130,7 @@ export function displayNameForView(viewId: string, table: TableRef, storedName?:
   }
   if (isBuiltinTagViewId(id)) return stubBuiltinTagView(id)?.name || collectionNoun(table)
   if (isBuiltinBlockKindViewId(id)) return stubBuiltinBlockKindView(id)?.name || collectionNoun(table)
+  if (isBuiltinScopeViewId(id)) return stubBuiltinScopeView(id)?.name || collectionNoun(table)
   return collectionNoun(table)
 }
 
@@ -189,8 +235,12 @@ export function stubBuiltinBlockKindView(id: string): SavedView | null {
   return builtinBlockKindView({ kind, label: kind })
 }
 
-export function stubAnyBuiltinView(id: string): SavedView | null {
-  return stubBuiltinBlockKindView(id) ?? stubBuiltinCatalogView(id) ?? stubBuiltinTagView(id) ?? stubBuiltinAllView(id)
+export function stubAnyBuiltinView(id: string, listed: SavedView[] = []): SavedView | null {
+  return stubBuiltinScopeView(id, listed)
+    ?? stubBuiltinBlockKindView(id)
+    ?? stubBuiltinCatalogView(id)
+    ?? stubBuiltinTagView(id)
+    ?? stubBuiltinAllView(id)
 }
 
 /** 内置视图按 id 带锁定筛选。组件类型视图一定带 blockKind，不依赖列表里有没有这条。 */
@@ -200,7 +250,7 @@ export function catalogLockFilters(
 ): Record<string, string> {
   const key = String(viewId ?? '').trim()
   if (!key) return {}
-  const stub = stubAnyBuiltinView(key)
+  const stub = stubAnyBuiltinView(key, listed as SavedView[])
   if (stub) return { ...(stub.filters ?? {}) }
   const current = listed.find((view) => view.id === key)
   return current?.builtin ? { ...(current.filters ?? {}) } : {}
