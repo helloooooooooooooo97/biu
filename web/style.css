@@ -1448,30 +1448,24 @@ body {
   min-width: 0;
   flex: 1;
   align-items: center;
-  gap: 6px;
-}
-
-.shell-workspace-head .sidebar-brand-lockup {
-  flex: 0 0 auto;
-  max-width: 72px;
 }
 
 .shell-workspace-switcher {
   display: flex;
   min-width: 0;
   flex: 1;
-  height: 28px;
+  height: 32px;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  padding: 0 7px;
+  padding: 0 8px;
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
   color: var(--dsw-label);
   font: inherit;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 650;
   outline: none;
 }
 
@@ -1483,11 +1477,9 @@ body {
 }
 
 .shell-workspace-switch-copy {
-  display: flex;
   min-width: 0;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1.05;
+  flex: 1;
+  text-align: left;
 }
 
 .shell-workspace-switch-copy strong {
@@ -1497,12 +1489,6 @@ body {
   white-space: nowrap;
 }
 
-.shell-workspace-switch-copy small {
-  color: var(--dsw-label-3);
-  font-size: 9px;
-  font-weight: 500;
-}
-
 .shell-workspace-switcher:hover,
 .shell-workspace-switcher:focus,
 .shell-workspace-switcher.is-open {
@@ -1510,13 +1496,29 @@ body {
   background: var(--dsw-hover);
 }
 
+.shell-workspace-switch-chevron {
+  color: var(--dsw-label-3);
+  transition: transform 160ms ease;
+}
+
+.shell-workspace-switcher.is-open .shell-workspace-switch-chevron {
+  transform: rotate(180deg);
+}
+
 .shell-workspace-menu {
+  max-height: min(420px, calc(100vh - 72px));
+  overflow: auto;
   padding: 6px;
+  border: 1px solid var(--dsw-border);
+  border-radius: 10px;
+  background: var(--dsw-surface);
+  box-shadow: var(--dsw-shadow-lv2);
 }
 
 .shell-workspace-menu-title {
   margin: 0;
-  padding: 5px 8px 7px;
+  padding: 5px 8px 8px;
+  border-bottom: 1px solid var(--dsw-border);
   color: var(--dsw-label-3);
   font-size: 11px;
   font-weight: 700;
@@ -1526,6 +1528,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding-top: 4px;
 }
 
 .shell-workspace-menu-item {
@@ -1544,6 +1547,7 @@ body {
   font: inherit;
   font-size: 13px;
   text-align: left;
+  cursor: pointer;
 }
 
 .shell-workspace-menu-item:hover,

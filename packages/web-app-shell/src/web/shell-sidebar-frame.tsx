@@ -1,6 +1,5 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from '@heroicons/react/16/solid'
-import { SidebarBrandLockup } from '@biu/public-mascot'
 import { chromeIcon } from './chrome-icon.ts'
 import { ShellSidePlaces, ShellWorkspaceSwitcher } from './shell-chrome.tsx'
 import {
@@ -160,7 +159,6 @@ export const ShellSidebarFrame = memo(function ShellSidebarFrame({
       ) : null}
       <div className="app-side-bar-head app-side-bar-head-brand" data-biu-ignore>
         <div className="shell-workspace-head">
-          <SidebarBrandLockup />
           <ShellWorkspaceSwitcher />
         </div>
         {!visible || narrow ? (
