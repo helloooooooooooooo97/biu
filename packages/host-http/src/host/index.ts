@@ -124,6 +124,7 @@ function documentTheme(): 'light' | 'dark' {
 export function paintDocumentTheme(html: string, theme = documentTheme()) {
   return html
     .replace(/\bclass="(?:light|dark)"/, `class="${theme}"`)
+    .replace('data-theme-source="static"', 'data-theme-source="server"')
     .replace(/content="(?:light|dark)"/, `content="${theme}"`)
 }
 

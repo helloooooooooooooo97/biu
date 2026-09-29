@@ -18,6 +18,7 @@ test('readTheme follows the document class and persistTheme posts the profile', 
     assert.equal(readTheme(), 'dark')
     assert.equal(document.documentElement.classList.contains('dark'), true)
     assert.equal(document.documentElement.classList.contains('light'), false)
+    assert.equal(sessionStorage.getItem('biu.theme.bootstrap'), 'dark')
     assert.match(calls[0] ?? '', /POST \/api\/profile.*"theme":"dark"/)
     applyTheme('light')
     assert.equal(document.documentElement.classList.contains('light'), true)

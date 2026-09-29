@@ -318,4 +318,5 @@ test('index html is painted with the profile theme', () => {
   const src = readFileSync(join(import.meta.dirname, 'index.ts'), 'utf8')
   assert.match(src, /paintDocumentTheme/)
   assert.match(src, /profilePath\(\)/)
+  assert.match(http.paintDocumentTheme('<html class="light" data-theme-source="static"><meta name="color-scheme" content="light">', 'dark'), /class="dark" data-theme-source="server"/)
 })
