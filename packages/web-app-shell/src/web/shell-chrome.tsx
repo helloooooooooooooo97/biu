@@ -56,31 +56,22 @@ async function readAvatarFile(file: File) {
   }
 }
 
-export function ShellSettingsAccount() {
+function WorkspaceMemberProfile() {
   const profile = useWorkspaceProfile()
   const [name, setName] = useState(profile.name)
-  const [email, setEmail] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setName(profile.name)
   }, [profile.name])
-  useEffect(() => {
-    const token = localStorage.getItem(ACCOUNT_KEY) ?? ''
-    if (!token) return
-    void accountFetch(token, '/api/account/me')
-      .then((body) => setEmail(String(body.email ?? '')))
-      .catch(() => setEmail(''))
-  }, [])
-
   const initial = (profile.name.trim() || '用户').slice(0, 1)
 
   return (
     <section className="settings-account" data-testid="settings-account">
       <header className="settings-account-head">
-        <h3 className="settings-account-title">我的账户</h3>
+        <h3 className="settings-account-title">我的成员资料</h3>
         <p className="settings-muted settings-account-lead">
-          头像和空间昵称跟当前工作区绑在一起，不同工作区可以重名。账号名、登录邮箱和密码在所有工作区都一样。
+          头像和空间昵称只用于当前空间，不会修改全局账号。
         </p>
       </header>
       <div className="settings-account-row">
@@ -156,11 +147,38 @@ export function ShellSettingsAccount() {
           }}
         />
       </div>
+    </section>
+  )
+}
+
+export function ShellSettingsAccount() {
+  const [account, setAccount] = useState<{ name: string; email: string }>({ name: '', email: '' })
+  useEffect(() => {
+    const token = localStorage.getItem(ACCOUNT_KEY) ?? ''
+    if (!token) return
+    void accountFetch(token, '/api/account/me')
+      .then((body) => setAccount({ name: String(body.name ?? body.email ?? ''), email: String(body.email ?? '') }))
+      .catch(() => setAccount({ name: '', email: '' }))
+  }, [])
+  return (
+    <section className="settings-account" data-testid="settings-account">
+      <header className="settings-account-head">
+        <h3 className="settings-account-title">账户</h3>
+        <p className="settings-muted settings-account-lead">同一个账号用于所有空间。账号名和登录邮箱不可修改。</p>
+      </header>
       <div className="settings-account-row">
         <div className="settings-account-copy">
-          <p className="settings-account-label">登录账号</p>
-          <p className="settings-muted settings-account-hint">
-            {email || '登录邮箱'} · 邮箱和密码跨工作区保持一致。
+          <p className="settings-account-label">账号名</p>
+          <p className="settings-muted settings-account-hint" data-testid="settings-account-global-name">
+            {account.name || account.email || '未设置'}
+          </p>
+        </div>
+      </div>
+      <div className="settings-account-row">
+        <div className="settings-account-copy">
+          <p className="settings-account-label">登录邮箱</p>
+          <p className="settings-muted settings-account-hint" data-testid="settings-account-email">
+            {account.email || '未设置'}
           </p>
         </div>
         <button
@@ -395,7 +413,59 @@ async function accountFetch(token: string, path: string, init?: RequestInit) {
   return body as Record<string, unknown>
 }
 
-export function ShellSettingsCollab() {
+export function ShellWorkspaceSwitcher() {
+  const [workspaces, setWorkspaces] = useState<CollabWorkspace[]>([])
+  const [active, setActive] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const token = readAccountToken()
+      if (!token) return
+      try {
+        const [listed, current] = await Promise.all([
+          accountFetch(token, '/api/account/workspaces') as Promise<{ workspaces?: CollabWorkspace[] }>,
+          accountFetch(token, '/api/account/active') as Promise<{ workspaceId?: string }>,
+        ])
+        if (cancelled) return
+        setWorkspaces(listed.workspaces ?? [])
+        setActive(String(current.workspaceId ?? ''))
+      } catch {
+        if (!cancelled) setWorkspaces([])
+      }
+    }
+    void load()
+    window.addEventListener(ACCOUNT_EVENT, load)
+    return () => {
+      cancelled = true
+      window.removeEventListener(ACCOUNT_EVENT, load)
+    }
+  }, [])
+
+  if (!workspaces.length) return null
+  return (
+    <select
+      className="shell-workspace-switcher"
+      aria-label="切换空间"
+      data-testid="shell-workspace-switcher"
+      value={active}
+      onChange={(event) => {
+        const workspaceId = event.target.value
+        const token = readAccountToken()
+        if (!token || !workspaceId || workspaceId === active) return
+        setActive(workspaceId)
+        void accountFetch(token, '/api/account/active', {
+          method: 'POST',
+          body: JSON.stringify({ workspaceId }),
+        }).then(() => window.location.reload())
+      }}
+    >
+      {workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
+    </select>
+  )
+}
+
+export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace' | 'members' }) {
   const [token, setToken] = useState(() => localStorage.getItem(ACCOUNT_KEY) ?? '')
   const [workspaces, setWorkspaces] = useState<CollabWorkspace[]>([])
   const [workspaceId, setWorkspaceId] = useState('')
@@ -478,12 +548,15 @@ export function ShellSettingsCollab() {
   return (
     <section className="settings-account" data-testid="settings-collab">
       <header className="settings-account-head">
-        <h3 className="settings-account-title">工作区与成员</h3>
+        <h3 className="settings-account-title">{panel === 'workspace' ? '空间设置' : '成员设置'}</h3>
         <p className="settings-muted settings-account-lead">
-          在这里切换空间、邀请成员和维护成员组。个人头像、昵称与登录信息统一放在“账户”。
+          {panel === 'workspace'
+            ? '管理当前空间或新建空间。空间切换请使用左上角菜单。'
+            : '管理当前空间的个人资料、成员、邀请和成员组。'}
         </p>
       </header>
       {error ? <p className="settings-account-error" data-testid="settings-collab-error">{error}</p> : null}
+      {panel === 'workspace' ? (
       <form
         className="settings-account-row"
         onSubmit={(event) => {
@@ -508,31 +581,12 @@ export function ShellSettingsCollab() {
         }}
       >
         <div className="settings-account-copy">
-          <label className="settings-account-label" htmlFor="settings-collab-workspace">工作区</label>
-          <p className="settings-muted settings-account-hint">成员改不同记录。同一条记录同时只锁给一个人。</p>
+          <label className="settings-account-label" htmlFor="settings-collab-workspace">当前空间</label>
+          <p className="settings-muted settings-account-hint" data-testid="settings-current-workspace">
+            {workspaces.find((row) => row.id === workspaceId)?.name || '还没有空间'}
+          </p>
         </div>
         <div className="settings-account-actions">
-          <select
-            className="settings-account-input"
-            aria-label="选择工作区"
-            data-testid="settings-collab-workspaces"
-            value={workspaceId}
-            disabled={!workspaces.length}
-            onChange={(event) => {
-              const next = event.target.value
-              setWorkspaceId(next)
-              if (!token || !next) return
-              void accountFetch(token, '/api/account/active', {
-                method: 'POST',
-                body: JSON.stringify({ workspaceId: next }),
-              }).catch((err) => setError(err instanceof Error ? err.message : '无法切换工作区'))
-            }}
-          >
-            {workspaces.length ? null : <option value="">还没有工作区</option>}
-            {workspaces.map((row) => (
-              <option key={row.id} value={row.id}>{row.name}</option>
-            ))}
-          </select>
           <input
             id="settings-collab-workspace"
             className="settings-account-input"
@@ -547,6 +601,10 @@ export function ShellSettingsCollab() {
           </button>
         </div>
       </form>
+      ) : null}
+      {panel === 'members' ? (
+      <>
+      <WorkspaceMemberProfile />
       <form
         className="settings-account-row"
         onSubmit={(event) => {
@@ -776,8 +834,18 @@ export function ShellSettingsCollab() {
           </ul>
         </div>
       </div>
+      </>
+      ) : null}
     </section>
   )
+}
+
+export function ShellSettingsWorkspace() {
+  return <ShellSettingsCollab panel="workspace" />
+}
+
+export function ShellSettingsMembers() {
+  return <ShellSettingsCollab panel="members" />
 }
 
 export function ShellSettingsAppearance() {

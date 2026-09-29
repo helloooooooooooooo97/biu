@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from '@heroicons/react/16/solid'
 import { SidebarBrandLockup } from '@biu/public-mascot'
 import { chromeIcon } from './chrome-icon.ts'
-import { ShellSidePlaces } from './shell-chrome.tsx'
+import { ShellSidePlaces, ShellWorkspaceSwitcher } from './shell-chrome.tsx'
 import {
   isSidebarFlyoutKeepTarget,
   isSidebarFlyoutIgnoreTarget,
@@ -159,7 +159,10 @@ export const ShellSidebarFrame = memo(function ShellSidebarFrame({
         />
       ) : null}
       <div className="app-side-bar-head app-side-bar-head-brand" data-biu-ignore>
-        <SidebarBrandLockup />
+        <div className="shell-workspace-head">
+          <SidebarBrandLockup />
+          <ShellWorkspaceSwitcher />
+        </div>
         {!visible || narrow ? (
           <button
             type="button"

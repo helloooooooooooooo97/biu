@@ -1443,6 +1443,39 @@ body {
   gap: 8px;
 }
 
+.shell-workspace-head {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+}
+
+.shell-workspace-head .sidebar-brand-lockup {
+  flex: 0 0 auto;
+  max-width: 72px;
+}
+
+.shell-workspace-switcher {
+  min-width: 0;
+  flex: 1;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-label);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+}
+
+.shell-workspace-switcher:hover,
+.shell-workspace-switcher:focus {
+  border-color: var(--dsw-border);
+  background: var(--dsw-hover);
+}
+
 .sidebar-brand-mascot,
 .sidebar-brand-avatar {
   flex-shrink: 0;
@@ -2983,6 +3016,10 @@ html.dark .tool-call-status.is-fail {
 
 .app-side-bar.is-narrow .app-side-bar-head-brand .chat-view-header-expand {
   position: static;
+}
+
+.app-side-bar.is-narrow .shell-workspace-switcher {
+  display: none;
 }
 
 .app-side-bar.is-narrow .app-side-actions-item {

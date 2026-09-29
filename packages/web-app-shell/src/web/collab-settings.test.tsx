@@ -3,7 +3,13 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'vitest'
-import { AuthGate, ShellSettingsCollab } from './shell-chrome.tsx'
+import {
+  AuthGate,
+  ShellSettingsAccount,
+  ShellSettingsMembers,
+  ShellSettingsWorkspace,
+  ShellWorkspaceSwitcher,
+} from './shell-chrome.tsx'
 
 function json(body: unknown, status = 200) {
   return Promise.resolve({
@@ -42,7 +48,7 @@ test('primary navigation does not call the removed chat overlay setter', () => {
   assert.doesNotMatch(source, /setChatOverlay/)
 })
 
-test('collab settings uses the account row chrome and can create a workspace', async () => {
+test('workspace and member settings are separate and workspace switching stays out of settings', async () => {
   localStorage.clear()
   localStorage.setItem('biu.account.token', 'tok')
   const css = readFileSync(resolve(import.meta.dirname, '../../../../web/style.css'), 'utf8')
@@ -55,28 +61,52 @@ test('collab settings uses the account row chrome and can create a workspace', a
     calls.push(`${init?.method ?? 'GET'} ${url}`)
     if (url.endsWith('/login')) return json({ id: 'acc_1', name: 'Ada', token: 'tok' })
     if (url.endsWith('/me')) return json({ id: 'acc_1', name: 'Ada' })
-    if (url.endsWith('/workspaces') && (init?.method ?? 'GET') === 'GET') return json({ workspaces: [] })
-    if (url.endsWith('/active')) return json({ workspaceId: init?.method === 'POST' ? 'ws_1' : '' })
+    if (url.endsWith('/workspaces') && (init?.method ?? 'GET') === 'GET') {
+      return json({ workspaces: [{ id: 'ws_1', name: 'Main', role: 'owner' }] })
+    }
+    if (url.endsWith('/active')) return json({ workspaceId: 'ws_1' })
     if (url.endsWith('/workspaces') && init?.method === 'POST') {
-      return json({ id: 'ws_1', name: 'Notes', role: 'owner' }, 201)
+      return json({ id: 'ws_2', name: 'Notes', role: 'owner' }, 201)
     }
     if (url.includes('/members')) return json({ members: [{ id: 'acc_1', name: 'Ada', role: 'owner' }] })
     if (url.endsWith('/presence')) return json({ presence: [{ accountId: 'acc_1', name: 'Ada', collection: '', recordId: '' }] })
     return json({})
   }) as typeof fetch
 
-  render(<ShellSettingsCollab />)
-  assert.equal(screen.getByTestId('settings-collab').querySelector('.settings-account-title')?.textContent, '工作区与成员')
+  render(<ShellSettingsWorkspace />)
+  assert.equal(screen.getByTestId('settings-collab').querySelector('.settings-account-title')?.textContent, '空间设置')
   await act(async () => {
     await Promise.resolve()
   })
   assert.equal(screen.queryByTestId('settings-collab-id'), null)
+  assert.equal(screen.queryByTestId('settings-collab-workspaces'), null)
   fireEvent.change(screen.getByTestId('settings-collab-workspace'), { target: { value: 'Notes' } })
   await act(async () => {
     fireEvent.click(screen.getByTestId('settings-collab-create'))
   })
-  assert.equal((screen.getByTestId('settings-collab-workspaces') as HTMLSelectElement).value, 'ws_1')
+  assert.match(screen.getByTestId('settings-current-workspace').textContent ?? '', /Notes/)
+  cleanup()
+  render(<ShellSettingsMembers />)
+  await waitFor(() => assert.match(screen.getByTestId('settings-collab-members').textContent ?? '', /所有者/))
+  assert.equal(screen.getByTestId('settings-collab').querySelector('.settings-account-title')?.textContent, '成员设置')
   assert.match(screen.getByTestId('settings-collab-members').textContent ?? '', /所有者/)
   assert.match(screen.getByTestId('settings-collab-presence').textContent ?? '', /Ada/)
   assert.equal(calls.some((line) => line.includes('/login')), false)
+})
+
+test('account settings are global and workspace switcher lives in the sidebar header', async () => {
+  localStorage.setItem('biu.account.token', 'tok')
+  globalThis.fetch = (async (path: string) => {
+    const url = String(path)
+    if (url.endsWith('/me')) return json({ id: 'acc_1', name: 'ada@example.com', email: 'ada@example.com' })
+    if (url.endsWith('/active')) return json({ workspaceId: 'ws_1' })
+    if (url.endsWith('/workspaces')) return json({ workspaces: [{ id: 'ws_1', name: 'Main', role: 'owner' }] })
+    return json({})
+  }) as typeof fetch
+  render(<ShellSettingsAccount />)
+  await waitFor(() => assert.equal(screen.getByTestId('settings-account-global-name').textContent, 'ada@example.com'))
+  assert.equal(screen.queryByLabelText('空间昵称'), null)
+  cleanup()
+  render(<ShellWorkspaceSwitcher />)
+  await waitFor(() => assert.equal((screen.getByTestId('shell-workspace-switcher') as HTMLSelectElement).value, 'ws_1'))
 })
