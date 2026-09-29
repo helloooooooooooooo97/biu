@@ -48,6 +48,9 @@ test('the app stays on the login gate until a token exists', async () => {
 test('primary navigation does not call the removed chat overlay setter', () => {
   const source = readFileSync(resolve(import.meta.dirname, './shell-chrome.tsx'), 'utf8')
   assert.doesNotMatch(source, /setChatOverlay/)
+  assert.doesNotMatch(source, /window\.confirm/)
+  assert.match(source, /settings-member-remove-dialog/)
+  assert.match(source, /settings-mcp-rotate-dialog/)
 })
 
 test('workspace and member settings are separate and workspace switching stays out of settings', async () => {
@@ -106,6 +109,10 @@ test('workspace and member settings are separate and workspace switching stays o
   assert.match(screen.getByTestId('settings-collab-members').textContent ?? '', /所有者/)
   assert.equal(screen.getByTestId('settings-collab-members').querySelectorAll('.settings-member-row').length, 2)
   assert.match(screen.getByTestId('settings-collab-members').textContent ?? '', /member@example.com/)
+  fireEvent.click(screen.getByText('移除'))
+  assert.match(screen.getByTestId('settings-member-remove-dialog').textContent ?? '', /移除空间成员/)
+  fireEvent.click(screen.getByText('取消'))
+  assert.equal(screen.queryByTestId('settings-member-remove-dialog'), null)
   assert.match(screen.getByTestId('settings-collab-presence').textContent ?? '', /Ada/)
   assert.equal(screen.queryByText('成员组'), null)
   assert.equal(screen.queryByText('添加组成员'), null)

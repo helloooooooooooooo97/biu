@@ -15,7 +15,7 @@ import {
   MagnifyingGlassIcon,
   PlusIcon,
 } from '@heroicons/react/16/solid'
-import { AnchorMenu } from '@biu/public-ui'
+import { AnchorMenu, ConfirmDialog } from '@biu/public-ui'
 import { chromeIcon } from './chrome-icon.ts'
 import { applyNoticeClick, noticeIdOf } from './notice-open.ts'
 import { readMainDataRoute } from '@biu/core-file-system/main-data-route'
@@ -597,6 +597,7 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
   const [inviteRole, setInviteRole] = useState<'member' | 'viewer'>('viewer')
   const [workspaceInviteUrl, setWorkspaceInviteUrl] = useState('')
   const [presence, setPresence] = useState<CollabPresence[]>([])
+  const [pendingRemove, setPendingRemove] = useState<CollabMember | null>(null)
   const [error, setError] = useState('')
 
   const remember = (next: string) => {
@@ -657,6 +658,19 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
   const workspaceRole = workspaces.find((row) => row.id === workspaceId)?.role
   const canManage = workspaceRole === 'owner' || workspaceRole === 'admin'
   const canChangeRoles = workspaceRole === 'owner'
+  const removePendingMember = () => {
+    if (!pendingRemove) return
+    const accountId = pendingRemove.id
+    setPendingRemove(null)
+    void accountFetch(token, `/api/account/workspaces/${workspaceId}/members/${accountId}`, {
+      method: 'DELETE',
+    })
+      .then((body) => {
+        setMembers(((body as { members?: CollabMember[] }).members) ?? [])
+        setError('')
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : '移除成员失败'))
+  }
 
   return (
     <section className="settings-account" data-testid="settings-collab">
@@ -786,17 +800,7 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
                   <button
                     type="button"
                     className="settings-account-clear"
-                    onClick={() => {
-                      if (!window.confirm(`确定将 ${row.name || row.email || '该成员'} 移出工作区？`)) return
-                      void accountFetch(token, `/api/account/workspaces/${workspaceId}/members/${row.id}`, {
-                        method: 'DELETE',
-                      })
-                        .then((body) => {
-                          setMembers(((body as { members?: CollabMember[] }).members) ?? [])
-                          setError('')
-                        })
-                        .catch((err) => setError(err instanceof Error ? err.message : '移除成员失败'))
-                    }}
+                    onClick={() => setPendingRemove(row)}
                   >
                     移除
                   </button>
@@ -881,6 +885,17 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
         </div>
       </div>
       </>
+      ) : null}
+      {pendingRemove ? (
+        <ConfirmDialog
+          title="移除空间成员"
+          message={<>确定将“{pendingRemove.name || pendingRemove.email || '该成员'}”移出当前空间吗？移除后，对方将无法继续访问空间数据。</>}
+          confirmLabel="移除成员"
+          danger
+          testId="settings-member-remove-dialog"
+          onCancel={() => setPendingRemove(null)}
+          onConfirm={removePendingMember}
+        />
       ) : null}
     </section>
   )
@@ -1068,6 +1083,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
   const [reveal, setReveal] = useState(false)
   const [copied, setCopied] = useState('')
   const [rotating, setRotating] = useState(false)
+  const [confirmRotate, setConfirmRotate] = useState(false)
 
   const load = useCallback(() => {
     void fetch('/api/mcp/info')
@@ -1104,7 +1120,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
 
   async function rotate() {
     if (!info || rotating) return
-    if (!window.confirm('重新生成后，已经配好的客户端会立刻失效，需要重新复制配置。')) return
+    setConfirmRotate(false)
     setRotating(true)
     try {
       const res = await fetch('/api/mcp/rotate', {
@@ -1210,7 +1226,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
             className="settings-mcp-rotate"
             disabled={!info || rotating}
             data-testid="settings-mcp-rotate"
-            onClick={() => void rotate()}
+            onClick={() => setConfirmRotate(true)}
           >
             {rotating ? '正在生成…' : '重新生成 token'}
           </button>
@@ -1251,6 +1267,17 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
           </article>
         ))}
       </div>
+      {confirmRotate ? (
+        <ConfirmDialog
+          title="重新生成 MCP token"
+          message="重新生成后，已经配置好的客户端会立即失效，需要重新复制并更新所有客户端配置。"
+          confirmLabel="重新生成"
+          danger
+          testId="settings-mcp-rotate-dialog"
+          onCancel={() => setConfirmRotate(false)}
+          onConfirm={() => void rotate()}
+        />
+      ) : null}
     </section>
   )
 }

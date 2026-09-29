@@ -443,6 +443,106 @@ body {
   box-shadow: var(--dsw-shadow-lv2);
 }
 
+.biu-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.biu-confirm-dialog {
+  display: grid;
+  width: min(400px, calc(100vw - 32px));
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid var(--dsw-border);
+  border-radius: 12px;
+  padding: 18px;
+  background: var(--dsw-surface);
+  color: var(--dsw-label);
+  box-shadow: var(--dsw-shadow-lv2);
+}
+
+.biu-confirm-mark {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--dsw-hover);
+  color: var(--dsw-label);
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.biu-confirm-mark.is-danger {
+  background: color-mix(in srgb, var(--dsw-danger) 14%, transparent);
+  color: var(--dsw-danger);
+}
+
+.biu-confirm-copy {
+  min-width: 0;
+}
+
+.biu-confirm-copy h2 {
+  margin: 1px 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.biu-confirm-copy > div {
+  overflow-wrap: anywhere;
+  color: var(--dsw-label-3);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.biu-confirm-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.biu-confirm-actions button {
+  height: 32px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 13px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.biu-confirm-cancel {
+  background: var(--dsw-hover);
+  color: var(--dsw-label);
+}
+
+.biu-confirm-submit {
+  background: var(--dsw-pick);
+  color: #fff;
+}
+
+.biu-confirm-submit.is-danger {
+  background: var(--dsw-danger);
+}
+
+.biu-confirm-actions button:hover {
+  filter: brightness(1.06);
+}
+
+.biu-confirm-actions button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--dsw-pick) 55%, transparent);
+  outline-offset: 2px;
+}
+
 .biu-float-overlay {
   position: fixed;
   inset: 0;
