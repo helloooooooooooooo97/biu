@@ -547,7 +547,27 @@ export class HttpService extends Service {
           context.send(400, { error: '需要空间' })
           return
         }
-        const accountStore = (this.ctx.get('account') as { store?: { isMember?(accountId: string, workspaceId: string): boolean } } | undefined)?.store
+        const accountStore = (
+          this.ctx.get('account') as {
+            store?: {
+              isMember?(accountId: string, workspaceId: string): boolean
+              requiresPasswordChange?(accountId: string): boolean
+            }
+          } | undefined
+        )?.store
+        const passwordChangePath =
+          url.pathname === '/api/account/me' ||
+          url.pathname === '/api/account/password' ||
+          url.pathname === '/api/account/logout'
+        if (
+          process.env.BIU_ONLINE === '1' &&
+          accountId &&
+          accountStore?.requiresPasswordChange?.(accountId) &&
+          !passwordChangePath
+        ) {
+          context.send(403, { error: '首次登录必须修改密码', code: 'PASSWORD_CHANGE_REQUIRED' })
+          return
+        }
         if (accountId && requestedWorkspace && accountStore?.isMember && !accountStore.isMember(accountId, requestedWorkspace)) {
           context.send(403, { error: '不在这个空间' })
           return

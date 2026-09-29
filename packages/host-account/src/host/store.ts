@@ -92,7 +92,13 @@ export class CollabError extends Error {
   }
 }
 
-export type Account = { id: string; name: string; email: string; createdAt: number }
+export type Account = {
+  id: string
+  name: string
+  email: string
+  createdAt: number
+  mustChangePassword?: boolean
+}
 export type Workspace = { id: string; name: string; ownerId: string; role: WorkspaceRole; createdAt: number }
 export type RecordHead = {
   workspaceId: string
@@ -162,6 +168,7 @@ export class CollabStore {
   constructor(private db: DatabaseSync) {
     this.authorization = new AuthorizationService(db, (accountId) => this.accountActiveWorkspace(accountId))
     this.ensureBuiltinInstanceRoles()
+    this.ensureBuiltInRoot()
     this.ensureInitialInstanceAdmin()
   }
 
@@ -237,15 +244,30 @@ export class CollabStore {
   login(email: string, password: string, deviceName = '浏览器'): Account & { token: string } {
     const normalized = email.trim().toLowerCase()
     const row = this.db
-      .prepare('SELECT id, name, email, token, password_hash, created_at FROM accounts WHERE email = ?')
+      .prepare('SELECT id, name, email, token, password_hash, created_at, must_change_password FROM accounts WHERE email = ?')
       .get(normalized) as
-      | { id: string; name: string; email: string; token: string; password_hash: string; created_at: number }
+      | {
+          id: string
+          name: string
+          email: string
+          token: string
+          password_hash: string
+          created_at: number
+          must_change_password: number
+        }
       | undefined
     if (!row?.password_hash || !verifyPassword(password, row.password_hash)) {
       throw new CollabError('邮箱或密码不对', 401)
     }
     const session = this.openSession(row.id, deviceName.slice(0, 120))
-    return { id: row.id, name: row.name, email: row.email, token: session.token, createdAt: row.created_at }
+    return {
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      token: session.token,
+      createdAt: row.created_at,
+      mustChangePassword: Boolean(row.must_change_password),
+    }
   }
 
   changePassword(accountId: string, currentPassword: string, nextPassword: string, keepToken = '', now = Date.now()) {
@@ -253,7 +275,9 @@ export class CollabStore {
     if (next.length < 6) throw new CollabError('密码至少 6 位', 400)
     const row = this.db.prepare('SELECT password_hash FROM accounts WHERE id = ?').get(accountId) as { password_hash: string } | undefined
     if (!row?.password_hash || !verifyPassword(currentPassword, row.password_hash)) throw new CollabError('当前密码不对', 401)
-    this.db.prepare('UPDATE accounts SET password_hash = ? WHERE id = ?').run(hashPassword(next), accountId)
+    this.db
+      .prepare('UPDATE accounts SET password_hash = ?, must_change_password = 0 WHERE id = ?')
+      .run(hashPassword(next), accountId)
     const keepHash = keepToken ? this.digestToken(keepToken) : ''
     this.db
       .prepare('UPDATE auth_sessions SET revoked_at = ? WHERE account_id = ? AND revoked_at IS NULL AND token_hash != ?')
@@ -438,18 +462,34 @@ export class CollabStore {
   accountByToken(token: string, now = Date.now()): Account | null {
     const session = this.db
       .prepare(
-        `SELECT a.id, a.name, a.email, a.created_at, s.id AS session_id, s.expires_at, s.revoked_at
+        `SELECT a.id, a.name, a.email, a.created_at, a.must_change_password,
+                s.id AS session_id, s.expires_at, s.revoked_at
          FROM auth_sessions s
          JOIN accounts a ON a.id = s.account_id
          WHERE s.token_hash = ?`,
       )
       .get(this.digestToken(token)) as
-      | { id: string; name: string; email: string | null; created_at: number; session_id: string; expires_at: number | null; revoked_at: number | null }
+      | {
+          id: string
+          name: string
+          email: string | null
+          created_at: number
+          must_change_password: number
+          session_id: string
+          expires_at: number | null
+          revoked_at: number | null
+        }
       | undefined
     if (session) {
       if (session.revoked_at || (session.expires_at && session.expires_at <= now)) return null
       this.db.prepare('UPDATE auth_sessions SET last_seen_at = ? WHERE id = ?').run(now, session.session_id)
-      return { id: session.id, name: session.name, email: session.email ?? '', createdAt: session.created_at }
+      return {
+        id: session.id,
+        name: session.name,
+        email: session.email ?? '',
+        createdAt: session.created_at,
+        mustChangePassword: Boolean(session.must_change_password),
+      }
     }
     const row = this.db
       .prepare(
@@ -477,6 +517,13 @@ export class CollabStore {
       this.db.prepare('UPDATE guest_sessions SET last_seen_at = ? WHERE id = ?').run(now, row.guest_session_id)
     }
     return { id: row.id, name: row.name, email: row.email ?? '', createdAt: row.created_at }
+  }
+
+  requiresPasswordChange(accountId: string) {
+    const row = this.db
+      .prepare('SELECT must_change_password FROM accounts WHERE id = ?')
+      .get(accountId) as { must_change_password?: number } | undefined
+    return Boolean(row?.must_change_password)
   }
 
   createWorkspace(ownerId: string, name: string, now = Date.now(), ownTransaction = true): Workspace {
@@ -1937,6 +1984,34 @@ export class CollabStore {
     for (const [roleId, definition] of Object.entries(BUILTIN_INSTANCE_ROLES)) {
       insertRole.run(roleId, definition.name, now)
       for (const permission of definition.permissions) insertPermission.run(roleId, permission)
+    }
+  }
+
+  private ensureBuiltInRoot(now = Date.now()) {
+    if (process.env.BIU_ONLINE !== '1') return false
+    const count = this.db.prepare('SELECT COUNT(*) AS count FROM accounts').get() as { count: number }
+    if (Number(count.count) > 0) return false
+    const accountId = 'acc_root'
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      this.db
+        .prepare(
+          `INSERT INTO accounts
+            (id, name, token, password_hash, created_at, email, active_workspace_id, must_change_password)
+           VALUES (?, 'root', ?, ?, ?, 'root', '', 1)`,
+        )
+        .run(accountId, randomBytes(24).toString('hex'), hashPassword('123456'), now)
+      this.db
+        .prepare(
+          `INSERT INTO instance_role_members (role_id, account_id, assigned_by, created_at)
+           VALUES ('super-admin', ?, ?, ?)`,
+        )
+        .run(accountId, accountId, now)
+      this.db.exec('COMMIT')
+      return true
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
     }
   }
 

@@ -289,6 +289,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [name, setName] = useState('')
   const [guestName, setGuestName] = useState('')
   const [password, setPassword] = useState('')
+  const [mustChangePassword, setMustChangePassword] = useState(false)
+  const [nextPassword, setNextPassword] = useState('')
   const [error, setError] = useState('')
   const workspaceInvite = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('workspaceInvite') ?? ''
   const guestInvite = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('guestInvite') ?? ''
@@ -311,8 +313,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
     let live = true
     setVerified(false)
     void accountFetch(token, '/api/account/me')
-      .then(() => {
-        if (live) setVerified(true)
+      .then((body) => {
+        if (live) {
+          setMustChangePassword(body.mustChangePassword === true)
+          setVerified(true)
+        }
       })
       .catch((err) => {
         if (!live) return
@@ -347,6 +352,55 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
   }, [token, verified, workspaceInvite])
 
+  if (token && verified && mustChangePassword) {
+    return (
+      <div className="auth-gate" data-testid="auth-force-password">
+        <form
+          className="settings-account auth-gate-card"
+          onSubmit={(event) => {
+            event.preventDefault()
+            setError('')
+            void accountFetch(token, '/api/account/password', {
+              method: 'POST',
+              body: JSON.stringify({ currentPassword: password, nextPassword }),
+            })
+              .then(() => {
+                setPassword('')
+                setNextPassword('')
+                setMustChangePassword(false)
+              })
+              .catch((err) => setError(err instanceof Error ? err.message : '修改密码失败'))
+          }}
+        >
+          <header className="settings-account-head">
+            <h3 className="settings-account-title">首次登录必须修改密码</h3>
+            <p className="settings-muted settings-account-lead">默认密码只用于初始化，请设置新的实例管理员密码。</p>
+          </header>
+          {error ? <p className="settings-account-error">{error}</p> : null}
+          <div className="settings-account-actions auth-gate-fields">
+            <input
+              className="settings-account-input"
+              type="password"
+              value={password}
+              placeholder="当前密码"
+              autoComplete="current-password"
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <input
+              className="settings-account-input"
+              type="password"
+              value={nextPassword}
+              minLength={6}
+              placeholder="新密码（至少 6 位）"
+              autoComplete="new-password"
+              onChange={(event) => setNextPassword(event.target.value)}
+            />
+            <button type="submit" className="settings-account-action">修改密码并进入</button>
+          </div>
+        </form>
+      </div>
+    )
+  }
   if (token && verified && !joining) return children
   if (token) return <div className="auth-gate" data-testid="auth-verifying">正在验证登录状态…</div>
 
@@ -423,9 +477,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
             className="settings-account-input"
             value={name}
             maxLength={40}
-            placeholder="登录邮箱"
-            type="email"
-            autoComplete="email"
+            placeholder={mode === 'register' ? '登录邮箱' : '账号或邮箱'}
+            type={mode === 'register' ? 'email' : 'text'}
+            autoComplete="username"
             data-testid="auth-name"
             onChange={(event) => setName(event.target.value)}
           />

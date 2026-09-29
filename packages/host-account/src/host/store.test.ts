@@ -67,6 +67,26 @@ test('online mode denies record reads without an account context', () => {
   }
 })
 
+test('a fresh online instance seeds root as super admin and forces a password change', () => {
+  const previous = process.env.BIU_ONLINE
+  process.env.BIU_ONLINE = '1'
+  try {
+    const collab = store()
+    const root = collab.login('root', '123456')
+    assert.equal(root.name, 'root')
+    assert.equal(root.mustChangePassword, true)
+    assert.equal(collab.hasInstancePermission(root.id, 'instance.roles.manage'), true)
+    assert.equal(collab.requiresPasswordChange(root.id), true)
+    collab.changePassword(root.id, '123456', 'new-secret', root.token)
+    assert.equal(collab.requiresPasswordChange(root.id), false)
+    assert.throws(() => collab.login('root', '123456'), /邮箱或密码不对/)
+    assert.equal(collab.login('root', 'new-secret').id, root.id)
+  } finally {
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
+  }
+})
+
 test('owners and managers can rename a workspace but regular members cannot', () => {
   const collab = store()
   const ada = collab.register('Ada')

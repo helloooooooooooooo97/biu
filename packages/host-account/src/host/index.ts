@@ -25,8 +25,10 @@ export class AccountService extends Service {
     this.store = new CollabStore(db)
     this.authorization = this.store.authorization
     ctx.inject(['database'], (inner) => inner.database.register(workspaceMembersCollection(this.store)))
-    const profile = readWorkspaceProfile()
-    this.store.bootstrapLocal({ accountName: profile.name || '我', workspaceName: '本机' })
+    if (process.env.BIU_ONLINE !== '1') {
+      const profile = readWorkspaceProfile()
+      this.store.bootstrapLocal({ accountName: profile.name || '我', workspaceName: '本机' })
+    }
     ctx.on('dispose', () => db.close())
   }
 }
@@ -62,10 +64,6 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     rememberLogin(route, token)
     return found
   }
-
-  ctx.http.route('POST', '/api/account/bootstrap', async (route) => {
-    route.send(410, { error: '在线模式不提供本机初始化。请使用登录或邀请链接。' })
-  })
 
   ctx.http.route('GET', '/api/account/active', async (route) => {
     try {
@@ -117,7 +115,14 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       const workspaceId = account.store.enter(found.id)
       rememberLogin(route, found.token)
       ctx.http.broadcast('database', { ts: Date.now() })
-      route.send(200, { id: found.id, name: found.name, createdAt: found.createdAt, token: found.token, workspaceId })
+      route.send(200, {
+        id: found.id,
+        name: found.name,
+        createdAt: found.createdAt,
+        token: found.token,
+        workspaceId,
+        mustChangePassword: found.mustChangePassword === true,
+      })
     } catch (error) {
       fail(route, error)
     }

@@ -482,6 +482,9 @@ export const BIU_MIGRATIONS: Migration[] = [
     // databases always receive exactly the same contract.
     db.exec(CREATE_CORE_SQL)
   } },
+  { version: 34, module: 'host-account', name: 'account.force-initial-password-change', up: (db) => {
+    addColumn(db, 'accounts', 'must_change_password', 'must_change_password INTEGER NOT NULL DEFAULT 0')
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {
