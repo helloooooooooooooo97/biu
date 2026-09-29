@@ -138,15 +138,14 @@ export class AuthorizationService {
       if (managing && membership !== 'owner' && membership !== 'admin') {
         return { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
       }
-      return {
-        allowed: true,
-        effectiveRole: membership === 'owner' || membership === 'admin'
-          ? 'manager'
-          : membership === 'viewer'
-            ? 'viewer'
-            : 'editor',
-        source: 'workspace-default',
-      }
+      const effectiveRole: ResourceRole = membership === 'owner' || membership === 'admin'
+        ? 'manager'
+        : membership === 'viewer'
+          ? 'viewer'
+          : 'editor'
+      return ROLE_RANK[effectiveRole] >= ROLE_RANK[requiredRole(action)]
+        ? { allowed: true, effectiveRole, source: 'workspace-default' }
+        : { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
     }
 
     if (resource.collection === '/workspace-members') {
