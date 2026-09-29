@@ -344,7 +344,9 @@ export class PluginStoreService extends Service {
     if (webEntry) await writeFile(join(dest, 'web.js'), await bundleStoreEntry(webEntry, 'web'))
     else if (existsSync(join(dest, 'web.js'))) await rm(join(dest, 'web.js'))
     copyPluginRuntimeDependencies(sandbox, dest)
-    let readme = await this.readReadme(id)
+    // Pack the source tree's README. The shared editor_content cache may still
+    // contain text from an older installation with the same plugin id.
+    let readme = await this.readDiskReadme(id)
     if (!readme.trim()) readme = `# ${manifest.name}\n\n${manifest.blurb.trim()}\n`
     const packed = copyReferencedEditorAssets({
       body: readme,
