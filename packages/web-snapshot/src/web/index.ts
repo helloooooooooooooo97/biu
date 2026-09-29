@@ -128,7 +128,9 @@ export class SnapshotService extends Service {
   private connect() {
     try {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-      const ws = new WebSocket(`${proto}://${location.host}/ws`)
+      const workspaceId = sessionStorage.getItem('biu.workspaceId') ?? ''
+      const query = workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''
+      const ws = new WebSocket(`${proto}://${location.host}/ws${query}`)
       ws.onopen = () => {
         void this.pull()
       }

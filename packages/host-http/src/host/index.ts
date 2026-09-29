@@ -7,7 +7,13 @@ import { Service, type Context } from 'cordis'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { HUB_CHANGE } from '@biu/type-http'
 import type { Method, RouteContext, RouteHandler } from '@biu/type-http'
-import { profilePath, runWithAccount, runWithRequestWorkspace } from '@biu/host-plugin-loader/data-dir'
+import {
+  currentAccountId,
+  currentRequestWorkspaceId,
+  profilePath,
+  runWithAccount,
+  runWithRequestWorkspace,
+} from '@biu/host-plugin-loader/data-dir'
 import { isShareApiPath, isSharePublicPath } from './share-gate.ts'
 
 interface Route {
@@ -33,7 +39,7 @@ const MIME: Record<string, string> = {
   '.map': 'application/json',
 }
 
-const TENANT_EVENTS = new Set(['database', 'session', 'agent', 'inbox', 'approval'])
+const TENANT_EVENTS = new Set(['database', 'session', 'agent', 'inbox', 'approval', 'event', 'snapshot'])
 
 /** 已绑定空间的连接只接收同一空间的租户事件；带账号的事件还要落到同一账号。未绑定的本机连接仍接收全部。 */
 export function deliverTenantEvent(
@@ -164,7 +170,12 @@ export class HttpService extends Service {
       this.wsServers.set('/ws', hub)
       hub.on('connection', (socket, request: IncomingMessage) => {
         const url = new URL(request?.url ?? '/', 'http://localhost')
-        const token = url.searchParams.get('token') ?? ''
+        const cookie = String(request.headers.cookie ?? '')
+        const encoded = cookie
+          .split(';')
+          .map((part) => part.trim())
+          .find((part) => part.startsWith('biu_account='))
+        const token = url.searchParams.get('token') ?? (encoded ? decodeURIComponent(encoded.slice('biu_account='.length)) : '')
         const workspaceId = url.searchParams.get('workspaceId') ?? ''
         let accountId = ''
         if (token) {
@@ -308,11 +319,33 @@ export class HttpService extends Service {
   }
 
   broadcast(type: string, payload: unknown, workspaceId?: string, accountId?: string) {
+    workspaceId ||= currentRequestWorkspaceId()
+    accountId ||= currentAccountId()
     const data = JSON.stringify({ type, payload, ts: Date.now() })
     for (const socket of this.sockets) {
       const meta = this.socketMeta.get(socket)
+      if (meta?.accountId && meta.workspaceId) {
+        const store = (
+          this.ctx.get('account') as {
+            store?: { isMember?(accountId: string, workspaceId: string): boolean }
+          } | undefined
+        )?.store
+        if (store?.isMember && !store.isMember(meta.accountId, meta.workspaceId)) {
+          socket.close(4403, 'membership revoked')
+          continue
+        }
+      }
       if (!deliverTenantEvent(meta ?? {}, type, { workspaceId, accountId })) continue
       if (socket.readyState === socket.OPEN) socket.send(data)
+    }
+  }
+
+  disconnectTenant(accountId: string, workspaceId: string) {
+    for (const socket of this.sockets) {
+      const meta = this.socketMeta.get(socket)
+      if (meta?.accountId === accountId && meta.workspaceId === workspaceId) {
+        socket.close(4403, 'membership revoked')
+      }
     }
   }
 
@@ -327,7 +360,7 @@ export class HttpService extends Service {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers':
-        'Content-Type, Authorization, X-Share-Password, mcp-session-id, mcp-protocol-version, Last-Event-ID',
+        'Content-Type, Authorization, X-Biu-Workspace-Id, X-Share-Password, mcp-session-id, mcp-protocol-version, Last-Event-ID',
       'Access-Control-Expose-Headers': 'mcp-session-id, mcp-protocol-version',
       'Access-Control-Max-Age': '86400',
     }
@@ -417,6 +450,17 @@ export class HttpService extends Service {
           return
         }
         const requestedWorkspace = String(req.headers['x-biu-workspace-id'] ?? '').trim()
+        if (
+          process.env.BIU_ONLINE === '1' &&
+          hasAccountSystem &&
+          accountId &&
+          url.pathname.startsWith('/api/') &&
+          !publicApi &&
+          !requestedWorkspace
+        ) {
+          context.send(400, { error: '需要空间' })
+          return
+        }
         const accountStore = (this.ctx.get('account') as { store?: { isMember?(accountId: string, workspaceId: string): boolean } } | undefined)?.store
         if (accountId && requestedWorkspace && accountStore?.isMember && !accountStore.isMember(accountId, requestedWorkspace)) {
           context.send(403, { error: '不在这个空间' })

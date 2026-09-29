@@ -97,7 +97,7 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       if (!email.trim()) throw new CollabError('邮箱不能为空', 400)
       const created = account.store.register('', Date.now(), password, email)
       const workspaceId = account.store.enter(created.id)
-      const session = account.store.openSession(created.id, 'register')
+      const session = account.store.openSession(created.id, String(route.req.headers['user-agent'] ?? '浏览器').slice(0, 120))
       rememberLogin(route, session.token)
       ctx.http.broadcast('database', { ts: Date.now() })
       route.send(201, { id: created.id, name: created.name, createdAt: created.createdAt, token: session.token, workspaceId })
@@ -109,7 +109,11 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   ctx.http.route('POST', '/api/account/login', async (route) => {
     try {
       const body = (await route.json()) as { email?: string; password?: string }
-      const found = account.store.login(String(body.email ?? ''), String(body.password ?? ''))
+      const found = account.store.login(
+        String(body.email ?? ''),
+        String(body.password ?? ''),
+        String(route.req.headers['user-agent'] ?? '浏览器'),
+      )
       const workspaceId = account.store.enter(found.id)
       rememberLogin(route, found.token)
       ctx.http.broadcast('database', { ts: Date.now() })
@@ -159,10 +163,37 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   ctx.http.route('POST', '/api/account/mcp/credentials', async (route) => {
     try {
       const me = actor(route)
-      const body = (await route.json()) as { workspaceId?: string }
+      const body = (await route.json()) as { workspaceId?: string; allowedTools?: unknown; expiresInHours?: unknown }
       const workspaceId = String(body.workspaceId ?? '').trim()
       if (!workspaceId) throw new CollabError('需要空间', 400)
-      route.send(201, account.store.issueMcpCredential(me.id, workspaceId))
+      const hours = Math.min(24 * 365, Math.max(1, Number(body.expiresInHours ?? 24 * 90)))
+      const allowedTools = Array.isArray(body.allowedTools) ? body.allowedTools.map(String) : []
+      route.send(
+        201,
+        account.store.issueMcpCredential(me.id, workspaceId, {
+          allowedTools,
+          expiresAt: Date.now() + hours * 60 * 60 * 1000,
+        }),
+      )
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('GET', '/api/account/mcp/credentials', async (route) => {
+    try {
+      const me = actor(route)
+      const workspaceId = String(route.query.get('workspaceId') ?? '').trim()
+      if (!workspaceId) throw new CollabError('需要空间', 400)
+      route.send(200, { credentials: account.store.listMcpCredentials(me.id, workspaceId) })
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('DELETE', '/api/account/mcp/credentials/:id', async (route) => {
+    try {
+      route.send(200, account.store.revokeMcpCredential(actor(route).id, String(route.params.id ?? '')))
     } catch (error) {
       fail(route, error)
     }
@@ -299,6 +330,7 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     try {
       const me = actor(route)
       account.store.removeMember(me.id, route.params.id!, route.params.accountId!)
+      ctx.http.disconnectTenant(route.params.accountId!, route.params.id!)
       route.send(200, { members: account.store.members(me.id, route.params.id!) })
     } catch (error) {
       fail(route, error)

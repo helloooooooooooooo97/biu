@@ -144,7 +144,13 @@ export function runWithWorkspace<T>(scope: WorkspaceScope, fn: () => T): T {
 const accountScope = new AsyncLocalStorage<string>()
 const requestWorkspaceScope = new AsyncLocalStorage<string>()
 
-export type McpTenant = { accountId: string; workspaceId: string; role: string }
+export type McpTenant = {
+  credentialId: string
+  accountId: string
+  workspaceId: string
+  role: string
+  allowedTools: string[]
+}
 
 const mcpTenantScope = new AsyncLocalStorage<McpTenant>()
 

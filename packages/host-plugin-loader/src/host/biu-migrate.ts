@@ -463,6 +463,20 @@ export const BIU_MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS mcp_credentials_member ON mcp_credentials(account_id, workspace_id);
     `)
   } },
+  { version: 32, module: 'host-account', name: 'account.mcp-audit', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS mcp_audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        credential_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        tool_name TEXT NOT NULL,
+        success INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS mcp_audit_workspace ON mcp_audit_log(workspace_id, created_at);
+    `)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

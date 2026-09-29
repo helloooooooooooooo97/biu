@@ -3,7 +3,14 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { FILE_TOOL_NAMES, runWithToolPolicy } from '@biu/host-tools'
-import { currentMcpTenant, runWithAccount, runWithMcpTenant, runWithRequestWorkspace } from '@biu/host-plugin-loader/data-dir'
+import {
+  currentAccountId,
+  currentMcpTenant,
+  currentRequestWorkspaceId,
+  runWithAccount,
+  runWithMcpTenant,
+  runWithRequestWorkspace,
+} from '@biu/host-plugin-loader/data-dir'
 import type { Context } from 'cordis'
 import type { RouteContext } from '@biu/type-http'
 import {
@@ -22,7 +29,7 @@ const MCP_CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers':
-    'Content-Type, Authorization, mcp-session-id, mcp-protocol-version, Last-Event-ID',
+    'Content-Type, Authorization, X-Biu-Workspace-Id, mcp-session-id, mcp-protocol-version, Last-Event-ID',
   'Access-Control-Expose-Headers': 'mcp-session-id, mcp-protocol-version',
 }
 
@@ -81,7 +88,10 @@ export function createBiuMcpServer(ctx: Context) {
 
   server.setRequestHandler(ListToolsRequestSchema, async () =>
     runWithToolPolicy({ mode: 'file' }, () => {
-      const schemas = ctx.tools.schemas()
+      const tenant = currentMcpTenant()
+      const schemas = ctx.tools
+        .schemas()
+        .filter((item) => !tenant?.allowedTools.length || tenant.allowedTools.includes(item.function.name))
       return {
         tools: schemas.map((item) => ({
           name: item.function.name,
@@ -95,8 +105,20 @@ export function createBiuMcpServer(ctx: Context) {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const name = String(request.params.name ?? '')
     const args = (request.params.arguments as Record<string, unknown> | undefined) ?? {}
+    const tenant = currentMcpTenant()
+    const audit = (success: boolean) => {
+      if (!tenant) return
+      const store = (
+        ctx.get('account') as {
+          store?: { auditMcp?(tenant: typeof tenant, toolName: string, success: boolean): void }
+        } | undefined
+      )?.store
+      store?.auditMcp?.(tenant, name, success)
+    }
     try {
-      const tenant = currentMcpTenant()
+      if (tenant?.allowedTools.length && !tenant.allowedTools.includes(name)) {
+        throw new Error('这个 MCP 凭证不允许使用该工具')
+      }
       if (tenant?.role === 'viewer' && MCP_WRITE_TOOLS.has(name)) {
         throw new Error('查看者不能写入')
       }
@@ -104,8 +126,10 @@ export function createBiuMcpServer(ctx: Context) {
       const result = tenant
         ? await runWithAccount(tenant.accountId, () => runWithRequestWorkspace(tenant.workspaceId, invoke))
         : await invoke()
+      audit(true)
       return { content: [{ type: 'text' as const, text: stringify(result) }] }
     } catch (error) {
+      audit(false)
       return {
         content: [{ type: 'text' as const, text: String(error instanceof Error ? error.message : error) }],
         isError: true,
@@ -171,7 +195,13 @@ export function applyHostServer(ctx: Context) {
     const store = (
       ctx.get('account') as {
         store?: {
-          resolveMcpCredential?(token: string): { accountId: string; workspaceId: string; role: string } | null
+          resolveMcpCredential?(token: string): {
+            credentialId: string
+            accountId: string
+            workspaceId: string
+            role: string
+            allowedTools: string[]
+          } | null
         }
       } | undefined
     )?.store
@@ -184,6 +214,18 @@ export function applyHostServer(ctx: Context) {
 
   ctx.http.route('GET', '/api/mcp/info', (route) => {
     applyCors(route)
+    if (process.env.BIU_ONLINE === '1') {
+      const accountId = currentAccountId()
+      const workspaceId = currentRequestWorkspaceId()
+      if (!accountId) return route.send(401, { error: '需要登录' })
+      if (!workspaceId) return route.send(400, { error: '需要空间' })
+      const store = (
+        ctx.get('account') as { store?: { isMember?(accountId: string, workspaceId: string): boolean } } | undefined
+      )?.store
+      if (!store?.isMember?.(accountId, workspaceId)) return route.send(403, { error: '不在这个空间' })
+      const { token: _token, clients: _clients, ...safe } = payload()
+      return route.send(200, { ...safe, token: '', online: true, workspaceId })
+    }
     if (!isLoopbackAddress(route.req.socket.remoteAddress) && mcpTenant(route) === false) return
     route.send(200, payload())
   })

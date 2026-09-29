@@ -176,6 +176,10 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     columns: ['id', 'token_hash', 'account_id', 'workspace_id', 'allowed_tools', 'expires_at', 'revoked_at', 'created_at'],
     indexes: ['mcp_credentials_member'],
   },
+  mcp_audit_log: {
+    columns: ['id', 'credential_id', 'account_id', 'workspace_id', 'tool_name', 'success', 'created_at'],
+    indexes: ['mcp_audit_workspace'],
+  },
   workspace_groups: {
     columns: ['id', 'workspace_id', 'name', 'created_by', 'created_at'],
     indexes: ['workspace_groups_workspace'],
@@ -226,7 +230,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 31
+export const LATEST_BIU_SCHEMA = 32
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -482,6 +486,16 @@ CREATE TABLE IF NOT EXISTS mcp_credentials (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS mcp_credentials_member ON mcp_credentials(account_id, workspace_id);
+CREATE TABLE IF NOT EXISTS mcp_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  credential_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
+  success INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS mcp_audit_workspace ON mcp_audit_log(workspace_id, created_at);
 CREATE TABLE IF NOT EXISTS workspace_groups (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,

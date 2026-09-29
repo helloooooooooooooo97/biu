@@ -157,13 +157,22 @@ function WorkspaceMemberProfile() {
 
 export function ShellSettingsAccount() {
   const [account, setAccount] = useState<{ name: string; email: string }>({ name: '', email: '' })
+  const [sessions, setSessions] = useState<Array<Record<string, unknown>>>([])
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [nextPassword, setNextPassword] = useState('')
+  const [message, setMessage] = useState('')
+  const token = readAccountToken()
+  const loadSessions = () =>
+    accountFetch(token, '/api/account/sessions')
+      .then((body) => setSessions((body.sessions as Array<Record<string, unknown>>) ?? []))
+      .catch(() => setSessions([]))
   useEffect(() => {
-    const token = localStorage.getItem(ACCOUNT_KEY) ?? ''
     if (!token) return
     void accountFetch(token, '/api/account/me')
       .then((body) => setAccount({ name: String(body.name ?? body.email ?? ''), email: String(body.email ?? '') }))
       .catch(() => setAccount({ name: '', email: '' }))
-  }, [])
+    void loadSessions()
+  }, [token])
   return (
     <section className="settings-account" data-testid="settings-account">
       <header className="settings-account-head">
@@ -184,6 +193,61 @@ export function ShellSettingsAccount() {
           <p className="settings-muted settings-account-hint" data-testid="settings-account-email">
             {account.email || '未设置'}
           </p>
+        </div>
+      </div>
+      <form
+        className="settings-account-row"
+        onSubmit={(event) => {
+          event.preventDefault()
+          setMessage('')
+          void accountFetch(token, '/api/account/password', {
+            method: 'POST',
+            body: JSON.stringify({ currentPassword, nextPassword }),
+          })
+            .then(() => {
+              setCurrentPassword('')
+              setNextPassword('')
+              setMessage('密码已修改，其他设备已退出。')
+              void loadSessions()
+            })
+            .catch((error) => setMessage(error instanceof Error ? error.message : '修改失败'))
+        }}
+      >
+        <div className="settings-account-copy">
+          <p className="settings-account-label">修改密码</p>
+          <div className="settings-account-actions">
+            <input className="settings-account-input" type="password" placeholder="当前密码" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+            <input className="settings-account-input" type="password" placeholder="新密码（至少 6 位）" value={nextPassword} onChange={(event) => setNextPassword(event.target.value)} />
+            <button className="settings-account-action" type="submit">修改密码</button>
+          </div>
+          {message ? <p className="settings-muted settings-account-hint">{message}</p> : null}
+        </div>
+      </form>
+      <div className="settings-account-row">
+        <div className="settings-account-copy">
+          <p className="settings-account-label">登录设备</p>
+          <div className="settings-account-actions" data-testid="settings-account-sessions">
+            {sessions.map((session) => (
+              <div className="settings-member-row" key={String(session.id)}>
+                <span>{String(session.device_name || '设备')}</span>
+                <span className="settings-muted">
+                  {session.revoked_at ? '已退出' : `最近使用：${new Date(Number(session.last_seen_at)).toLocaleString()}`}
+                </span>
+                {!session.revoked_at ? (
+                  <button
+                    type="button"
+                    className="settings-account-action"
+                    onClick={() => {
+                      void accountFetch(token, `/api/account/sessions/${encodeURIComponent(String(session.id))}`, { method: 'DELETE' })
+                        .then(loadSessions)
+                    }}
+                  >
+                    移除
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -1066,6 +1130,9 @@ type McpHostInfo = {
   tools?: string[]
   clients?: Record<string, unknown>
   note?: string
+  online?: boolean
+  workspaceId?: string
+  credentialId?: string
 }
 
 const MCP_CLIENTS: Array<{ id: string; name: string; blurb: string }> = [
@@ -1103,6 +1170,8 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
           tools: data.tools,
           clients: data.clients,
           note: data.note,
+          online: data.online,
+          workspaceId: data.workspaceId,
         })
         setError('')
       })
@@ -1128,6 +1197,24 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
     setConfirmRotate(false)
     setRotating(true)
     try {
+      if (info.online) {
+        const token = readAccountToken()
+        if (info.credentialId) {
+          await accountFetch(token, `/api/account/mcp/credentials/${encodeURIComponent(info.credentialId)}`, { method: 'DELETE' })
+        }
+        const created = await accountFetch(token, '/api/account/mcp/credentials', {
+          method: 'POST',
+          body: JSON.stringify({ workspaceId: info.workspaceId, expiresInHours: 24 * 90 }),
+        })
+        setInfo({
+          ...info,
+          token: String(created.token ?? ''),
+          credentialId: String(created.id ?? ''),
+        })
+        setReveal(true)
+        setError('')
+        return
+      }
       const res = await fetch('/api/mcp/rotate', {
         method: 'POST',
         headers: { Authorization: `Bearer ${info.token}` },
@@ -1173,7 +1260,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
             <button
               type="button"
               className="settings-mcp-icon-btn"
-              disabled={!info}
+              disabled={!info?.token}
               data-testid="settings-mcp-copy-url"
               title={copied === 'url' ? '已复制' : '复制地址'}
               aria-label={copied === 'url' ? '已复制' : '复制地址'}
@@ -1204,7 +1291,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
             <button
               type="button"
               className="settings-mcp-icon-btn"
-              disabled={!info}
+              disabled={!info?.token}
               data-testid="settings-mcp-reveal"
               title={reveal ? '隐藏 token' : '显示 token'}
               aria-label={reveal ? '隐藏 token' : '显示 token'}
@@ -1233,7 +1320,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
             data-testid="settings-mcp-rotate"
             onClick={() => setConfirmRotate(true)}
           >
-            {rotating ? '正在生成…' : '重新生成 token'}
+            {rotating ? '正在生成…' : info?.token ? '重新生成 token' : '生成空间 token'}
           </button>
           <button
             type="button"
@@ -1263,7 +1350,7 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
             <button
               type="button"
               className="settings-mcp-enable"
-              disabled={!info}
+              disabled={!info?.token}
               data-testid={`settings-mcp-copy-${client.id}`}
               onClick={() => info && void copy(client.id, mcpSnippet(info, client.id))}
             >
@@ -1274,9 +1361,9 @@ export function ShellSettingsMcp({ onLeave }: { onLeave?: () => void }) {
       </div>
       {confirmRotate ? (
         <ConfirmDialog
-          title="重新生成 MCP token"
-          message="重新生成后，已经配置好的客户端会立即失效，需要重新复制并更新所有客户端配置。"
-          confirmLabel="重新生成"
+          title={info?.token ? '重新生成 MCP token' : '生成空间 MCP token'}
+          message={info?.token ? '重新生成后，当前 token 会立即失效，需要重新复制并更新客户端配置。' : '这个 token 只允许访问当前空间，并会在 90 天后过期。'}
+          confirmLabel={info?.token ? '重新生成' : '生成'}
           danger
           testId="settings-mcp-rotate-dialog"
           onCancel={() => setConfirmRotate(false)}

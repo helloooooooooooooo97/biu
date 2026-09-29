@@ -5,6 +5,8 @@ import { AuthorizationService, type ResourcePolicyInput, type ResourceRole, type
 
 export const PRESENCE_STALE_MS = 30_000
 export const DEFAULT_LOCK_MS = 60_000
+export const DEFAULT_SESSION_MS = 30 * 24 * 60 * 60 * 1000
+export const DEFAULT_MCP_CREDENTIAL_MS = 90 * 24 * 60 * 60 * 1000
 
 export class CollabError extends Error {
   constructor(
@@ -155,7 +157,7 @@ export class CollabStore {
     return account
   }
 
-  login(email: string, password: string): Account & { token: string } {
+  login(email: string, password: string, deviceName = '浏览器'): Account & { token: string } {
     const normalized = email.trim().toLowerCase()
     const row = this.db
       .prepare('SELECT id, name, email, token, password_hash, created_at FROM accounts WHERE email = ?')
@@ -165,7 +167,7 @@ export class CollabStore {
     if (!row?.password_hash || !verifyPassword(password, row.password_hash)) {
       throw new CollabError('邮箱或密码不对', 401)
     }
-    const session = this.openSession(row.id, 'login')
+    const session = this.openSession(row.id, deviceName.slice(0, 120))
     return { id: row.id, name: row.name, email: row.email, token: session.token, createdAt: row.created_at }
   }
 
@@ -217,13 +219,14 @@ export class CollabStore {
   openSession(accountId: string, deviceName = '', expiresAt: number | null = null, now = Date.now()) {
     const token = randomBytes(24).toString('hex')
     const sessionId = id('ses')
+    const expiration = expiresAt ?? now + DEFAULT_SESSION_MS
     this.db
       .prepare(
         `INSERT INTO auth_sessions (id, account_id, token_hash, device_name, expires_at, revoked_at, created_at, last_seen_at)
          VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
       )
-      .run(sessionId, accountId, this.digestToken(token), deviceName, expiresAt, now, now)
-    return { id: sessionId, token }
+      .run(sessionId, accountId, this.digestToken(token), deviceName, expiration, now, now)
+    return { id: sessionId, token, expiresAt: expiration }
   }
 
   revokeSession(token: string, now = Date.now()) {
@@ -254,33 +257,79 @@ export class CollabStore {
     return { id: sessionId }
   }
 
-  issueMcpCredential(accountId: string, workspaceId: string, now = Date.now()) {
+  issueMcpCredential(
+    accountId: string,
+    workspaceId: string,
+    options: { allowedTools?: string[]; expiresAt?: number } = {},
+    now = Date.now(),
+  ) {
     if (!this.isMember(accountId, workspaceId)) throw new CollabError('不在这个空间', 403)
     const token = randomBytes(24).toString('hex')
     const credentialId = id('mcp')
+    const allowedTools = [...new Set(options.allowedTools?.map(String).filter(Boolean) ?? [])]
+    const expiresAt = options.expiresAt ?? now + DEFAULT_MCP_CREDENTIAL_MS
+    if (expiresAt <= now) throw new CollabError('凭证有效期必须晚于当前时间', 400)
     this.db
       .prepare(
         `INSERT INTO mcp_credentials (id, token_hash, account_id, workspace_id, allowed_tools, expires_at, revoked_at, created_at)
-         VALUES (?, ?, ?, ?, '', NULL, NULL, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, NULL, ?)`,
       )
-      .run(credentialId, this.digestToken(token), accountId, workspaceId, now)
-    return { id: credentialId, token, workspaceId }
+      .run(credentialId, this.digestToken(token), accountId, workspaceId, JSON.stringify(allowedTools), expiresAt, now)
+    return { id: credentialId, token, workspaceId, allowedTools, expiresAt }
+  }
+
+  listMcpCredentials(accountId: string, workspaceId: string) {
+    if (!this.isMember(accountId, workspaceId)) throw new CollabError('不在这个空间', 403)
+    return this.db
+      .prepare(
+        `SELECT id, workspace_id, allowed_tools, expires_at, revoked_at, created_at
+         FROM mcp_credentials WHERE account_id = ? AND workspace_id = ? ORDER BY created_at DESC`,
+      )
+      .all(accountId, workspaceId)
+      .map((row) => {
+        const value = row as Record<string, unknown>
+        return { ...value, allowed_tools: JSON.parse(String(value.allowed_tools || '[]')) }
+      })
+  }
+
+  revokeMcpCredential(accountId: string, credentialId: string, now = Date.now()) {
+    const result = this.db
+      .prepare('UPDATE mcp_credentials SET revoked_at = ? WHERE id = ? AND account_id = ? AND revoked_at IS NULL')
+      .run(now, credentialId, accountId)
+    if (!result.changes) throw new CollabError('MCP 凭证不存在', 404)
+    return { id: credentialId }
   }
 
   resolveMcpCredential(token: string, now = Date.now()) {
     if (!token) return null
     const row = this.db
       .prepare(
-        `SELECT c.account_id, c.workspace_id, c.expires_at, c.revoked_at, m.role
+        `SELECT c.id, c.account_id, c.workspace_id, c.allowed_tools, c.expires_at, c.revoked_at, m.role
          FROM mcp_credentials c
          LEFT JOIN workspace_members m ON m.workspace_id = c.workspace_id AND m.account_id = c.account_id
          WHERE c.token_hash = ?`,
       )
       .get(this.digestToken(token)) as
-      | { account_id: string; workspace_id: string; expires_at: number | null; revoked_at: number | null; role: string | null }
+      | { id: string; account_id: string; workspace_id: string; allowed_tools: string; expires_at: number | null; revoked_at: number | null; role: string | null }
       | undefined
     if (!row || row.revoked_at || (row.expires_at && row.expires_at <= now) || !row.role) return null
-    return { accountId: row.account_id, workspaceId: row.workspace_id, role: row.role }
+    return {
+      credentialId: row.id,
+      accountId: row.account_id,
+      workspaceId: row.workspace_id,
+      role: row.role,
+      allowedTools: JSON.parse(row.allowed_tools || '[]') as string[],
+    }
+  }
+
+  auditMcp(tenant: { credentialId: string; accountId: string; workspaceId: string }, toolName: string, success: boolean, now = Date.now()) {
+    this.db
+      .prepare(
+        `INSERT INTO mcp_audit_log
+         (credential_id, account_id, workspace_id, tool_name, success, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(tenant.credentialId, tenant.accountId, tenant.workspaceId, toolName, success ? 1 : 0, now)
   }
 
   revokeMcpForMember(accountId: string, workspaceId: string, now = Date.now()) {
@@ -289,7 +338,7 @@ export class CollabStore {
       .run(now, accountId, workspaceId)
   }
 
-  accountByToken(token: string): Account | null {
+  accountByToken(token: string, now = Date.now()): Account | null {
     const session = this.db
       .prepare(
         `SELECT a.id, a.name, a.email, a.created_at, s.id AS session_id, s.expires_at, s.revoked_at
@@ -301,7 +350,6 @@ export class CollabStore {
       | { id: string; name: string; email: string | null; created_at: number; session_id: string; expires_at: number | null; revoked_at: number | null }
       | undefined
     if (session) {
-      const now = Date.now()
       if (session.revoked_at || (session.expires_at && session.expires_at <= now)) return null
       this.db.prepare('UPDATE auth_sessions SET last_seen_at = ? WHERE id = ?').run(now, session.session_id)
       return { id: session.id, name: session.name, email: session.email ?? '', createdAt: session.created_at }
@@ -326,8 +374,8 @@ export class CollabStore {
         }
       | undefined
     if (!row) return null
+    if (process.env.BIU_ONLINE === '1' && !row.guest_session_id) return null
     if (row.guest_session_id) {
-      const now = Date.now()
       if (row.revoked_at || Number(row.expires_at) <= now) return null
       this.db.prepare('UPDATE guest_sessions SET last_seen_at = ? WHERE id = ?').run(now, row.guest_session_id)
     }
