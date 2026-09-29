@@ -165,7 +165,8 @@ export class CollabStore {
     if (!row?.password_hash || !verifyPassword(password, row.password_hash)) {
       throw new CollabError('邮箱或密码不对', 401)
     }
-    return { id: row.id, name: row.name, email: row.email, token: row.token, createdAt: row.created_at }
+    const session = this.openSession(row.id, 'login')
+    return { id: row.id, name: row.name, email: row.email, token: session.token, createdAt: row.created_at }
   }
 
   /** 登录后停在自己的工作区。还没有的话建一个空的。 */
@@ -196,7 +197,102 @@ export class CollabStore {
     return Boolean(row)
   }
 
+  private digestToken(token: string) {
+    return createHash('sha256').update(token).digest('hex')
+  }
+
+  openSession(accountId: string, deviceName = '', expiresAt: number | null = null, now = Date.now()) {
+    const token = randomBytes(24).toString('hex')
+    const sessionId = id('ses')
+    this.db
+      .prepare(
+        `INSERT INTO auth_sessions (id, account_id, token_hash, device_name, expires_at, revoked_at, created_at, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
+      )
+      .run(sessionId, accountId, this.digestToken(token), deviceName, expiresAt, now, now)
+    return { id: sessionId, token }
+  }
+
+  revokeSession(token: string, now = Date.now()) {
+    if (!token) return
+    this.db.prepare('UPDATE auth_sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL').run(now, this.digestToken(token))
+  }
+
+  listSessions(accountId: string) {
+    return this.db
+      .prepare(
+        `SELECT id, device_name, expires_at, revoked_at, created_at, last_seen_at
+         FROM auth_sessions WHERE account_id = ? ORDER BY created_at DESC`,
+      )
+      .all(accountId) as Array<{
+      id: string
+      device_name: string
+      expires_at: number | null
+      revoked_at: number | null
+      created_at: number
+      last_seen_at: number
+    }>
+  }
+
+  revokeSessionById(actorId: string, sessionId: string, now = Date.now()) {
+    const row = this.db.prepare('SELECT account_id FROM auth_sessions WHERE id = ?').get(sessionId) as { account_id: string } | undefined
+    if (!row || row.account_id !== actorId) throw new CollabError('会话不存在', 404)
+    this.db.prepare('UPDATE auth_sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(now, sessionId)
+    return { id: sessionId }
+  }
+
+  issueMcpCredential(accountId: string, workspaceId: string, now = Date.now()) {
+    if (!this.isMember(accountId, workspaceId)) throw new CollabError('不在这个空间', 403)
+    const token = randomBytes(24).toString('hex')
+    const credentialId = id('mcp')
+    this.db
+      .prepare(
+        `INSERT INTO mcp_credentials (id, token_hash, account_id, workspace_id, allowed_tools, expires_at, revoked_at, created_at)
+         VALUES (?, ?, ?, ?, '', NULL, NULL, ?)`,
+      )
+      .run(credentialId, this.digestToken(token), accountId, workspaceId, now)
+    return { id: credentialId, token, workspaceId }
+  }
+
+  resolveMcpCredential(token: string, now = Date.now()) {
+    if (!token) return null
+    const row = this.db
+      .prepare(
+        `SELECT c.account_id, c.workspace_id, c.expires_at, c.revoked_at, m.role
+         FROM mcp_credentials c
+         LEFT JOIN workspace_members m ON m.workspace_id = c.workspace_id AND m.account_id = c.account_id
+         WHERE c.token_hash = ?`,
+      )
+      .get(this.digestToken(token)) as
+      | { account_id: string; workspace_id: string; expires_at: number | null; revoked_at: number | null; role: string | null }
+      | undefined
+    if (!row || row.revoked_at || (row.expires_at && row.expires_at <= now) || !row.role) return null
+    return { accountId: row.account_id, workspaceId: row.workspace_id, role: row.role }
+  }
+
+  revokeMcpForMember(accountId: string, workspaceId: string, now = Date.now()) {
+    this.db
+      .prepare('UPDATE mcp_credentials SET revoked_at = ? WHERE account_id = ? AND workspace_id = ? AND revoked_at IS NULL')
+      .run(now, accountId, workspaceId)
+  }
+
   accountByToken(token: string): Account | null {
+    const session = this.db
+      .prepare(
+        `SELECT a.id, a.name, a.email, a.created_at, s.id AS session_id, s.expires_at, s.revoked_at
+         FROM auth_sessions s
+         JOIN accounts a ON a.id = s.account_id
+         WHERE s.token_hash = ?`,
+      )
+      .get(this.digestToken(token)) as
+      | { id: string; name: string; email: string | null; created_at: number; session_id: string; expires_at: number | null; revoked_at: number | null }
+      | undefined
+    if (session) {
+      const now = Date.now()
+      if (session.revoked_at || (session.expires_at && session.expires_at <= now)) return null
+      this.db.prepare('UPDATE auth_sessions SET last_seen_at = ? WHERE id = ?').run(now, session.session_id)
+      return { id: session.id, name: session.name, email: session.email ?? '', createdAt: session.created_at }
+    }
     const row = this.db
       .prepare(
         `SELECT a.id, a.name, a.email, a.created_at,
@@ -504,6 +600,7 @@ export class CollabStore {
       this.db
         .prepare('DELETE FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
         .run(workspaceId, accountId)
+      this.revokeMcpForMember(accountId, workspaceId)
       if (target.member_kind === 'guest') {
         this.db.prepare('DELETE FROM guest_sessions WHERE account_id = ?').run(accountId)
         this.db.prepare('DELETE FROM accounts WHERE id = ?').run(accountId)

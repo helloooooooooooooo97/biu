@@ -3,6 +3,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { FILE_TOOL_NAMES, runWithToolPolicy } from '@biu/host-tools'
+import { currentMcpTenant, runWithAccount, runWithMcpTenant, runWithRequestWorkspace } from '@biu/host-plugin-loader/data-dir'
 import type { Context } from 'cordis'
 import type { RouteContext } from '@biu/type-http'
 import {
@@ -15,6 +16,7 @@ import {
 } from './host-token.ts'
 
 const SERVER_INFO = { name: 'biu', version: '0.1.0' } as const
+const MCP_WRITE_TOOLS = new Set(['db_update', 'db_create', 'db_delete', 'db_restore', 'db_action', 'db_asset'])
 
 const MCP_CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -94,7 +96,14 @@ export function createBiuMcpServer(ctx: Context) {
     const name = String(request.params.name ?? '')
     const args = (request.params.arguments as Record<string, unknown> | undefined) ?? {}
     try {
-      const result = await runWithToolPolicy({ mode: 'file' }, () => ctx.tools.invoke(name, args))
+      const tenant = currentMcpTenant()
+      if (tenant?.role === 'viewer' && MCP_WRITE_TOOLS.has(name)) {
+        throw new Error('查看者不能写入')
+      }
+      const invoke = () => runWithToolPolicy({ mode: 'file' }, () => ctx.tools.invoke(name, args))
+      const result = tenant
+        ? await runWithAccount(tenant.accountId, () => runWithRequestWorkspace(tenant.workspaceId, invoke))
+        : await invoke()
       return { content: [{ type: 'text' as const, text: stringify(result) }] }
     } catch (error) {
       return {
@@ -157,31 +166,43 @@ export function applyHostServer(ctx: Context) {
     }
   }
 
-  function requireToken(route: RouteContext) {
+  function mcpTenant(route: RouteContext) {
     const got = bearerToken(route.req.headers.authorization)
-    if (!tokensMatch(got, token)) {
-      route.send(401, { error: 'mcp token required — Authorization: Bearer <token>，见设置 → MCP' })
-      return false
-    }
-    return true
+    const store = (
+      ctx.get('account') as {
+        store?: {
+          resolveMcpCredential?(token: string): { accountId: string; workspaceId: string; role: string } | null
+        }
+      } | undefined
+    )?.store
+    const credential = got ? store?.resolveMcpCredential?.(got) : null
+    if (credential) return credential
+    if (tokensMatch(got, token) && process.env.BIU_ONLINE !== '1') return null
+    route.send(401, { error: 'mcp token required — 使用绑定空间的凭证' })
+    return false as const
   }
 
   ctx.http.route('GET', '/api/mcp/info', (route) => {
     applyCors(route)
-    if (!isLoopbackAddress(route.req.socket.remoteAddress) && !requireToken(route)) return
+    if (!isLoopbackAddress(route.req.socket.remoteAddress) && mcpTenant(route) === false) return
     route.send(200, payload())
   })
 
   ctx.http.route('POST', '/api/mcp/rotate', (route) => {
     applyCors(route)
-    if (!requireToken(route)) return
+    if (process.env.BIU_ONLINE === '1') {
+      route.send(410, { error: '在线模式请使用空间 MCP 凭证' })
+      return
+    }
+    if (mcpTenant(route) === false) return
     token = rotateMcpToken(path)
     route.send(200, payload())
   })
 
   const handle = async (route: RouteContext) => {
     applyCors(route)
-    if (!requireToken(route)) return
+    const tenant = mcpTenant(route)
+    if (tenant === false) return
     const server = createBiuMcpServer(ctx)
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
@@ -192,7 +213,9 @@ export function applyHostServer(ctx: Context) {
     let parsed: unknown
     if (method === 'POST') parsed = await route.json()
     try {
-      await transport.handleRequest(route.req, route.res, parsed)
+      const run = () => transport.handleRequest(route.req, route.res, parsed)
+      if (tenant) await runWithMcpTenant(tenant, run)
+      else await run()
     } finally {
       await transport.close().catch(() => undefined)
       await server.close().catch(() => undefined)

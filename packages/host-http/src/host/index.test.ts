@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import { Context } from 'cordis'
 import { WebSocket } from 'ws'
 import * as http from './index.ts'
+import { deliverTenantEvent } from './index.ts'
 
 async function freePort() {
   return await new Promise<number>((resolve, reject) => {
@@ -179,6 +180,14 @@ test('share listener serves /api/share but not the workstation APIs', async () =
   }
 })
 
+test('workspace sockets only receive their own tenant events', () => {
+  assert.equal(deliverTenantEvent('ws_a', 'database', 'ws_a'), true)
+  assert.equal(deliverTenantEvent('ws_a', 'database', 'ws_b'), false)
+  assert.equal(deliverTenantEvent('ws_a', 'session'), false)
+  assert.equal(deliverTenantEvent('', 'database', 'ws_b'), true)
+  assert.equal(deliverTenantEvent('ws_a', 'clock', 'ws_b'), true)
+})
+
 test('host prefers dist after vite build unless BIU_PUBLIC_DIR is set', () => {
   const src = readFileSync(join(import.meta.dirname, 'index.ts'), 'utf8')
   assert.match(src, /BIU_PUBLIC_DIR/)
@@ -188,5 +197,5 @@ test('host prefers dist after vite build unless BIU_PUBLIC_DIR is set', () => {
 test('index html is painted with the profile theme', () => {
   const src = readFileSync(join(import.meta.dirname, 'index.ts'), 'utf8')
   assert.match(src, /paintDocumentTheme/)
-  assert.match(src, /profile\.json/)
+  assert.match(src, /profilePath\(\)/)
 })

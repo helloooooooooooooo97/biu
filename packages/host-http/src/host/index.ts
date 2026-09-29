@@ -33,6 +33,14 @@ const MIME: Record<string, string> = {
   '.map': 'application/json',
 }
 
+const TENANT_EVENTS = new Set(['database', 'session', 'agent', 'inbox', 'approval'])
+
+/** 已绑定空间的连接只接收同一空间的租户事件；未绑定的本机连接仍接收全部。 */
+export function deliverTenantEvent(socketWorkspaceId: string, type: string, eventWorkspaceId?: string) {
+  if (!socketWorkspaceId || !TENANT_EVENTS.has(type)) return true
+  return Boolean(eventWorkspaceId) && eventWorkspaceId === socketWorkspaceId
+}
+
 function compile(pattern: string) {
   const keys: string[] = []
   const regexp = new RegExp(
@@ -134,6 +142,7 @@ function upgradePath(req: IncomingMessage) {
 export class HttpService extends Service {
   private routes: Route[] = []
   private sockets = new Set<WebSocket>()
+  private socketMeta = new WeakMap<WebSocket, { accountId: string; workspaceId: string }>()
   private server: Server | null = null
   /** 同一 HTTP server 上只能有一条 upgrade 路由；多挂几个 `ws.Server({ server })` 会互相 abort 握手。 */
   private wsServers = new Map<string, WebSocketServer>()
@@ -147,10 +156,34 @@ export class HttpService extends Service {
       this.server = server
       const hub = new WebSocketServer({ noServer: true })
       this.wsServers.set('/ws', hub)
-      hub.on('connection', (socket) => {
+      hub.on('connection', (socket, request: IncomingMessage) => {
+        const url = new URL(request?.url ?? '/', 'http://localhost')
+        const token = url.searchParams.get('token') ?? ''
+        const workspaceId = url.searchParams.get('workspaceId') ?? ''
+        let accountId = ''
+        if (token) {
+          try {
+            const store = (ctx.get('account') as { store?: { accountByToken(token: string): { id: string } | null; isMember?(accountId: string, workspaceId: string): boolean } } | undefined)?.store
+            accountId = store?.accountByToken(token)?.id ?? ''
+            if (accountId && workspaceId && store?.isMember && !store.isMember(accountId, workspaceId)) {
+              socket.close(4403, 'workspace')
+              return
+            }
+          } catch {
+            accountId = ''
+          }
+        }
+        if (process.env.BIU_ONLINE === '1' && (!accountId || !workspaceId)) {
+          socket.close(4401, 'tenant')
+          return
+        }
+        this.socketMeta.set(socket, { accountId, workspaceId })
         this.sockets.add(socket)
-        socket.send(JSON.stringify({ type: 'hello', payload: { ok: true } }))
-        socket.on('close', () => this.sockets.delete(socket))
+        socket.send(JSON.stringify({ type: 'hello', payload: { ok: true, workspaceId } }))
+        socket.on('close', () => {
+          this.sockets.delete(socket)
+          this.socketMeta.delete(socket)
+        })
       })
       const onUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
         const wss = this.wsServers.get(upgradePath(req))
@@ -268,9 +301,11 @@ export class HttpService extends Service {
     }, `http.ws ${path}`)
   }
 
-  broadcast(type: string, payload: unknown) {
+  broadcast(type: string, payload: unknown, workspaceId?: string) {
     const data = JSON.stringify({ type, payload, ts: Date.now() })
     for (const socket of this.sockets) {
+      const meta = this.socketMeta.get(socket)
+      if (!deliverTenantEvent(meta?.workspaceId ?? '', type, workspaceId)) continue
       if (socket.readyState === socket.OPEN) socket.send(data)
     }
   }
@@ -368,6 +403,8 @@ export class HttpService extends Service {
         const publicApi =
           url.pathname.startsWith('/api/account/') ||
           url.pathname.startsWith('/api/share/') ||
+          url.pathname === '/api/mcp' ||
+          url.pathname.startsWith('/api/mcp/') ||
           (method === 'GET' && url.pathname.startsWith('/api/plugin-store/files/'))
         if (hasAccountSystem && url.pathname.startsWith('/api/') && !publicApi && !accountId) {
           context.send(401, { error: '需要登录' })

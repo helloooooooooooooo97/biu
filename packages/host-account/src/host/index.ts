@@ -97,9 +97,10 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       if (!email.trim()) throw new CollabError('邮箱不能为空', 400)
       const created = account.store.register('', Date.now(), password, email)
       const workspaceId = account.store.enter(created.id)
-      rememberLogin(route, created.token)
+      const session = account.store.openSession(created.id, 'register')
+      rememberLogin(route, session.token)
       ctx.http.broadcast('database', { ts: Date.now() })
-      route.send(201, { id: created.id, name: created.name, createdAt: created.createdAt, token: created.token, workspaceId })
+      route.send(201, { id: created.id, name: created.name, createdAt: created.createdAt, token: session.token, workspaceId })
     } catch (error) {
       fail(route, error)
     }
@@ -119,11 +120,42 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   })
 
   ctx.http.route('POST', '/api/account/logout', async (route) => {
+    account.store.revokeSession(bearer(route))
     route.res.setHeader('set-cookie', [
       'biu_account=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0',
       'biu_legacy_account=; Path=/; SameSite=Strict; Max-Age=0',
     ])
     route.send(200, { ok: true })
+  })
+
+  ctx.http.route('GET', '/api/account/sessions', async (route) => {
+    try {
+      const me = actor(route)
+      route.send(200, { sessions: account.store.listSessions(me.id) })
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('DELETE', '/api/account/sessions/:id', async (route) => {
+    try {
+      const me = actor(route)
+      route.send(200, account.store.revokeSessionById(me.id, String(route.params.id ?? '')))
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/account/mcp/credentials', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as { workspaceId?: string }
+      const workspaceId = String(body.workspaceId ?? '').trim()
+      if (!workspaceId) throw new CollabError('需要空间', 400)
+      route.send(201, account.store.issueMcpCredential(me.id, workspaceId))
+    } catch (error) {
+      fail(route, error)
+    }
   })
 
   ctx.http.route('GET', '/api/account/me', async (route) => {

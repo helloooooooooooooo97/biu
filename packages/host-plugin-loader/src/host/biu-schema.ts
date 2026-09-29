@@ -168,6 +168,14 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     columns: ['id', 'account_id', 'workspace_id', 'expires_at', 'revoked_at', 'created_at', 'last_seen_at'],
     indexes: ['guest_sessions_account'],
   },
+  auth_sessions: {
+    columns: ['id', 'account_id', 'token_hash', 'device_name', 'expires_at', 'revoked_at', 'created_at', 'last_seen_at'],
+    indexes: ['auth_sessions_account'],
+  },
+  mcp_credentials: {
+    columns: ['id', 'token_hash', 'account_id', 'workspace_id', 'allowed_tools', 'expires_at', 'revoked_at', 'created_at'],
+    indexes: ['mcp_credentials_member'],
+  },
   workspace_groups: {
     columns: ['id', 'workspace_id', 'name', 'created_by', 'created_at'],
     indexes: ['workspace_groups_workspace'],
@@ -218,7 +226,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 30
+export const LATEST_BIU_SCHEMA = 31
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -452,6 +460,28 @@ CREATE TABLE IF NOT EXISTS guest_sessions (
   last_seen_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS guest_sessions_account ON guest_sessions(account_id);
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  device_name TEXT NOT NULL DEFAULT '',
+  expires_at INTEGER,
+  revoked_at INTEGER,
+  created_at INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS auth_sessions_account ON auth_sessions(account_id, revoked_at);
+CREATE TABLE IF NOT EXISTS mcp_credentials (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  account_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  allowed_tools TEXT NOT NULL DEFAULT '',
+  expires_at INTEGER,
+  revoked_at INTEGER,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS mcp_credentials_member ON mcp_credentials(account_id, workspace_id);
 CREATE TABLE IF NOT EXISTS workspace_groups (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
