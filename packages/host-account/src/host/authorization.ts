@@ -147,7 +147,7 @@ export class AuthorizationService {
       }
       const effectiveRole: ResourceRole = membership === 'owner' || membership === 'admin'
         ? 'manager'
-        : membership === 'viewer' || memberKind === 'external'
+        : membership === 'viewer' || memberKind === 'external' || memberKind === 'guest'
           ? 'viewer'
           : 'editor'
       return ROLE_RANK[effectiveRole] >= ROLE_RANK[requiredRole(action)]
@@ -389,7 +389,7 @@ export class AuthorizationService {
 
     if (policy.access_mode === 'private' || policy.access_mode === 'restricted') return null
     if (policy.access_mode === 'members') {
-      if (this.membershipKind(accountId, resource.workspaceId) === 'external') return null
+      if (this.membershipKind(accountId, resource.workspaceId) !== 'member') return null
       return { effectiveRole: policy.member_default_role, source: 'workspace-default' }
     }
     if (policy.access_mode === 'inherit' && policy.parent_record_id) {
@@ -479,10 +479,10 @@ export class AuthorizationService {
       : null
   }
 
-  private membershipKind(accountId: string, workspaceId: string): 'member' | 'external' {
+  private membershipKind(accountId: string, workspaceId: string): 'member' | 'external' | 'guest' {
     const row = this.db
       .prepare('SELECT member_kind FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
       .get(workspaceId, accountId) as { member_kind?: string } | undefined
-    return row?.member_kind === 'external' ? 'external' : 'member'
+    return row?.member_kind === 'external' || row?.member_kind === 'guest' ? row.member_kind : 'member'
   }
 }

@@ -145,6 +145,29 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     columns: ['workspace_id', 'account_id', 'role', 'created_at', 'display_name', 'avatar', 'member_kind'],
     indexes: ['workspace_members_account'],
   },
+  workspace_invites: {
+    columns: [
+      'id',
+      'token_hash',
+      'workspace_id',
+      'kind',
+      'role',
+      'collection',
+      'record_id',
+      'resource_role',
+      'expires_at',
+      'max_uses',
+      'use_count',
+      'created_by',
+      'created_at',
+      'revoked_at',
+    ],
+    indexes: ['workspace_invites_token', 'workspace_invites_workspace'],
+  },
+  guest_sessions: {
+    columns: ['id', 'account_id', 'workspace_id', 'expires_at', 'revoked_at', 'created_at', 'last_seen_at'],
+    indexes: ['guest_sessions_account'],
+  },
   workspace_groups: {
     columns: ['id', 'workspace_id', 'name', 'created_by', 'created_at'],
     indexes: ['workspace_groups_workspace'],
@@ -195,7 +218,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 29
+export const LATEST_BIU_SCHEMA = 30
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -401,6 +424,34 @@ CREATE TABLE IF NOT EXISTS workspace_members (
   PRIMARY KEY (workspace_id, account_id)
 );
 CREATE INDEX IF NOT EXISTS workspace_members_account ON workspace_members(account_id);
+CREATE TABLE IF NOT EXISTS workspace_invites (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  workspace_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  role TEXT NOT NULL,
+  collection TEXT NOT NULL DEFAULT '',
+  record_id TEXT NOT NULL DEFAULT '',
+  resource_role TEXT NOT NULL DEFAULT 'viewer',
+  expires_at INTEGER NOT NULL,
+  max_uses INTEGER NOT NULL DEFAULT 1,
+  use_count INTEGER NOT NULL DEFAULT 0,
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  revoked_at INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS workspace_invites_token ON workspace_invites(token_hash);
+CREATE INDEX IF NOT EXISTS workspace_invites_workspace ON workspace_invites(workspace_id, created_at);
+CREATE TABLE IF NOT EXISTS guest_sessions (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL UNIQUE,
+  workspace_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  revoked_at INTEGER,
+  created_at INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS guest_sessions_account ON guest_sessions(account_id);
 CREATE TABLE IF NOT EXISTS workspace_groups (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,

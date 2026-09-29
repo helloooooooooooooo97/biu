@@ -130,6 +130,8 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
   const [groupId, setGroupId] = useState('')
   const [memberViewId, setMemberViewId] = useState('')
   const [role, setRole] = useState<'viewer' | 'editor' | 'manager'>('editor')
+  const [guestUrl, setGuestUrl] = useState('')
+  const [guestCopied, setGuestCopied] = useState(false)
   const [error, setError] = useState('')
 
   async function load() {
@@ -193,6 +195,29 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
         return load()
       })
       .catch((err) => setError(err instanceof Error ? err.message : '无法授权'))
+  }
+
+  async function createGuestLink() {
+    setError('')
+    try {
+      const data = await readJson<{ path: string }>('/api/account/access/guest-invite', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          collection,
+          recordId,
+          role: role === 'editor' ? 'editor' : 'viewer',
+          expiresInHours: 24,
+        }),
+      })
+      const url = new URL(data.path, window.location.origin).toString()
+      setGuestUrl(url)
+      await navigator.clipboard.writeText(url)
+      setGuestCopied(true)
+      window.setTimeout(() => setGuestCopied(false), 1600)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '无法生成临时访客链接')
+    }
   }
 
   return (
@@ -259,6 +284,20 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
         </div>
       ) : null}
       {availableMemberViews.length ? <p>满足该成员视图条件的账号会自动获得权限；视图条件变化会立即生效。</p> : null}
+      <div className="fsdb-share-link-row" data-testid="fsdb-share-guest">
+        {guestUrl ? (
+          <input
+            className="fsdb-share-link-field"
+            readOnly
+            aria-label="临时访客链接"
+            value={guestUrl}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+        ) : <p>临时访客无需账号，仅可访问这条内容，24 小时后自动失效。</p>}
+        <button type="button" className="fsdb-share-publish" onClick={() => void createGuestLink()}>
+          {guestCopied ? '已复制' : guestUrl ? '重新生成并复制' : '生成临时访客链接'}
+        </button>
+      </div>
       {error ? <p>{error}</p> : null}
     </form>
   )

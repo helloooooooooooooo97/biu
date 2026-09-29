@@ -54,6 +54,9 @@ test('workspace members collection lists and manages only the active workspace',
     () => runWithAccount(bob.id, () => collection.update!(cara.id, { role: 'admin' })),
     /只有所有者可以这样做/,
   )
-  await runWithAccount(bob.id, () => collection.remove!({ ids: [cara.id] }))
-  assert.equal(await runWithAccount(ada.id, () => collection.get(cara.id)), null)
+  await assert.rejects(
+    () => runWithAccount(bob.id, () => collection.remove!({ ids: [cara.id] })),
+    /所有者或管理员/,
+  )
+  assert.notEqual(await runWithAccount(ada.id, () => collection.get(cara.id)), null)
 })

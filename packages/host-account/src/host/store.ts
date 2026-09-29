@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { currentAccountId } from '@biu/host-plugin-loader/data-dir'
 import { AuthorizationService, type ResourcePolicyInput, type ResourceRole, type WorkspaceRole } from './authorization.ts'
@@ -55,6 +55,14 @@ export type PresenceRow = {
 
 function id(prefix: string) {
   return `${prefix}_${randomBytes(8).toString('hex')}`
+}
+
+function tokenHash(token: string) {
+  return createHash('sha256').update(token).digest('hex')
+}
+
+function inviteToken() {
+  return randomBytes(24).toString('base64url')
 }
 
 function hashPassword(password: string) {
@@ -177,9 +185,30 @@ export class CollabStore {
 
   accountByToken(token: string): Account | null {
     const row = this.db
-      .prepare('SELECT id, name, email, created_at FROM accounts WHERE token = ?')
-      .get(token) as { id: string; name: string; email: string | null; created_at: number } | undefined
+      .prepare(
+        `SELECT a.id, a.name, a.email, a.created_at,
+                gs.id AS guest_session_id, gs.expires_at, gs.revoked_at
+         FROM accounts a
+         LEFT JOIN guest_sessions gs ON gs.account_id = a.id
+         WHERE a.token = ?`,
+      )
+      .get(token) as
+      | {
+          id: string
+          name: string
+          email: string | null
+          created_at: number
+          guest_session_id?: string
+          expires_at?: number
+          revoked_at?: number | null
+        }
+      | undefined
     if (!row) return null
+    if (row.guest_session_id) {
+      const now = Date.now()
+      if (row.revoked_at || Number(row.expires_at) <= now) return null
+      this.db.prepare('UPDATE guest_sessions SET last_seen_at = ? WHERE id = ?').run(now, row.guest_session_id)
+    }
     return { id: row.id, name: row.name, email: row.email ?? '', createdAt: row.created_at }
   }
 
@@ -234,6 +263,170 @@ export class CollabStore {
     return this.addMember(actorId, workspaceId, row.id, now)
   }
 
+  createWorkspaceInvite(
+    actorId: string,
+    workspaceId: string,
+    role: 'member' | 'viewer' = 'viewer',
+    expiresInHours = 168,
+    now = Date.now(),
+  ) {
+    this.requireManager(actorId, workspaceId)
+    if (role !== 'member' && role !== 'viewer') throw new CollabError('邀请角色只能是编辑者或查看者', 400)
+    const raw = inviteToken()
+    const invite = {
+      id: id('inv'),
+      token: raw,
+      workspaceId,
+      kind: 'external' as const,
+      role,
+      expiresAt: now + Math.max(1, Math.min(24 * 30, expiresInHours)) * 60 * 60 * 1000,
+    }
+    this.db
+      .prepare(
+        `INSERT INTO workspace_invites
+          (id, token_hash, workspace_id, kind, role, collection, record_id, resource_role,
+           expires_at, max_uses, use_count, created_by, created_at)
+         VALUES (?, ?, ?, 'external', ?, '', '', 'viewer', ?, 1, 0, ?, ?)`,
+      )
+      .run(invite.id, tokenHash(raw), workspaceId, role, invite.expiresAt, actorId, now)
+    return invite
+  }
+
+  acceptWorkspaceInvite(actorId: string, token: string, now = Date.now()) {
+    this.requireAccount(actorId)
+    const guest = this.db.prepare('SELECT 1 AS ok FROM guest_sessions WHERE account_id = ?').get(actorId)
+    if (guest) throw new CollabError('临时访客不能加入其他空间', 403)
+    const invite = this.validInvite(token, 'external', now)
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      this.db
+        .prepare(
+          `INSERT INTO workspace_members (workspace_id, account_id, role, member_kind, created_at)
+           VALUES (?, ?, ?, 'external', ?)
+           ON CONFLICT(workspace_id, account_id) DO UPDATE SET
+             role = CASE WHEN workspace_members.member_kind = 'external' THEN excluded.role ELSE workspace_members.role END`,
+        )
+        .run(invite.workspace_id, actorId, invite.role, now)
+      this.useInvite(invite.id)
+      this.rememberActive(actorId, invite.workspace_id)
+      this.db.exec('COMMIT')
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
+    return { workspaceId: invite.workspace_id, role: invite.role }
+  }
+
+  createGuestInvite(
+    actorId: string,
+    collection: string,
+    recordId: string,
+    resourceRole: 'viewer' | 'editor' = 'viewer',
+    expiresInHours = 24,
+    now = Date.now(),
+  ) {
+    const workspaceId = this.activeWorkspaceId()
+    if (!workspaceId) throw new CollabError('没有工作区', 400)
+    const resource = { type: 'record' as const, workspaceId, ...this.recordKey(collection, recordId) }
+    const decision = this.authorization.authorize(
+      { type: 'account', accountId: actorId, workspaceId },
+      'resource:manage-permissions',
+      resource,
+    )
+    if (!decision.allowed) throw new CollabError('没有权限', 403)
+    const raw = inviteToken()
+    const invite = {
+      id: id('inv'),
+      token: raw,
+      workspaceId,
+      kind: 'guest' as const,
+      collection: resource.collection,
+      recordId: resource.recordId,
+      role: resourceRole,
+      expiresAt: now + Math.max(1, Math.min(24 * 30, expiresInHours)) * 60 * 60 * 1000,
+    }
+    this.db
+      .prepare(
+        `INSERT INTO workspace_invites
+          (id, token_hash, workspace_id, kind, role, collection, record_id, resource_role,
+           expires_at, max_uses, use_count, created_by, created_at)
+         VALUES (?, ?, ?, 'guest', 'viewer', ?, ?, ?, ?, 1, 0, ?, ?)`,
+      )
+      .run(
+        invite.id,
+        tokenHash(raw),
+        workspaceId,
+        resource.collection,
+        resource.recordId,
+        resourceRole,
+        invite.expiresAt,
+        actorId,
+        now,
+      )
+    return invite
+  }
+
+  acceptGuestInvite(token: string, displayName = '', now = Date.now()) {
+    const invite = this.validInvite(token, 'guest', now)
+    const accountId = id('guest')
+    const sessionId = id('gss')
+    const accountToken = randomBytes(24).toString('hex')
+    const name = displayName.trim().slice(0, 40) || `临时访客-${accountId.slice(-4)}`
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      this.db
+        .prepare(
+          `INSERT INTO accounts (id, name, token, password_hash, created_at, email, active_workspace_id)
+           VALUES (?, ?, ?, '', ?, NULL, ?)`,
+        )
+        .run(accountId, name, accountToken, now, invite.workspace_id)
+      this.db
+        .prepare(
+          `INSERT INTO workspace_members
+            (workspace_id, account_id, role, member_kind, created_at, display_name)
+           VALUES (?, ?, 'viewer', 'guest', ?, ?)`,
+        )
+        .run(invite.workspace_id, accountId, now, name)
+      this.db
+        .prepare(
+          `INSERT INTO guest_sessions
+            (id, account_id, workspace_id, expires_at, created_at, last_seen_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(sessionId, accountId, invite.workspace_id, invite.expires_at, now, now)
+      this.db
+        .prepare(
+          `INSERT INTO record_grants
+            (workspace_id, collection, record_id, subject_type, subject_id, role, granted_by, created_at)
+           VALUES (?, ?, ?, 'account', ?, ?, ?, ?)`,
+        )
+        .run(
+          invite.workspace_id,
+          invite.collection,
+          invite.record_id,
+          accountId,
+          invite.resource_role,
+          invite.created_by,
+          now,
+        )
+      this.useInvite(invite.id)
+      this.db.exec('COMMIT')
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
+    return {
+      id: accountId,
+      name,
+      email: '',
+      token: accountToken,
+      workspaceId: invite.workspace_id,
+      expiresAt: invite.expires_at,
+      collection: invite.collection,
+      recordId: invite.record_id,
+    }
+  }
+
   members(actorId: string, workspaceId: string) {
     this.requireMember(actorId, workspaceId)
     return this.db
@@ -251,7 +444,7 @@ export class CollabStore {
         name: string
         email: string
         role: string
-        member_kind: 'member' | 'external'
+        member_kind: 'member' | 'external' | 'guest'
         created_at: number
       }>
   }
@@ -266,8 +459,8 @@ export class CollabStore {
   removeMember(actorId: string, workspaceId: string, accountId: string) {
     const actorRole = this.requireManager(actorId, workspaceId)
     const target = this.db
-      .prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
-      .get(workspaceId, accountId) as { role: string } | undefined
+      .prepare('SELECT role, member_kind FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
+      .get(workspaceId, accountId) as { role: string; member_kind: string } | undefined
     if (!target) throw new CollabError('成员不存在', 404)
     if (target.role === 'owner') throw new CollabError('不能移除工作区所有者', 400)
     if (actorRole === 'admin' && target.role === 'admin') throw new CollabError('管理员不能移除其他管理员', 403)
@@ -284,6 +477,10 @@ export class CollabStore {
       this.db
         .prepare('DELETE FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
         .run(workspaceId, accountId)
+      if (target.member_kind === 'guest') {
+        this.db.prepare('DELETE FROM guest_sessions WHERE account_id = ?').run(accountId)
+        this.db.prepare('DELETE FROM accounts WHERE id = ?').run(accountId)
+      }
       this.db.exec('COMMIT')
     } catch (error) {
       this.db.exec('ROLLBACK')
@@ -936,6 +1133,46 @@ export class CollabStore {
     this.db
       .prepare(`INSERT INTO collab_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
       .run(key, value)
+  }
+
+  private validInvite(token: string, kind: 'external' | 'guest', now: number) {
+    const normalized = token.trim()
+    if (!normalized) throw new CollabError('邀请链接无效', 400)
+    const row = this.db
+      .prepare(
+        `SELECT id, workspace_id, kind, role, collection, record_id, resource_role,
+                expires_at, max_uses, use_count, created_by, revoked_at
+         FROM workspace_invites
+         WHERE token_hash = ? AND kind = ?`,
+      )
+      .get(tokenHash(normalized), kind) as
+      | {
+          id: string
+          workspace_id: string
+          kind: string
+          role: WorkspaceRole
+          collection: string
+          record_id: string
+          resource_role: ResourceRole
+          expires_at: number
+          max_uses: number
+          use_count: number
+          created_by: string
+          revoked_at: number | null
+        }
+      | undefined
+    if (!row) throw new CollabError('邀请链接无效', 404)
+    if (row.revoked_at || row.expires_at <= now || row.use_count >= row.max_uses) {
+      throw new CollabError('邀请链接已过期或已使用', 410)
+    }
+    return row
+  }
+
+  private useInvite(inviteId: string) {
+    const result = this.db
+      .prepare('UPDATE workspace_invites SET use_count = use_count + 1 WHERE id = ? AND use_count < max_uses')
+      .run(inviteId)
+    if (!result.changes) throw new CollabError('邀请链接已使用', 410)
   }
 
   private markBootstrapped() {

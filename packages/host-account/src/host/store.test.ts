@@ -257,3 +257,42 @@ test('sharing with a registered outsider adds an external member limited to expl
   collab.setActive(bob.id, workspaceId)
   assert.equal(runWithAccount(bob.id, () => collab.canReadRecord('/pages', 'private-external')), true)
 })
+
+test('an account can join as an external member through a one-use workspace invite', () => {
+  const collab = store()
+  const ada = collab.register('', Date.now(), 'secret1', 'invite-ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'invite-bob@example.com')
+  const workspaceId = collab.enter(ada.id)
+  collab.enter(bob.id)
+  const invite = collab.createWorkspaceInvite(ada.id, workspaceId, 'viewer')
+  const accepted = collab.acceptWorkspaceInvite(bob.id, invite.token)
+  assert.equal(accepted.workspaceId, workspaceId)
+  const member = collab.members(ada.id, workspaceId).find((row) => row.id === bob.id)
+  assert.equal(member?.role, 'viewer')
+  assert.equal(member?.member_kind, 'external')
+  assert.throws(() => collab.acceptWorkspaceInvite(bob.id, invite.token), /已过期或已使用/)
+})
+
+test('a temporary guest gets an expiring identity scoped to one record', () => {
+  const collab = store()
+  const now = Date.now()
+  const ada = collab.register('', now, 'secret1', 'guest-ada@example.com')
+  const workspaceId = collab.enter(ada.id)
+  runWithAccount(ada.id, () => {
+    collab.attach(workspaceId, '/pages', 'guest-page')
+    collab.attach(workspaceId, '/pages', 'other-page', now, {
+      ownership: 'workspace',
+      accessMode: 'members',
+    })
+  })
+  const invite = runWithAccount(ada.id, () =>
+    collab.createGuestInvite(ada.id, '/pages', 'guest-page', 'viewer', 1, now),
+  )
+  const guest = collab.acceptGuestInvite(invite.token, '小访客', now + 1)
+  assert.equal(collab.accountByToken(guest.token)?.name, '小访客')
+  const member = collab.members(ada.id, workspaceId).find((row) => row.id === guest.id)
+  assert.equal(member?.member_kind, 'guest')
+  assert.equal(runWithAccount(guest.id, () => collab.canReadRecord('/pages', 'guest-page')), true)
+  assert.equal(runWithAccount(guest.id, () => collab.canReadRecord('/pages', 'other-page')), false)
+  assert.throws(() => collab.acceptGuestInvite(invite.token), /已过期或已使用/)
+})

@@ -15,7 +15,7 @@ type MemberRow = {
   name: string
   email: string
   role: string
-  member_kind: 'member' | 'external'
+  member_kind: 'member' | 'external' | 'guest'
   created_at: number
 }
 

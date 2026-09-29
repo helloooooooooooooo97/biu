@@ -405,6 +405,38 @@ export const BIU_MIGRATIONS: Migration[] = [
       db.exec(`ALTER TABLE workspace_members ADD COLUMN member_kind TEXT NOT NULL DEFAULT 'member'`)
     }
   } },
+  { version: 30, module: 'host-account', name: 'account.invites-and-guests', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS workspace_invites (
+        id TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL UNIQUE,
+        workspace_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        role TEXT NOT NULL,
+        collection TEXT NOT NULL DEFAULT '',
+        record_id TEXT NOT NULL DEFAULT '',
+        resource_role TEXT NOT NULL DEFAULT 'viewer',
+        expires_at INTEGER NOT NULL,
+        max_uses INTEGER NOT NULL DEFAULT 1,
+        use_count INTEGER NOT NULL DEFAULT 0,
+        created_by TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        revoked_at INTEGER
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS workspace_invites_token ON workspace_invites(token_hash);
+      CREATE INDEX IF NOT EXISTS workspace_invites_workspace ON workspace_invites(workspace_id, created_at);
+      CREATE TABLE IF NOT EXISTS guest_sessions (
+        id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL UNIQUE,
+        workspace_id TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        revoked_at INTEGER,
+        created_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS guest_sessions_account ON guest_sessions(account_id);
+    `)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

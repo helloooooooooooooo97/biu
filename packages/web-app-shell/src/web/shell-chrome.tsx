@@ -204,10 +204,14 @@ export function writeAccountToken(next: string) {
 export function AuthGate({ children }: { children: ReactNode }) {
   const [token, setToken] = useState(readAccountToken)
   const [verified, setVerified] = useState(false)
+  const [joining, setJoining] = useState(false)
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [name, setName] = useState('')
+  const [guestName, setGuestName] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const workspaceInvite = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('workspaceInvite') ?? ''
+  const guestInvite = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('guestInvite') ?? ''
 
   useEffect(() => {
     const sync = () => setToken(readAccountToken())
@@ -240,11 +244,76 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
   }, [token])
 
-  if (token && verified) return children
+  useEffect(() => {
+    if (!token || !verified || !workspaceInvite) return
+    let live = true
+    setJoining(true)
+    void accountFetch(token, `/api/account/invites/${encodeURIComponent(workspaceInvite)}/accept`, { method: 'POST' })
+      .then(() => {
+        if (!live) return
+        const url = new URL(window.location.href)
+        url.searchParams.delete('workspaceInvite')
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+        setError('')
+      })
+      .catch((err) => {
+        if (live) setError(err instanceof Error ? err.message : '无法加入空间')
+      })
+      .finally(() => {
+        if (live) setJoining(false)
+      })
+    return () => {
+      live = false
+    }
+  }, [token, verified, workspaceInvite])
+
+  if (token && verified && !joining) return children
   if (token) return <div className="auth-gate" data-testid="auth-verifying">正在验证登录状态…</div>
 
   return (
     <div className="auth-gate" data-testid="auth-gate">
+      {guestInvite ? (
+        <form
+          className="settings-account auth-gate-card"
+          data-testid="auth-guest-invite"
+          onSubmit={(event) => {
+            event.preventDefault()
+            setJoining(true)
+            void accountFetch('', `/api/account/guest-invites/${encodeURIComponent(guestInvite)}/accept`, {
+              method: 'POST',
+              body: JSON.stringify({ name: guestName.trim() }),
+            })
+              .then((body) => {
+                const url = new URL(window.location.href)
+                url.searchParams.delete('guestInvite')
+                window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+                writeAccountToken(String(body.token ?? ''))
+                setError('')
+              })
+              .catch((err) => setError(err instanceof Error ? err.message : '临时访客链接无效'))
+              .finally(() => setJoining(false))
+          }}
+        >
+          <header className="settings-account-head">
+            <h3 className="settings-account-title">以临时访客身份进入</h3>
+            <p className="settings-muted settings-account-lead">无需注册，只能访问链接指定的内容；权限会在链接设定的时间后自动失效。</p>
+          </header>
+          {error ? <p className="settings-account-error">{error}</p> : null}
+          <div className="settings-account-actions auth-gate-fields">
+            <input
+              className="settings-account-input"
+              value={guestName}
+              maxLength={40}
+              placeholder="你的称呼（可选）"
+              data-testid="auth-guest-name"
+              onChange={(event) => setGuestName(event.target.value)}
+            />
+            <button type="submit" className="settings-account-action" disabled={joining}>
+              {joining ? '正在进入…' : '进入分享内容'}
+            </button>
+          </div>
+        </form>
+      ) : (
       <form
         className="settings-account auth-gate-card"
         onSubmit={(event) => {
@@ -264,7 +333,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
       >
         <header className="settings-account-head">
           <h3 className="settings-account-title">{mode === 'register' ? '注册' : '登录'}</h3>
-          <p className="settings-muted settings-account-lead">登录之后才能进入。登录邮箱和密码在所有工作区都一样。</p>
+          <p className="settings-muted settings-account-lead">
+            {workspaceInvite ? '登录或注册后即可通过邀请链接加入空间。' : '登录之后才能进入。登录邮箱和密码在所有工作区都一样。'}
+          </p>
         </header>
         {error ? <p className="settings-account-error">{error}</p> : null}
         <div className="settings-account-actions auth-gate-fields">
@@ -300,6 +371,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           </button>
         </div>
       </form>
+      )}
     </div>
   )
 }
@@ -330,6 +402,8 @@ export function ShellSettingsCollab() {
   const [workspaceName, setWorkspaceName] = useState('')
   const [members, setMembers] = useState<CollabMember[]>([])
   const [inviteId, setInviteId] = useState('')
+  const [inviteRole, setInviteRole] = useState<'member' | 'viewer'>('viewer')
+  const [workspaceInviteUrl, setWorkspaceInviteUrl] = useState('')
   const [presence, setPresence] = useState<CollabPresence[]>([])
   const [groups, setGroups] = useState<CollabGroup[]>([])
   const [groupName, setGroupName] = useState('')
@@ -566,6 +640,44 @@ export function ShellSettingsCollab() {
           <button type="submit" className="settings-account-action" disabled={!token || !workspaceId || !inviteId.trim()}>
             邀请
           </button>
+          <select
+            className="settings-account-input"
+            aria-label="邀请链接角色"
+            value={inviteRole}
+            onChange={(event) => setInviteRole(event.target.value === 'member' ? 'member' : 'viewer')}
+          >
+            <option value="viewer">查看者</option>
+            <option value="member">编辑者</option>
+          </select>
+          <button
+            type="button"
+            className="settings-account-action"
+            data-testid="settings-collab-invite-link"
+            onClick={() => {
+              void accountFetch(token, `/api/account/workspaces/${workspaceId}/invites`, {
+                method: 'POST',
+                body: JSON.stringify({ role: inviteRole, expiresInHours: 168 }),
+              })
+                .then(async (body) => {
+                  const url = new URL(String(body.path ?? '/'), window.location.origin).toString()
+                  setWorkspaceInviteUrl(url)
+                  await navigator.clipboard.writeText(url).catch(() => undefined)
+                  setError('')
+                })
+                .catch((err) => setError(err instanceof Error ? err.message : '生成邀请链接失败'))
+            }}
+          >
+            生成邀请链接
+          </button>
+          {workspaceInviteUrl ? (
+            <input
+              className="settings-account-input"
+              aria-label="空间邀请链接"
+              readOnly
+              value={workspaceInviteUrl}
+              onFocus={(event) => event.currentTarget.select()}
+            />
+          ) : null}
         </div> : null}
       </form>
       <form

@@ -205,6 +205,49 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     }
   })
 
+  ctx.http.route('POST', '/api/account/workspaces/:id/invites', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as { role?: string; expiresInHours?: number }
+      const role = body.role === 'member' ? 'member' : 'viewer'
+      const invite = account.store.createWorkspaceInvite(
+        me.id,
+        route.params.id!,
+        role,
+        Number(body.expiresInHours ?? 168),
+      )
+      route.send(201, {
+        ...invite,
+        path: `/?workspaceInvite=${encodeURIComponent(invite.token)}`,
+      })
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/account/invites/:token/accept', async (route) => {
+    try {
+      const me = actor(route)
+      const result = account.store.acceptWorkspaceInvite(me.id, route.params.token!)
+      ctx.http.broadcast('database', { ts: Date.now() })
+      route.send(200, result)
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/account/guest-invites/:token/accept', async (route) => {
+    try {
+      const body = (await route.json()) as { name?: string }
+      const result = account.store.acceptGuestInvite(route.params.token!, String(body.name ?? ''))
+      rememberLogin(route, result.token)
+      ctx.http.broadcast('database', { ts: Date.now() })
+      route.send(200, result)
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
   ctx.http.route('DELETE', '/api/account/workspaces/:id/members/:accountId', async (route) => {
     try {
       const me = actor(route)
@@ -304,6 +347,31 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
           ? account.store.grantGroup(me.id, collection, recordId, String(body.groupId), role)
           : account.store.shareWithEmail(me.id, collection, recordId, String(body.email ?? ''), role),
       )
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/account/access/guest-invite', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as {
+        collection?: string
+        recordId?: string
+        role?: string
+        expiresInHours?: number
+      }
+      const invite = account.store.createGuestInvite(
+        me.id,
+        String(body.collection ?? ''),
+        String(body.recordId ?? ''),
+        body.role === 'editor' ? 'editor' : 'viewer',
+        Number(body.expiresInHours ?? 24),
+      )
+      route.send(201, {
+        ...invite,
+        path: `/?guestInvite=${encodeURIComponent(invite.token)}`,
+      })
     } catch (error) {
       fail(route, error)
     }
