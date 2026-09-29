@@ -5,6 +5,7 @@ import {
   BellIcon,
   ChatBubbleLeftRightIcon,
   CheckIcon,
+  ChevronUpDownIcon,
   CircleStackIcon,
   ClipboardDocumentIcon,
   Cog6ToothIcon,
@@ -397,7 +398,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
 type CollabWorkspace = { id: string; name: string; role: string }
 type CollabMember = { id: string; name: string; email?: string; role: string }
 type CollabPresence = { accountId: string; name: string; collection: string; recordId: string }
-type CollabGroup = { id: string; name: string; memberCount: number }
+
+function workspaceRoleLabel(role: string) {
+  if (role === 'owner') return '所有者'
+  if (role === 'admin') return '管理者'
+  if (role === 'viewer') return '查看者'
+  return '编辑者'
+}
 
 async function accountFetch(token: string, path: string, init?: RequestInit) {
   const res = await fetch(path, {
@@ -416,6 +423,8 @@ async function accountFetch(token: string, path: string, init?: RequestInit) {
 export function ShellWorkspaceSwitcher() {
   const [workspaces, setWorkspaces] = useState<CollabWorkspace[]>([])
   const [active, setActive] = useState('')
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -443,25 +452,69 @@ export function ShellWorkspaceSwitcher() {
   }, [])
 
   if (!workspaces.length) return null
+  const current = workspaces.find((workspace) => workspace.id === active) ?? workspaces[0]!
+  const switchTo = (workspaceId: string) => {
+    const token = readAccountToken()
+    setOpen(false)
+    if (!token || !workspaceId || workspaceId === active) return
+    setActive(workspaceId)
+    void accountFetch(token, '/api/account/active', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId }),
+    }).then(() => window.location.reload())
+  }
   return (
-    <select
-      className="shell-workspace-switcher"
-      aria-label="切换空间"
-      data-testid="shell-workspace-switcher"
-      value={active}
-      onChange={(event) => {
-        const workspaceId = event.target.value
-        const token = readAccountToken()
-        if (!token || !workspaceId || workspaceId === active) return
-        setActive(workspaceId)
-        void accountFetch(token, '/api/account/active', {
-          method: 'POST',
-          body: JSON.stringify({ workspaceId }),
-        }).then(() => window.location.reload())
-      }}
-    >
-      {workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
-    </select>
+    <div className="shell-workspace-switch-wrap">
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`shell-workspace-switcher${open ? ' is-open' : ''}`}
+        aria-label="切换空间"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-testid="shell-workspace-switcher"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="shell-workspace-switch-copy">
+          <strong>{current.name}</strong>
+          <small>{workspaceRoleLabel(current.role)}</small>
+        </span>
+        <ChevronUpDownIcon className="size-4 shrink-0" />
+      </button>
+      {open ? (
+        <AnchorMenu
+          anchor={triggerRef.current}
+          onClose={() => setOpen(false)}
+          placement="right"
+          minWidth={240}
+          zIndex={100}
+          className="shell-workspace-menu"
+          role="menu"
+          aria-label="选择空间"
+          data-testid="shell-workspace-menu"
+        >
+          <p className="shell-workspace-menu-title">切换空间</p>
+          <div className="shell-workspace-menu-list">
+            {workspaces.map((workspace) => (
+              <button
+                key={workspace.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={workspace.id === active}
+                className={`shell-workspace-menu-item${workspace.id === active ? ' is-active' : ''}`}
+                onClick={() => switchTo(workspace.id)}
+              >
+                <span className="shell-workspace-menu-copy">
+                  <strong>{workspace.name}</strong>
+                  <small>{workspaceRoleLabel(workspace.role)}</small>
+                </span>
+                {workspace.id === active ? <CheckIcon className="size-4" /> : null}
+              </button>
+            ))}
+          </div>
+        </AnchorMenu>
+      ) : null}
+    </div>
   )
 }
 
@@ -475,10 +528,6 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
   const [inviteRole, setInviteRole] = useState<'member' | 'viewer'>('viewer')
   const [workspaceInviteUrl, setWorkspaceInviteUrl] = useState('')
   const [presence, setPresence] = useState<CollabPresence[]>([])
-  const [groups, setGroups] = useState<CollabGroup[]>([])
-  const [groupName, setGroupName] = useState('')
-  const [groupId, setGroupId] = useState('')
-  const [groupEmail, setGroupEmail] = useState('')
   const [error, setError] = useState('')
 
   const remember = (next: string) => {
@@ -490,17 +539,10 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
     if (!current || !id) {
       setMembers([])
       setPresence([])
-      setGroups([])
       return
     }
-    const [listed, grouped] = await Promise.all([
-      accountFetch(current, `/api/account/workspaces/${id}/members`) as Promise<{ members?: CollabMember[] }>,
-      accountFetch(current, `/api/account/workspaces/${id}/groups`) as Promise<{ groups?: CollabGroup[] }>,
-    ])
+    const listed = await accountFetch(current, `/api/account/workspaces/${id}/members`) as { members?: CollabMember[] }
     setMembers(listed.members ?? [])
-    const nextGroups = grouped.groups ?? []
-    setGroups(nextGroups)
-    setGroupId((value) => value && nextGroups.some((row) => row.id === value) ? value : (nextGroups[0]?.id ?? ''))
     const here = (await accountFetch(current, '/api/account/presence', {
       method: 'POST',
       body: JSON.stringify({ workspaceId: id }),
@@ -552,7 +594,7 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
         <p className="settings-muted settings-account-lead">
           {panel === 'workspace'
             ? '管理当前空间或新建空间。空间切换请使用左上角菜单。'
-            : '管理当前空间的个人资料、成员、邀请和成员组。'}
+            : '管理当前空间的个人资料、成员和邀请。需要分类时，可在成员数据中添加标签并保存视图。'}
         </p>
       </header>
       {error ? <p className="settings-account-error" data-testid="settings-collab-error">{error}</p> : null}
@@ -625,7 +667,7 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
         <div className="settings-account-copy">
           <label className="settings-account-label" htmlFor="settings-collab-invite">空间成员</label>
           <p className="settings-muted settings-account-hint">
-            所有者管理管理员；管理员可以邀请、移除普通成员并维护成员组。
+            所有者管理管理员；管理员可以邀请和移除普通成员。
           </p>
           <ul className="settings-account-people" data-testid="settings-collab-members">
             {members.length ? members.map((row) => (
@@ -738,89 +780,6 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
           ) : null}
         </div> : null}
       </form>
-      <form
-        className="settings-account-row"
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (!token || !workspaceId || !groupName.trim()) return
-          void accountFetch(token, `/api/account/workspaces/${workspaceId}/groups`, {
-            method: 'POST',
-            body: JSON.stringify({ name: groupName.trim() }),
-          })
-            .then((body) => {
-              const created = body as CollabGroup
-              setGroups((rows) => [...rows, created])
-              setGroupId(created.id)
-              setGroupName('')
-              setError('')
-            })
-            .catch((err) => setError(err instanceof Error ? err.message : '创建成员组失败'))
-        }}
-      >
-        <div className="settings-account-copy">
-          <label className="settings-account-label" htmlFor="settings-collab-group">成员组</label>
-          <p className="settings-muted settings-account-hint">把权限授予组，成员变化后文档权限会立即跟着变化。</p>
-          <ul className="settings-account-people" data-testid="settings-collab-groups">
-            {groups.length
-              ? groups.map((row) => <li key={row.id}>{row.name} · {row.memberCount} 人</li>)
-              : <li className="settings-muted">还没有成员组。</li>}
-          </ul>
-        </div>
-        {canManage ? <div className="settings-account-actions">
-          <input
-            id="settings-collab-group"
-            className="settings-account-input"
-            value={groupName}
-            maxLength={40}
-            placeholder="例如：产品组"
-            data-testid="settings-collab-group"
-            onChange={(event) => setGroupName(event.target.value)}
-          />
-          <button type="submit" className="settings-account-action" disabled={!token || !workspaceId}>
-            新建组
-          </button>
-        </div> : null}
-      </form>
-      {canManage && groups.length ? <form
-        className="settings-account-row"
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (!token || !workspaceId || !groupId || !groupEmail.trim()) return
-          void accountFetch(token, `/api/account/workspaces/${workspaceId}/groups/${groupId}/members`, {
-            method: 'POST',
-            body: JSON.stringify({ email: groupEmail.trim() }),
-          })
-            .then(() => {
-              setGroups((rows) => rows.map((row) => row.id === groupId ? { ...row, memberCount: row.memberCount + 1 } : row))
-              setGroupEmail('')
-              setError('')
-            })
-            .catch((err) => setError(err instanceof Error ? err.message : '添加组成员失败'))
-        }}
-      >
-        <div className="settings-account-copy">
-          <p className="settings-account-label">添加组成员</p>
-          <p className="settings-muted settings-account-hint">只能加入已经属于当前工作区的账号。</p>
-        </div>
-        <div className="settings-account-actions">
-          <select
-            className="settings-account-input"
-            value={groupId}
-            aria-label="选择成员组"
-            onChange={(event) => setGroupId(event.target.value)}
-          >
-            {groups.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-          </select>
-          <input
-            className="settings-account-input"
-            type="email"
-            value={groupEmail}
-            placeholder="成员的登录邮箱"
-            onChange={(event) => setGroupEmail(event.target.value)}
-          />
-          <button type="submit" className="settings-account-action" disabled={!groupId}>添加</button>
-        </div>
-      </form> : null}
       <div className="settings-account-row">
         <div className="settings-account-copy">
           <p className="settings-account-label">正在看</p>

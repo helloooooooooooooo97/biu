@@ -59,8 +59,8 @@ test('workspace, user and system collection sections fold independently', () => 
   assert.match(sidebar, /const \[workspaceOpen, setWorkspaceOpen\] = useState\(true\)/)
   assert.match(sidebar, /const \[systemOpen, setSystemOpen\] = useState\(false\)/)
   assert.match(sidebar, /scopeExpandedViewKeys/)
-  assert.match(sidebar, /onClick=\{\(\) => setUserOpen\(\(prev\) => !prev\)\}/)
-  assert.match(sidebar, /onClick=\{\(\) => setWorkspaceOpen\(\(prev\) => !prev\)\}/)
+  assert.match(sidebar, /setUserOpen\(\(prev\) => !prev\)\s*onOpenScopeHome\?\.\('personal'\)/)
+  assert.match(sidebar, /setWorkspaceOpen\(\(prev\) => !prev\)\s*onOpenScopeHome\?\.\('workspace'\)/)
   assert.match(sidebar, /onClick=\{\(\) => setSystemOpen\(\(prev\) => !prev\)\}/)
   assert.match(sidebar, /<SidebarFold/)
   assert.match(fold, /function SidebarFold/)
@@ -75,6 +75,10 @@ test('workspace, user and system collection sections fold independently', () => 
   assert.match(sidebar, /renderTableRows\(userTables, 'personal'\)/)
   assert.match(sidebar, /sidebar-workspace-home/)
   assert.match(sidebar, /sidebar-personal-home/)
+  const workspaceHead = sidebar.slice(sidebar.indexOf('title="打开空间数据概览"'), sidebar.indexOf('data-testid="sidebar-workspace-collections"'))
+  const personalHead = sidebar.slice(sidebar.indexOf('title="打开私人数据概览"'), sidebar.indexOf('data-testid="sidebar-user-collections"'))
+  assert.doesNotMatch(workspaceHead, /ChevronDownIcon|ChevronRightIcon/)
+  assert.doesNotMatch(personalHead, /ChevronDownIcon|ChevronRightIcon/)
 })
 
 test('grouped views nest a foldable group layer in the sidebar', () => {

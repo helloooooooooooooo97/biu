@@ -1457,9 +1457,14 @@ body {
 }
 
 .shell-workspace-switcher {
+  display: flex;
   min-width: 0;
   flex: 1;
   height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 7px;
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
@@ -1470,10 +1475,102 @@ body {
   outline: none;
 }
 
+.shell-workspace-switch-wrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+}
+
+.shell-workspace-switch-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.05;
+}
+
+.shell-workspace-switch-copy strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-workspace-switch-copy small {
+  color: var(--dsw-label-3);
+  font-size: 9px;
+  font-weight: 500;
+}
+
 .shell-workspace-switcher:hover,
-.shell-workspace-switcher:focus {
+.shell-workspace-switcher:focus,
+.shell-workspace-switcher.is-open {
   border-color: var(--dsw-border);
   background: var(--dsw-hover);
+}
+
+.shell-workspace-menu {
+  padding: 6px;
+}
+
+.shell-workspace-menu-title {
+  margin: 0;
+  padding: 5px 8px 7px;
+  color: var(--dsw-label-3);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.shell-workspace-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shell-workspace-menu-item {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--dsw-label);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+.shell-workspace-menu-item:hover,
+.shell-workspace-menu-item.is-active {
+  background: var(--dsw-hover);
+}
+
+.shell-workspace-menu-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+}
+
+.shell-workspace-menu-copy strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-workspace-menu-copy small {
+  color: var(--dsw-label-3);
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .sidebar-brand-mascot,
@@ -3018,7 +3115,7 @@ html.dark .tool-call-status.is-fail {
   position: static;
 }
 
-.app-side-bar.is-narrow .shell-workspace-switcher {
+.app-side-bar.is-narrow .shell-workspace-switch-wrap {
   display: none;
 }
 

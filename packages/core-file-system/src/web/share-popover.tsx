@@ -124,10 +124,8 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
   const [email, setEmail] = useState('')
   const [people, setPeople] = useState<Array<{ id: string; name: string; email: string; role: string }>>([])
   const [groups, setGroups] = useState<Array<{ id: string; name: string; role: string }>>([])
-  const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string }>>([])
   const [memberViews, setMemberViews] = useState<Array<{ id: string; name: string; role?: string }>>([])
   const [availableMemberViews, setAvailableMemberViews] = useState<Array<{ id: string; name: string }>>([])
-  const [groupId, setGroupId] = useState('')
   const [memberViewId, setMemberViewId] = useState('')
   const [role, setRole] = useState<'viewer' | 'editor' | 'manager'>('editor')
   const [guestUrl, setGuestUrl] = useState('')
@@ -152,16 +150,6 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
 
   useEffect(() => {
     void load().catch(() => setPeople([]))
-    void readJson<{ workspaceId?: string }>('/api/account/active')
-      .then((active) => active.workspaceId
-        ? readJson<{ groups?: Array<{ id: string; name: string }> }>(`/api/account/workspaces/${active.workspaceId}/groups`)
-        : { groups: [] })
-      .then((data) => {
-        const rows = data.groups ?? []
-        setAvailableGroups(rows)
-        setGroupId((current) => current || rows[0]?.id || '')
-      })
-      .catch(() => setAvailableGroups([]))
     void listCollection({
       path: '/views',
       limit: 200,
@@ -183,7 +171,7 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
       .catch(() => setAvailableMemberViews([]))
   }, [collection, recordId])
 
-  function grant(input: { email?: string; groupId?: string; memberViewId?: string }) {
+  function grant(input: { email?: string; memberViewId?: string }) {
     setError('')
     return readJson(`/api/account/access`, {
       method: 'POST',
@@ -253,21 +241,6 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
         </select>
         <button type="submit" className="fsdb-share-publish" data-testid="fsdb-share-member-add">添加</button>
       </div>
-      {availableGroups.length ? (
-        <div className="fsdb-share-link-row">
-          <select value={groupId} aria-label="成员组" onChange={(event) => setGroupId(event.target.value)}>
-            {availableGroups.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-          </select>
-          <button
-            type="button"
-            className="fsdb-share-publish"
-            disabled={!groupId}
-            onClick={() => void grant({ groupId })}
-          >
-            添加成员组
-          </button>
-        </div>
-      ) : null}
       {availableMemberViews.length ? (
         <div className="fsdb-share-link-row" data-testid="fsdb-share-member-view">
           <select value={memberViewId} aria-label="成员视图" onChange={(event) => setMemberViewId(event.target.value)}>

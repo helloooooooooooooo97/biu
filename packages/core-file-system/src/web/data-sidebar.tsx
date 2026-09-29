@@ -1194,19 +1194,14 @@ export const DataSidebar = memo(function DataSidebar({
               <div className="flex min-h-8 min-w-0 flex-1 items-center">
                 <button
                   type="button"
-                  className="grid size-6 shrink-0 place-items-center border-0 bg-transparent p-0"
+                  className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
                   aria-expanded={workspaceOpen}
-                  title={workspaceOpen ? '收起空间数据' : '展开空间数据'}
-                  onClick={() => setWorkspaceOpen((prev) => !prev)}
-                >
-                  {workspaceOpen ? <ChevronDownIcon className="size-4" /> : <ChevronRightIcon className="size-4" />}
-                </button>
-                <button
-                  type="button"
-                  className="flex h-full min-w-0 flex-1 items-center text-left text-[12px] font-bold tracking-wider"
                   title="打开空间数据概览"
                   data-testid="sidebar-workspace-home"
-                  onClick={() => onOpenScopeHome?.('workspace')}
+                  onClick={() => {
+                    setWorkspaceOpen((prev) => !prev)
+                    onOpenScopeHome?.('workspace')
+                  }}
                 >
                   <span className="min-w-0 flex-1 truncate tracking-normal">空间数据</span>
                 </button>
@@ -1227,19 +1222,14 @@ export const DataSidebar = memo(function DataSidebar({
               <div className="flex min-h-8 min-w-0 flex-1 items-center">
                 <button
                   type="button"
-                  className="grid size-6 shrink-0 place-items-center border-0 bg-transparent p-0"
+                  className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
                   aria-expanded={userOpen}
-                  title={userOpen ? '收起私人数据' : '展开私人数据'}
-                  onClick={() => setUserOpen((prev) => !prev)}
-                >
-                  {userOpen ? <ChevronDownIcon className="size-4" /> : <ChevronRightIcon className="size-4" />}
-                </button>
-                <button
-                  type="button"
-                  className="flex h-full min-w-0 flex-1 items-center text-left text-[12px] font-bold tracking-wider"
                   title="打开私人数据概览"
                   data-testid="sidebar-personal-home"
-                  onClick={() => onOpenScopeHome?.('personal')}
+                  onClick={() => {
+                    setUserOpen((prev) => !prev)
+                    onOpenScopeHome?.('personal')
+                  }}
                 >
                   <span className="min-w-0 flex-1 truncate tracking-normal">私人数据</span>
                 </button>

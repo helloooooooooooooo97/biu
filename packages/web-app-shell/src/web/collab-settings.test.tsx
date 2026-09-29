@@ -93,6 +93,8 @@ test('workspace and member settings are separate and workspace switching stays o
   assert.equal(screen.getByTestId('settings-collab').querySelector('.settings-account-title')?.textContent, '成员设置')
   assert.match(screen.getByTestId('settings-collab-members').textContent ?? '', /所有者/)
   assert.match(screen.getByTestId('settings-collab-presence').textContent ?? '', /Ada/)
+  assert.equal(screen.queryByText('成员组'), null)
+  assert.equal(screen.queryByText('添加组成员'), null)
   assert.equal(calls.some((line) => line.includes('/login')), false)
 })
 
@@ -102,7 +104,14 @@ test('account settings are global and workspace switcher lives in the sidebar he
     const url = String(path)
     if (url.endsWith('/me')) return json({ id: 'acc_1', name: 'ada@example.com', email: 'ada@example.com' })
     if (url.endsWith('/active')) return json({ workspaceId: 'ws_1' })
-    if (url.endsWith('/workspaces')) return json({ workspaces: [{ id: 'ws_1', name: 'Main', role: 'owner' }] })
+    if (url.endsWith('/workspaces')) {
+      return json({
+        workspaces: [
+          { id: 'ws_1', name: 'Main', role: 'owner' },
+          { id: 'ws_2', name: 'Notes', role: 'viewer' },
+        ],
+      })
+    }
     return json({})
   }) as typeof fetch
   render(<ShellSettingsAccount />)
@@ -110,5 +119,11 @@ test('account settings are global and workspace switcher lives in the sidebar he
   assert.equal(screen.queryByLabelText('空间昵称'), null)
   cleanup()
   render(<ShellWorkspaceSwitcher />)
-  await waitFor(() => assert.equal((screen.getByTestId('shell-workspace-switcher') as HTMLSelectElement).value, 'ws_1'))
+  const switcher = await screen.findByTestId('shell-workspace-switcher')
+  assert.match(switcher.textContent ?? '', /Main/)
+  assert.match(switcher.textContent ?? '', /所有者/)
+  fireEvent.click(switcher)
+  await waitFor(() => assert.equal(screen.getByTestId('shell-workspace-menu').getAttribute('role'), 'menu'))
+  assert.match(screen.getByTestId('shell-workspace-menu').textContent ?? '', /Notes/)
+  assert.match(screen.getByTestId('shell-workspace-menu').textContent ?? '', /查看者/)
 })
