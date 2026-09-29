@@ -277,7 +277,7 @@ export class CollabStore {
       id: id('inv'),
       token: raw,
       workspaceId,
-      kind: 'external' as const,
+      kind: 'workspace' as const,
       role,
       expiresAt: now + Math.max(1, Math.min(24 * 30, expiresInHours)) * 60 * 60 * 1000,
     }
@@ -286,7 +286,7 @@ export class CollabStore {
         `INSERT INTO workspace_invites
           (id, token_hash, workspace_id, kind, role, collection, record_id, resource_role,
            expires_at, max_uses, use_count, created_by, created_at)
-         VALUES (?, ?, ?, 'external', ?, '', '', 'viewer', ?, 1, 0, ?, ?)`,
+         VALUES (?, ?, ?, 'workspace', ?, '', '', 'viewer', ?, 1, 0, ?, ?)`,
       )
       .run(invite.id, tokenHash(raw), workspaceId, role, invite.expiresAt, actorId, now)
     return invite
@@ -296,15 +296,16 @@ export class CollabStore {
     this.requireAccount(actorId)
     const guest = this.db.prepare('SELECT 1 AS ok FROM guest_sessions WHERE account_id = ?').get(actorId)
     if (guest) throw new CollabError('临时访客不能加入其他空间', 403)
-    const invite = this.validInvite(token, 'external', now)
+    const invite = this.validInvite(token, 'workspace', now)
     this.db.exec('BEGIN IMMEDIATE')
     try {
       this.db
         .prepare(
           `INSERT INTO workspace_members (workspace_id, account_id, role, member_kind, created_at)
-           VALUES (?, ?, ?, 'external', ?)
+           VALUES (?, ?, ?, 'member', ?)
            ON CONFLICT(workspace_id, account_id) DO UPDATE SET
-             role = CASE WHEN workspace_members.member_kind = 'external' THEN excluded.role ELSE workspace_members.role END`,
+             role = CASE WHEN workspace_members.member_kind = 'external' THEN excluded.role ELSE workspace_members.role END,
+             member_kind = CASE WHEN workspace_members.member_kind = 'external' THEN 'member' ELSE workspace_members.member_kind END`,
         )
         .run(invite.workspace_id, actorId, invite.role, now)
       this.useInvite(invite.id)
@@ -1135,7 +1136,7 @@ export class CollabStore {
       .run(key, value)
   }
 
-  private validInvite(token: string, kind: 'external' | 'guest', now: number) {
+  private validInvite(token: string, kind: 'workspace' | 'guest', now: number) {
     const normalized = token.trim()
     if (!normalized) throw new CollabError('邀请链接无效', 400)
     const row = this.db

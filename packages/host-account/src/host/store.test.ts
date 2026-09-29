@@ -258,7 +258,7 @@ test('sharing with a registered outsider adds an external member limited to expl
   assert.equal(runWithAccount(bob.id, () => collab.canReadRecord('/pages', 'private-external')), true)
 })
 
-test('an account can join as an external member through a one-use workspace invite', () => {
+test('an account can join as a workspace member through a one-use invite link', () => {
   const collab = store()
   const ada = collab.register('', Date.now(), 'secret1', 'invite-ada@example.com')
   const bob = collab.register('', Date.now(), 'secret1', 'invite-bob@example.com')
@@ -269,7 +269,7 @@ test('an account can join as an external member through a one-use workspace invi
   assert.equal(accepted.workspaceId, workspaceId)
   const member = collab.members(ada.id, workspaceId).find((row) => row.id === bob.id)
   assert.equal(member?.role, 'viewer')
-  assert.equal(member?.member_kind, 'external')
+  assert.equal(member?.member_kind, 'member')
   assert.throws(() => collab.acceptWorkspaceInvite(bob.id, invite.token), /已过期或已使用/)
 })
 
