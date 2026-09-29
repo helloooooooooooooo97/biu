@@ -1906,13 +1906,15 @@ export class CollabStore {
          ORDER BY g.created_at DESC`,
       )
       .all(workspaceId) as Array<{ collection: string; record_id: string }>
-    return rows.filter((row) =>
-      this.authorization.authorize(
-        { type: 'account', accountId: actorId, workspaceId },
-        'resource:read',
-        { type: 'record', workspaceId, collection: row.collection, recordId: row.record_id },
-      ).allowed,
-    )
+    return rows
+      .filter((row) =>
+        this.authorization.authorize(
+          { type: 'account', accountId: actorId, workspaceId },
+          'resource:read',
+          { type: 'record', workspaceId, collection: row.collection, recordId: row.record_id },
+        ).allowed,
+      )
+      .map((row) => ({ collection: row.collection, record_id: row.record_id }))
   }
 
   private accessRows(workspaceId: string, collection: string, recordId: string) {
