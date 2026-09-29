@@ -80,7 +80,7 @@ export function ShellSettingsAccount() {
       <header className="settings-account-head">
         <h3 className="settings-account-title">我的账户</h3>
         <p className="settings-muted settings-account-lead">
-          头像和账号名跟当前工作区绑在一起，不同工作区可以重名。登录邮箱和密码在所有工作区都一样。
+          头像和空间昵称跟当前工作区绑在一起，不同工作区可以重名。账号名、登录邮箱和密码在所有工作区都一样。
         </p>
       </header>
       <div className="settings-account-row">
@@ -136,7 +136,7 @@ export function ShellSettingsAccount() {
       <div className="settings-account-row">
         <div className="settings-account-copy">
           <label className="settings-account-label" htmlFor="settings-account-name">
-            这个工作区的账号名
+            空间昵称
           </label>
           <p className="settings-muted settings-account-hint">只在当前工作区里使用，可以和别人重名。</p>
         </div>

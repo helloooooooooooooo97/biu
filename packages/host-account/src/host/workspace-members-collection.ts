@@ -13,6 +13,7 @@ export const WORKSPACE_MEMBERS_COLLECTION_PATH = '/workspace-members'
 type MemberRow = {
   id: string
   name: string
+  display_name: string
   email: string
   role: string
   member_kind: 'member' | 'external' | 'guest'
@@ -23,7 +24,7 @@ function asRecord(row: MemberRow): DbRecord {
   return {
     id: row.id,
     title: row.name || row.email,
-    name: row.name,
+    name: row.display_name,
     email: row.email,
     role: row.role,
     membershipKind: row.member_kind,
@@ -73,7 +74,7 @@ export function workspaceMembersCollection(store: CollabStore): CollectionSpec {
       fields: {
         ...REQUIRED_RECORD_FIELDS,
         title: { type: 'string', label: '账号名' },
-        name: { type: 'string', label: '空间账号名' },
+        name: { type: 'string', label: '空间昵称' },
         email: { type: 'string', label: '登录邮箱' },
         role: {
           type: 'select',

@@ -433,7 +433,8 @@ export class CollabStore {
     return this.db
       .prepare(
         `SELECT a.id,
-                COALESCE(NULLIF(m.display_name, ''), NULLIF(a.name, ''), NULLIF(a.email, ''), '未设置') AS name,
+                COALESCE(NULLIF(a.name, ''), NULLIF(a.email, ''), '未设置') AS name,
+                COALESCE(m.display_name, '') AS display_name,
                 COALESCE(a.email, '') AS email, m.role, m.member_kind, m.created_at
          FROM workspace_members m
          JOIN accounts a ON a.id = m.account_id
@@ -443,6 +444,7 @@ export class CollabStore {
       .all(workspaceId) as Array<{
         id: string
         name: string
+        display_name: string
         email: string
         role: string
         member_kind: 'member' | 'external' | 'guest'
