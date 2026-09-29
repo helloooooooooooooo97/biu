@@ -319,6 +319,11 @@ export class HttpService extends Service {
   }
 
   broadcast(type: string, payload: unknown, workspaceId?: string, accountId?: string) {
+    if (payload && typeof payload === 'object') {
+      const scoped = payload as { workspaceId?: unknown; accountId?: unknown }
+      workspaceId ||= typeof scoped.workspaceId === 'string' ? scoped.workspaceId : ''
+      accountId ||= typeof scoped.accountId === 'string' ? scoped.accountId : ''
+    }
     workspaceId ||= currentRequestWorkspaceId()
     accountId ||= currentAccountId()
     const data = JSON.stringify({ type, payload, ts: Date.now() })
@@ -337,6 +342,19 @@ export class HttpService extends Service {
       }
       if (!deliverTenantEvent(meta ?? {}, type, { workspaceId, accountId })) continue
       if (socket.readyState === socket.OPEN) socket.send(data)
+    }
+  }
+
+  broadcastWorkspace(workspaceId: string, type: string, payload: unknown) {
+    this.broadcast(type, payload, workspaceId)
+  }
+
+  broadcastAccount(accountId: string, type: string, payload: unknown) {
+    const data = JSON.stringify({ type, payload, ts: Date.now() })
+    for (const socket of this.sockets) {
+      const meta = this.socketMeta.get(socket)
+      if (meta?.accountId !== accountId || socket.readyState !== socket.OPEN) continue
+      socket.send(data)
     }
   }
 
