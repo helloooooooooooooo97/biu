@@ -57,6 +57,9 @@ test('workspace and member settings are separate and workspace switching stays o
   assert.match(css, /\.settings-account-action\s*\{[^}]*font:\s*inherit/)
   assert.match(css, /\.settings-account-action\s*\{[^}]*border:\s*1px solid var\(--dsw-border\)/)
   assert.match(css, /\.settings-account-action\s*\{[^}]*height:\s*32px/)
+  assert.match(css, /\.settings-members-section\s*\{[^}]*flex-direction:\s*column/s)
+  assert.match(css, /\.settings-member-row\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto/s)
+  assert.match(css, /\.settings-member-identity strong,[\s\S]*?text-overflow:\s*ellipsis/)
   const calls: string[] = []
   globalThis.fetch = (async (path: string, init?: RequestInit) => {
     const url = String(path)
@@ -70,7 +73,14 @@ test('workspace and member settings are separate and workspace switching stays o
     if (url.endsWith('/workspaces/ws_1') && init?.method === 'PATCH') {
       return json({ id: 'ws_1', name: 'Notes', role: 'owner' })
     }
-    if (url.includes('/members')) return json({ members: [{ id: 'acc_1', name: 'Ada', role: 'owner' }] })
+    if (url.includes('/members')) {
+      return json({
+        members: [
+          { id: 'acc_1', name: 'Ada', role: 'owner' },
+          { id: 'acc_2', name: '名称很长但不应该挤坏布局的成员', email: 'member@example.com', role: 'viewer' },
+        ],
+      })
+    }
     if (url.endsWith('/presence')) return json({ presence: [{ accountId: 'acc_1', name: 'Ada', collection: '', recordId: '' }] })
     return json({})
   }) as typeof fetch
@@ -94,6 +104,8 @@ test('workspace and member settings are separate and workspace switching stays o
   await waitFor(() => assert.match(screen.getByTestId('settings-collab-members').textContent ?? '', /所有者/))
   assert.equal(screen.getByTestId('settings-collab').querySelector('.settings-account-title')?.textContent, '成员设置')
   assert.match(screen.getByTestId('settings-collab-members').textContent ?? '', /所有者/)
+  assert.equal(screen.getByTestId('settings-collab-members').querySelectorAll('.settings-member-row').length, 2)
+  assert.match(screen.getByTestId('settings-collab-members').textContent ?? '', /member@example.com/)
   assert.match(screen.getByTestId('settings-collab-presence').textContent ?? '', /Ada/)
   assert.equal(screen.queryByText('成员组'), null)
   assert.equal(screen.queryByText('添加组成员'), null)

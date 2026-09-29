@@ -720,7 +720,7 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
       <>
       <WorkspaceMemberProfile />
       <form
-        className="settings-account-row"
+        className="settings-account-row settings-members-section"
         onSubmit={(event) => {
           event.preventDefault()
           if (!token || !workspaceId || !inviteId.trim()) return
@@ -743,13 +743,15 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
           </p>
           <ul className="settings-account-people" data-testid="settings-collab-members">
             {members.length ? members.map((row) => (
-              <li key={row.id}>
-                {row.name}{row.email ? ` · ${row.email}` : ''} · {
-                  row.role === 'owner' ? '所有者' : row.role === 'admin' ? '管理者' : row.role === 'viewer' ? '查看者' : '编辑者'
-                }
-                {canChangeRoles && row.role !== 'owner' ? (
+              <li key={row.id} className="settings-member-row">
+                <span className="settings-member-identity">
+                  <strong title={row.name || row.email}>{row.name || row.email || '未命名成员'}</strong>
+                  {row.email && row.email !== row.name ? <small title={row.email}>{row.email}</small> : null}
+                </span>
+                <span className="settings-member-controls">
+                  {canChangeRoles && row.role !== 'owner' ? (
                   <select
-                    className="settings-account-input"
+                    className="settings-account-input settings-member-role"
                     aria-label={`修改 ${row.name || row.email} 的角色`}
                     value={row.role === 'admin' || row.role === 'viewer' ? row.role : 'member'}
                     onChange={(event) => {
@@ -775,8 +777,12 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
                     <option value="member">编辑者</option>
                     <option value="viewer">查看者（只读）</option>
                   </select>
-                ) : null}
-                {canManage && row.role !== 'owner' && (workspaceRole === 'owner' || row.role === 'member' || row.role === 'viewer') ? (
+                  ) : (
+                    <span className="settings-member-role-label">
+                      {row.role === 'owner' ? '所有者' : row.role === 'admin' ? '管理者' : row.role === 'viewer' ? '查看者' : '编辑者'}
+                    </span>
+                  )}
+                  {canManage && row.role !== 'owner' && (workspaceRole === 'owner' || row.role === 'member' || row.role === 'viewer') ? (
                   <button
                     type="button"
                     className="settings-account-clear"
@@ -794,63 +800,72 @@ export function ShellSettingsCollab({ panel = 'members' }: { panel?: 'workspace'
                   >
                     移除
                   </button>
-                ) : null}
+                  ) : null}
+                </span>
               </li>
             )) : <li className="settings-muted">当前空间还没有其他成员。</li>}
           </ul>
         </div>
-        {canManage ? <div className="settings-account-actions">
-          <input
-            id="settings-collab-invite"
-            className="settings-account-input"
-            value={inviteId}
-            placeholder="成员的登录邮箱"
-            type="email"
-            data-testid="settings-collab-invite"
-            onChange={(event) => setInviteId(event.target.value)}
-          />
-          <button type="submit" className="settings-account-action" disabled={!token || !workspaceId || !inviteId.trim()}>
-            邀请
-          </button>
-          <select
-            className="settings-account-input"
-            aria-label="邀请链接角色"
-            value={inviteRole}
-            onChange={(event) => setInviteRole(event.target.value === 'member' ? 'member' : 'viewer')}
-          >
-            <option value="viewer">查看者</option>
-            <option value="member">编辑者</option>
-          </select>
-          <button
-            type="button"
-            className="settings-account-action"
-            data-testid="settings-collab-invite-link"
-            onClick={() => {
-              void accountFetch(token, `/api/account/workspaces/${workspaceId}/invites`, {
-                method: 'POST',
-                body: JSON.stringify({ role: inviteRole, expiresInHours: 168 }),
-              })
-                .then(async (body) => {
-                  const url = new URL(String(body.path ?? '/'), window.location.origin).toString()
-                  setWorkspaceInviteUrl(url)
-                  await navigator.clipboard.writeText(url).catch(() => undefined)
-                  setError('')
-                })
-                .catch((err) => setError(err instanceof Error ? err.message : '生成邀请链接失败'))
-            }}
-          >
-            生成邀请链接
-          </button>
-          {workspaceInviteUrl ? (
+        {canManage ? (
+          <div className="settings-member-invite">
+            <p className="settings-account-label">邀请成员</p>
+            <div className="settings-member-invite-row">
+              <input
+                id="settings-collab-invite"
+                className="settings-account-input"
+                value={inviteId}
+                placeholder="成员的登录邮箱"
+                type="email"
+                data-testid="settings-collab-invite"
+                onChange={(event) => setInviteId(event.target.value)}
+              />
+              <button type="submit" className="settings-account-action" disabled={!token || !workspaceId || !inviteId.trim()}>
+                邀请
+              </button>
+            </div>
+            <p className="settings-account-label">邀请链接</p>
+            <div className="settings-member-invite-row">
+              <select
+                className="settings-account-input"
+                aria-label="邀请链接角色"
+                value={inviteRole}
+                onChange={(event) => setInviteRole(event.target.value === 'member' ? 'member' : 'viewer')}
+              >
+                <option value="viewer">查看者</option>
+                <option value="member">编辑者</option>
+              </select>
+              <button
+                type="button"
+                className="settings-account-action"
+                data-testid="settings-collab-invite-link"
+                onClick={() => {
+                  void accountFetch(token, `/api/account/workspaces/${workspaceId}/invites`, {
+                    method: 'POST',
+                    body: JSON.stringify({ role: inviteRole, expiresInHours: 168 }),
+                  })
+                    .then(async (body) => {
+                      const url = new URL(String(body.path ?? '/'), window.location.origin).toString()
+                      setWorkspaceInviteUrl(url)
+                      await navigator.clipboard.writeText(url).catch(() => undefined)
+                      setError('')
+                    })
+                    .catch((err) => setError(err instanceof Error ? err.message : '生成邀请链接失败'))
+                }}
+              >
+                生成链接
+              </button>
+            </div>
+            {workspaceInviteUrl ? (
             <input
-              className="settings-account-input"
+              className="settings-account-input settings-member-invite-url"
               aria-label="空间邀请链接"
               readOnly
               value={workspaceInviteUrl}
               onFocus={(event) => event.currentTarget.select()}
             />
-          ) : null}
-        </div> : null}
+            ) : null}
+          </div>
+        ) : null}
       </form>
       <div className="settings-account-row">
         <div className="settings-account-copy">
