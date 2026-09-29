@@ -403,11 +403,15 @@ export class SessionsService extends Service {
 
   async get(id: string) {
     const hit = this.cache.get(id)
-    if (hit) return hit
+    if (hit) {
+      this.attachSession(id)
+      return hit
+    }
     const loaded = await this.ctx.sessionStore.load(id)
     if (!loaded) return loaded
     const healed = await this.healOpenTurnsOnLoad(loaded)
     this.cache.set(id, healed)
+    this.attachSession(id)
     return healed
   }
 

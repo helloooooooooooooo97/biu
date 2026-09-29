@@ -254,6 +254,14 @@ test('online HTTP and WebSocket enforce account and workspace boundaries', async
       socket.once('error', reject)
     })
     assert.equal(securedWs, 'secured')
+    const legacyWs = await new Promise<WebSocket>((resolve, reject) => {
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/ws?workspaceId=ws-a`, {
+        headers: { Cookie: 'biu_legacy_account=ada-token' },
+      })
+      socket.once('message', () => resolve(socket))
+      socket.once('error', reject)
+    })
+    legacyWs.close()
 
     const connect = (token: string, workspaceId: string) =>
       new Promise<WebSocket>((resolve, reject) => {
@@ -267,6 +275,12 @@ test('online HTTP and WebSocket enforce account and workspace boundaries', async
     const inferredSessionMessage = new Promise<string>((resolve) => ada.once('message', (raw) => resolve(String(raw))))
     ctx.http.broadcast('session', { sessionId: 'session-a', event: { type: 'done' } })
     assert.match(await inferredSessionMessage, /"session-a"/)
+    const inferredAgentMessage = new Promise<string>((resolve) => ada.once('message', (raw) => resolve(String(raw))))
+    ctx.http.broadcast('agent', { sessionId: 'session-a', status: 'running' })
+    assert.match(await inferredAgentMessage, /"running"/)
+    const inferredInboxMessage = new Promise<string>((resolve) => ada.once('message', (raw) => resolve(String(raw))))
+    ctx.http.broadcast('inbox', { sessionId: 'session-a', inbox: [] })
+    assert.match(await inferredInboxMessage, /"inbox"/)
     const adaMessage = new Promise<string>((resolve) => ada.once('message', (raw) => resolve(String(raw))))
     let bobReceived = false
     bob.once('message', () => {
