@@ -128,6 +128,16 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     route.send(200, { ok: true })
   })
 
+  ctx.http.route('POST', '/api/account/password', async (route) => {
+    try {
+      const me = actor(route)
+      const body = (await route.json()) as { currentPassword?: string; nextPassword?: string }
+      route.send(200, account.store.changePassword(me.id, String(body.currentPassword ?? ''), String(body.nextPassword ?? ''), bearer(route)))
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
   ctx.http.route('GET', '/api/account/sessions', async (route) => {
     try {
       const me = actor(route)

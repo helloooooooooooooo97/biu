@@ -35,10 +35,16 @@ const MIME: Record<string, string> = {
 
 const TENANT_EVENTS = new Set(['database', 'session', 'agent', 'inbox', 'approval'])
 
-/** 已绑定空间的连接只接收同一空间的租户事件；未绑定的本机连接仍接收全部。 */
-export function deliverTenantEvent(socketWorkspaceId: string, type: string, eventWorkspaceId?: string) {
-  if (!socketWorkspaceId || !TENANT_EVENTS.has(type)) return true
-  return Boolean(eventWorkspaceId) && eventWorkspaceId === socketWorkspaceId
+/** 已绑定空间的连接只接收同一空间的租户事件；带账号的事件还要落到同一账号。未绑定的本机连接仍接收全部。 */
+export function deliverTenantEvent(
+  socket: { workspaceId?: string; accountId?: string },
+  type: string,
+  event: { workspaceId?: string; accountId?: string } = {},
+) {
+  if (!socket.workspaceId || !TENANT_EVENTS.has(type)) return true
+  if (!event.workspaceId || event.workspaceId !== socket.workspaceId) return false
+  if (event.accountId && event.accountId !== socket.accountId) return false
+  return true
 }
 
 function compile(pattern: string) {
@@ -301,11 +307,11 @@ export class HttpService extends Service {
     }, `http.ws ${path}`)
   }
 
-  broadcast(type: string, payload: unknown, workspaceId?: string) {
+  broadcast(type: string, payload: unknown, workspaceId?: string, accountId?: string) {
     const data = JSON.stringify({ type, payload, ts: Date.now() })
     for (const socket of this.sockets) {
       const meta = this.socketMeta.get(socket)
-      if (!deliverTenantEvent(meta?.workspaceId ?? '', type, workspaceId)) continue
+      if (!deliverTenantEvent(meta ?? {}, type, { workspaceId, accountId })) continue
       if (socket.readyState === socket.OPEN) socket.send(data)
     }
   }

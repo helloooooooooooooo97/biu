@@ -181,11 +181,14 @@ test('share listener serves /api/share but not the workstation APIs', async () =
 })
 
 test('workspace sockets only receive their own tenant events', () => {
-  assert.equal(deliverTenantEvent('ws_a', 'database', 'ws_a'), true)
-  assert.equal(deliverTenantEvent('ws_a', 'database', 'ws_b'), false)
-  assert.equal(deliverTenantEvent('ws_a', 'session'), false)
-  assert.equal(deliverTenantEvent('', 'database', 'ws_b'), true)
-  assert.equal(deliverTenantEvent('ws_a', 'clock', 'ws_b'), true)
+  const ada = { workspaceId: 'ws_a', accountId: 'ada' }
+  assert.equal(deliverTenantEvent(ada, 'database', { workspaceId: 'ws_a' }), true)
+  assert.equal(deliverTenantEvent(ada, 'database', { workspaceId: 'ws_b' }), false)
+  assert.equal(deliverTenantEvent(ada, 'session', { workspaceId: 'ws_a', accountId: 'bob' }), false)
+  assert.equal(deliverTenantEvent(ada, 'session', { workspaceId: 'ws_a', accountId: 'ada' }), true)
+  assert.equal(deliverTenantEvent(ada, 'session'), false)
+  assert.equal(deliverTenantEvent({}, 'database', { workspaceId: 'ws_b' }), true)
+  assert.equal(deliverTenantEvent(ada, 'clock', { workspaceId: 'ws_b' }), true)
 })
 
 test('host prefers dist after vite build unless BIU_PUBLIC_DIR is set', () => {

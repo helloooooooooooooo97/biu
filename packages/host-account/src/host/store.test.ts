@@ -3,9 +3,8 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, test } from 'vitest'
-import { openAndMigrateBiu } from '@biu/host-plugin-loader/data-dir'
+import { openAndMigrateBiu, runWithAccount, runWithRequestWorkspace } from '@biu/host-plugin-loader/data-dir'
 import { CollabError, CollabStore } from './store.ts'
-import { runWithAccount } from '@biu/host-plugin-loader/data-dir'
 
 const dirs: string[] = []
 
@@ -366,4 +365,55 @@ test('mcp credentials stay inside one workspace and die with membership', () => 
   collab.removeMember(ada.id, spaceA.id, bob.id)
   assert.equal(collab.resolveMcpCredential(bobToken.token), null)
   assert.equal(collab.resolveMcpCredential(adaToken.token)?.accountId, ada.id)
+})
+
+test('cross-workspace matrix denies strangers, viewers who write, and revoked sessions', () => {
+  const previous = process.env.BIU_ONLINE
+  process.env.BIU_ONLINE = '1'
+  try {
+    const collab = store()
+    const now = Date.now()
+    const ada = collab.register('', now, 'secret1', 'ada@example.com')
+    const bob = collab.register('', now, 'secret1', 'bob@example.com')
+    const cara = collab.register('', now, 'secret1', 'cara@example.com')
+    const spaceA = collab.createWorkspace(ada.id, 'A')
+    const spaceB = collab.createWorkspace(bob.id, 'B')
+    collab.addMemberByEmail(ada.id, spaceA.id, 'bob@example.com')
+    collab.updateMemberRole(ada.id, spaceA.id, bob.id, 'viewer')
+    runWithAccount(ada.id, () =>
+      runWithRequestWorkspace(spaceA.id, () => {
+        collab.attach(spaceA.id, '/pages', 'shared-page', now, { ownership: 'workspace', accessMode: 'members' })
+      }),
+    )
+    const read = (accountId: string, workspaceId: string) =>
+      runWithAccount(accountId, () => runWithRequestWorkspace(workspaceId, () => collab.canReadRecord('/pages', 'shared-page')))
+    const update = (accountId: string, workspaceId: string) =>
+      runWithAccount(accountId, () =>
+        runWithRequestWorkspace(workspaceId, () =>
+          collab.authorization.authorize(
+            { type: 'account', accountId, workspaceId },
+            'resource:update',
+            { type: 'record', workspaceId, collection: '/pages', recordId: 'shared-page' },
+          ).allowed,
+        ),
+      )
+    assert.equal(collab.canReadRecord('/pages', 'shared-page'), false)
+    assert.equal(read(ada.id, spaceA.id), true)
+    assert.equal(update(ada.id, spaceA.id), true)
+    assert.equal(read(bob.id, spaceA.id), true)
+    assert.equal(update(bob.id, spaceA.id), false)
+    assert.equal(read(bob.id, spaceB.id), false)
+    assert.equal(read(cara.id, spaceA.id), false)
+    assert.throws(() => collab.claim(bob.id, spaceB.id, '/pages', 'shared-page'), /另一个空间/)
+    const first = collab.openSession(ada.id, 'phone')
+    const second = collab.openSession(ada.id, 'laptop', now - 1)
+    assert.equal(collab.accountByToken(second.token), null)
+    collab.changePassword(ada.id, 'secret1', 'secret2', first.token)
+    assert.equal(collab.accountByToken(first.token)?.id, ada.id)
+    assert.throws(() => collab.login('ada@example.com', 'secret1'), CollabError)
+    assert.equal(collab.login('ada@example.com', 'secret2').id, ada.id)
+  } finally {
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
+  }
 })

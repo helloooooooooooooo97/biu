@@ -169,6 +169,19 @@ export class CollabStore {
     return { id: row.id, name: row.name, email: row.email, token: session.token, createdAt: row.created_at }
   }
 
+  changePassword(accountId: string, currentPassword: string, nextPassword: string, keepToken = '', now = Date.now()) {
+    const next = nextPassword.trim()
+    if (next.length < 6) throw new CollabError('密码至少 6 位', 400)
+    const row = this.db.prepare('SELECT password_hash FROM accounts WHERE id = ?').get(accountId) as { password_hash: string } | undefined
+    if (!row?.password_hash || !verifyPassword(currentPassword, row.password_hash)) throw new CollabError('当前密码不对', 401)
+    this.db.prepare('UPDATE accounts SET password_hash = ? WHERE id = ?').run(hashPassword(next), accountId)
+    const keepHash = keepToken ? this.digestToken(keepToken) : ''
+    this.db
+      .prepare('UPDATE auth_sessions SET revoked_at = ? WHERE account_id = ? AND revoked_at IS NULL AND token_hash != ?')
+      .run(now, accountId, keepHash)
+    return { ok: true }
+  }
+
   /** 登录后停在自己的工作区。还没有的话建一个空的。 */
   enter(accountId: string) {
     const rows = this.listWorkspaces(accountId)
