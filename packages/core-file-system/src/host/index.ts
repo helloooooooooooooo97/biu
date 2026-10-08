@@ -14,7 +14,7 @@ import {
   ASSET_GC_INTERVAL_MS,
 } from '@biu/host-plugin-loader/data-dir'
 import { asPublicProfile, readWorkspaceProfile, writeWorkspaceProfile } from '@biu/host-workspace'
-import type { Action as PermissionAction, AuthorizationService } from '@biu/host-account/authorization'
+import { roleCoversAction, type Action as PermissionAction, type AuthorizationService } from '@biu/host-account/authorization'
 import { Service, type Context } from 'cordis'
 import {
   DATABASE_CHANNEL,
@@ -58,6 +58,7 @@ import { collectShareResources } from '../share-resources.ts'
 import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
+import { highestViewRole, recordMatchesGrantedView, type ViewGrantRole } from '../view-access.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { FileSystemAssets, collectAssetNames, assetNamesFromMarkdown, assetNamesFromHtml, isAssetFileName, isHashedAssetName, mimeOfAsset, AssetConflictError, parseIfMatch } from './assets-store.ts'
 import { facetsCollection, parseStampRecordId } from './facets-collection.ts'
@@ -587,6 +588,15 @@ type WorkspaceFiles = {
     },
   ): void
   grantMap?(workspaceId: string, collection: string): Map<string, Set<string>>
+  viewGrantsFor?(
+    workspaceId: string,
+    collection: string,
+  ): Array<{
+    view_id: string
+    subject_type: 'account' | 'member_view'
+    subject_id: string
+    role: ViewGrantRole
+  }>
 }
 
 export function clampPage(limit?: number, offset?: number) {
@@ -601,6 +611,7 @@ export class DatabaseService extends Service implements Database {
   facets = new FacetStore()
   shares = new SharesStore()
   assets = new FileSystemAssets()
+  viewCatalog?: { viewsFor(collectionPath: string): Array<{ id: string; filters?: Record<string, unknown> }> }
   recycleAssets?: () => void
 
   private bumpQueued = false
@@ -755,21 +766,18 @@ export class DatabaseService extends Service implements Database {
     const authorization = this.authorization()
     const actor = authorization?.currentActor()
     if (authorization && actor) {
-      return authorization.filterCurrent(
-        action,
-        rows.map((row) => {
-          const target = this.scopeTarget(collection, String(row.id ?? ''), row)
-          return {
-            resource: {
-              type: 'record' as const,
-              workspaceId: actor.workspaceId,
-              collection: target.collection,
-              recordId: target.id,
-            },
-            value: row,
-          }
-        }),
-      )
+      return rows.filter((row) => {
+        const target = this.scopeTarget(collection, String(row.id ?? ''), row)
+        const resource = {
+          type: 'record' as const,
+          workspaceId: actor.workspaceId,
+          collection: target.collection,
+          recordId: target.id,
+        }
+        if (authorization.authorize(actor, action, resource).allowed) return true
+        const viaView = this.viewGrantRole(actor.workspaceId, collection, row, actor.accountId)
+        return Boolean(viaView && roleCoversAction(viaView, action))
+      })
     }
     const membership = this.workspaceMembership()
     if (!membership) return rows
@@ -811,6 +819,34 @@ export class DatabaseService extends Service implements Database {
     })
   }
 
+  private viewGrantRole(
+    workspaceId: string,
+    collection: string,
+    record: { id?: unknown },
+    accountId: string,
+  ): ViewGrantRole | null {
+    const store = this.collabStore()
+    const authorization = this.authorization()
+    if (!store?.viewGrantsFor || !authorization || !this.viewCatalog) return null
+    const saved = this.viewCatalog.viewsFor(collection)
+    const roles: ViewGrantRole[] = []
+    for (const grant of store.viewGrantsFor(workspaceId, collection)) {
+      const subjectMatches = grant.subject_type === 'account'
+        ? grant.subject_id === accountId
+        : authorization.matchesMemberView(workspaceId, grant.subject_id, accountId)
+      if (!subjectMatches) continue
+      const target = this.scopeTarget(collection, String(record.id ?? ''), record)
+      const scope = authorization.scopeCurrent({
+        type: 'record',
+        workspaceId,
+        collection: target.collection,
+        recordId: target.id,
+      })
+      if (recordMatchesGrantedView(record as never, grant.view_id, saved, scope)) roles.push(grant.role)
+    }
+    return highestViewRole(roles)
+  }
+
   private grantAllows(collection: string, id: string) {
     const membership = this.workspaceMembership()
     const store = this.collabStore()
@@ -838,19 +874,31 @@ export class DatabaseService extends Service implements Database {
     store.attach(workspaceId, collection, recordId, Date.now(), policy)
   }
 
-  private assertLiveRecord(spec: CollectionSpec, id: string, action: PermissionAction = 'resource:read') {
+  private assertLiveRecord(
+    spec: CollectionSpec,
+    id: string,
+    action: PermissionAction = 'resource:read',
+    record?: { id?: unknown },
+  ) {
     if (this.facets.isDeleted(spec.path, id)) throw new Error(`unknown record: ${spec.path}/${id}`)
     const authorization = this.authorization()
     const actor = authorization?.currentActor()
     if (authorization && actor) {
-      const target = this.scopeTarget(spec.path, id)
+      const target = this.scopeTarget(spec.path, id, record)
       const decision = authorization.authorize(actor, action, {
         type: 'record',
         workspaceId: actor.workspaceId,
         collection: target.collection,
         recordId: target.id,
       })
-      if (!decision.allowed) throw new Error(`unknown record: ${spec.path}/${id}`)
+      if (!decision.allowed) {
+        const viaView = record
+          ? this.viewGrantRole(actor.workspaceId, spec.path, record, actor.accountId)
+          : null
+        if (!viaView || !roleCoversAction(viaView, action)) {
+          throw new Error(`unknown record: ${spec.path}/${id}`)
+        }
+      }
       return
     }
     const membership = this.workspaceMembership()
@@ -883,7 +931,7 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    this.assertLiveRecord(spec, record.id, action)
+    this.assertLiveRecord(spec, record.id, action, record)
   }
 
   requireAsset(name: string, action: 'resource:read' | 'resource:update') {
@@ -987,7 +1035,7 @@ export class DatabaseService extends Service implements Database {
     if (parts.length === 2) {
       const record = await spec.get(parts[1]!)
       if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-      this.assertLiveRecord(spec, record.id)
+      this.assertLiveRecord(spec, record.id, 'resource:read', record)
       return {
         kind: 'record' as const,
         path: `${spec.path}/${record.id}`,
@@ -1244,7 +1292,7 @@ export class DatabaseService extends Service implements Database {
     if (!spec) throw new Error(`unknown collection: /${parts[0]}`)
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    this.assertLiveRecord(spec, record.id)
+    this.assertLiveRecord(spec, record.id, 'resource:read', record)
     return { kind: 'record' as const, path: `${spec.path}/${record.id}`, schema: this.schemaForCurrent(spec), value: withoutContent(spec, this.withBanner(spec, this.decorateRecord(spec, record))) }
   }
 
@@ -1257,7 +1305,7 @@ export class DatabaseService extends Service implements Database {
     const raw = parseContent(content)
     const current = await spec.get(parts[1]!)
     if (!current) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    this.assertLiveRecord(spec, current.id, 'resource:update')
+    this.assertLiveRecord(spec, current.id, 'resource:update', current)
     const bannerPatch = takeBannerPatch(raw)
     if ('facet' in raw && schema.fields.facet) {
       if (!schema.fields.facet.writable || schema.fields.facet.computed) throw new Error(`field not writable: facet`)
@@ -1575,7 +1623,7 @@ export class DatabaseService extends Service implements Database {
     const record = loaded ?? (action.allowMissing ? { id: parts[1]! } : null)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
     if (loaded || !action.allowMissing) {
-      this.assertLiveRecord(spec, record.id, (action.requiredAction ?? 'resource:update') as PermissionAction)
+      this.assertLiveRecord(spec, record.id, (action.requiredAction ?? 'resource:update') as PermissionAction, record)
     } else {
       await this.requirePath(spec.path, (action.requiredAction ?? 'resource:update') as PermissionAction)
     }
@@ -1601,7 +1649,7 @@ export class DatabaseService extends Service implements Database {
     const field = schema.contentField ?? 'content'
     const record = await spec.get(parts[1]!)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    this.assertLiveRecord(spec, record.id)
+    this.assertLiveRecord(spec, record.id, 'resource:read', record)
     if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
     const editorContent = isEditorContentSpec(spec)
       ? readEditorContentRecord(this.facets.ensure(), spec.path, record.id)
@@ -1631,7 +1679,7 @@ export class DatabaseService extends Service implements Database {
     const field = schema.contentField ?? 'content'
     const existing = await spec.get(parts[1]!)
     if (!existing) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    this.assertLiveRecord(spec, existing.id, 'resource:update')
+    this.assertLiveRecord(spec, existing.id, 'resource:update', existing)
     if (!schema.fields[field]) throw new Error(`no content field: ${field}`)
     if (isEditorContentSpec(spec)) {
       writeEditorContent(this.facets.ensure(), spec.path, parts[1]!, String(value ?? ''), { expectedVersion })
@@ -1725,7 +1773,7 @@ export class DatabaseService extends Service implements Database {
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
     const from = String(args.from ?? '').trim()
     const command = String(args.command ?? (args.value != null || from ? 'write' : 'view'))
-    this.assertLiveRecord(spec, record.id, command === 'view' ? 'resource:read' : 'resource:update')
+    this.assertLiveRecord(spec, record.id, command === 'view' ? 'resource:read' : 'resource:update', record)
     const names = new Set([
       ...collectAssetNames(record, this.facets.recordBanner(spec.path, record.id)?.html),
       ...this.facets.listedAttachmentNames(spec.path, record.id),
@@ -1814,7 +1862,7 @@ export class DatabaseService extends Service implements Database {
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
     const from = String(args.from ?? '').trim()
     const command = String(args.command ?? (args.value != null || from ? 'write' : 'view'))
-    this.assertLiveRecord(spec, record.id, command === 'view' ? 'resource:read' : 'resource:update')
+    this.assertLiveRecord(spec, record.id, command === 'view' ? 'resource:read' : 'resource:update', record)
     const names = new Set([
       ...collectAssetNames(record, this.facets.recordBanner(spec.path, record.id)?.html),
       ...this.facets.listedAttachmentNames(spec.path, record.id),
@@ -2110,8 +2158,18 @@ export function apply(ctx: Context) {
         accountId: string,
         workspaceId: string,
       ) => Array<{ collection: string; record_id: string }>
+      viewGrantsFor?: (
+        workspaceId: string,
+        collection: string,
+      ) => Array<{
+        view_id: string
+        subject_type: 'account' | 'member_view'
+        subject_id: string
+        role: 'viewer' | 'editor' | 'manager' | 'owner'
+      }>
     }
   } | undefined
+  db.viewCatalog = savedViews
   account?.authorization?.setMemberViewMatcher((workspaceId, viewId, accountId) => {
     const view = savedViews.viewsFor('/workspace-members').find((item) => item.id === viewId)
     if (!view || !account.store) return false

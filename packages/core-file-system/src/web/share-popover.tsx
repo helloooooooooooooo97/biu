@@ -120,7 +120,15 @@ export function ShareButton({
   )
 }
 
-function WorkspaceAccess({ collection, recordId }: { collection: string; recordId: string }) {
+function WorkspaceAccess({
+  collection,
+  recordId = '',
+  viewId = '',
+}: {
+  collection: string
+  recordId?: string
+  viewId?: string
+}) {
   const [email, setEmail] = useState('')
   const [scope, setScope] = useState<'personal' | 'workspace' | 'shared'>('personal')
   const [ownerId, setOwnerId] = useState('')
@@ -163,7 +171,9 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
       groups?: Array<{ id: string; name: string; role: string }>
       memberViews?: Array<{ id: string; role: string }>
     }>(
-      `/api/account/access?collection=${encodeURIComponent(collection)}&recordId=${encodeURIComponent(recordId)}`,
+      viewId
+        ? `/api/account/access?collection=${encodeURIComponent(collection)}&viewId=${encodeURIComponent(viewId)}`
+        : `/api/account/access?collection=${encodeURIComponent(collection)}&recordId=${encodeURIComponent(recordId)}`,
     )
     setScope(data.scope ?? 'personal')
     setOwnerId(data.ownerId ?? '')
@@ -215,7 +225,7 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
         }))
       })
       .catch(() => setWorkspaceMembers([]))
-  }, [collection, recordId])
+  }, [collection, recordId, viewId])
 
   function grant(input: { email?: string; memberViewId?: string }, collaboratorKind: 'internal' | 'external' = 'internal') {
     setError('')
@@ -224,7 +234,7 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         collection,
-        recordId,
+        ...(viewId ? { viewId } : { recordId }),
         role,
         ...(input.email ? { collaboratorKind } : {}),
         ...input,
@@ -247,7 +257,7 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
       await readJson('/api/account/access', {
         method: 'DELETE',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ collection, recordId, subjectType, subjectId }),
+        body: JSON.stringify({ collection, ...(viewId ? { viewId } : { recordId }), subjectType, subjectId }),
       })
       window.dispatchEvent(new Event('fsdb:shares-change'))
       await load()
@@ -264,7 +274,7 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           collection,
-          recordId,
+          ...(viewId ? { viewId } : { recordId }),
           role: role === 'editor' ? 'editor' : 'viewer',
           expiresInHours: 24,
         }),
@@ -301,10 +311,12 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
 
   return (
     <div className="fsdb-share-link-section" data-testid="fsdb-share-members">
-      <div className="fsdb-share-collab-summary">
-        <span>数据归属</span>
-        <strong className={`fsdb-share-scope is-${scope}`} data-testid="fsdb-share-scope">{scopeLabel}</strong>
-      </div>
+      {viewId ? null : (
+        <div className="fsdb-share-collab-summary">
+          <span>数据归属</span>
+          <strong className={`fsdb-share-scope is-${scope}`} data-testid="fsdb-share-scope">{scopeLabel}</strong>
+        </div>
+      )}
 
       <section className="fsdb-share-collab-section">
         <h3>内部协作者</h3>
@@ -427,7 +439,7 @@ function WorkspaceAccess({ collection, recordId }: { collection: string; recordI
           <button type="button" className="fsdb-share-publish" disabled={!email.trim()} onClick={() => void grant({ email: email.trim() }, 'external')}>添加</button>
         </div>
         <div className="fsdb-share-guest-row" data-testid="fsdb-share-guest">
-          <span><strong>临时访客</strong><em>{guestUrl ? '链接有效期 24 小时' : '无需注册，仅可访问此内容'}</em></span>
+          <span><strong>临时访客</strong><em>{guestUrl ? '链接有效期 24 小时' : viewId ? '无需注册，仅可访问此视图' : '无需注册，仅可访问此内容'}</em></span>
           <button type="button" onClick={() => void createGuestLink()}>{guestCopied ? '已复制' : guestUrl ? '重新生成' : '生成链接'}</button>
         </div>
       </section>
@@ -591,7 +603,7 @@ export function SharePanel({ target, embedded = false }: { target: ShareTarget; 
         >
           公开分享
         </button>
-        {target.kind === 'record' && target.recordId ? (
+        {(target.kind === 'record' && target.recordId) || (target.kind === 'view' && target.viewId) ? (
           <button
             type="button"
             role="tab"
@@ -604,8 +616,8 @@ export function SharePanel({ target, embedded = false }: { target: ShareTarget; 
           </button>
         ) : null}
       </div>
-      {tab === 'collaboration' && target.kind === 'record' && target.recordId ? (
-        <WorkspaceAccess collection={target.collection} recordId={target.recordId} />
+      {tab === 'collaboration' && ((target.kind === 'record' && target.recordId) || (target.kind === 'view' && target.viewId)) ? (
+        <WorkspaceAccess collection={target.collection} recordId={target.recordId} viewId={target.kind === 'view' ? target.viewId : ''} />
       ) : null}
       {tab === 'public' ? <><section className="fsdb-share-link-section">
         {!share ? (

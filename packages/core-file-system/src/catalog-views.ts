@@ -13,6 +13,16 @@ export const DATA_SCOPE_LABEL: Record<DataScope, string> = {
   shared: '共享数据',
 }
 
+const SCOPE_NAME: Record<DataScope, string> = {
+  personal: '私人',
+  workspace: '空间',
+  shared: '共享',
+}
+
+export function scopedCollectionName(table: TableRef, scope: DataScope) {
+  return `${SCOPE_NAME[scope]}${collectionNoun(table)}`
+}
+
 export const BUILTIN_VIEW_SORT_FIELD = 'updatedAt'
 export const BUILTIN_VIEW_SORT_DIR = 'desc' as const
 
@@ -133,7 +143,7 @@ export function builtinScopeView(view: SavedView, scope: DataScope): SavedView {
   return normalizeSavedView({
     ...view,
     id: builtinScopeViewId(scope, view.id),
-    name: isBuiltinAllViewId(view.id) ? DATA_SCOPE_LABEL[scope] : view.name,
+    name: isBuiltinAllViewId(view.id) ? `${SCOPE_NAME[scope]}${view.name.replace(/^全部/, '')}` : view.name,
     filters: { ...view.filters, $scope: scope },
     builtin: true,
   })
@@ -184,7 +194,10 @@ export function displayNameForView(viewId: string, table: TableRef, storedName?:
   if (isBuiltinTagViewId(id)) return stubBuiltinTagView(id)?.name || collectionNoun(table)
   if (isBuiltinBlockKindViewId(id)) return stubBuiltinBlockKindView(id)?.name || collectionNoun(table)
   if (isBuiltinMemberViewId(id)) return stubBuiltinMemberView(id)?.name || collectionNoun(table)
-  if (isBuiltinScopeViewId(id)) return stubBuiltinScopeView(id)?.name || collectionNoun(table)
+  if (isBuiltinScopeViewId(id)) {
+    const parsed = parseBuiltinScopeViewId(id)
+    return parsed ? `${SCOPE_NAME[parsed.scope]}${collectionNoun(table)}` : collectionNoun(table)
+  }
   return collectionNoun(table)
 }
 
@@ -252,7 +265,7 @@ export function mergeTableViews(table: TableRef | undefined, user: SavedView[], 
     return [builtinAllView(table), ...builtinMemberViews(), ...extra]
   }
   if (options?.ownership === false) return [builtinAllView(table), ...extra]
-  return [...ownershipScopeViews(table), ...extra]
+  return [builtinAllView(table), ...ownershipScopeViews(table), ...extra]
 }
 
 export type BlockKindRef = { kind: string; label: string }
@@ -328,7 +341,7 @@ export function mergePageBlockViews(table: TableRef | undefined, kinds: BlockKin
     .sort((a, b) => a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label))
     .map(builtinBlockKindView)
   if (!table?.path || table.path === '/') return [...kindViews, ...extra]
-  return [builtinAllView(table), ...kindViews, ...extra]
+  return [builtinAllView(table), ...ownershipScopeViews(table), ...kindViews, ...extra]
 }
 
 export type TagRef = { id: string; label: string }
