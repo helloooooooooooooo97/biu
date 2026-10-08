@@ -29,7 +29,6 @@ import {
 } from './session-mascot.ts'
 import { rebuildHealedEvents } from './session-heal.ts'
 import { sessionsCollection } from './sessions-collection.ts'
-import { eventsCollection } from './events-collection.ts'
 import type { AuthorizationService } from '@biu/host-account/authorization'
 
 export type { SessionEvent, SessionEventBody, SessionProject, SessionRecord, SessionMascot, SessionConfig }
@@ -345,12 +344,6 @@ export class SessionsService extends Service {
               return 0
             }
           },
-        }),
-      )
-      inner.database.register(
-        eventsCollection({
-          listSummaries: () => this.listSummaries(),
-          require: (id) => this.require(id),
         }),
       )
     })

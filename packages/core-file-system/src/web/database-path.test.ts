@@ -66,20 +66,19 @@ test('views catalog source is a query filter', () => {
   assert.equal(viewsCatalogSource(''), '')
 })
 
-test('members, views and events are system collections; blocks and facets are index data', () => {
+test('members and views are system collections; blocks and facets are index data', () => {
   assert.equal(isSystemCollection('/workspace-members'), true)
   assert.equal(isSystemCollection('/views'), true)
   assert.equal(isSystemCollection('/facets'), false)
   assert.equal(isIndexCollection('/facets'), true)
   assert.equal(isIndexCollection('/page-blocks'), true)
   assert.equal(isIndexCollection('/pages'), false)
-  assert.equal(isSystemCollection('/events'), true)
+  assert.equal(isSystemCollection('/events'), false)
   assert.equal(isSystemCollection('/notices'), true)
   assert.equal(isSystemCollection('/trash'), true)
   assert.equal(isSystemCollection('/sessions'), false)
   const { user, index, system } = sortDataCollections([
     { path: '/workspace-members' },
-    { path: '/events' },
     { path: '/plugins' },
     { path: '/views' },
     { path: '/notices' },
@@ -100,6 +99,6 @@ test('members, views and events are system collections; blocks and facets are in
   )
   assert.deepEqual(
     system.map((item) => item.path),
-    ['/workspace-members', '/views', '/events', '/notices', '/trash'],
+    ['/workspace-members', '/views', '/notices', '/trash'],
   )
 })
