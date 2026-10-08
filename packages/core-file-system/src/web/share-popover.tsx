@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ArrowPathIcon, CheckIcon, LinkIcon, ShareIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
 import { listCollection, readJson } from './db-client.ts'
@@ -595,7 +596,9 @@ export function ShareScopeDetail({
   tableLabel?: string
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
+  const [box, setBox] = useState<{ top: number; left: number } | null>(null)
   const [scope, setScope] = useState(label === '共享' ? 'shared' : label === '空间' ? 'workspace' : 'personal')
   const [direct, setDirect] = useState<Array<{ id: string; name: string; role: string; note: string }>>([])
   const [chain, setChain] = useState<Array<{ id: string; title: string; detail: string; result: string }>>([])
@@ -699,16 +702,22 @@ export function ShareScopeDetail({
         className={`fsdb-scope-tag is-${scope}`}
         aria-label={`${label || scopeText(scope)}的权限详情`}
         aria-expanded={open}
+        onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation()
+          const rect = event.currentTarget.getBoundingClientRect()
+          setBox({ top: rect.bottom + 6, left: Math.min(rect.left, window.innerWidth - 336) })
           setOpen((prev) => !prev)
         }}
       >
         {label || scopeText(scope)}
       </button>
-      {open ? (
-        <HeadlessDismiss onDismiss={() => setOpen(false)} insideRef={wrapRef}>
-          <div className="fsdb-scope-panel" role="dialog" aria-label="数据归属链路">
+      {open && box ? createPortal(
+        <HeadlessDismiss
+          onDismiss={() => setOpen(false)}
+          inside={(node) => Boolean(wrapRef.current?.contains(node) || panelRef.current?.contains(node))}
+        >
+          <div ref={panelRef} className="fsdb-scope-panel" role="dialog" aria-label="数据归属链路" style={{ top: box.top, left: box.left }}>
             <div className="fsdb-share-collab-summary">
               <span>数据归属</span>
               <strong className={`fsdb-share-scope is-${scope}`}>{scopeText(scope)}</strong>
@@ -742,7 +751,8 @@ export function ShareScopeDetail({
             ) : null}
             {error ? <p className="fsdb-share-error is-inline">{error}</p> : null}
           </div>
-        </HeadlessDismiss>
+        </HeadlessDismiss>,
+        document.body,
       ) : null}
     </div>
   )
