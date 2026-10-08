@@ -18,6 +18,7 @@ import {
   ArrowsUpDownIcon,
   AdjustmentsHorizontalIcon,
   Bars3BottomLeftIcon,
+  BoltIcon,
   CheckCircleIcon,
   CheckIcon,
   ChevronDoubleLeftIcon,
@@ -478,7 +479,7 @@ const EMPTY_FILTERS: Record<string, string> = {}
 /** 与选区拖选同一阈值：位移超过这个距离只当拖，不当点击。 */
 const CELL_POP_DRAG_PX = 6
 const CELL_POP_IGNORE =
-  '.fsdb-row-check, .fsdb-col-resizer, .tasks-row-tools, .tasks-title-open, .fsdb-action-btn, .fsdb-boolbtn, .fsdb-thumb-btn, .fsdb-thumb, .ant-image, .fsdb-file-tools, .fsdb-ref-chip, .db-datetime, .ant-picker, .fsdb-scope-detail'
+  '.fsdb-row-check, .fsdb-col-resizer, .tasks-row-tools, .tasks-title-open, .fsdb-action-btn, .fsdb-action-tag, .fsdb-boolbtn, .fsdb-thumb-btn, .fsdb-thumb, .ant-image, .fsdb-file-tools, .fsdb-ref-chip, .db-datetime, .ant-picker, .fsdb-scope-detail'
 
 export function CollectionBrowser({
   moduleId,
@@ -1246,7 +1247,8 @@ export function CollectionBrowser({
     const rows = grouping ? grouped.flatMap((group) => group.rows) : visible
     return flattenRows(rows).map((item) => item.row.id)
   }, [flattenRows, grouped, grouping, visible])
-  const tableColSpan = Math.max(columns.length, 1)
+  const showActionColumn = placedActions(schema, 'row').length > 0
+  const tableColSpan = Math.max(columns.length + (showActionColumn ? 1 : 0), 1)
   const tableRef = useRef<HTMLTableElement>(null)
   const checkStackRef = useRef<HTMLDivElement>(null)
   const checkHoverRef = useRef<string | 'head' | null>(null)
@@ -2303,7 +2305,6 @@ export function CollectionBrowser({
       <>
         {host}
         <span className="tasks-row-tools-slot">
-          <RecordRowTools row={row} />
           <RecordOpenControls row={row} kidCount={tree ? kidCount : 0} />
         </span>
       </>
@@ -2404,14 +2405,6 @@ export function CollectionBrowser({
     )
   }
 
-  function RecordRowTools({ row }: { row: DbRecord }) {
-    return (
-      <span className="tasks-row-tools">
-        <RecordActions row={row} place="row" />
-      </span>
-    )
-  }
-
   function RecordActions({ row, place, onDone }: { row: DbRecord; place: 'row' | 'detail'; onDone?: () => void }) {
     const Actions = chrome?.Actions
     const Action = chrome?.Action
@@ -2473,14 +2466,14 @@ export function CollectionBrowser({
           <button
             key={action.id}
             type="button"
-            className={`tasks-icon-btn${action.tone === 'danger' ? ' is-danger' : ''}`}
+            className={`fsdb-action-tag${action.tone === 'danger' ? ' is-danger' : ''}`}
             title={action.label}
-            data-dock-tip={action.label}
             aria-label={`${action.label} ${labelOf(row)}`}
             disabled={busy}
             onClick={run}
           >
-            {glyph ?? action.label}
+            {glyph}
+            <span>{action.label}</span>
           </button>
         )
       }),
@@ -2623,6 +2616,11 @@ export function CollectionBrowser({
                 )}
               </td>
             ))}
+            {showActionColumn ? (
+              <td className="fsdb-action-col" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+                <RecordActions row={row} place="row" />
+              </td>
+            ) : null}
           </tr>
         ))}
       </>
@@ -3520,6 +3518,7 @@ export function CollectionBrowser({
               {columns.map((col) => (
                 <col key={col.key} style={colWidthStyle(columnWidths[col.key])} />
               ))}
+              {showActionColumn ? <col className="fsdb-action-col" /> : null}
             </colgroup>
             <thead>
               <tr>
@@ -3548,6 +3547,14 @@ export function CollectionBrowser({
                   </th>
                   )
                 })}
+                {showActionColumn ? (
+                  <th className="fsdb-action-col">
+                    <span className="tasks-th">
+                      <BoltIcon aria-hidden className="size-[14px]" />
+                      动作
+                    </span>
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
