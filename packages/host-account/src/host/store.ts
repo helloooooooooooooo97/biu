@@ -1823,7 +1823,76 @@ export class CollabStore {
     if (!workspaceId) throw new CollabError('没有工作区', 400)
     this.requireMember(actorId, workspaceId)
     if (!this.canReadRecord(collection, recordId)) throw new CollabError('没有权限', 403)
-    return this.accessRows(workspaceId, collection, recordId)
+    return { ...this.accessRows(workspaceId, collection, recordId), viewGrants: this.viewGrantShares(workspaceId, collection) }
+  }
+
+  viewGrantAudiences(workspaceId: string, collection: string) {
+    return this.db
+      .prepare(
+        `SELECT g.view_id, g.subject_type, g.subject_id, COALESCE(m.member_kind, '') AS member_kind
+         FROM view_grants g
+         LEFT JOIN workspace_members m
+           ON g.subject_type = 'account'
+          AND m.workspace_id = g.workspace_id
+          AND m.account_id = g.subject_id
+         WHERE g.workspace_id = ? AND g.collection = ?
+         ORDER BY g.created_at`,
+      )
+      .all(workspaceId, collection) as Array<{
+        view_id: string
+        subject_type: 'account' | 'member_view'
+        subject_id: string
+        member_kind: string
+      }>
+  }
+
+  private viewGrantShares(workspaceId: string, collection: string) {
+    const people = this.db
+      .prepare(
+        `SELECT g.view_id, a.id, COALESCE(NULLIF(m.display_name, ''), NULLIF(a.name, ''), '未设置') AS name,
+                COALESCE(a.email, '') AS email, g.role, COALESCE(m.member_kind, '') AS member_kind
+         FROM view_grants g
+         JOIN accounts a ON g.subject_type = 'account' AND a.id = g.subject_id
+         LEFT JOIN workspace_members m ON m.workspace_id = g.workspace_id AND m.account_id = g.subject_id
+         WHERE g.workspace_id = ? AND g.collection = ? AND g.subject_type = 'account'
+         ORDER BY g.created_at`,
+      )
+      .all(workspaceId, collection) as Array<{
+        view_id: string
+        id: string
+        name: string
+        email: string
+        role: string
+        member_kind: string
+      }>
+    const memberViews = this.db
+      .prepare(
+        `SELECT view_id, subject_id AS id, role
+         FROM view_grants
+         WHERE workspace_id = ? AND collection = ? AND subject_type = 'member_view'
+         ORDER BY created_at`,
+      )
+      .all(workspaceId, collection) as Array<{ view_id: string; id: string; role: string }>
+    return [
+      ...people.map((row) => ({
+        viewId: row.view_id,
+        subjectType: 'account' as const,
+        subjectId: row.id,
+        role: row.role,
+        name: row.name,
+        email: row.email,
+        memberKind: row.member_kind === 'external' || row.member_kind === 'guest' ? row.member_kind : 'member' as const,
+      })),
+      ...memberViews.map((row) => ({
+        viewId: row.view_id,
+        subjectType: 'member_view' as const,
+        subjectId: row.id,
+        role: row.role,
+        name: row.id,
+        email: '',
+        memberKind: 'member' as const,
+      })),
+    ]
   }
 
   shareWithEmail(

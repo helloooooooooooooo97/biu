@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
 import { builtinScopeViewId } from './catalog-views.ts'
-import { highestViewRole, recordMatchesGrantedView } from './view-access.ts'
+import { effectiveDataScope, highestViewRole, recordMatchesGrantedView } from './view-access.ts'
 
 test('a view grant matches records in that view and keeps the highest role', () => {
   const personal = builtinScopeViewId('personal', 'builtin-all')
@@ -14,4 +14,15 @@ test('a view grant matches records in that view and keeps the highest role', () 
   assert.equal(recordMatchesGrantedView({ id: 'p2', status: 'done' }, 'open', saved, 'workspace'), false)
   assert.equal(recordMatchesGrantedView(record, 'missing', saved, 'workspace'), false)
   assert.equal(highestViewRole(['viewer', 'manager', 'editor']), 'manager')
+})
+
+test('inherited view grants raise a personal record to workspace or shared', () => {
+  const record = { id: 'p1', title: 'Alpha' }
+  const personal = builtinScopeViewId('personal', 'builtin-all')
+  const internal = { viewId: personal, subjectType: 'account' as const, subjectId: 'bob', memberKind: 'member' }
+  const external = { viewId: personal, subjectType: 'account' as const, subjectId: 'cara', memberKind: 'external' }
+  assert.equal(effectiveDataScope('personal', record, [internal], [], []), 'workspace')
+  assert.equal(effectiveDataScope('personal', record, [internal, external], [], []), 'shared')
+  assert.equal(effectiveDataScope('workspace', record, [], [], []), 'workspace')
+  assert.equal(effectiveDataScope('personal', { id: 'p2', status: 'done' }, [{ ...internal, viewId: 'open' }], [{ id: 'open', filters: { status: 'open' } }], []), 'personal')
 })
