@@ -58,6 +58,7 @@ import { collectShareResources } from '../share-resources.ts'
 import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
+import { isSystemCollection } from '../web/database-path.ts'
 import { highestViewRole, recordMatchesGrantedView, type ViewGrantRole } from '../view-access.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { FileSystemAssets, collectAssetNames, assetNamesFromMarkdown, assetNamesFromHtml, isAssetFileName, isHashedAssetName, mimeOfAsset, AssetConflictError, parseIfMatch } from './assets-store.ts'
@@ -135,6 +136,12 @@ function ensureColumn(columns: string[] | undefined, key: string) {
   return columns.includes(key) ? columns : [...columns, key]
 }
 
+const SHARE_SCOPE_LABEL = {
+  personal: '私人',
+  workspace: '空间',
+  shared: '共享',
+} as const
+
 function schemaFor(spec: CollectionSpec): CollectionSchema {
   const contentField = spec.schema.contentField ?? 'content'
   const raw = withBuiltinFields(spec.schema.fields, contentField, 'title')
@@ -142,13 +149,25 @@ function schemaFor(spec: CollectionSpec): CollectionSchema {
   for (const [key, field] of Object.entries(raw)) {
     fields[key] = field.computed ? { ...field, writable: false } : field
   }
+  let columns = ensureColumn(ensureColumn(spec.schema.columns, 'facet'), 'tags')
+  if (!isSystemCollection(spec.path)) {
+    fields.shareScope = {
+      type: 'select',
+      label: '分享属性',
+      computed: true,
+      writable: false,
+      sortable: true,
+      enum: ['私人', '空间', '共享'],
+      description: '计算属性。私人表示只有自己能看到；空间表示至少有一个空间成员能看到且没有非空间成员；共享表示已分享到外部或邀请了非空间成员。',
+    }
+    columns = ensureColumn(columns, 'shareScope')
+  }
   return {
     ...spec.schema,
     labelField: 'title',
     contentField,
     fields,
-    columns:
-      ensureColumn(ensureColumn(spec.schema.columns, 'facet'), 'tags'),
+    columns,
     actions: (spec.actions ?? []).map(publicAction),
     records: {
       update: Boolean(spec.records?.update),
@@ -588,6 +607,7 @@ type WorkspaceFiles = {
     },
   ): void
   grantMap?(workspaceId: string, collection: string): Map<string, Set<string>>
+  collectionOwnership?(workspaceId: string, collection: string): Map<string, 'personal' | 'workspace' | 'shared'>
   viewGrantsFor?(
     workspaceId: string,
     collection: string,
@@ -612,6 +632,7 @@ export class DatabaseService extends Service implements Database {
   shares = new SharesStore()
   assets = new FileSystemAssets()
   viewCatalog?: { viewsFor(collectionPath: string): Array<{ id: string; filters?: Record<string, unknown> }> }
+  private ownershipCache: { key: string; map: Map<string, 'personal' | 'workspace' | 'shared'> } | null = null
   recycleAssets?: () => void
 
   private bumpQueued = false
@@ -673,11 +694,16 @@ export class DatabaseService extends Service implements Database {
   }
 
   private async loadCollectionRows(spec: CollectionSpec, query: CollectionListQuery) {
+    this.ownershipCache = null
     const rows = await spec.list(query)
     const listed = !query.ids?.length ? rows : rows.filter((row) => query.ids!.includes(row.id))
     const hidden = this.facets.deletedIds(spec.path)
     const scoped = query.trash ? listed.filter((row) => hidden.has(row.id)) : listed.filter((row) => !hidden.has(row.id))
-    return scoped.map((row) => this.decorateRecord(spec, row))
+    try {
+      return scoped.map((row) => this.decorateRecord(spec, row))
+    } finally {
+      this.ownershipCache = null
+    }
   }
 
   private collabStore() {
@@ -1142,7 +1168,20 @@ export class DatabaseService extends Service implements Database {
   private decorateRecord(spec: CollectionSpec, row: DbRecord): DbRecord {
     const withFacet = this.applyFacetOverlay(spec, row)
     const withPeople = this.applyPersonOverlay(spec, withFacet)
-    return this.applyMetaOverlay(spec, withPeople)
+    const withMeta = this.applyMetaOverlay(spec, withPeople)
+    if (isSystemCollection(spec.path)) return withMeta
+    return { ...withMeta, shareScope: SHARE_SCOPE_LABEL[this.ownershipOf(spec.path, String(row.id ?? ''))] }
+  }
+
+  private ownershipOf(collection: string, id: string): 'personal' | 'workspace' | 'shared' {
+    const store = this.collabStore()
+    const workspaceId = store?.activeWorkspaceId?.() ?? ''
+    if (!store?.collectionOwnership || !workspaceId) return 'personal'
+    const key = `${workspaceId}\t${collection}`
+    if (!this.ownershipCache || this.ownershipCache.key !== key) {
+      this.ownershipCache = { key, map: store.collectionOwnership(workspaceId, collection) }
+    }
+    return this.ownershipCache.map.get(id) ?? 'personal'
   }
 
   private withBanner(spec: CollectionSpec, row: DbRecord): DbRecord {
