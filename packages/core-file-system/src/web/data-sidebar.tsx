@@ -14,7 +14,7 @@ import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import type { CollectionInfo, CollectionSchema, DbRecord } from '@biu/type-file-system'
 import { groupField, groupRecords, parentFieldKey, treeChildren } from './fields.ts'
 import { builtinAllViewId, type DataScope } from '../catalog-views.ts'
-import { FACETS_COLLECTION_PATH, isIndexCollection, isRecordTreeCollection, isSystemCollection, PAGE_BLOCKS_COLLECTION_PATH, sortDataCollections } from './database-path.ts'
+import { isIndexCollection, isRecordTreeCollection, isSystemCollection, sortDataCollections } from './database-path.ts'
 import { readJson } from './db-client.ts'
 import { viewsForRegisteredCollection } from './collection-nav.ts'
 import type { SavedView } from './saved-view.ts'
@@ -488,8 +488,6 @@ export const DataSidebar = memo(function DataSidebar({
     const group = isIndexCollection(collectionPath) ? 'index' : isSystemCollection(collectionPath) ? 'system' : 'user'
     return {
       [`${group}:${collectionPath}`]: true,
-      [`index:${PAGE_BLOCKS_COLLECTION_PATH}`]: true,
-      [`index:${FACETS_COLLECTION_PATH}`]: true,
     }
   })
   useSyncExternalStore(subscribeStarredViews, getStarredViewsVersion, () => 0)
