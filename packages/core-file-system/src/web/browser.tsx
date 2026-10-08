@@ -917,8 +917,6 @@ export function CollectionBrowser({
   const contentWriteGens = useRef(new Map<string, number>())
   const contentWriteQueues = useRef(new Map<string, Promise<void>>())
   const contentWritePending = useRef(new Map<string, number>())
-  const contentConflicts = useRef(new Set<string>())
-  const openedContentPath = useRef('')
   const recordGen = useRef(0)
   const pullDetailBody = useCallback(() => {
     const id = detailIdRef.current
@@ -930,11 +928,7 @@ export function CollectionBrowser({
     const gen = ++contentGen.current
     void readJson<{ value?: unknown; version?: number }>(`/api/db/content?path=${encodeURIComponent(path)}`)
       .then((data) => {
-        if (
-          gen !== contentGen.current ||
-          (contentWritePending.current.get(path) ?? 0) > 0 ||
-          contentConflicts.current.has(path)
-        ) return
+        if (gen !== contentGen.current || (contentWritePending.current.get(path) ?? 0) > 0) return
         if (Number.isInteger(data.version)) contentVersions.current.set(path, data.version!)
         else contentVersions.current.delete(path)
         setDetailBody(data.value ?? null)
@@ -1434,11 +1428,6 @@ export function CollectionBrowser({
   }, [bodyKey, detailBody, detailId, schema])
 
   useEffect(() => {
-    const path = detailId ? `${dataPath}/${detailId}` : ''
-    if (openedContentPath.current !== path) {
-      if (path) contentConflicts.current.delete(path)
-      openedContentPath.current = path
-    }
     if (!detailId || detailRow?.id !== detailId) {
       contentGen.current += 1
       setDetailBody(null)
@@ -1807,7 +1796,6 @@ export function CollectionBrowser({
       quietUntil.current = Date.now() + 800
       if (bodyKey && keys.length === 1 && keys[0] === bodyKey && schema?.fields[bodyKey]?.type === 'file') {
         const path = `${dataPath}/${row.id}`
-        if (contentConflicts.current.has(path)) return
         const value = content[bodyKey]
         const gen = (contentWriteGens.current.get(path) ?? 0) + 1
         contentWriteGens.current.set(path, gen)
@@ -1816,7 +1804,6 @@ export function CollectionBrowser({
         setDetailBody(value)
         const previous = contentWriteQueues.current.get(path) ?? Promise.resolve()
         const run = previous.catch(() => undefined).then(async () => {
-          if (contentConflicts.current.has(path)) return
           const data = await readJson<{ value?: unknown; version?: number }>('/api/db/content', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
@@ -1831,16 +1818,11 @@ export function CollectionBrowser({
             setDetailBody(data.value ?? value)
           }
           window.dispatchEvent(new Event('fsdb:change'))
-        }).catch((error) => {
-          if (error instanceof HttpError && error.status === 409) {
-            contentConflicts.current.add(path)
-            setDlg({
-              kind: 'alert',
-              title: '正文保存冲突',
-              body: `${error.message}\n\n正文已被其他编辑者更新。当前输入仍保留在编辑器中，请复制需要保留的内容后刷新页面再合并。`,
-            })
-          }
-          throw error
+        }).catch(async (error) => {
+          if (!(error instanceof HttpError) || error.status !== 409) throw error
+          const latest = await readJson<{ value?: unknown; version?: number }>(`/api/db/content?path=${encodeURIComponent(path)}`)
+          if (Number.isInteger(latest.version)) contentVersions.current.set(path, latest.version!)
+          if (detailIdRef.current === row.id) setDetailBody(latest.value ?? null)
         }).finally(() => {
           const pending = Math.max(0, (contentWritePending.current.get(path) ?? 1) - 1)
           if (pending) contentWritePending.current.set(path, pending)

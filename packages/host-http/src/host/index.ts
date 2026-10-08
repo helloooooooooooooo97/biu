@@ -43,7 +43,7 @@ const MIME: Record<string, string> = {
 
 const TENANT_EVENTS = new Set(['database', 'session', 'agent', 'inbox', 'approval', 'event', 'snapshot'])
 
-/** 已绑定空间的连接只接收同一空间的租户事件；带账号的事件还要落到同一账号。未绑定的本机连接仍接收全部。 */
+/** 已绑定空间的连接只接收同一空间的租户事件。会话类事件还要落到同一账号。数据变更要给同空间的其他成员，否则详情里的正文无法互相刷新。未绑定的本机连接仍接收全部。 */
 export function deliverTenantEvent(
   socket: { workspaceId?: string; accountId?: string },
   type: string,
@@ -51,7 +51,7 @@ export function deliverTenantEvent(
 ) {
   if (!socket.workspaceId || !TENANT_EVENTS.has(type)) return true
   if (!event.workspaceId || event.workspaceId !== socket.workspaceId) return false
-  if (event.accountId && event.accountId !== socket.accountId) return false
+  if (type !== 'database' && event.accountId && event.accountId !== socket.accountId) return false
   return true
 }
 

@@ -183,6 +183,7 @@ test('share listener serves /api/share but not the workstation APIs', async () =
 test('workspace sockets only receive their own tenant events', () => {
   const ada = { workspaceId: 'ws_a', accountId: 'ada' }
   assert.equal(deliverTenantEvent(ada, 'database', { workspaceId: 'ws_a' }), true)
+  assert.equal(deliverTenantEvent(ada, 'database', { workspaceId: 'ws_a', accountId: 'bob' }), true)
   assert.equal(deliverTenantEvent(ada, 'database', { workspaceId: 'ws_b' }), false)
   assert.equal(deliverTenantEvent(ada, 'session', { workspaceId: 'ws_a', accountId: 'bob' }), false)
   assert.equal(deliverTenantEvent(ada, 'session', { workspaceId: 'ws_a', accountId: 'ada' }), true)
