@@ -316,6 +316,8 @@ export function applyContextBudget(messages: LlmMessage[], budgetTokens: number,
 export class SessionsService extends Service {
   private cache = new Map<string, SessionRecord>()
   private defaultSessionPromise: Promise<string> | null = null
+  /** 视图授权能不能看见这条会话。由数据库在启动时接上。 */
+  viewAccess: (id: string, record?: { id?: unknown }) => boolean = () => false
 
   constructor(ctx: Context) {
     super(ctx, 'sessions')
@@ -626,19 +628,22 @@ export class SessionsService extends Service {
   }
 
   /** 没有协同账号时全部可见；有当前工作区时只留下本区会话，未认领的旧会话只在「本机」出现。 */
-  inWorkspace(id: string) {
+  inWorkspace(id: string, record?: { id?: unknown }) {
     const authorization = this.authorization()
     const actor = authorization?.currentActor()
     if (authorization && actor) {
-      return authorization.authorize(actor, 'resource:read', {
+      const allowed = authorization.authorize(actor, 'resource:read', {
         type: 'record',
         workspaceId: actor.workspaceId,
         collection: '/sessions',
         recordId: id,
       }).allowed
+      if (allowed) return true
+      return this.viewAccess(id, record)
     }
     const store = this.collabStore()
     if (!store?.activeWorkspaceId()) return true
+    if (this.viewAccess(id, record)) return true
     const membership = store.membership()
     const key = `/sessions\t${id}`
     if (membership.mine.has(key)) return this.recordReadable(id)
@@ -655,7 +660,7 @@ export class SessionsService extends Service {
   }
 
   async listSummaries() {
-    const items = (await this.ctx.sessionStore.listSummaries()).filter((item) => this.inWorkspace(item.id))
+    const items = (await this.ctx.sessionStore.listSummaries()).filter((item) => this.inWorkspace(item.id, item))
     const out = []
     for (const item of items) {
       let next = item

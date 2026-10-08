@@ -860,6 +860,14 @@ export class DatabaseService extends Service implements Database {
     })
   }
 
+  allowsViaView(collection: string, record: { id?: unknown }, action: PermissionAction = 'resource:read') {
+    const authorization = this.authorization()
+    const actor = authorization?.currentActor()
+    if (!authorization || !actor) return false
+    const role = this.viewGrantRole(actor.workspaceId, collection, record, actor.accountId)
+    return Boolean(role && roleCoversAction(role, action))
+  }
+
   private viewGrantRole(
     workspaceId: string,
     collection: string,
@@ -2251,6 +2259,9 @@ export function apply(ctx: Context) {
     }
   } | undefined
   db.viewCatalog = savedViews
+  ctx.inject(['sessions'], (inner) => {
+    inner.sessions.viewAccess = (id, record) => db.allowsViaView('/sessions', { ...record, id })
+  })
   account?.authorization?.setMemberViewMatcher((workspaceId, viewId, accountId) => {
     const view = savedViews.viewsFor('/workspace-members').find((item) => item.id === viewId) ?? stubBuiltinMemberView(viewId)
     if (!view || !account.store) return false

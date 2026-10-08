@@ -775,3 +775,28 @@ test('two accounts do not see each others sessions', async () => {
   assert.equal(runWithAccount(ada.id, () => ctx.sessions.inWorkspace(bobSession.id)), false)
 })
 
+test('a view grant lets the other member see an inherited session', async () => {
+  const ctx = new Context()
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(sessions)
+  const dir = mkdtempSync(join(tmpdir(), 'biu-view-sessions-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'view-ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'view-bob@example.com')
+  collab.enter(ada.id)
+  collab.enter(bob.id)
+  const adaSession = await runWithAccount(ada.id, () => ctx.sessions.create('ada-shared'))
+  const sharedId = adaSession.id
+  ctx.sessions.viewAccess = (id) => id === sharedId
+  const bobList = await runWithAccount(bob.id, () => ctx.sessions.listSummaries())
+  assert.deepEqual(bobList.map((item) => item.id), [sharedId])
+  assert.equal(runWithAccount(bob.id, () => ctx.sessions.inWorkspace(sharedId)), true)
+})
+
