@@ -116,8 +116,8 @@ test('every registered table gets a read-only 全部xx view', () => {
     { id: builtinAllViewId('/sessions'), name: '假的', mode: 'table', sortField: 'id', sortDir: 'asc', filters: {}, columns: [] },
     { id: 'mine', name: '置顶', mode: 'table', sortField: 'id', sortDir: 'asc', filters: {}, columns: [] },
   ])
-  assert.equal(merged[0]?.name, '全部会话')
-  assert.equal(merged.filter((view) => view.id === builtinAllViewId('/sessions')).length, 1)
+  assert.deepEqual(merged.slice(0, 3).map((view) => view.name), ['私人数据', '空间数据', '共享数据'])
+  assert.equal(merged.filter((view) => view.id === builtinAllViewId('/sessions')).length, 0)
   assert.equal(merged.some((view) => view.id === 'mine'), true)
   assert.equal(stubBuiltinAllView('builtin-all:/pages')?.name, '全部pages')
 })
@@ -145,8 +145,8 @@ test('tags collection uses the same view list as other tables', () => {
   assert.equal(isBuiltinCatalogViewId(builtinTagViewId('dp')), false)
   const table = { path: '/facets', label: '合集', view: { title: '合集' } }
   const merged = mergeTableViews(table, [{ id: 'mine', name: '置顶', mode: 'table', sortField: 'id', sortDir: 'asc', filters: {}, columns: [] }])
-  assert.equal(merged[0]?.id, builtinAllViewId('/facets'))
-  assert.equal(merged[0]?.name, '全部合集')
+  assert.equal(merged[0]?.name, '私人数据')
+  assert.equal(merged[2]?.name, '共享数据')
   assert.equal(merged.some((view) => isBuiltinTagViewId(view.id)), false)
   assert.equal(merged.some((view) => view.id === 'mine'), true)
 })

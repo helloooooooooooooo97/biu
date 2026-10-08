@@ -36,10 +36,10 @@ test('hydrating page-blocks prefers the route view over local 全部', () => {
   )
 })
 
-test('data sidebar hides the share section when nothing is shared', () => {
+test('data sidebar keeps shares out of the navigation sections', () => {
   const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
-  assert.match(sidebar, /\{shareCount \? \(/)
-  assert.doesNotMatch(sidebar, /还没有分享/)
+  assert.doesNotMatch(sidebar, /分享数据/)
+  assert.doesNotMatch(sidebar, /shareCount/)
 })
 
 test('data sidebar brand sits left with a collapse control on the right', () => {
@@ -53,15 +53,12 @@ test('data sidebar brand sits left with a collapse control on the right', () => 
   assert.match(sidebar, /shell-module-sidebar/)
 })
 
-test('workspace, user and system collection sections fold independently', () => {
+test('user and system collection sections fold independently', () => {
   const sidebar = readFileSync(resolve(import.meta.dirname, './data-sidebar.tsx'), 'utf8')
   const fold = readFileSync(resolve(import.meta.dirname, '../../../public-ui/src/sidebar-fold.tsx'), 'utf8')
   assert.match(sidebar, /const \[userOpen, setUserOpen\] = useState\(true\)/)
-  assert.match(sidebar, /const \[workspaceOpen, setWorkspaceOpen\] = useState\(true\)/)
   assert.match(sidebar, /const \[systemOpen, setSystemOpen\] = useState\(false\)/)
-  assert.match(sidebar, /scopeExpandedViewKeys/)
-  assert.match(sidebar, /setUserOpen\(\(prev\) => !prev\)\s*onOpenScopeHome\?\.\('personal'\)/)
-  assert.match(sidebar, /setWorkspaceOpen\(\(prev\) => !prev\)\s*onOpenScopeHome\?\.\('workspace'\)/)
+  assert.match(sidebar, /setUserOpen\(\(prev\) => !prev\)\s*onOpenScopeHome\?\.\(\)/)
   assert.match(sidebar, /onClick=\{\(\) => setSystemOpen\(\(prev\) => !prev\)\}/)
   assert.match(sidebar, /<SidebarFold/)
   assert.match(fold, /function SidebarFold/)
@@ -69,17 +66,15 @@ test('workspace, user and system collection sections fold independently', () => 
   assert.doesNotMatch(sidebar, /sidebar-session-list min-w-0 \$\{open \? '' : 'hidden'\}/)
   assert.doesNotMatch(sidebar, /\{systemOpen \?/)
   assert.doesNotMatch(sidebar, /\{favOpen \?/)
-  assert.match(sidebar, />分享数据</)
-  assert.match(sidebar, />空间数据</)
-  assert.match(sidebar, /sidebar-workspace-collections/)
-  assert.match(sidebar, /renderTableRows\(userTables, 'workspace'\)/)
-  assert.match(sidebar, /renderTableRows\(userTables, 'personal'\)/)
-  assert.match(sidebar, /sidebar-workspace-home/)
-  assert.match(sidebar, /sidebar-personal-home/)
-  const workspaceHead = sidebar.slice(sidebar.indexOf('title="打开空间数据概览"'), sidebar.indexOf('data-testid="sidebar-workspace-collections"'))
-  const personalHead = sidebar.slice(sidebar.indexOf('title="打开私人数据概览"'), sidebar.indexOf('data-testid="sidebar-user-collections"'))
-  assert.doesNotMatch(workspaceHead, /ChevronDownIcon|ChevronRightIcon/)
-  assert.doesNotMatch(personalHead, /ChevronDownIcon|ChevronRightIcon/)
+  assert.match(sidebar, />用户数据</)
+  assert.match(sidebar, />系统数据</)
+  assert.match(sidebar, /sidebar-user-collections/)
+  assert.match(sidebar, /renderTableRows\(userTables, 'user'\)/)
+  assert.match(sidebar, /sidebar-user-home/)
+  assert.doesNotMatch(sidebar, />空间数据</)
+  assert.doesNotMatch(sidebar, />私人数据</)
+  const userHead = sidebar.slice(sidebar.indexOf('title="打开用户数据概览"'), sidebar.indexOf('data-testid="sidebar-user-collections"'))
+  assert.doesNotMatch(userHead, /ChevronDownIcon|ChevronRightIcon/)
 })
 
 test('grouped views nest a foldable group layer in the sidebar', () => {

@@ -518,8 +518,8 @@ export function CollectionBrowser({
   onOpenRecord?: (recordId: string, viewId?: string | null, collection?: string) => void
   onCloseRecord?: () => void
   onCrumbTarget?: (target: CrumbTarget) => void
-  scopeHome?: DataScope | null
-  onOpenScopeHome?: (scope: DataScope) => void
+  scopeHome?: boolean
+  onOpenScopeHome?: () => void
   /** 检查器内页：只有中间舞台，不写侧栏开关/视图存储。 */
   embed?: boolean
   /** 嵌在详情里的收集表：用同一套表组件，但不写视图、不出现视图切换。 */
@@ -547,7 +547,7 @@ export function CollectionBrowser({
           },
           user,
         )
-    return path === collectionPath && routeScope ? viewsForScope(listed, routeScope) : listed
+    return listed
   }
   const dataPath = collectionPath
   const [stat, setStat] = useState<StatResult | null>(null)
@@ -2732,7 +2732,6 @@ export function CollectionBrowser({
       ) : null}
       {scopeHome && !nested ? (
         <ScopeOverview
-          scope={scopeHome}
           tables={tables}
           onOpenTable={(path, viewId) => onOpenTable?.(path, viewId)}
           onOpenRecord={(path, viewId, recordId) => onOpenRecord?.(recordId, viewId, path)}
