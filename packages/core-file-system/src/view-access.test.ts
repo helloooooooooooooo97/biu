@@ -25,7 +25,9 @@ test('inherited view grants raise a personal record to workspace or shared', () 
   assert.equal(effectiveDataScope('personal', record, [internal, external], [], []), 'shared')
   assert.equal(effectiveDataScope('workspace', record, [], [], []), 'workspace')
   assert.equal(effectiveDataScope('personal', { id: 'p2', status: 'done' }, [{ ...internal, viewId: 'open' }], [{ id: 'open', filters: { status: 'open' } }], []), 'personal')
-  const allMembers = { viewId: builtinAllViewId('/sessions'), subjectType: 'member_view' as const, subjectId: 'builtin-member:member' }
-  assert.equal(recordMatchesGrantedView(record, allMembers.viewId, [], 'personal'), true)
-  assert.equal(effectiveDataScope('personal', record, [allMembers], [], [{ id: 'builtin-member:member', filters: { membershipKind: 'member' } }]), 'workspace')
+  const allMembers = { viewId: builtinAllViewId('/tasks'), subjectType: 'member_view' as const, subjectId: 'builtin-member:member', grantedBy: 'bob' }
+  assert.equal(recordMatchesGrantedView(record, allMembers.viewId, [], 'personal', { grantedBy: 'bob', recordOwnerId: 'ada' }), false)
+  assert.equal(recordMatchesGrantedView(record, allMembers.viewId, [], 'personal', { grantedBy: 'bob', recordOwnerId: 'bob' }), true)
+  assert.equal(effectiveDataScope('personal', record, [allMembers], [], [{ id: 'builtin-member:member', filters: { membershipKind: 'member' } }], 'ada'), 'personal')
+  assert.equal(effectiveDataScope('personal', record, [allMembers], [], [{ id: 'builtin-member:member', filters: { membershipKind: 'member' } }], 'bob'), 'workspace')
 })

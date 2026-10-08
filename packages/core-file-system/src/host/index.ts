@@ -615,6 +615,7 @@ type WorkspaceFiles = {
     view_id: string
     subject_type: 'account' | 'member_view'
     subject_id: string
+    granted_by?: string
     member_kind: string
   }>
   viewGrantsFor?(
@@ -625,7 +626,9 @@ type WorkspaceFiles = {
     subject_type: 'account' | 'member_view'
     subject_id: string
     role: ViewGrantRole
+    granted_by?: string
   }>
+  collectionRecordOwners?(workspaceId: string, collection: string): Map<string, string>
 }
 
 export function clampPage(limit?: number, offset?: number) {
@@ -642,9 +645,10 @@ export class DatabaseService extends Service implements Database {
   assets = new FileSystemAssets()
   viewCatalog?: { viewsFor(collectionPath: string): Array<{ id: string; filters?: Record<string, unknown> }> }
   private ownershipCache: { key: string; map: Map<string, 'personal' | 'workspace' | 'shared'> } | null = null
+  private ownerCache: { key: string; map: Map<string, string> } | null = null
   private viewAudienceCache: {
     key: string
-    rows: Array<{ view_id: string; subject_type: 'account' | 'member_view'; subject_id: string; member_kind: string }>
+    rows: Array<{ view_id: string; subject_type: 'account' | 'member_view'; subject_id: string; granted_by?: string; member_kind: string }>
   } | null = null
   recycleAssets?: () => void
 
@@ -708,6 +712,7 @@ export class DatabaseService extends Service implements Database {
 
   private async loadCollectionRows(spec: CollectionSpec, query: CollectionListQuery) {
     this.ownershipCache = null
+    this.ownerCache = null
     this.viewAudienceCache = null
     const rows = await spec.list(query)
     const listed = !query.ids?.length ? rows : rows.filter((row) => query.ids!.includes(row.id))
@@ -717,6 +722,7 @@ export class DatabaseService extends Service implements Database {
       return scoped.map((row) => this.decorateRecord(spec, row))
     } finally {
       this.ownershipCache = null
+      this.ownerCache = null
       this.viewAudienceCache = null
     }
   }
@@ -891,7 +897,8 @@ export class DatabaseService extends Service implements Database {
         collection: target.collection,
         recordId: target.id,
       })
-      if (recordMatchesGrantedView(record as never, grant.view_id, saved, scope)) roles.push(grant.role)
+      const ownerId = this.recordOwner(target.collection, target.id)
+      if (recordMatchesGrantedView(record as never, grant.view_id, saved, scope, { grantedBy: grant.granted_by, recordOwnerId: ownerId })) roles.push(grant.role)
     }
     return highestViewRole(roles)
   }
@@ -1217,9 +1224,11 @@ export class DatabaseService extends Service implements Database {
         subjectType: row.subject_type,
         subjectId: row.subject_id,
         memberKind: row.member_kind,
+        grantedBy: row.granted_by,
       })),
       this.viewCatalog.viewsFor(collection),
       memberViews,
+      this.recordOwner(collection, String(record.id ?? '')),
     )
   }
 
@@ -1232,6 +1241,17 @@ export class DatabaseService extends Service implements Database {
       this.ownershipCache = { key, map: store.collectionOwnership(workspaceId, collection) }
     }
     return this.ownershipCache.map.get(id) ?? 'personal'
+  }
+
+  private recordOwner(collection: string, id: string) {
+    const store = this.collabStore()
+    const workspaceId = store?.activeWorkspaceId?.() ?? ''
+    if (!store?.collectionRecordOwners || !workspaceId) return ''
+    const key = `${workspaceId}\t${collection}`
+    if (!this.ownerCache || this.ownerCache.key !== key) {
+      this.ownerCache = { key, map: store.collectionRecordOwners(workspaceId, collection) }
+    }
+    return this.ownerCache.map.get(id) ?? ''
   }
 
   private withBanner(spec: CollectionSpec, row: DbRecord): DbRecord {

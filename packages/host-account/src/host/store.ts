@@ -1829,7 +1829,7 @@ export class CollabStore {
   viewGrantAudiences(workspaceId: string, collection: string) {
     return this.db
       .prepare(
-        `SELECT g.view_id, g.subject_type, g.subject_id, COALESCE(m.member_kind, '') AS member_kind
+        `SELECT g.view_id, g.subject_type, g.subject_id, g.granted_by, COALESCE(m.member_kind, '') AS member_kind
          FROM view_grants g
          LEFT JOIN workspace_members m
            ON g.subject_type = 'account'
@@ -1842,6 +1842,7 @@ export class CollabStore {
         view_id: string
         subject_type: 'account' | 'member_view'
         subject_id: string
+        granted_by: string
         member_kind: string
       }>
   }
@@ -1849,7 +1850,7 @@ export class CollabStore {
   private viewGrantShares(workspaceId: string, collection: string) {
     const people = this.db
       .prepare(
-        `SELECT g.view_id, a.id, COALESCE(NULLIF(m.display_name, ''), NULLIF(a.name, ''), '未设置') AS name,
+        `SELECT g.view_id, g.granted_by, a.id, COALESCE(NULLIF(m.display_name, ''), NULLIF(a.name, ''), '未设置') AS name,
                 COALESCE(a.email, '') AS email, g.role, COALESCE(m.member_kind, '') AS member_kind
          FROM view_grants g
          JOIN accounts a ON g.subject_type = 'account' AND a.id = g.subject_id
@@ -1859,6 +1860,7 @@ export class CollabStore {
       )
       .all(workspaceId, collection) as Array<{
         view_id: string
+        granted_by: string
         id: string
         name: string
         email: string
@@ -1867,12 +1869,12 @@ export class CollabStore {
       }>
     const memberViews = this.db
       .prepare(
-        `SELECT view_id, subject_id AS id, role
+        `SELECT view_id, granted_by, subject_id AS id, role
          FROM view_grants
          WHERE workspace_id = ? AND collection = ? AND subject_type = 'member_view'
          ORDER BY created_at`,
       )
-      .all(workspaceId, collection) as Array<{ view_id: string; id: string; role: string }>
+      .all(workspaceId, collection) as Array<{ view_id: string; granted_by: string; id: string; role: string }>
     return [
       ...people.map((row) => ({
         viewId: row.view_id,
@@ -1881,6 +1883,7 @@ export class CollabStore {
         role: row.role,
         name: row.name,
         email: row.email,
+        grantedBy: row.granted_by,
         memberKind: row.member_kind === 'external' || row.member_kind === 'guest' ? row.member_kind : 'member' as const,
       })),
       ...memberViews.map((row) => ({
@@ -1890,6 +1893,7 @@ export class CollabStore {
         role: row.role,
         name: row.id,
         email: '',
+        grantedBy: row.granted_by,
         memberKind: 'member' as const,
       })),
     ]
@@ -2007,7 +2011,7 @@ export class CollabStore {
     if (!workspaceId) throw new CollabError('没有工作区', 400)
     const normalizedView = viewId.trim()
     if (!normalizedView) throw new CollabError('视图不能为空', 400)
-    this.requireViewSharer(actorId, workspaceId, collection)
+    this.requireViewSharer(actorId, workspaceId, collection, normalizedView)
     const normalized = email.trim().toLowerCase()
     if (!normalized) throw new CollabError('邮箱不能为空', 400)
     const account = this.db.prepare('SELECT id FROM accounts WHERE email = ?').get(normalized) as { id: string } | undefined
@@ -2030,7 +2034,7 @@ export class CollabStore {
     const normalizedView = viewId.trim()
     const normalizedMemberView = memberViewId.trim()
     if (!normalizedView || !normalizedMemberView) throw new CollabError('成员视图不能为空', 400)
-    this.requireViewSharer(actorId, workspaceId, collection)
+    this.requireViewSharer(actorId, workspaceId, collection, normalizedView)
     this.writeViewGrant(workspaceId, collection, normalizedView, 'member_view', normalizedMemberView, role, actorId, now)
     return this.viewAccessRows(workspaceId, collection, normalizedView)
   }
@@ -2044,7 +2048,7 @@ export class CollabStore {
   ) {
     const workspaceId = this.activeWorkspaceId()
     if (!workspaceId) throw new CollabError('没有工作区', 400)
-    this.requireViewSharer(actorId, workspaceId, collection)
+    this.requireViewSharer(actorId, workspaceId, collection, viewId)
     const removed = this.db
       .prepare(
         `DELETE FROM view_grants
@@ -2085,7 +2089,7 @@ export class CollabStore {
   viewGrantsFor(workspaceId: string, collection: string) {
     return this.db
       .prepare(
-        `SELECT view_id, subject_type, subject_id, role
+        `SELECT view_id, subject_type, subject_id, role, granted_by
          FROM view_grants
          WHERE workspace_id = ? AND collection = ?
          ORDER BY created_at`,
@@ -2095,7 +2099,30 @@ export class CollabStore {
         subject_type: 'account' | 'member_view'
         subject_id: string
         role: ResourceRole
+        granted_by: string
       }>
+  }
+
+  collectionRecordOwners(workspaceId: string, collection: string) {
+    const map = new Map<string, string>()
+    const policies = this.db
+      .prepare(
+        `SELECT record_id, owner_account_id FROM resource_policies
+         WHERE workspace_id = ? AND collection = ?`,
+      )
+      .all(workspaceId, collection) as Array<{ record_id: string; owner_account_id: string }>
+    for (const row of policies) {
+      if (row.owner_account_id) map.set(row.record_id, row.owner_account_id)
+    }
+    const owners = this.db
+      .prepare(
+        `SELECT record_id, owner_id FROM record_owners WHERE workspace_id = ? AND collection = ?`,
+      )
+      .all(workspaceId, collection) as Array<{ record_id: string; owner_id: string }>
+    for (const row of owners) {
+      if (!map.has(row.record_id) && row.owner_id) map.set(row.record_id, row.owner_id)
+    }
+    return map
   }
 
   externallySharedRecords(actorId: string, workspaceId: string) {
@@ -2123,14 +2150,20 @@ export class CollabStore {
       .map((row) => ({ collection: row.collection, record_id: row.record_id }))
   }
 
-  private requireViewSharer(actorId: string, workspaceId: string, collection: string) {
-    this.requireMember(actorId, workspaceId)
+  private requireViewSharer(actorId: string, workspaceId: string, collection: string, viewId = '') {
+    const row = this.db
+      .prepare('SELECT role, member_kind FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
+      .get(workspaceId, actorId) as { role: string; member_kind: string } | undefined
+    if (!row) throw new CollabError('不是这个工作区的成员', 403)
     const decision = this.authorization.authorize(
       { type: 'account', accountId: actorId, workspaceId },
       'resource:share',
       { type: 'collection', workspaceId, collection },
     )
-    if (!decision.allowed) throw new CollabError('没有权限', 403)
+    if (decision.allowed) return
+    // 全部视图按人隔离，普通成员可以分享自己的那一份，授权只覆盖自己创建的条目。
+    if (viewId.startsWith('builtin-all:') && row.role === 'member' && row.member_kind === 'member') return
+    throw new CollabError('没有权限', 403)
   }
 
   private ensureCollaboratorMembership(

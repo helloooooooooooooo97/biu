@@ -36,9 +36,11 @@ export function recordMatchesGrantedView(
   viewId: string,
   saved: Array<{ id: string; filters?: Record<string, unknown> }>,
   scope: DataScopeName | null,
+  owner?: { grantedBy?: string; recordOwnerId?: string },
 ) {
   const resolved = viewFiltersForGrant(viewId, saved)
   if (!resolved) return false
+  if (isBuiltinAllViewId(viewId) && (!owner?.grantedBy || owner.recordOwnerId !== owner.grantedBy)) return false
   if (resolved.scope && scope !== resolved.scope) return false
   return matchListFilterRecord(record, resolved.filters)
 }
@@ -58,14 +60,15 @@ export function grantAudienceKind(
 export function effectiveDataScope(
   stored: DataScopeName,
   record: DbRecord,
-  grants: Array<{ viewId: string; subjectType: 'account' | 'member_view'; subjectId: string; memberKind?: string }>,
+  grants: Array<{ viewId: string; subjectType: 'account' | 'member_view'; subjectId: string; memberKind?: string; grantedBy?: string }>,
   dataViews: Array<{ id: string; filters?: Record<string, unknown> }>,
   memberViews: Array<{ id: string; filters?: Record<string, unknown> }> = [],
+  recordOwnerId = '',
 ): DataScopeName {
   let internal = false
   let external = false
   for (const grant of grants) {
-    if (!recordMatchesGrantedView(record, grant.viewId, dataViews, stored)) continue
+    if (!recordMatchesGrantedView(record, grant.viewId, dataViews, stored, { grantedBy: grant.grantedBy, recordOwnerId })) continue
     if (grantAudienceKind(grant, memberViews) === 'external') external = true
     else internal = true
   }

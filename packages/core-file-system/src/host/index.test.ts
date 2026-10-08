@@ -1895,6 +1895,96 @@ test('a builtin member view grant lets the other workspace member read personal 
   assert.deepEqual(seen.items.map((row) => row.title), ['Ada private'])
 })
 
+test('sharing one person all-tasks view does not reclassify the other person private tasks', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, DbRecord>()
+  let seq = 0
+  db.register({
+    id: 'tasks',
+    path: '/tasks',
+    schema: {
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+      },
+    },
+    records: { create: true, update: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: (records) => records.map((record) => {
+      const row = { id: `t${++seq}`, title: String(record.title ?? `Task ${seq}`) }
+      rows.set(row.id, row)
+      return row
+    }),
+    update: (id, patch) => {
+      const row = { ...rows.get(id)!, ...patch, id }
+      rows.set(id, row)
+      return row
+    },
+  })
+  const dir = mkdtempSync(join(tmpdir(), 'biu-db-all-view-owner-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'all-ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'all-bob@example.com')
+  const workspace = collab.createWorkspace(ada.id, 'All tasks')
+  collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+  collab.setActive(ada.id, workspace.id)
+  collab.setActive(bob.id, workspace.id)
+  db.viewCatalog = { viewsFor: () => [] }
+  collab.authorization.setMemberViewMatcher((workspaceId, viewId, accountId) => {
+    const view = stubBuiltinMemberView(viewId)
+    if (!view) return false
+    const member = collab.members(accountId, workspaceId).find((item) => item.id === accountId)
+    if (!member) return false
+    return matchListFilterRecord(
+      {
+        id: member.id,
+        title: member.name,
+        name: member.name,
+        email: member.email,
+        role: member.role,
+        membershipKind: member.member_kind,
+        joinedAt: member.created_at,
+      },
+      view.filters,
+    )
+  })
+
+  await runWithAccount(ada.id, () => db.create('/tasks', [{ title: 'A空间' }], { scope: 'workspace' }))
+  await runWithAccount(ada.id, () => db.create('/tasks', [{ title: 'A私人' }], { scope: 'personal' }))
+  await runWithAccount(bob.id, () => db.create('/tasks', [{ title: 'B空间' }], { scope: 'workspace' }))
+  await runWithAccount(bob.id, () => db.create('/tasks', [{ title: 'B私人' }], { scope: 'personal' }))
+  await runWithAccount(bob.id, () => collab.grantViewMemberView(
+    bob.id,
+    '/tasks',
+    builtinAllViewId('/tasks'),
+    'builtin-member:member',
+    'editor',
+  ))
+
+  const scopeOf = (items: DbRecord[], title: string) => items.find((row) => row.title === title)?.shareScope
+  const adaList = await runWithAccount(ada.id, () => db.list('/tasks'))
+  assert.deepEqual(adaList.items.map((row) => row.title).sort(), ['A私人', 'A空间', 'B私人', 'B空间'])
+  assert.equal(scopeOf(adaList.items, 'A私人'), '私人')
+  assert.equal(scopeOf(adaList.items, 'A空间'), '空间')
+  assert.equal(scopeOf(adaList.items, 'B私人'), '空间')
+  assert.equal(scopeOf(adaList.items, 'B空间'), '空间')
+
+  const bobList = await runWithAccount(bob.id, () => db.list('/tasks'))
+  assert.deepEqual(bobList.items.map((row) => row.title).sort(), ['A空间', 'B私人', 'B空间'])
+  assert.equal(scopeOf(bobList.items, 'B私人'), '空间')
+  assert.equal(bobList.items.some((row) => row.title === 'A私人'), false)
+})
+
 test('workspace member tags use file-system metadata instead of role updates', async () => {
   const ctx = new Context()
   const db = new DatabaseService(ctx)

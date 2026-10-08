@@ -165,6 +165,7 @@ function WorkspaceAccess({
     name: string
     email: string
     memberKind: 'member' | 'external' | 'guest'
+    grantedBy?: string
   }>>([])
   const [record, setRecord] = useState<DbRecord | null>(null)
   const [dataViews, setDataViews] = useState<Array<{ id: string; name: string; filters?: Record<string, unknown> }>>([])
@@ -361,7 +362,7 @@ function WorkspaceAccess({
   ]
   const inherited = !viewId && record
     ? viewGrants.flatMap((grant) => {
-        if (!recordMatchesGrantedView(record, grant.viewId, dataViews, scope)) return []
+        if (!recordMatchesGrantedView(record, grant.viewId, dataViews, scope, { grantedBy: grant.grantedBy, recordOwnerId: ownerId })) return []
         const audience = grant.subjectType === 'member_view'
           ? grantAudienceKind({ subjectType: 'member_view', subjectId: grant.subjectId }, memberViewFilters)
           : grant.memberKind === 'external' || grant.memberKind === 'guest' ? 'external' : 'internal'
@@ -620,6 +621,7 @@ export function ShareScopeDetail({
       const [access, recordPage, viewPage, memberViewPage] = await Promise.all([
         readJson<{
           scope?: 'personal' | 'workspace' | 'shared'
+          ownerId?: string
           people?: Array<{ id: string; name: string; role: string; memberKind: string }>
           groups?: Array<{ id: string; name: string; role: string }>
           memberViews?: Array<{ id: string; role: string }>
@@ -630,6 +632,7 @@ export function ShareScopeDetail({
             role: string
             name: string
             memberKind: string
+            grantedBy?: string
           }>
         }>(`/api/account/access?collection=${encodeURIComponent(collection)}&recordId=${encodeURIComponent(recordId)}`),
         listCollection({ path: collection, limit: 1, filters: { id: recordId } }),
@@ -667,7 +670,7 @@ export function ShareScopeDetail({
         })),
       ])
       const matched = record ? (access.viewGrants ?? []).flatMap((grant) => {
-        if (!recordMatchesGrantedView(record, grant.viewId, dataViews, stored)) return []
+        if (!recordMatchesGrantedView(record, grant.viewId, dataViews, stored, { grantedBy: grant.grantedBy, recordOwnerId: access.ownerId })) return []
         const parsed = parseBuiltinScopeViewId(grant.viewId)
         const source = dataViews.find((view) => view.id === grant.viewId)?.name
           || (parsed ? scopedCollectionName({ path: collection, label: tableLabel || collection.replace(/^\//, '') }, parsed.scope) : '')
