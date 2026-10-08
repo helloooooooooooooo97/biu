@@ -144,7 +144,7 @@ import { HttpError, listCollection, readJson } from './db-client.ts'
 import { savedViewRecordPath } from '../paths.ts'
 import { findViewNeighbor, indexOnPage } from './view-adjacent.ts'
 import { rememberPreviewTotal, viewTotalKey } from './sidebar-preview.ts'
-import { catalogLockFilters, isReadOnlyViewId, mergeTableViews, parseBuiltinScopeViewId, stubBuiltinBlockKindView, viewsForScope, type DataScope } from '../catalog-views.ts'
+import { catalogLockFilters, isBuiltinAllViewId, isReadOnlyViewId, mergeTableViews, parseBuiltinScopeViewId, stubBuiltinBlockKindView, viewsForScope, type DataScope } from '../catalog-views.ts'
 import { SAVED_VIEW_EVENT, showRecordInInspector } from './inspector-db-route.ts'
 import { SchemaChips, SchemaFieldEditor, schemaTagTone } from './schema-field.tsx'
 import { CellPop, cellUsesPop } from './cell-pop.tsx'
@@ -1174,7 +1174,11 @@ export function CollectionBrowser({
   }
   const groupFields = useMemo(() => groupableFields(schema), [schema])
   const activeGroup = groupField(schema, groupBy)
+  const groupLocked = isBuiltinAllViewId(activeViewId ?? '')
   const grouping = Boolean(activeGroup)
+  useEffect(() => {
+    if (groupLocked && groupBy !== 'shareScope') setGroupBy('shareScope')
+  }, [groupBy, groupLocked])
   const filterFields = useMemo(
     () =>
       entries.filter(
@@ -1745,6 +1749,7 @@ export function CollectionBrowser({
   }
 
   function setGroupKey(next: string) {
+    if (isBuiltinAllViewId(activeViewId ?? '')) return
     setGroupBy(next)
     patchActiveView({ groupBy: next })
   }
@@ -2654,7 +2659,7 @@ export function CollectionBrowser({
         filters: current.builtin ? current.filters : filters,
         filterTree: current.builtin ? undefined : filterTree,
         columns: pinLabelColumn(schema, columnKeys),
-        groupBy,
+        groupBy: isBuiltinAllViewId(current.id) ? 'shareScope' : groupBy,
         tree: showTree,
         wrap: wrapCells,
         truncate: truncateCells,
@@ -3160,7 +3165,7 @@ export function CollectionBrowser({
               ) : null}
             </div>
             )}
-            <div className="tasks-sort-wrap" ref={groupRef}>
+            {groupLocked ? null : <div className="tasks-sort-wrap" ref={groupRef}>
               <button
                 type="button"
                 className={`tasks-sort-btn${groupOpen ? ' is-active' : ''}${grouping ? ' is-custom' : ''}`}
@@ -3203,7 +3208,7 @@ export function CollectionBrowser({
                 </div>
                 </HeadlessDismiss>
               ) : null}
-            </div>
+            </div>}
             <div className="tasks-sort-wrap" ref={columnRef}>
               <button
                 type="button"
