@@ -485,6 +485,24 @@ export const BIU_MIGRATIONS: Migration[] = [
   { version: 34, module: 'host-account', name: 'account.force-initial-password-change', up: (db) => {
     addColumn(db, 'accounts', 'must_change_password', 'must_change_password INTEGER NOT NULL DEFAULT 0')
   } },
+  { version: 35, module: 'host-account', name: 'access.view-collaborators', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS view_grants (
+        workspace_id TEXT NOT NULL,
+        collection TEXT NOT NULL,
+        view_id TEXT NOT NULL,
+        subject_type TEXT NOT NULL,
+        subject_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        granted_by TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, collection, view_id, subject_type, subject_id)
+      );
+      CREATE INDEX IF NOT EXISTS view_grants_subject
+        ON view_grants(workspace_id, subject_type, subject_id);
+    `)
+    addColumn(db, 'workspace_invites', 'view_id', "view_id TEXT NOT NULL DEFAULT ''")
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

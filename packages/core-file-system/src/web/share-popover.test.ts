@@ -55,6 +55,7 @@ test('share panel separates public sharing from internal and external collaborat
   const databaseHost = readFileSync(resolve(import.meta.dirname, '../host/index.ts'), 'utf8')
   assert.match(src, /公开分享/)
   assert.match(src, /邀请协作/)
+  assert.match(src, /target\.kind === 'view' && target\.viewId/)
   assert.match(src, /内部协作者/)
   assert.match(src, /外部协作者/)
   assert.match(src, /collaboratorKind/)

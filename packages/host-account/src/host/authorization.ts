@@ -75,6 +75,10 @@ function maxRole(roles: ResourceRole[]) {
   return roles.sort((a, b) => ROLE_RANK[b] - ROLE_RANK[a])[0] ?? null
 }
 
+export function roleCoversAction(role: ResourceRole, action: Action) {
+  return ROLE_RANK[role] >= ROLE_RANK[requiredRole(action)]
+}
+
 function requiredRole(action: Action): ResourceRole {
   switch (action) {
     case 'resource:list':

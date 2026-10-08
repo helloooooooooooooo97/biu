@@ -154,6 +154,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
       'role',
       'collection',
       'record_id',
+      'view_id',
       'resource_role',
       'expires_at',
       'max_uses',
@@ -207,6 +208,10 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   record_grants: {
     columns: ['workspace_id', 'collection', 'record_id', 'subject_type', 'subject_id', 'role', 'granted_by', 'created_at'],
     indexes: ['record_grants_subject'],
+  },
+  view_grants: {
+    columns: ['workspace_id', 'collection', 'view_id', 'subject_type', 'subject_id', 'role', 'granted_by', 'created_at'],
+    indexes: ['view_grants_subject'],
   },
   record_owners: {
     columns: ['workspace_id', 'collection', 'record_id', 'owner_id', 'version', 'updated_at'],
@@ -276,7 +281,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 34
+export const LATEST_BIU_SCHEMA = 35
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -491,6 +496,7 @@ CREATE TABLE IF NOT EXISTS workspace_invites (
   role TEXT NOT NULL,
   collection TEXT NOT NULL DEFAULT '',
   record_id TEXT NOT NULL DEFAULT '',
+  view_id TEXT NOT NULL DEFAULT '',
   resource_role TEXT NOT NULL DEFAULT 'viewer',
   expires_at INTEGER NOT NULL,
   max_uses INTEGER NOT NULL DEFAULT 1,
@@ -608,6 +614,19 @@ CREATE TABLE IF NOT EXISTS record_grants (
 );
 CREATE INDEX IF NOT EXISTS record_grants_subject
   ON record_grants(workspace_id, subject_type, subject_id);
+CREATE TABLE IF NOT EXISTS view_grants (
+  workspace_id TEXT NOT NULL,
+  collection TEXT NOT NULL,
+  view_id TEXT NOT NULL,
+  subject_type TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  granted_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, collection, view_id, subject_type, subject_id)
+);
+CREATE INDEX IF NOT EXISTS view_grants_subject
+  ON view_grants(workspace_id, subject_type, subject_id);
 CREATE TABLE IF NOT EXISTS edit_locks (
   workspace_id TEXT NOT NULL,
   collection TEXT NOT NULL,

@@ -548,9 +548,13 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   ctx.http.route('GET', '/api/account/access', async (route) => {
     try {
       const me = actor(route)
+      const collection = String(route.query.get('collection') ?? '')
+      const viewId = String(route.query.get('viewId') ?? '')
       route.send(
         200,
-        account.store.recordAccess(me.id, String(route.query.get('collection') ?? ''), String(route.query.get('recordId') ?? '')),
+        viewId
+          ? account.store.viewAccess(me.id, collection, viewId)
+          : account.store.recordAccess(me.id, collection, String(route.query.get('recordId') ?? '')),
       )
     } catch (error) {
       fail(route, error)
@@ -563,6 +567,7 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       const body = (await route.json()) as {
         collection?: string
         recordId?: string
+        viewId?: string
         email?: string
         groupId?: string
         memberViewId?: string
@@ -571,22 +576,21 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       }
       const collection = String(body.collection ?? '')
       const recordId = String(body.recordId ?? '')
+      const viewId = String(body.viewId ?? '')
       const role: ResourceRole =
         body.role === 'viewer' || body.role === 'manager' || body.role === 'owner' ? body.role : 'editor'
+      const kind = body.collaboratorKind === 'internal' ? 'internal' : 'external'
       route.send(
         200,
-        body.memberViewId
+        viewId
+          ? body.memberViewId
+            ? account.store.grantViewMemberView(me.id, collection, viewId, String(body.memberViewId), role)
+            : account.store.shareViewWithEmail(me.id, collection, viewId, String(body.email ?? ''), role, kind)
+          : body.memberViewId
           ? account.store.grantMemberView(me.id, collection, recordId, String(body.memberViewId), role)
           : body.groupId
           ? account.store.grantGroup(me.id, collection, recordId, String(body.groupId), role)
-          : account.store.shareWithEmail(
-              me.id,
-              collection,
-              recordId,
-              String(body.email ?? ''),
-              role,
-              body.collaboratorKind === 'internal' ? 'internal' : 'external',
-            ),
+          : account.store.shareWithEmail(me.id, collection, recordId, String(body.email ?? ''), role, kind),
       )
     } catch (error) {
       fail(route, error)
@@ -599,20 +603,30 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       const body = (await route.json()) as {
         collection?: string
         recordId?: string
+        viewId?: string
         subjectType?: 'account' | 'group' | 'member_view'
         subjectId?: string
       }
+      const viewId = String(body.viewId ?? '')
       const subjectType =
         body.subjectType === 'group' || body.subjectType === 'member_view' ? body.subjectType : 'account'
       route.send(
         200,
-        account.store.revokeRecordGrant(
-          me.id,
-          String(body.collection ?? ''),
-          String(body.recordId ?? ''),
-          subjectType,
-          String(body.subjectId ?? ''),
-        ),
+        viewId
+          ? account.store.revokeViewGrant(
+              me.id,
+              String(body.collection ?? ''),
+              viewId,
+              subjectType === 'member_view' ? 'member_view' : 'account',
+              String(body.subjectId ?? ''),
+            )
+          : account.store.revokeRecordGrant(
+              me.id,
+              String(body.collection ?? ''),
+              String(body.recordId ?? ''),
+              subjectType,
+              String(body.subjectId ?? ''),
+            ),
       )
     } catch (error) {
       fail(route, error)
@@ -625,6 +639,7 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       const body = (await route.json()) as {
         collection?: string
         recordId?: string
+        viewId?: string
         role?: string
         expiresInHours?: number
       }
@@ -634,6 +649,8 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
         String(body.recordId ?? ''),
         body.role === 'editor' ? 'editor' : 'viewer',
         Number(body.expiresInHours ?? 24),
+        Date.now(),
+        String(body.viewId ?? ''),
       )
       route.send(201, {
         ...invite,
