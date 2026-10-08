@@ -1046,6 +1046,7 @@ export function CollectionBrowser({
       }, 120)
     }
     window.addEventListener('fsdb:change', onChange)
+    window.addEventListener('fsdb:shares-change', onChange)
     const timer = nested
       ? 0
       : window.setInterval(() => {
@@ -1056,6 +1057,7 @@ export function CollectionBrowser({
       window.clearTimeout(debounce)
       window.clearInterval(timer)
       window.removeEventListener('fsdb:change', onChange)
+      window.removeEventListener('fsdb:shares-change', onChange)
     }
   }, [collectionPath, dataPath, nested, pullDetailBody, pullDetailRecord])
 

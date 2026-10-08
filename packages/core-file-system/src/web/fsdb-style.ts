@@ -703,6 +703,14 @@ button.fsdb-detail-title-icon:hover{background:color-mix(in srgb,var(--dsw-hover
 .fsdb-scope-tag.is-shared{background:color-mix(in srgb,var(--dsw-pick) 12%,transparent);color:var(--dsw-pick)}
 .fsdb-scope-panel{position:absolute;top:calc(100% + 6px);left:0;z-index:80;width:min(320px,70vw);padding:12px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:12px;box-shadow:var(--dsw-shadow);color:var(--dsw-sidebar-fg)}
 .fsdb-scope-note{margin:0 0 10px;color:var(--dsw-label-3);font-size:12px;line-height:1.45}
+.fsdb-scope-chain{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.fsdb-scope-chain li{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start}
+.fsdb-scope-chain li>span{display:grid;width:18px;height:18px;place-items:center;border-radius:50%;background:var(--dsw-hover);color:var(--dsw-label-2);font-size:11px;font-weight:700}
+.fsdb-scope-chain li>div{display:flex;min-width:0;flex-direction:column;gap:2px}
+.fsdb-scope-chain li strong{font-size:13px;font-weight:650}
+.fsdb-scope-chain li em{color:var(--dsw-label-3);font-size:12px;font-style:normal}
+.fsdb-scope-chain li>b{font-size:12px;font-weight:700}
+.fsdb-scope-chain li.is-result>span{background:var(--dsw-pick,#2383e2);color:#fff}
 .fsdb-scope-panel h3{margin:8px 0 4px;font-size:12px;font-weight:650;color:var(--dsw-label-2)}
 .fsdb-scope-panel ul{margin:0;padding:0;list-style:none}
 .fsdb-scope-panel li{display:flex;align-items:center;gap:6px;min-height:28px;font-size:13px}

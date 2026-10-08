@@ -598,7 +598,7 @@ export function ShareScopeDetail({
   const [open, setOpen] = useState(false)
   const [scope, setScope] = useState(label === '共享' ? 'shared' : label === '空间' ? 'workspace' : 'personal')
   const [direct, setDirect] = useState<Array<{ id: string; name: string; role: string; note: string }>>([])
-  const [inherited, setInherited] = useState<Array<{ id: string; name: string; role: string; source: string }>>([])
+  const [chain, setChain] = useState<Array<{ id: string; title: string; detail: string; result: string }>>([])
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -654,7 +654,7 @@ export function ShareScopeDetail({
           note: '成员视图',
         })),
       ])
-      setInherited(record ? (access.viewGrants ?? []).flatMap((grant) => {
+      const matched = record ? (access.viewGrants ?? []).flatMap((grant) => {
         if (!recordMatchesGrantedView(record, grant.viewId, dataViews, stored)) return []
         const parsed = parseBuiltinScopeViewId(grant.viewId)
         const source = dataViews.find((view) => view.id === grant.viewId)?.name
@@ -663,8 +663,26 @@ export function ShareScopeDetail({
         const name = grant.subjectType === 'member_view'
           ? memberViews.find((view) => view.id === grant.subjectId)?.name ?? grant.name
           : grant.name
-        return [{ id: `${grant.viewId}:${grant.subjectType}:${grant.subjectId}`, name, role: grant.role, source }]
-      }) : [])
+        const external = grant.subjectType === 'account'
+          ? grant.memberKind === 'external' || grant.memberKind === 'guest'
+          : memberViews.find((view) => view.id === grant.subjectId)?.filters?.membershipKind === 'external'
+            || memberViews.find((view) => view.id === grant.subjectId)?.filters?.membershipKind === 'guest'
+        return [{ id: `${grant.viewId}:${grant.subjectType}:${grant.subjectId}`, name, role: grant.role, source, external }]
+      }) : []
+      setChain([
+        {
+          id: 'stored',
+          title: '这条内容自己的协作者',
+          detail: stored === 'shared' ? '已经邀请了外部协作者' : stored === 'workspace' ? '已经有空间成员' : '只有创建者',
+          result: scopeText(stored),
+        },
+        ...matched.map((row) => ({
+          id: row.id,
+          title: `视图「${row.source}」`,
+          detail: `${row.name} ${roleLabel(row.role)}`,
+          result: row.external ? '共享' : '空间',
+        })),
+      ])
       setError('')
     })().catch((err) => {
       if (!cancelled) setError(err instanceof Error ? err.message : '无法读取权限')
@@ -690,30 +708,38 @@ export function ShareScopeDetail({
       </button>
       {open ? (
         <HeadlessDismiss onDismiss={() => setOpen(false)} insideRef={wrapRef}>
-          <div className="fsdb-scope-panel" role="dialog" aria-label="权限详情">
+          <div className="fsdb-scope-panel" role="dialog" aria-label="数据归属链路">
             <div className="fsdb-share-collab-summary">
               <span>数据归属</span>
               <strong className={`fsdb-share-scope is-${scope}`}>{scopeText(scope)}</strong>
             </div>
-            <p className="fsdb-scope-note">归属会算上这条内容自己的协作者，以及从匹配视图继承来的人。</p>
-            <section>
-              <h3>直接授权</h3>
-              <ul>
-                {direct.map((row) => (
-                  <li key={row.id}><strong>{row.name}</strong><em>{row.note}</em><span>{roleLabel(row.role)}</span></li>
-                ))}
-                {!direct.length ? <li className="is-empty">只有创建者</li> : null}
-              </ul>
-            </section>
-            <section>
-              <h3>继承权限</h3>
-              <ul>
-                {inherited.map((row) => (
-                  <li key={row.id}><strong>{row.name}</strong><em>继承自{row.source}</em><span>{roleLabel(row.role)}</span></li>
-                ))}
-                {!inherited.length ? <li className="is-empty">没有从视图继承的权限</li> : null}
-              </ul>
-            </section>
+            <ol className="fsdb-scope-chain">
+              {chain.map((step, index) => (
+                <li key={step.id}>
+                  <span>{index + 1}</span>
+                  <div>
+                    <strong>{step.title}</strong>
+                    <em>{step.detail}</em>
+                  </div>
+                  <b>{step.result}</b>
+                </li>
+              ))}
+              <li className="is-result">
+                <span>{chain.length + 1}</span>
+                <div><strong>结果</strong><em>取上面最宽的一档</em></div>
+                <b>{scopeText(scope)}</b>
+              </li>
+            </ol>
+            {direct.length ? (
+              <section>
+                <h3>直接授权</h3>
+                <ul>
+                  {direct.map((row) => (
+                    <li key={row.id}><strong>{row.name}</strong><em>{row.note}</em><span>{roleLabel(row.role)}</span></li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
             {error ? <p className="fsdb-share-error is-inline">{error}</p> : null}
           </div>
         </HeadlessDismiss>

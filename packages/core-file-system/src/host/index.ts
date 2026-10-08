@@ -153,7 +153,7 @@ function schemaFor(spec: CollectionSpec): CollectionSchema {
   if (!isSystemCollection(spec.path)) {
     fields.shareScope = {
       type: 'select',
-      label: '分享属性',
+      label: '分享',
       computed: true,
       writable: false,
       sortable: true,
