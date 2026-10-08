@@ -66,10 +66,34 @@ test('sessionsCollection maps summaries and writes title/pinned/tags', async () 
     ['delete', 's1'],
   ])
   const actionIds = (spec.actions ?? []).map((item) => item.id)
-  assert.deepEqual(actionIds, ['inspect', 'progress', 'compact', 'clear', 'retrieve', 'status'])
+  assert.deepEqual(actionIds, ['inspect', 'query', 'progress', 'compact', 'clear', 'retrieve', 'status'])
   assert.equal(spec.actions?.find((item) => item.id === 'progress')?.for, 'agent')
   assert.deepEqual(spec.actions?.find((item) => item.id === 'progress')?.placement, [])
   assert.equal(spec.actions?.find((item) => item.id === 'compact')?.for, 'agent')
   assert.equal(spec.actions?.find((item) => item.id === 'inspect')?.for, 'agent')
+})
+
+test('query reads one session timeline', async () => {
+  const spec = sessionsCollection({
+    listSummaries: async () => [],
+    rename: async () => undefined,
+    patchConfig: async () => undefined,
+    delete: async () => true,
+    require: async (id) => ({
+      id,
+      events: [
+        { type: 'user/message', text: '查一下页面', seq: 1, ts: 1, kind: 'user' },
+        { type: 'tool/call', id: 't1', name: 'db_list', arguments: '{"path":"/pages"}', seq: 2, ts: 2 },
+        { type: 'tool/result', id: 't1', name: 'db_list', ok: true, detail: 'pages ok', seq: 3, ts: 3 },
+      ],
+    }),
+  })
+  const query = spec.actions?.find((item) => item.id === 'query')
+  const found = await query?.run('s1', { id: 's1' }, { query: 'db_list' })
+  assert.equal(found.hits, 2)
+  assert.equal(found.results[0]?.type, 'tool/call')
+  const typed = await query?.run('s1', { id: 's1' }, { type: 'user/message' })
+  assert.equal(typed.hits, 1)
+  assert.match(String(typed.results[0]?.summary), /查一下页面/)
 })
 
