@@ -210,7 +210,7 @@ export function builtinAllView(table: TableRef): SavedView {
     ...builtinViewLayout(),
     filters: {},
     columns: [],
-    groupBy: '',
+    groupBy: 'shareScope',
     wrap: false,
     truncate: true,
     query: '',
@@ -258,14 +258,13 @@ export function mergeCatalogViews(tables: CollectionInfo[], user: SavedView[]): 
   return [builtinAllView(viewsTable), ...builtinCatalogViews(tables), ...userViews(user)]
 }
 
-export function mergeTableViews(table: TableRef | undefined, user: SavedView[], options?: { ownership?: boolean }): SavedView[] {
+export function mergeTableViews(table: TableRef | undefined, user: SavedView[]): SavedView[] {
   const extra = userViews(user)
   if (!table?.path || table.path === '/') return extra
   if (normalizeCollectionPath(table.path) === '/workspace-members') {
     return [builtinAllView(table), ...builtinMemberViews(), ...extra]
   }
-  if (options?.ownership === false) return [builtinAllView(table), ...extra]
-  return [builtinAllView(table), ...ownershipScopeViews(table), ...extra]
+  return [builtinAllView(table), ...extra]
 }
 
 export type BlockKindRef = { kind: string; label: string }
@@ -341,7 +340,7 @@ export function mergePageBlockViews(table: TableRef | undefined, kinds: BlockKin
     .sort((a, b) => a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label))
     .map(builtinBlockKindView)
   if (!table?.path || table.path === '/') return [...kindViews, ...extra]
-  return [builtinAllView(table), ...ownershipScopeViews(table), ...kindViews, ...extra]
+  return [builtinAllView(table), ...kindViews, ...extra]
 }
 
 export type TagRef = { id: string; label: string }

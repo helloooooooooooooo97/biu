@@ -1180,6 +1180,7 @@ export function CollectionBrowser({
         (item) =>
           item.key !== bodyKey &&
           resolveFieldType(item.field) !== 'file' &&
+          item.key !== 'shareScope' &&
           !lockedFilterKeys.includes(item.key),
       ),
     [bodyKey, entries, lockedFilterKeys],
