@@ -647,6 +647,7 @@ export function ShareScopeDetail({
         ...viewRows(memberViewPage.items),
       ]
       const stored = access.scope ?? 'personal'
+      const ownerId = access.ownerId ?? ''
       setScope(effectiveDataScope(
         stored,
         record ?? { id: recordId },
@@ -655,9 +656,11 @@ export function ShareScopeDetail({
           subjectType: grant.subjectType,
           subjectId: grant.subjectId,
           memberKind: grant.memberKind,
+          grantedBy: grant.grantedBy,
         })),
         dataViews,
         memberViews,
+        ownerId,
       ))
       setDirect([
         ...(access.people ?? []).map((row) => ({ id: `account:${row.id}`, name: row.name, role: row.role, note: row.memberKind === 'member' ? '空间成员' : '外部' })),
@@ -670,7 +673,7 @@ export function ShareScopeDetail({
         })),
       ])
       const matched = record ? (access.viewGrants ?? []).flatMap((grant) => {
-        if (!recordMatchesGrantedView(record, grant.viewId, dataViews, stored, { grantedBy: grant.grantedBy, recordOwnerId: access.ownerId })) return []
+        if (!recordMatchesGrantedView(record, grant.viewId, dataViews, stored, { grantedBy: grant.grantedBy, recordOwnerId: ownerId })) return []
         const parsed = parseBuiltinScopeViewId(grant.viewId)
         const source = dataViews.find((view) => view.id === grant.viewId)?.name
           || (parsed ? scopedCollectionName({ path: collection, label: tableLabel || collection.replace(/^\//, '') }, parsed.scope) : '')
@@ -730,30 +733,27 @@ export function ShareScopeDetail({
           inside={(node) => Boolean(wrapRef.current?.contains(node) || panelRef.current?.contains(node))}
         >
           <div ref={panelRef} className="fsdb-scope-panel" role="dialog" aria-label="数据归属链路" style={{ top: box.top, left: box.left }}>
-            <div className="fsdb-share-collab-summary">
-              <span>数据归属</span>
-              <strong className={`fsdb-share-scope is-${scope}`}><ScopeMark scope={scope} /></strong>
-            </div>
+            <header className="fsdb-scope-head">
+              <div>
+                <strong>数据归属</strong>
+                <em>直接协作者和匹配到的视图，取最宽的一档</em>
+              </div>
+              <b className={`fsdb-scope-pill is-${scope}`}><ScopeMark scope={scope} /></b>
+            </header>
             <ol className="fsdb-scope-chain">
-              {chain.map((step, index) => (
+              {chain.length ? chain.map((step) => (
                 <li key={step.id}>
-                  <span>{index + 1}</span>
                   <div>
                     <strong>{step.title}</strong>
                     <em>{step.detail}</em>
                   </div>
-                  <b><ScopeMark scope={step.result} /></b>
+                  <b className={`fsdb-scope-pill is-${step.result === '共享' ? 'shared' : step.result === '空间' ? 'workspace' : 'personal'}`}>{step.result}</b>
                 </li>
-              ))}
-              <li className="is-result">
-                <span>{chain.length + 1}</span>
-                <div><strong>结果</strong><em>取上面最宽的一档</em></div>
-                <b><ScopeMark scope={scope} /></b>
-              </li>
+              )) : <li className="is-empty">{error ? error : '正在读取'}</li>}
             </ol>
             {direct.length ? (
-              <section>
-                <h3>直接授权</h3>
+              <section className="fsdb-scope-people">
+                <h3>直接协作者</h3>
                 <ul>
                   {direct.map((row) => (
                     <li key={row.id}><strong>{row.name}</strong><em>{row.note}</em><span>{roleLabel(row.role)}</span></li>
@@ -761,7 +761,6 @@ export function ShareScopeDetail({
                 </ul>
               </section>
             ) : null}
-            {error ? <p className="fsdb-share-error is-inline">{error}</p> : null}
           </div>
         </HeadlessDismiss>,
         document.body,

@@ -709,22 +709,27 @@ button.fsdb-detail-title-icon:hover{background:color-mix(in srgb,var(--dsw-hover
 .fsdb-scope-tag.is-shared{background:color-mix(in srgb,var(--dsw-pick) 12%,transparent);color:var(--dsw-pick)}
 .fsdb-page .tasks-table td:has(.fsdb-scope-detail) .fsdb-cell{overflow:visible}
 .fsdb-scope-tag{position:relative;z-index:2;pointer-events:auto}
-.fsdb-scope-panel{position:fixed;z-index:220;width:min(320px,70vw);padding:12px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:12px;box-shadow:var(--dsw-shadow);color:var(--dsw-sidebar-fg)}
-.fsdb-scope-note{margin:0 0 10px;color:var(--dsw-label-3);font-size:12px;line-height:1.45}
-.fsdb-scope-chain{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
-.fsdb-scope-chain li{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start}
-.fsdb-scope-chain li>span{display:grid;width:18px;height:18px;place-items:center;border-radius:50%;background:var(--dsw-hover);color:var(--dsw-label-2);font-size:11px;font-weight:700}
-.fsdb-scope-chain li>div{display:flex;min-width:0;flex-direction:column;gap:2px}
-.fsdb-scope-chain li strong{font-size:13px;font-weight:650}
-.fsdb-scope-chain li em{color:var(--dsw-label-3);font-size:12px;font-style:normal}
-.fsdb-scope-chain li>b{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700}
-.fsdb-scope-chain li.is-result>span{background:var(--dsw-pick,#2383e2);color:#fff}
-.fsdb-scope-panel h3{margin:8px 0 4px;font-size:12px;font-weight:650;color:var(--dsw-label-2)}
-.fsdb-scope-panel ul{margin:0;padding:0;list-style:none}
-.fsdb-scope-panel li{display:flex;align-items:center;gap:6px;min-height:28px;font-size:13px}
-.fsdb-scope-panel li em{color:var(--dsw-label-3);font-style:normal;font-size:12px}
-.fsdb-scope-panel li span{margin-left:auto;color:var(--dsw-label-2);font-size:12px}
-.fsdb-scope-panel li.is-empty{color:var(--dsw-label-3)}
+.fsdb-scope-panel{position:fixed;z-index:220;width:min(300px,78vw);padding:0;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:14px;box-shadow:var(--dsw-shadow);color:var(--dsw-sidebar-fg);overflow:hidden}
+.fsdb-scope-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 12px 10px;border-bottom:1px solid var(--dsw-border)}
+.fsdb-scope-head>div{display:flex;min-width:0;flex-direction:column;gap:2px}
+.fsdb-scope-head strong{font-size:13px;font-weight:680}
+.fsdb-scope-head em{color:var(--dsw-label-3);font-size:12px;font-style:normal;line-height:1.35}
+.fsdb-scope-pill{display:inline-flex;flex:none;align-items:center;gap:4px;height:22px;border-radius:999px;background:var(--dsw-hover);padding:0 8px;color:var(--dsw-label-2);font-size:12px;font-weight:680;line-height:1}
+.fsdb-scope-pill.is-workspace{background:color-mix(in srgb,var(--dsw-business,#0f7b6c) 14%,transparent);color:var(--dsw-business,#0f7b6c)}
+.fsdb-scope-pill.is-shared{background:color-mix(in srgb,var(--dsw-pick,#2383e2) 14%,transparent);color:var(--dsw-pick,#2383e2)}
+.fsdb-scope-chain{display:flex;flex-direction:column;gap:0;margin:0;padding:6px;list-style:none}
+.fsdb-scope-chain li{display:flex;align-items:center;justify-content:space-between;gap:10px;border-radius:8px;padding:7px 8px}
+.fsdb-scope-chain li+li{margin-top:2px}
+.fsdb-scope-chain li>div{display:flex;min-width:0;flex-direction:column;gap:1px}
+.fsdb-scope-chain li strong{overflow:hidden;font-size:13px;font-weight:640;text-overflow:ellipsis;white-space:nowrap}
+.fsdb-scope-chain li em{overflow:hidden;color:var(--dsw-label-3);font-size:12px;font-style:normal;text-overflow:ellipsis;white-space:nowrap}
+.fsdb-scope-chain li.is-empty{color:var(--dsw-label-3);font-size:12px}
+.fsdb-scope-people{border-top:1px solid var(--dsw-border);padding:8px 10px 10px}
+.fsdb-scope-people h3{margin:0 0 4px;color:var(--dsw-label-3);font-size:11px;font-weight:680;letter-spacing:.02em}
+.fsdb-scope-people ul{margin:0;padding:0;list-style:none}
+.fsdb-scope-people li{display:flex;align-items:center;gap:6px;min-height:26px;font-size:13px}
+.fsdb-scope-people li em{color:var(--dsw-label-3);font-size:12px;font-style:normal}
+.fsdb-scope-people li span{margin-left:auto;color:var(--dsw-label-2);font-size:12px}
 .fsdb-share-collab-section h3{margin:0 0 6px;color:var(--dsw-label);font-size:13px;font-weight:700}
 .fsdb-share-collab-section.is-external{margin-top:16px;border-top:1px solid var(--dsw-border);padding-top:14px}
 .fsdb-share-collaborators{display:flex;flex-direction:column;margin:0 0 10px;padding:0;list-style:none}
