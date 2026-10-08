@@ -106,6 +106,7 @@ import { ensureFsdbStyle } from './fsdb-style.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { PageBanner } from './page-banner.tsx'
 import { TableGlyph, ViewModeGlyph } from './nav-glyphs.tsx'
+import { isSystemCollection } from './database-path.ts'
 import { countFittingViewTabs, splitVisibleViews } from './view-tabs.ts'
 import { getPick } from '@biu/core-pick/web'
 import { getDatabaseUi } from './database-ui.ts'
@@ -517,8 +518,8 @@ export function CollectionBrowser({
   onOpenRecord?: (recordId: string, viewId?: string | null, collection?: string) => void
   onCloseRecord?: () => void
   onCrumbTarget?: (target: CrumbTarget) => void
-  scopeHome?: DataScope | null
-  onOpenScopeHome?: (scope: DataScope) => void
+  scopeHome?: boolean
+  onOpenScopeHome?: () => void
   /** 检查器内页：只有中间舞台，不写侧栏开关/视图存储。 */
   embed?: boolean
   /** 嵌在详情里的收集表：用同一套表组件，但不写视图、不出现视图切换。 */
@@ -546,7 +547,7 @@ export function CollectionBrowser({
           },
           user,
         )
-    return path === collectionPath && routeScope ? viewsForScope(listed, routeScope) : listed
+    return listed
   }
   const dataPath = collectionPath
   const [stat, setStat] = useState<StatResult | null>(null)
@@ -2731,7 +2732,6 @@ export function CollectionBrowser({
       ) : null}
       {scopeHome && !nested ? (
         <ScopeOverview
-          scope={scopeHome}
           tables={tables}
           onOpenTable={(path, viewId) => onOpenTable?.(path, viewId)}
           onOpenRecord={(path, viewId, recordId) => onOpenRecord?.(recordId, viewId, path)}
@@ -2785,6 +2785,7 @@ export function CollectionBrowser({
                 <StarIcon aria-hidden className={`size-4${viewStarred ? ' text-[#f5b700]' : ''}`} />
               </button>
             ) : null}
+            {isSystemCollection(collectionPath) ? null : (
             <ShareButton
               target={
                 detailId
@@ -2805,6 +2806,7 @@ export function CollectionBrowser({
                     : null
               }
             />
+            )}
             <div className="fsdb-layout-wrap" ref={layoutRef}>
               <button
                 type="button"

@@ -5,7 +5,13 @@ import { normalizeSavedView, type SavedView } from './web/saved-view.ts'
 const ALL_PREFIX = 'builtin-all:'
 const SCOPE_PREFIX = 'builtin-scope:'
 const MEMBER_PREFIX = 'builtin-member:'
-export type DataScope = 'personal' | 'workspace'
+export type DataScope = 'personal' | 'workspace' | 'shared'
+
+export const DATA_SCOPE_LABEL: Record<DataScope, string> = {
+  personal: '私人数据',
+  workspace: '空间数据',
+  shared: '共享数据',
+}
 
 export const BUILTIN_VIEW_SORT_FIELD = 'updatedAt'
 export const BUILTIN_VIEW_SORT_DIR = 'desc' as const
@@ -105,7 +111,7 @@ export function builtinScopeViewId(scope: DataScope, viewId: string) {
 }
 
 export function isBuiltinScopeViewId(id: string) {
-  return id.startsWith(`${SCOPE_PREFIX}personal:`) || id.startsWith(`${SCOPE_PREFIX}workspace:`)
+  return id.startsWith(`${SCOPE_PREFIX}personal:`) || id.startsWith(`${SCOPE_PREFIX}workspace:`) || id.startsWith(`${SCOPE_PREFIX}shared:`)
 }
 
 export function parseBuiltinScopeViewId(id: string): { scope: DataScope; viewId: string } | null {
@@ -114,7 +120,7 @@ export function parseBuiltinScopeViewId(id: string): { scope: DataScope; viewId:
   const split = rest.indexOf(':')
   if (split < 0) return null
   const scope = rest.slice(0, split)
-  if (scope !== 'personal' && scope !== 'workspace') return null
+  if (scope !== 'personal' && scope !== 'workspace' && scope !== 'shared') return null
   try {
     const viewId = decodeURIComponent(rest.slice(split + 1))
     return viewId ? { scope, viewId } : null
@@ -127,9 +133,15 @@ export function builtinScopeView(view: SavedView, scope: DataScope): SavedView {
   return normalizeSavedView({
     ...view,
     id: builtinScopeViewId(scope, view.id),
+    name: isBuiltinAllViewId(view.id) ? DATA_SCOPE_LABEL[scope] : view.name,
     filters: { ...view.filters, $scope: scope },
     builtin: true,
   })
+}
+
+export function ownershipScopeViews(table: TableRef): SavedView[] {
+  const base = builtinAllView(table)
+  return (['personal', 'workspace', 'shared'] as const).map((scope) => builtinScopeView(base, scope))
 }
 
 /** 空间与私人区拥有各自的视图集合；历史未标 scope 的用户视图归入私人数据。 */
@@ -233,13 +245,14 @@ export function mergeCatalogViews(tables: CollectionInfo[], user: SavedView[]): 
   return [builtinAllView(viewsTable), ...builtinCatalogViews(tables), ...userViews(user)]
 }
 
-export function mergeTableViews(table: TableRef | undefined, user: SavedView[]): SavedView[] {
+export function mergeTableViews(table: TableRef | undefined, user: SavedView[], options?: { ownership?: boolean }): SavedView[] {
   const extra = userViews(user)
   if (!table?.path || table.path === '/') return extra
   if (normalizeCollectionPath(table.path) === '/workspace-members') {
     return [builtinAllView(table), ...builtinMemberViews(), ...extra]
   }
-  return [builtinAllView(table), ...extra]
+  if (options?.ownership === false) return [builtinAllView(table), ...extra]
+  return [...ownershipScopeViews(table), ...extra]
 }
 
 export type BlockKindRef = { kind: string; label: string }

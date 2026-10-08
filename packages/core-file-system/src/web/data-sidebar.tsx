@@ -7,14 +7,13 @@ import {
   ChevronRightIcon,
   PencilSquareIcon,
   PlusIcon,
-  ShareIcon,
   Squares2X2Icon,
   StarIcon,
 } from '@heroicons/react/16/solid'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import type { CollectionInfo, CollectionSchema, DbRecord } from '@biu/type-file-system'
 import { groupField, groupRecords, parentFieldKey, treeChildren } from './fields.ts'
-import { builtinAllViewId, builtinScopeViewId, viewsForScope, type DataScope } from '../catalog-views.ts'
+import { builtinAllViewId, builtinScopeViewId, type DataScope } from '../catalog-views.ts'
 import { isRecordTreeCollection, isSystemCollection, sortDataCollections } from './database-path.ts'
 import { readJson } from './db-client.ts'
 import { viewsForRegisteredCollection } from './collection-nav.ts'
@@ -71,15 +70,6 @@ type PreviewState = {
 }
 
 type PreviewCache = { items: DbRecord[]; total: number; schema?: CollectionSchema }
-
-type SidebarShare = {
-  token: string
-  kind: 'view' | 'record'
-  collection: string
-  viewId: string
-  recordId: string
-  title: string
-}
 
 const previewCache = new Map<string, PreviewCache>()
 
@@ -483,7 +473,7 @@ export const DataSidebar = memo(function DataSidebar({
   onDeleteView: (view: SavedView) => void
   onAddView: (path?: string, scope?: DataScope) => void
   onOpenRecord?: (path: string, view: SavedView, recordId: string, row?: DbRecord) => void
-  onOpenScopeHome?: (scope: DataScope) => void
+  onOpenScopeHome?: () => void
   expandedViewKey?: string | null
   onExpandedViewKeyChange?: (key: string | null) => void
   onCollapse?: () => void
@@ -495,21 +485,12 @@ export const DataSidebar = memo(function DataSidebar({
   }, [collectionPath, tables, title])
   const { user: userTables, system: systemTables } = useMemo(() => sortDataCollections(listedTables), [listedTables])
   const [openTables, setOpenTables] = useState<Record<string, boolean>>(() => ({
-    [`personal:${collectionPath}`]: true,
-    [`workspace:${collectionPath}`]: true,
+    [`user:${collectionPath}`]: true,
   }))
   useSyncExternalStore(subscribeStarredViews, getStarredViewsVersion, () => 0)
   useSyncExternalStore(subscribeStarredRecords, getStarredRecordsVersion, () => 0)
   const starredViews = getStarredViews()
   const starredRecords = getStarredRecords()
-  const [shareOpen, setShareOpen] = useState(() => {
-    try {
-      return localStorage.getItem('fsdb.shareOpen') !== '0'
-    } catch {
-      return true
-    }
-  })
-  const [shares, setShares] = useState<SidebarShare[]>([])
   const [favOpen, setFavOpen] = useState(() => {
     try {
       return localStorage.getItem('fsdb.favOpen') !== '0'
@@ -518,12 +499,7 @@ export const DataSidebar = memo(function DataSidebar({
     }
   })
   const [userOpen, setUserOpen] = useState(true)
-  const [workspaceOpen, setWorkspaceOpen] = useState(true)
   const [systemOpen, setSystemOpen] = useState(false)
-  const [scopeExpandedViewKeys, setScopeExpandedViewKeys] = useState<Record<DataScope, string | null>>({
-    personal: null,
-    workspace: null,
-  })
   const [expandedViewKeyLocal, setExpandedViewKeyLocal] = useState<string | null>(null)
   const expandedViewKey = expandedViewKeyProp !== undefined ? expandedViewKeyProp : expandedViewKeyLocal
   const setExpandedViewKey = onExpandedViewKeyChange ?? setExpandedViewKeyLocal
@@ -546,31 +522,6 @@ export const DataSidebar = memo(function DataSidebar({
     return [{ table, item }]
   })
   const favCount = starredRows.length + starredRecordRows.length
-  const shareCount = shares.length
-
-  useEffect(() => {
-    let cancelled = false
-    const load = () => {
-      void readJson<{ shares?: SidebarShare[] }>('/api/db/shares').then(
-        (data) => {
-          if (cancelled) return
-          setShares(Array.isArray(data.shares) ? data.shares : [])
-        },
-        () => {
-          if (!cancelled) setShares([])
-        },
-      )
-    }
-    load()
-    const onChange = () => load()
-    window.addEventListener('fsdb:shares-change', onChange)
-    window.addEventListener('fsdb:change', onChange)
-    return () => {
-      cancelled = true
-      window.removeEventListener('fsdb:shares-change', onChange)
-      window.removeEventListener('fsdb:change', onChange)
-    }
-  }, [])
 
   const countJobs = useMemo(() => {
     const jobs: Array<{ path: string; view: SavedView }> = []
@@ -579,15 +530,8 @@ export const DataSidebar = memo(function DataSidebar({
     }
     if (userOpen) {
       for (const table of userTables) {
-        if (openTables[`personal:${table.path}`]) {
-          for (const view of viewsForScope(viewsFor(table.path), 'personal')) jobs.push({ path: table.path, view })
-        }
-      }
-    }
-    if (workspaceOpen) {
-      for (const table of userTables) {
-        if (openTables[`workspace:${table.path}`]) {
-          for (const view of viewsForScope(viewsFor(table.path), 'workspace')) jobs.push({ path: table.path, view })
+        if (openTables[`user:${table.path}`]) {
+          for (const view of viewsFor(table.path)) jobs.push({ path: table.path, view })
         }
       }
     }
@@ -599,7 +543,7 @@ export const DataSidebar = memo(function DataSidebar({
       }
     }
     return jobs
-  }, [userOpen, workspaceOpen, systemOpen, favOpen, userTables, systemTables, listedTables, openTables, starredRows, tables, views, collectionPath])
+  }, [userOpen, systemOpen, favOpen, userTables, systemTables, listedTables, openTables, starredRows, tables, views, collectionPath])
 
   const countJobKey = countJobs.map((job) => viewTotalKey(job.path, job.view)).join('|')
   useEffect(() => {
@@ -691,14 +635,7 @@ export const DataSidebar = memo(function DataSidebar({
     onOpenTable?.(path, viewId)
   }
 
-  function toggleViewPreview(key: string, scope?: DataScope) {
-    if (scope) {
-      setScopeExpandedViewKeys((prev) => ({
-        ...prev,
-        [scope]: toggleExpandedViewKey(prev[scope], key),
-      }))
-      return
-    }
+  function toggleViewPreview(key: string) {
     const next = toggleExpandedViewKey(expandedViewKey, key)
     if (onExpandedViewKeyChange) onExpandedViewKeyChange(next)
     else setExpandedViewKeyLocal(next)
@@ -708,15 +645,15 @@ export const DataSidebar = memo(function DataSidebar({
     onOpenRecord?.(path, view, recordId, row)
   }
 
-  function renderTableRows(rows: CollectionInfo[], scope?: DataScope) {
+  function renderTableRows(rows: CollectionInfo[], group: 'user' | 'system' = 'system') {
     return rows.map((table) => {
       const name = table.view?.title ?? table.label
-      const tableStateKey = `${scope ?? 'system'}:${table.path}`
+      const tableStateKey = `${group}:${table.path}`
       const open = openTables[tableStateKey] ?? false
-      const listed = scope ? viewsForScope(viewsFor(table.path), scope) : viewsFor(table.path)
+      const listed = viewsFor(table.path)
       const system = isSystemCollection(table.path)
       return (
-        <div key={`${scope ?? 'system'}:${table.path}`} className="flex min-w-0 flex-col gap-px" data-collection-kind={system ? 'system' : scope ?? 'personal'}>
+        <div key={`${group}:${table.path}`} className="flex min-w-0 flex-col gap-px" data-collection-kind={group}>
           <div className="sidebar-group-head">
             <div
               className="flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md text-left text-[14px] font-medium tracking-normal text-inherit"
@@ -749,7 +686,7 @@ export const DataSidebar = memo(function DataSidebar({
                 className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-left font-medium text-inherit outline-none hover:text-(--dsw-sidebar-fg-active) focus-visible:ring-1 focus-visible:ring-(--dsw-border)"
                 onClick={() => onOpenTable?.(
                   table.path,
-                  scope ? builtinScopeViewId(scope, builtinAllViewId(table.path)) : builtinAllViewId(table.path),
+                  group === 'user' ? builtinScopeViewId('personal', builtinAllViewId(table.path)) : builtinAllViewId(table.path),
                 )}
               >
                 {name}
@@ -765,7 +702,7 @@ export const DataSidebar = memo(function DataSidebar({
                 onClick={(event) => {
                   event.stopPropagation()
                   setOpenTables((prev) => ({ ...prev, [tableStateKey]: true }))
-                  onAddView(table.path, scope)
+                  onAddView(table.path)
                 }}
               >
                 <PlusIcon className="size-4 shrink-0" />
@@ -775,8 +712,8 @@ export const DataSidebar = memo(function DataSidebar({
             {listed.map((view) => {
               const starred = isViewStarred(starredViews, table.path, view.id)
               const active = table.path === collectionPath && view.id === activeViewId
-              const previewKey = `${scope ?? 'system'}:${table.path}:${view.id}`
-              const expanded = scope ? scopeExpandedViewKeys[scope] === previewKey : expandedViewKey === previewKey
+              const previewKey = `${group}:${table.path}:${view.id}`
+              const expanded = expandedViewKey === previewKey
               return (
                 <div key={view.id} className="min-w-0">
                   <div
@@ -789,7 +726,7 @@ export const DataSidebar = memo(function DataSidebar({
                         className="grid size-6 shrink-0 place-items-center border-0 bg-transparent p-0 text-inherit"
                         title={expanded ? '收起记录' : '展开记录'}
                         aria-expanded={expanded}
-                        onClick={() => toggleViewPreview(previewKey, scope)}
+                        onClick={() => toggleViewPreview(previewKey)}
                       >
                         <span className="sidebar-rail-icon sidebar-group-fold">
                           <span className="sidebar-group-fold-face">
@@ -875,96 +812,6 @@ export const DataSidebar = memo(function DataSidebar({
   const body = (
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3">
         <div className="mt-2 space-y-1.5">
-          {shareCount ? (
-          <section className="min-w-0">
-            <div className="sidebar-section-head min-w-0">
-              <div className="flex min-h-8 min-w-0 flex-1 items-center">
-                <button
-                  type="button"
-                  className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
-                  aria-expanded={shareOpen}
-                  onClick={() => {
-                    const next = !shareOpen
-                    setShareOpen(next)
-                    try {
-                      localStorage.setItem('fsdb.shareOpen', next ? '1' : '0')
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
-                >
-                  <span className="min-w-0 flex-1 truncate tracking-normal">分享数据</span>
-                </button>
-              </div>
-              <ChatCount count={shareCount} />
-            </div>
-            <SidebarFold open={shareOpen}>
-              <div className="min-w-0 pt-0.5" data-testid="sidebar-shares">
-                {shares.map((share) => {
-                  const table = listedTables.find((row) => row.path === share.collection)
-                  const tableName = table?.view?.title ?? table?.label ?? share.collection.replace(/^\//, '')
-                  const view = viewsFor(share.collection).find((row) => row.id === share.viewId)
-                    ?? viewsFor(share.collection).find((row) => row.id === builtinAllViewId(share.collection))
-                    ?? viewsFor(share.collection)[0]
-                  const isRecord = share.kind === 'record' && share.recordId
-                  const previewKey = `share:${share.token}`
-                  const active = isRecord
-                    ? false
-                    : share.collection === collectionPath && view?.id === activeViewId && share.viewId === activeViewId
-                  const emoji = peekRecord(share.collection, share.recordId)?.emoji
-                  const chromeIcon = table ? getDatabaseUi()?.chrome(table.path).Icon : undefined
-                  const label = share.title || (isRecord ? share.recordId : view?.name) || '分享'
-                  return (
-                    <div key={previewKey} className="min-w-0">
-                      <div
-                        className={`chat-session-row group${active ? ' is-active' : ''}`}
-                        {...pickDomAttrs(isRecord ? recordPickKind(table?.view?.moduleId || table?.id || 'page') : 'view', isRecord ? share.recordId : viewPickId(share.collection, share.viewId || view?.id || ''), label)}
-                      >
-                        <div className="chat-session-row-main flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-[14px] leading-5">
-                          <span className="grid size-6 shrink-0 place-items-center" aria-hidden>
-                            {isRecord ? (
-                              <RecordMark
-                                record={recordMarkStub({ id: share.recordId, emoji, mascot: peekRecord(share.collection, share.recordId)?.mascot })}
-                                tableIcon={table?.view?.icon}
-                                Icon={chromeIcon}
-                              />
-                            ) : view ? (
-                              <ViewModeGlyph mode={view.mode} />
-                            ) : (
-                              <ShareIcon className="size-4 shrink-0 opacity-80" />
-                            )}
-                          </span>
-                          <button
-                            type="button"
-                            className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-left font-medium text-inherit"
-                            title={label}
-                            onClick={() => {
-                              if (isRecord && view) {
-                                openRecord(share.collection, view, share.recordId, {
-                                  id: share.recordId,
-                                  title: label,
-                                  emoji,
-                                })
-                                return
-                              }
-                              if (view) openView(share.collection, view.id)
-                              else onOpenTable?.(share.collection)
-                            }}
-                          >
-                            {label}
-                          </button>
-                        </div>
-                        <span className="sidebar-trail-icon" title={tableName} aria-label={tableName}>
-                          {table?.view?.icon ? <TableGlyph icon={table.view.icon} /> : <ShareIcon className="size-4 shrink-0 opacity-70" />}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </SidebarFold>
-          </section>
-          ) : null}
           {favCount ? (
             <section className="min-w-0">
               <div className="sidebar-section-head min-w-0">
@@ -1195,51 +1042,23 @@ export const DataSidebar = memo(function DataSidebar({
                 <button
                   type="button"
                   className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
-                  aria-expanded={workspaceOpen}
-                  title="打开空间数据概览"
-                  data-testid="sidebar-workspace-home"
-                  onClick={() => {
-                    setWorkspaceOpen((prev) => !prev)
-                    onOpenScopeHome?.('workspace')
-                  }}
-                >
-                  <span className="min-w-0 flex-1 truncate tracking-normal">空间数据</span>
-                </button>
-              </div>
-              <ChatCount count={userTables.length} />
-            </div>
-            <SidebarFold open={workspaceOpen}>
-              <div className="flex min-w-0 flex-col gap-px" data-testid="sidebar-workspace-collections">
-                {userTables.length ? renderTableRows(userTables, 'workspace') : (
-                  <div className="px-1 py-1 text-[12px] text-(--dsw-label-3)">还没有空间数据表</div>
-                )}
-              </div>
-            </SidebarFold>
-          </section>
-
-          <section className="min-w-0">
-            <div className="sidebar-section-head min-w-0">
-              <div className="flex min-h-8 min-w-0 flex-1 items-center">
-                <button
-                  type="button"
-                  className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-bold tracking-wider"
                   aria-expanded={userOpen}
-                  title="打开私人数据概览"
-                  data-testid="sidebar-personal-home"
+                  title="打开用户数据概览"
+                  data-testid="sidebar-user-home"
                   onClick={() => {
                     setUserOpen((prev) => !prev)
-                    onOpenScopeHome?.('personal')
+                    onOpenScopeHome?.()
                   }}
                 >
-                  <span className="min-w-0 flex-1 truncate tracking-normal">私人数据</span>
+                  <span className="min-w-0 flex-1 truncate tracking-normal">用户数据</span>
                 </button>
               </div>
               <ChatCount count={userTables.length} />
             </div>
             <SidebarFold open={userOpen}>
               <div className="flex min-w-0 flex-col gap-px" data-testid="sidebar-user-collections">
-                {userTables.length ? renderTableRows(userTables, 'personal') : (
-                  <div className="px-1 py-1 text-[12px] text-(--dsw-label-3)">还没有私人数据表</div>
+                {userTables.length ? renderTableRows(userTables, 'user') : (
+                  <div className="px-1 py-1 text-[12px] text-(--dsw-label-3)">还没有用户数据表</div>
                 )}
               </div>
             </SidebarFold>

@@ -794,7 +794,7 @@ export class DatabaseService extends Service implements Database {
   private recordsInScope<T extends { id?: unknown; pageId?: unknown; collection?: unknown; sessionId?: unknown; sourceId?: unknown; tablePath?: unknown }>(
     collection: string,
     rows: T[],
-    scope: 'personal' | 'workspace' | '',
+    scope: 'personal' | 'workspace' | 'shared' | '',
   ) {
     if (!scope) return rows
     const authorization = this.authorization()
@@ -1019,7 +1019,7 @@ export class DatabaseService extends Service implements Database {
     const sortField = page?.sortField?.trim() || 'title'
     const sortDir = page?.sortDir === 'desc' ? 'desc' : 'asc'
     const schemaFilter = filter?.facet != null && filter.facet !== '' ? String(filter.facet) : ''
-    const scopeFilter = filter?.$scope === 'workspace' || filter?.$scope === 'personal' ? filter.$scope : ''
+    const scopeFilter = filter?.$scope === 'workspace' || filter?.$scope === 'personal' || filter?.$scope === 'shared' ? filter.$scope : ''
     const columnKeys = listedColumnKeys(page?.columns, schema.labelField ?? 'title')
     const trash = filter?.deleted === true || filter?.trash === true
     const liveFilter = filter ? { ...filter } : undefined
