@@ -4,7 +4,7 @@ import { ArrowPathIcon, CheckIcon, LinkIcon, ShareIcon, UserIcon, UsersIcon, XMa
 import { HeadlessDismiss } from '@biu/public-ui'
 import { listCollection, readJson } from './db-client.ts'
 import { mintSharePin, shareClipboardText, type ShareResourceStats } from '../share-resources.ts'
-import { builtinMemberViews, isBuiltinAllViewId, parseBuiltinScopeViewId, scopedCollectionName } from '../catalog-views.ts'
+import { builtinAllView, builtinMemberViews, isBuiltinAllViewId, parseBuiltinScopeViewId, scopedCollectionName } from '../catalog-views.ts'
 import { effectiveDataScope, grantAudienceKind, recordMatchesGrantedView } from '../view-access.ts'
 import type { DbRecord } from '@biu/type-file-system'
 
@@ -357,6 +357,7 @@ function WorkspaceAccess({
   }
 
   const memberViewFilters = [
+    { id: builtinAllView({ path: '/workspace-members' }).id, filters: builtinAllView({ path: '/workspace-members' }).filters },
     ...builtinMemberViews().map((view) => ({ id: view.id, filters: view.filters })),
     ...availableMemberViews,
   ]
@@ -643,6 +644,7 @@ export function ShareScopeDetail({
       const record = recordPage.items[0] ?? null
       const dataViews = viewRows(viewPage.items)
       const memberViews = [
+        { ...builtinAllView({ path: '/workspace-members' }), name: builtinAllView({ path: '/workspace-members' }).name },
         ...builtinMemberViews().map((view) => ({ id: view.id, name: view.name, filters: view.filters })),
         ...viewRows(memberViewPage.items),
       ]

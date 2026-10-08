@@ -57,7 +57,7 @@ import { readSharePluginWebJs, zipSharePluginSource } from './share-plugin-pack.
 import { collectShareResources } from '../share-resources.ts'
 import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
-import { builtinMemberViews, displayNameForView, isReadOnlyViewId, stubBuiltinMemberView } from '../catalog-views.ts'
+import { builtinAllView, builtinMemberViews, displayNameForView, isReadOnlyViewId, stubBuiltinAllView, stubBuiltinMemberView } from '../catalog-views.ts'
 import { isSystemCollection } from '../web/database-path.ts'
 import { effectiveDataScope, highestViewRole, recordMatchesGrantedView, type DataScopeName, type ViewGrantRole } from '../view-access.ts'
 import { buildShareSnapshot } from './share-payload.ts'
@@ -1213,6 +1213,7 @@ export class DatabaseService extends Service implements Database {
       this.viewAudienceCache = { key, rows: store.viewGrantAudiences(workspaceId, collection) }
     }
     const memberViews = [
+      builtinAllView({ path: '/workspace-members' }),
       ...builtinMemberViews(),
       ...this.viewCatalog.viewsFor('/workspace-members'),
     ]
@@ -2283,7 +2284,9 @@ export function apply(ctx: Context) {
     inner.sessions.viewAccess = (id, record) => db.allowsViaView('/sessions', { ...record, id })
   })
   account?.authorization?.setMemberViewMatcher((workspaceId, viewId, accountId) => {
-    const view = savedViews.viewsFor('/workspace-members').find((item) => item.id === viewId) ?? stubBuiltinMemberView(viewId)
+    const view = savedViews.viewsFor('/workspace-members').find((item) => item.id === viewId)
+      ?? stubBuiltinMemberView(viewId)
+      ?? stubBuiltinAllView(viewId)
     if (!view || !account.store) return false
     const member = account.store.members(accountId, workspaceId).find((item) => item.id === accountId)
     if (!member) return false

@@ -16,7 +16,7 @@ import { runWithSession } from '@biu/host-sessions/scope'
 import { openAndMigrateBiu, runWithAccount } from '@biu/host-plugin-loader/data-dir'
 import { CollabStore } from '@biu/host-account/store'
 import { workspaceMembersCollection } from '@biu/host-account/workspace-members-collection'
-import { builtinAllViewId, stubBuiltinMemberView } from '../catalog-views.ts'
+import { builtinAllViewId, stubBuiltinAllView, stubBuiltinMemberView } from '../catalog-views.ts'
 import { matchListFilterRecord } from '../query-logic.ts'
 import { savedViewRecordPath } from '../paths.ts'
 
@@ -1893,6 +1893,83 @@ test('a builtin member view grant lets the other workspace member read personal 
   await runWithAccount(ada.id, () => collab.grantViewMemberView(ada.id, '/docs', builtinAllViewId('/docs'), 'builtin-member:member', 'editor'))
   const seen = await runWithAccount(bob.id, () => db.list('/docs'))
   assert.deepEqual(seen.items.map((row) => row.title), ['Ada private'])
+})
+
+test('granting the all-members view lets the other member read the owner private records', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, DbRecord>()
+  let seq = 0
+  db.register({
+    id: 'tasks',
+    path: '/tasks',
+    schema: {
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+      },
+    },
+    records: { create: true, update: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: (records) => records.map((record) => {
+      const row = { id: `m${++seq}`, title: String(record.title ?? `Task ${seq}`) }
+      rows.set(row.id, row)
+      return row
+    }),
+    update: (id, patch) => {
+      const row = { ...rows.get(id)!, ...patch, id }
+      rows.set(id, row)
+      return row
+    },
+  })
+  const dir = mkdtempSync(join(tmpdir(), 'biu-db-all-members-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'all-members-ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'all-members-bob@example.com')
+  const workspace = collab.createWorkspace(ada.id, 'All members')
+  collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+  collab.setActive(ada.id, workspace.id)
+  collab.setActive(bob.id, workspace.id)
+  db.viewCatalog = { viewsFor: () => [] }
+  collab.authorization.setMemberViewMatcher((workspaceId, viewId, accountId) => {
+    const view = stubBuiltinMemberView(viewId) ?? stubBuiltinAllView(viewId)
+    if (!view) return false
+    const member = collab.members(accountId, workspaceId).find((item) => item.id === accountId)
+    if (!member) return false
+    return matchListFilterRecord(
+      {
+        id: member.id,
+        title: member.name,
+        name: member.name,
+        email: member.email,
+        role: member.role,
+        membershipKind: member.member_kind,
+        joinedAt: member.created_at,
+      },
+      view.filters,
+    )
+  })
+  await runWithAccount(ada.id, () => db.create('/tasks', [{ title: 'A空间' }], { scope: 'workspace' }))
+  await runWithAccount(ada.id, () => db.create('/tasks', [{ title: 'A私人' }], { scope: 'personal' }))
+  await runWithAccount(ada.id, () => collab.grantViewMemberView(
+    ada.id,
+    '/tasks',
+    builtinAllViewId('/tasks'),
+    builtinAllViewId('/workspace-members'),
+    'editor',
+  ))
+  const bobList = await runWithAccount(bob.id, () => db.list('/tasks'))
+  assert.deepEqual(bobList.items.map((row) => row.title).sort(), ['A私人', 'A空间'])
+  assert.equal(bobList.items.find((row) => row.title === 'A私人')?.shareScope, '空间')
 })
 
 test('sharing one person all-tasks view does not reclassify the other person private tasks', async () => {
