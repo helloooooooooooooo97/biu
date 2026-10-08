@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowPathIcon, CheckIcon, LinkIcon, ShareIcon, XMarkIcon } from '@heroicons/react/16/solid'
+import { ArrowPathIcon, CheckIcon, LinkIcon, ShareIcon, UserIcon, UsersIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
 import { listCollection, readJson } from './db-client.ts'
 import { mintSharePin, shareClipboardText, type ShareResourceStats } from '../share-resources.ts'
@@ -387,7 +387,6 @@ function WorkspaceAccess({
         memberKind: grant.memberKind,
       })), dataViews, memberViewFilters)
     : scope
-  const scopeLabel = shownScope === 'shared' ? '共享' : shownScope === 'workspace' ? '空间' : '私人'
   const grantedAccountIds = new Set(people.map((row) => row.id))
   const normalizedMemberQuery = memberQuery.trim().toLowerCase()
   const matchingMembers = workspaceMembers
@@ -409,7 +408,7 @@ function WorkspaceAccess({
       {viewId ? null : (
         <div className="fsdb-share-collab-summary">
           <span>数据归属</span>
-          <strong className={`fsdb-share-scope is-${shownScope}`} data-testid="fsdb-share-scope">{scopeLabel}</strong>
+          <strong className={`fsdb-share-scope is-${shownScope}`} data-testid="fsdb-share-scope"><ScopeMark scope={shownScope} /></strong>
         </div>
       )}
 
@@ -583,6 +582,16 @@ function scopeText(scope: string) {
   return '私人'
 }
 
+function ScopeMark({ scope }: { scope: string }) {
+  const text = scope === '私人' || scope === '空间' || scope === '共享' ? scope : scopeText(scope)
+  const icon = text === '空间'
+    ? <UsersIcon aria-hidden className="size-[14px]" />
+    : text === '共享'
+      ? <ShareIcon aria-hidden className="size-[14px]" />
+      : <UserIcon aria-hidden className="size-[14px]" />
+  return <>{icon}{text}</>
+}
+
 /** 分享属性标签。归属看条目自己的协作者；点开后看直接授权和从视图继承来的权限。 */
 export function ShareScopeDetail({
   collection,
@@ -710,7 +719,7 @@ export function ShareScopeDetail({
           setOpen((prev) => !prev)
         }}
       >
-        {label || scopeText(scope)}
+        <ScopeMark scope={label || scope} />
       </button>
       {open && box ? createPortal(
         <HeadlessDismiss
@@ -720,7 +729,7 @@ export function ShareScopeDetail({
           <div ref={panelRef} className="fsdb-scope-panel" role="dialog" aria-label="数据归属链路" style={{ top: box.top, left: box.left }}>
             <div className="fsdb-share-collab-summary">
               <span>数据归属</span>
-              <strong className={`fsdb-share-scope is-${scope}`}>{scopeText(scope)}</strong>
+              <strong className={`fsdb-share-scope is-${scope}`}><ScopeMark scope={scope} /></strong>
             </div>
             <ol className="fsdb-scope-chain">
               {chain.map((step, index) => (
@@ -730,13 +739,13 @@ export function ShareScopeDetail({
                     <strong>{step.title}</strong>
                     <em>{step.detail}</em>
                   </div>
-                  <b>{step.result}</b>
+                  <b><ScopeMark scope={step.result} /></b>
                 </li>
               ))}
               <li className="is-result">
                 <span>{chain.length + 1}</span>
                 <div><strong>结果</strong><em>取上面最宽的一档</em></div>
-                <b>{scopeText(scope)}</b>
+                <b><ScopeMark scope={scope} /></b>
               </li>
             </ol>
             {direct.length ? (

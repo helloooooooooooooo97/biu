@@ -696,10 +696,10 @@ button.fsdb-detail-title-icon:hover{background:color-mix(in srgb,var(--dsw-hover
 .fsdb-share-tabs button.is-on{color:var(--dsw-label);font-weight:700}
 .fsdb-share-tabs button.is-on::after{position:absolute;right:0;bottom:-1px;left:0;height:2px;border-radius:2px;background:var(--dsw-pick,#2383e2);content:""}
 .fsdb-share-collab-summary{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;color:var(--dsw-label-2);font-size:12px}
-.fsdb-share-scope{flex:none;border-radius:999px;background:var(--dsw-hover);padding:4px 8px;color:var(--dsw-label-2);font-size:12px;font-weight:700}
+.fsdb-share-scope{display:inline-flex;align-items:center;gap:4px;flex:none;border-radius:999px;background:var(--dsw-hover);padding:4px 8px;color:var(--dsw-label-2);font-size:12px;font-weight:700}
 .fsdb-share-scope.is-shared{background:color-mix(in srgb,var(--dsw-pick) 12%,transparent);color:var(--dsw-pick)}
 .fsdb-scope-detail{position:relative;display:inline-flex}
-.fsdb-scope-tag{border:0;border-radius:999px;background:var(--dsw-hover);padding:1px 8px;color:var(--dsw-label-2);font:inherit;font-size:12px;font-weight:650;cursor:pointer}
+.fsdb-scope-tag{display:inline-flex;align-items:center;gap:4px;border:0;border-radius:999px;background:var(--dsw-hover);padding:1px 8px;color:var(--dsw-label-2);font:inherit;font-size:12px;font-weight:650;cursor:pointer}
 .fsdb-scope-tag.is-shared{background:color-mix(in srgb,var(--dsw-pick) 12%,transparent);color:var(--dsw-pick)}
 .fsdb-page .tasks-table td:has(.fsdb-scope-detail) .fsdb-cell{overflow:visible}
 .fsdb-scope-tag{position:relative;z-index:2;pointer-events:auto}
@@ -711,7 +711,7 @@ button.fsdb-detail-title-icon:hover{background:color-mix(in srgb,var(--dsw-hover
 .fsdb-scope-chain li>div{display:flex;min-width:0;flex-direction:column;gap:2px}
 .fsdb-scope-chain li strong{font-size:13px;font-weight:650}
 .fsdb-scope-chain li em{color:var(--dsw-label-3);font-size:12px;font-style:normal}
-.fsdb-scope-chain li>b{font-size:12px;font-weight:700}
+.fsdb-scope-chain li>b{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700}
 .fsdb-scope-chain li.is-result>span{background:var(--dsw-pick,#2383e2);color:#fff}
 .fsdb-scope-panel h3{margin:8px 0 4px;font-size:12px;font-weight:650;color:var(--dsw-label-2)}
 .fsdb-scope-panel ul{margin:0;padding:0;list-style:none}
