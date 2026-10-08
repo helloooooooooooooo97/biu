@@ -57,7 +57,7 @@ import { readSharePluginWebJs, zipSharePluginSource } from './share-plugin-pack.
 import { collectShareResources } from '../share-resources.ts'
 import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
-import { builtinMemberViews, displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
+import { builtinMemberViews, displayNameForView, isReadOnlyViewId, stubBuiltinMemberView } from '../catalog-views.ts'
 import { isSystemCollection } from '../web/database-path.ts'
 import { effectiveDataScope, highestViewRole, recordMatchesGrantedView, type DataScopeName, type ViewGrantRole } from '../view-access.ts'
 import { buildShareSnapshot } from './share-payload.ts'
@@ -2252,7 +2252,7 @@ export function apply(ctx: Context) {
   } | undefined
   db.viewCatalog = savedViews
   account?.authorization?.setMemberViewMatcher((workspaceId, viewId, accountId) => {
-    const view = savedViews.viewsFor('/workspace-members').find((item) => item.id === viewId)
+    const view = savedViews.viewsFor('/workspace-members').find((item) => item.id === viewId) ?? stubBuiltinMemberView(viewId)
     if (!view || !account.store) return false
     const member = account.store.members(accountId, workspaceId).find((item) => item.id === accountId)
     if (!member) return false

@@ -16,7 +16,8 @@ import { runWithSession } from '@biu/host-sessions/scope'
 import { openAndMigrateBiu, runWithAccount } from '@biu/host-plugin-loader/data-dir'
 import { CollabStore } from '@biu/host-account/store'
 import { workspaceMembersCollection } from '@biu/host-account/workspace-members-collection'
-import { builtinAllViewId } from '../catalog-views.ts'
+import { builtinAllViewId, stubBuiltinMemberView } from '../catalog-views.ts'
+import { matchListFilterRecord } from '../query-logic.ts'
 import { savedViewRecordPath } from '../paths.ts'
 
 function notesCollection(): CollectionSpec {
@@ -1824,6 +1825,74 @@ test('create scope separates personal and workspace records and viewers stay rea
     () => runWithAccount(bob.id, () => db.update('/docs/d2', { title: 'Blocked' })),
     /unknown record/,
   )
+})
+
+test('a builtin member view grant lets the other workspace member read personal records', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, DbRecord>()
+  db.register({
+    id: 'docs',
+    path: '/docs',
+    schema: {
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+      },
+    },
+    records: { create: true, update: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: (records) => records.map((record) => {
+      const row = { id: 'inherited', title: String(record.title ?? 'Inherited') }
+      rows.set(row.id, row)
+      return row
+    }),
+    update: (id, patch) => {
+      const row = { ...rows.get(id)!, ...patch, id }
+      rows.set(id, row)
+      return row
+    },
+  })
+  const dir = mkdtempSync(join(tmpdir(), 'biu-db-view-inherit-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'inherit-ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'inherit-bob@example.com')
+  const workspace = collab.createWorkspace(ada.id, 'Inherited')
+  collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+  collab.setActive(ada.id, workspace.id)
+  collab.setActive(bob.id, workspace.id)
+  db.viewCatalog = { viewsFor: () => [] }
+  collab.authorization.setMemberViewMatcher((workspaceId, viewId, accountId) => {
+    const view = stubBuiltinMemberView(viewId)
+    if (!view) return false
+    const member = collab.members(accountId, workspaceId).find((item) => item.id === accountId)
+    if (!member) return false
+    return matchListFilterRecord(
+      {
+        id: member.id,
+        title: member.name,
+        name: member.name,
+        email: member.email,
+        role: member.role,
+        membershipKind: member.member_kind,
+        joinedAt: member.created_at,
+      },
+      view.filters,
+    )
+  })
+  await runWithAccount(ada.id, () => db.create('/docs', [{ title: 'Ada private' }], { scope: 'personal' }))
+  await runWithAccount(ada.id, () => collab.grantViewMemberView(ada.id, '/docs', builtinAllViewId('/docs'), 'builtin-member:member', 'editor'))
+  const seen = await runWithAccount(bob.id, () => db.list('/docs'))
+  assert.deepEqual(seen.items.map((row) => row.title), ['Ada private'])
 })
 
 test('workspace member tags use file-system metadata instead of role updates', async () => {
