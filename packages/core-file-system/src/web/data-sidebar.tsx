@@ -13,7 +13,7 @@ import {
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import type { CollectionInfo, CollectionSchema, DbRecord } from '@biu/type-file-system'
 import { groupField, groupRecords, parentFieldKey, treeChildren } from './fields.ts'
-import { builtinAllViewId, builtinScopeViewId, type DataScope } from '../catalog-views.ts'
+import { builtinAllViewId, type DataScope } from '../catalog-views.ts'
 import { isRecordTreeCollection, isSystemCollection, sortDataCollections } from './database-path.ts'
 import { readJson } from './db-client.ts'
 import { viewsForRegisteredCollection } from './collection-nav.ts'
@@ -686,7 +686,7 @@ export const DataSidebar = memo(function DataSidebar({
                 className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-left font-medium text-inherit outline-none hover:text-(--dsw-sidebar-fg-active) focus-visible:ring-1 focus-visible:ring-(--dsw-border)"
                 onClick={() => onOpenTable?.(
                   table.path,
-                  group === 'user' ? builtinScopeViewId('personal', builtinAllViewId(table.path)) : builtinAllViewId(table.path),
+                  builtinAllViewId(table.path),
                 )}
               >
                 {name}
