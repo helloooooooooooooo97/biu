@@ -3,6 +3,9 @@ import { ArrowPathIcon, CheckIcon, LinkIcon, ShareIcon, XMarkIcon } from '@heroi
 import { HeadlessDismiss } from '@biu/public-ui'
 import { listCollection, readJson } from './db-client.ts'
 import { mintSharePin, shareClipboardText, type ShareResourceStats } from '../share-resources.ts'
+import { builtinMemberViews, isBuiltinAllViewId, parseBuiltinScopeViewId, scopedCollectionName } from '../catalog-views.ts'
+import { effectiveDataScope, grantAudienceKind, recordMatchesGrantedView } from '../view-access.ts'
+import type { DbRecord } from '@biu/type-file-system'
 
 export type ShareKind = 'view' | 'record'
 
@@ -141,7 +144,7 @@ function WorkspaceAccess({
   }>>([])
   const [groups, setGroups] = useState<Array<{ id: string; name: string; role: string }>>([])
   const [memberViews, setMemberViews] = useState<Array<{ id: string; name: string; role?: string }>>([])
-  const [availableMemberViews, setAvailableMemberViews] = useState<Array<{ id: string; name: string }>>([])
+  const [availableMemberViews, setAvailableMemberViews] = useState<Array<{ id: string; name: string; filters?: Record<string, unknown> }>>([])
   const [memberViewId, setMemberViewId] = useState('')
   const [workspaceMembers, setWorkspaceMembers] = useState<Array<{
     id: string
@@ -153,6 +156,18 @@ function WorkspaceAccess({
   const [selectedMemberId, setSelectedMemberId] = useState('')
   const [memberPickerOpen, setMemberPickerOpen] = useState(false)
   const [role, setRole] = useState<'viewer' | 'editor' | 'manager'>('editor')
+  const [viewGrants, setViewGrants] = useState<Array<{
+    viewId: string
+    subjectType: 'account' | 'member_view'
+    subjectId: string
+    role: string
+    name: string
+    email: string
+    memberKind: 'member' | 'external' | 'guest'
+  }>>([])
+  const [record, setRecord] = useState<DbRecord | null>(null)
+  const [dataViews, setDataViews] = useState<Array<{ id: string; name: string; filters?: Record<string, unknown> }>>([])
+  const [tableLabel, setTableLabel] = useState('')
   const [guestUrl, setGuestUrl] = useState('')
   const [guestCopied, setGuestCopied] = useState(false)
   const [error, setError] = useState('')
@@ -170,6 +185,15 @@ function WorkspaceAccess({
       }>
       groups?: Array<{ id: string; name: string; role: string }>
       memberViews?: Array<{ id: string; role: string }>
+      viewGrants?: Array<{
+        viewId: string
+        subjectType: 'account' | 'member_view'
+        subjectId: string
+        role: string
+        name: string
+        email: string
+        memberKind: 'member' | 'external' | 'guest'
+      }>
     }>(
       viewId
         ? `/api/account/access?collection=${encodeURIComponent(collection)}&viewId=${encodeURIComponent(viewId)}`
@@ -183,6 +207,7 @@ function WorkspaceAccess({
       ...item,
       name: availableMemberViews.find((view) => view.id === item.id)?.name ?? item.id,
     })))
+    setViewGrants(data.viewGrants ?? [])
   }
 
   useEffect(() => {
@@ -191,12 +216,20 @@ function WorkspaceAccess({
       path: '/views',
       limit: 200,
       filters: { tablePath: '/workspace-members' },
-      columns: ['title', 'tablePath', 'viewId'],
+      columns: ['title', 'tablePath', 'viewId', 'filters'],
     })
       .then((page) => {
         const rows = page.items.flatMap((row) => {
           const id = String(row.viewId ?? '').trim()
-          return id ? [{ id, name: String(row.title ?? id) }] : []
+          if (!id) return []
+          let filters: Record<string, unknown> | undefined
+          try {
+            const parsed = JSON.parse(String(row.filters ?? '{}'))
+            filters = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined
+          } catch {
+            filters = undefined
+          }
+          return [{ id, name: String(row.title ?? id), filters }]
         })
         setAvailableMemberViews(rows)
         setMemberViews((current) => current.map((item) => ({
@@ -225,6 +258,37 @@ function WorkspaceAccess({
         }))
       })
       .catch(() => setWorkspaceMembers([]))
+    if (viewId || !recordId) {
+      setRecord(null)
+      setDataViews([])
+      return
+    }
+    void listCollection({ path: collection, limit: 1, filters: { id: recordId } })
+      .then((page) => setRecord(page.items[0] ?? null))
+      .catch(() => setRecord(null))
+    void listCollection({
+      path: '/views',
+      limit: 200,
+      filters: { tablePath: collection },
+      columns: ['title', 'table', 'viewId', 'filters'],
+    })
+      .then((page) => {
+        const label = String(page.items[0]?.table ?? '').trim()
+        if (label) setTableLabel(label)
+        setDataViews(page.items.flatMap((row) => {
+          const id = String(row.viewId ?? '').trim()
+          if (!id) return []
+          let filters: Record<string, unknown> | undefined
+          try {
+            const parsed = JSON.parse(String(row.filters ?? '{}'))
+            filters = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined
+          } catch {
+            filters = undefined
+          }
+          return [{ id, name: String(row.title ?? id), filters }]
+        }))
+      })
+      .catch(() => setDataViews([]))
   }, [collection, recordId, viewId])
 
   function grant(input: { email?: string; memberViewId?: string }, collaboratorKind: 'internal' | 'external' = 'internal') {
@@ -290,9 +354,39 @@ function WorkspaceAccess({
     }
   }
 
+  const memberViewFilters = [
+    ...builtinMemberViews().map((view) => ({ id: view.id, filters: view.filters })),
+    ...availableMemberViews,
+  ]
+  const inherited = !viewId && record
+    ? viewGrants.flatMap((grant) => {
+        if (!recordMatchesGrantedView(record, grant.viewId, dataViews, scope)) return []
+        const audience = grant.subjectType === 'member_view'
+          ? grantAudienceKind({ subjectType: 'member_view', subjectId: grant.subjectId }, memberViewFilters)
+          : grant.memberKind === 'external' || grant.memberKind === 'guest' ? 'external' : 'internal'
+        const parsed = parseBuiltinScopeViewId(grant.viewId)
+        const source = dataViews.find((view) => view.id === grant.viewId)?.name
+          || (parsed ? scopedCollectionName({ path: collection, label: tableLabel || collection.replace(/^\//, '') }, parsed.scope) : '')
+          || (isBuiltinAllViewId(grant.viewId) ? `全部${tableLabel}` : grant.viewId)
+        const name = grant.subjectType === 'member_view'
+          ? availableMemberViews.find((view) => view.id === grant.subjectId)?.name ?? grant.name
+          : grant.name
+        return [{ ...grant, name, audience, source }]
+      })
+    : []
+  const shownScope = !viewId && record
+    ? effectiveDataScope(scope, record, viewGrants.map((grant) => ({
+        viewId: grant.viewId,
+        subjectType: grant.subjectType,
+        subjectId: grant.subjectId,
+        memberKind: grant.memberKind,
+      })), dataViews, memberViewFilters)
+    : scope
   const internalPeople = people.filter((row) => row.memberKind === 'member')
   const externalPeople = people.filter((row) => row.memberKind === 'external' || row.memberKind === 'guest')
-  const scopeLabel = scope === 'shared' ? '分享数据' : scope === 'workspace' ? '空间数据' : '私人数据'
+  const inheritedInternal = inherited.filter((row) => row.audience === 'internal')
+  const inheritedExternal = inherited.filter((row) => row.audience === 'external')
+  const scopeLabel = shownScope === 'shared' ? '共享' : shownScope === 'workspace' ? '空间' : '私人'
   const grantedAccountIds = new Set(people.map((row) => row.id))
   const normalizedMemberQuery = memberQuery.trim().toLowerCase()
   const matchingMembers = workspaceMembers
@@ -348,7 +442,13 @@ function WorkspaceAccess({
               </button>
             </li>
           ))}
-          {!internalPeople.length && !groups.length && !memberViews.length ? <li className="is-empty">尚未添加内部协作者</li> : null}
+          {inheritedInternal.map((row) => (
+            <li key={`inherited:${row.viewId}:${row.subjectType}:${row.subjectId}`}>
+              <span className="fsdb-share-collaborator-copy"><strong>{row.name}</strong><em>继承自{row.source}</em></span>
+              <span className="fsdb-share-collaborator-role">{roleLabel(row.role)}</span>
+            </li>
+          ))}
+          {!internalPeople.length && !groups.length && !memberViews.length && !inheritedInternal.length ? <li className="is-empty">尚未添加内部协作者</li> : null}
         </ul>
         <div className="fsdb-share-invite-row">
           <div className="fsdb-share-member-picker">
@@ -424,7 +524,13 @@ function WorkspaceAccess({
               </button>
             </li>
           ))}
-          {!externalPeople.length ? <li className="is-empty">尚未添加外部协作者</li> : null}
+          {inheritedExternal.map((row) => (
+            <li key={`inherited:${row.viewId}:${row.subjectType}:${row.subjectId}`}>
+              <span className="fsdb-share-collaborator-copy"><strong>{row.name}</strong><em>继承自{row.source}</em></span>
+              <span className="fsdb-share-collaborator-role">{roleLabel(row.role)}</span>
+            </li>
+          ))}
+          {!externalPeople.length && !inheritedExternal.length ? <li className="is-empty">尚未添加外部协作者</li> : null}
         </ul>
         <div className="fsdb-share-invite-row">
           <input

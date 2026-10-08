@@ -56,6 +56,8 @@ test('share panel separates public sharing from internal and external collaborat
   assert.match(src, /公开分享/)
   assert.match(src, /邀请协作/)
   assert.match(src, /target\.kind === 'view' && target\.viewId/)
+  assert.match(src, /继承自/)
+  assert.match(src, /effectiveDataScope/)
   assert.match(src, /内部协作者/)
   assert.match(src, /外部协作者/)
   assert.match(src, /collaboratorKind/)
