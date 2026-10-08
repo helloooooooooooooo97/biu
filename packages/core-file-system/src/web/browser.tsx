@@ -673,6 +673,7 @@ export function CollectionBrowser({
   const [showTree, setShowTree] = useState(initialView?.tree !== false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+  const [groupPages, setGroupPages] = useState<Record<string, number>>({})
   const listColumns = useMemo(() => {
     if (customView) return undefined
     if (chrome?.cells) return undefined
@@ -858,8 +859,8 @@ export function CollectionBrowser({
         readJson<StatResult>(`/api/db/stat?path=${encodeURIComponent(dataPath)}`),
         listCollection({
           path: dataPath,
-          limit: pageSize,
-          offset: page * pageSize,
+          limit: groupBy ? 200 : pageSize,
+          offset: groupBy ? 0 : page * pageSize,
           query: fetchQuery,
           sortField,
           sortDir,
@@ -900,10 +901,10 @@ export function CollectionBrowser({
       setError(String(err))
       return false
     }
-  }, [activeViewId, collectionPath, dataPath, fetchQuery, listColumns, queryFilters, page, pageSize, sortDir, sortField, sorts])
+  }, [activeViewId, collectionPath, dataPath, fetchQuery, groupBy, listColumns, queryFilters, page, pageSize, sortDir, sortField, sorts])
   const reloadRef = useRef(reload)
   reloadRef.current = reload
-  const reloadKey = `${dataPath}\0${page}\0${pageSize}\0${fetchQuery}\0${sortField}\0${sortDir}\0${JSON.stringify(sorts)}\0${JSON.stringify(queryFilters)}\0${activeViewId ?? ''}\0${listColumnsKey}`
+  const reloadKey = `${dataPath}\0${groupBy ? 0 : page}\0${groupBy ? 'grouped' : pageSize}\0${fetchQuery}\0${sortField}\0${sortDir}\0${JSON.stringify(sorts)}\0${JSON.stringify(queryFilters)}\0${activeViewId ?? ''}\0${listColumnsKey}\0${groupBy}`
   const detailIdRef = useRef<string | null>(null)
   detailIdRef.current = detailId
   const contentGen = useRef(0)
@@ -2488,9 +2489,9 @@ export function CollectionBrowser({
             </span>
             <span className="sidebar-group-fold-chevron">
               {folded ? (
-                <ChevronRightIcon className="size-4 shrink-0 opacity-80" />
+                <ChevronRightIcon className="size-[14px] shrink-0 opacity-80" />
               ) : (
-                <ChevronDownIcon className="size-4 shrink-0 opacity-80" />
+                <ChevronDownIcon className="size-[14px] shrink-0 opacity-80" />
               )}
             </span>
           </span>
@@ -3495,7 +3496,44 @@ export function CollectionBrowser({
                                 <GroupHead groupKey={group.key || 'unset'} label={group.label} count={group.rows.length} />
                               </td>
                             </tr>
-                            {collapsedGroups[group.key || 'unset'] ? null : tableBodyRows(group.rows, `${group.key}:`)}
+                            {collapsedGroups[group.key || 'unset'] ? null : (() => {
+                              const key = group.key || 'unset'
+                              const pages = Math.max(1, Math.ceil(group.rows.length / pageSize))
+                              const pageIndex = Math.min(groupPages[key] ?? 0, pages - 1)
+                              return (
+                              <>
+                                {tableBodyRows(group.rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize), `${group.key}:`)}
+                                <tr className="fsdb-group-pager">
+                                  <td colSpan={tableColSpan}>
+                                    <div className="fsdb-pager">
+                                      <span className="fsdb-pager-meta">{group.rows.length}</span>
+                                      <div className="fsdb-pager-nav">
+                                        <PagerSizeControl pageSize={pageSize} onChange={setPageSize} />
+                                        <button
+                                          type="button"
+                                          className="tasks-icon-btn"
+                                          aria-label="上一页"
+                                          disabled={pageIndex <= 0}
+                                          onClick={() => setGroupPages((prev) => ({ ...prev, [key]: Math.max(0, pageIndex - 1) }))}
+                                        >
+                                          <ChevronLeftIcon aria-hidden className="size-[14px]" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="tasks-icon-btn"
+                                          aria-label="下一页"
+                                          disabled={(pageIndex + 1) * pageSize >= group.rows.length}
+                                          onClick={() => setGroupPages((prev) => ({ ...prev, [key]: pageIndex + 1 }))}
+                                        >
+                                          <ChevronRightIcon aria-hidden className="size-[14px]" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              </>
+                              )
+                            })()}
                           </Fragment>
                         ))
                       ) : (
@@ -3510,6 +3548,7 @@ export function CollectionBrowser({
         </div>
             ) : null}
           </div>
+          {grouping ? null : (
           <div className="fsdb-pager" data-biu-ignore>
             <span className="fsdb-pager-meta" title={total ? `共 ${total} 条` : '暂无记录'}>
               <HashtagIcon aria-hidden className="size-[14px]" />
@@ -3537,6 +3576,7 @@ export function CollectionBrowser({
               </button>
             </div>
           </div>
+          )}
         </div>
       </div>
         ) : selected && schema ? (
