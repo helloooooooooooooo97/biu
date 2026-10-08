@@ -7,6 +7,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseService, apply as applyFileSystem, databaseHttpFailure } from './index.ts'
+import { SavedViewsStore, viewsCollection } from './saved-views.ts'
 import { FileSystemAssets } from './assets-store.ts'
 import type { CollectionSpec, DbRecord } from '@biu/type-file-system'
 import { REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
@@ -184,6 +185,43 @@ test('each view keeps its own html banner outside list rows', async () => {
   const listed = await db.list('/views')
   if (listed.kind !== 'collection') return
   assert.ok(listed.items.every((row) => !('banner' in row)))
+})
+
+test('an unshared user view is visible only to its creator until the view is shared', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.register(notesCollection())
+  const saved = new SavedViewsStore()
+  db.register(viewsCollection(saved, () => [{ path: '/notes', id: 'notes', kind: 'collection', label: '笔记' }]))
+  const dir = mkdtempSync(join(tmpdir(), 'biu-db-private-view-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'view-ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'view-bob@example.com')
+  const workspace = collab.createWorkspace(ada.id, 'Views')
+  collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+  collab.setActive(ada.id, workspace.id)
+  collab.setActive(bob.id, workspace.id)
+  db.viewCatalog = { viewsFor: () => [] }
+  const created = await runWithAccount(ada.id, () => db.create('/views', [{ title: '只给自己', tablePath: '/notes' }]))
+  const viewId = String(created.items[0]?.value.viewId ?? '')
+  const adaList = await runWithAccount(ada.id, () => db.list('/views', { tablePath: '/notes' }))
+  const adaView = adaList.items.find((row) => row.viewId === viewId)
+  assert.equal(adaView?.title, '只给自己')
+  assert.equal((adaView?.createdBy as { accountId?: string } | undefined)?.accountId, ada.id)
+  assert.equal(Array.isArray(adaView?.updatedBy), true)
+  const bobBefore = await runWithAccount(bob.id, () => db.list('/views', { tablePath: '/notes' }))
+  assert.equal(bobBefore.items.some((row) => row.viewId === viewId), false)
+  await runWithAccount(ada.id, () => collab.shareViewWithEmail(ada.id, '/notes', viewId, bob.email, 'viewer', 'internal'))
+  const bobAfter = await runWithAccount(bob.id, () => db.list('/views', { tablePath: '/notes' }))
+  assert.equal(bobAfter.items.some((row) => row.viewId === viewId), true)
 })
 
 test('computed fields come from list and cannot be written', async () => {

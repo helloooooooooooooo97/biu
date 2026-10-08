@@ -822,6 +822,7 @@ export class DatabaseService extends Service implements Database {
           recordId: target.id,
         }
         if (authorization.authorize(actor, action, resource).allowed) return true
+        if (collection === '/views' && this.savedViewSharedWith(actor.workspaceId, row, actor.accountId)) return true
         const viaView = this.viewGrantRole(actor.workspaceId, collection, row, actor.accountId)
         return Boolean(viaView && roleCoversAction(viaView, action))
       })
@@ -872,6 +873,63 @@ export class DatabaseService extends Service implements Database {
     if (!authorization || !actor) return false
     const role = this.viewGrantRole(actor.workspaceId, collection, record, actor.accountId)
     return Boolean(role && roleCoversAction(role, action))
+  }
+
+  private savedViewSharedWith(workspaceId: string, row: { tablePath?: unknown; viewId?: unknown }, accountId: string) {
+    const store = this.collabStore()
+    const authorization = this.authorization()
+    const tablePath = String(row.tablePath ?? '')
+    const viewId = String(row.viewId ?? '')
+    if (!store?.viewGrantsFor || !authorization || !tablePath || !viewId) return false
+    for (const grant of store.viewGrantsFor(workspaceId, tablePath)) {
+      if (grant.view_id !== viewId) continue
+      const subjectMatches = grant.subject_type === 'account'
+        ? grant.subject_id === accountId
+        : authorization.matchesMemberView(workspaceId, grant.subject_id, accountId)
+      if (subjectMatches) return true
+    }
+    return false
+  }
+
+  async syncSavedViews(store: { viewsFor(path: string): StoredView[]; merge(path: string, views: StoredView[], removeIds?: string[]): void }, path: string, incoming: StoredView[]) {
+    const actor = await this.currentPerson()
+    const existing = store.viewsFor(path)
+    const previous = new Map(existing.map((view) => [view.id, view]))
+    const next = incoming
+      .filter((view) => view?.id && !isReadOnlyViewId(String(view.id)))
+      .map((view) => {
+        const prev = previous.get(view.id)
+        return {
+          ...view,
+          createdBy: prev?.createdBy ?? actor,
+          updatedBy: appendPerson(prev?.updatedBy, actor),
+          createdAt: prev?.createdAt ?? Date.now(),
+          updatedAt: Date.now(),
+        }
+      })
+    const posted = new Set(next.map((view) => view.id))
+    const authorization = this.authorization()
+    const account = authorization?.currentActor()
+    const removeIds = existing
+      .filter((view) => !posted.has(view.id))
+      .filter((view) => {
+        if (!authorization || !account) return true
+        return authorization.authorize(account, 'resource:delete', {
+          type: 'record',
+          workspaceId: account.workspaceId,
+          collection: '/views',
+          recordId: `${path.replace(/^\//, '')}::${view.id}`,
+        }).allowed
+      })
+      .map((view) => view.id)
+    store.merge(path, next, removeIds)
+    for (const view of next) {
+      if (previous.has(view.id)) continue
+      this.attachWorkspaceRecord('/views', `${path.replace(/^\//, '')}::${view.id}`, {
+        ownership: 'personal',
+        accessMode: 'private',
+      })
+    }
   }
 
   private viewGrantRole(
@@ -2795,7 +2853,7 @@ export function apply(ctx: Context) {
       const next = Array.isArray(body.views) ? body.views : []
       await db.requirePath(path, 'resource:update')
       dropSharesForRemovedViews(shares, path, savedViews.viewsFor(path), next)
-      savedViews.replace(path, next)
+      await db.syncSavedViews(savedViews, path, next)
       ctx.emit('database/change')
       route.send(200, { ok: true })
     } catch (error) {

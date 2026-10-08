@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { openAndMigrateBiu } from '@biu/host-plugin-loader/data-dir'
 import type { CollectionInfo, CollectionSpec, DbRecord } from '@biu/type-file-system'
-import { normalizeSchemaValue, recordBuiltinValues, REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
+import { normalizeSchemaValue, recordBuiltinValues, REQUIRED_RECORD_FIELDS, type PersonValue } from '@biu/type-file-system'
 import { builtinAllView, isReadOnlyViewId } from '../catalog-views.ts'
 import { normalizeColumnWidths, type SavedView } from '../web/saved-view.ts'
 import { isViewModeId } from '../web/fields.ts'
@@ -22,7 +22,10 @@ import {
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 
-export type StoredView = Partial<SavedView> & Pick<SavedView, 'id' | 'name'>
+export type StoredView = Partial<SavedView> & Pick<SavedView, 'id' | 'name'> & {
+  createdBy?: PersonValue | null
+  updatedBy?: PersonValue[] | PersonValue | null
+}
 
 type ViewRow = { collection: string; payload_json: string }
 
@@ -85,6 +88,20 @@ export class SavedViewsStore {
 
   viewsFor(collectionPath: string): StoredView[] {
     return this.byPath.get(normalizeCollectionPath(collectionPath)) ?? []
+  }
+
+  merge(collectionPath: string, views: StoredView[], removeIds: string[] = []) {
+    const path = normalizeCollectionPath(collectionPath)
+    const drop = new Set(removeIds)
+    const kept = (this.byPath.get(path) ?? []).filter((view) => !drop.has(view.id) && !view.builtin && !isReadOnlyViewId(view.id))
+    const map = new Map(kept.map((view) => [view.id, view]))
+    for (const view of views) {
+      if (view.builtin || isReadOnlyViewId(String(view.id))) continue
+      const prev = map.get(view.id)
+      map.set(view.id, prev ? { ...prev, ...view, id: view.id, createdBy: prev.createdBy ?? view.createdBy } : view)
+    }
+    this.byPath.set(path, [...map.values()])
+    this.persistPath(path)
   }
 
   replace(collectionPath: string, views: StoredView[]) {
@@ -356,7 +373,7 @@ export function viewsCollection(store: SavedViewsStore, tables: () => Collection
     records: { update: true, create: true, delete: true },
     schema: {
       labelField: 'title',
-      columns: ['title', 'table', 'mode', 'sortField', 'sortDir', 'query', 'groupBy', 'pageSize'],
+      columns: ['title', 'table', 'mode', 'createdBy', 'updatedBy', 'sortField', 'sortDir', 'query', 'groupBy', 'pageSize'],
       fields: {
         ...REQUIRED_RECORD_FIELDS,
         title: { type: 'string', label: '视图', writable: true },

@@ -79,6 +79,12 @@ export function roleCoversAction(role: ResourceRole, action: Action) {
   return ROLE_RANK[role] >= ROLE_RANK[requiredRole(action)]
 }
 
+function isBuiltinViewRecord(recordId: string) {
+  const cut = recordId.indexOf('::')
+  const viewId = cut >= 0 ? recordId.slice(cut + 2) : recordId
+  return viewId.startsWith('builtin')
+}
+
 function requiredRole(action: Action): ResourceRole {
   switch (action) {
     case 'resource:list':
@@ -170,7 +176,7 @@ export class AuthorizationService {
         ? { allowed: true, effectiveRole, source: 'workspace-default' }
         : { allowed: false, reason: 'INSUFFICIENT_PERMISSION' }
     }
-    if (resource.collection === '/views') {
+    if (resource.type === 'record' && resource.collection === '/views' && isBuiltinViewRecord(resource.recordId)) {
       const effectiveRole: ResourceRole =
         membership === 'owner' ? 'owner' : membership === 'viewer' ? 'viewer' : 'manager'
       return ROLE_RANK[effectiveRole] >= ROLE_RANK[requiredRole(action)]
