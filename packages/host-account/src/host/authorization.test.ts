@@ -90,7 +90,7 @@ test('saved views remain workspace system metadata for all members', () => {
 })
 
 test('workspace viewers can only read resources made visible to them', () => {
-  const { store, auth, ada, bob, workspace, actor, page } = setup()
+  const { store, auth, ada, bob, cara, workspace, actor, page } = setup()
   store.updateMemberRole(ada.id, workspace.id, bob.id, 'viewer')
   const collection = { type: 'collection' as const, workspaceId: workspace.id, collection: '/pages' }
   assert.equal(auth.authorize(actor(bob.id), 'resource:read', collection).allowed, true)
@@ -99,6 +99,10 @@ test('workspace viewers can only read resources made visible to them', () => {
   auth.attach(actor(ada.id), page('shared'), { ownership: 'workspace', accessMode: 'members' })
   assert.equal(auth.authorize(actor(bob.id), 'resource:read', page('shared')).allowed, true)
   assert.equal(auth.authorize(actor(bob.id), 'resource:update', page('shared')).allowed, false)
+  assert.equal(auth.authorize(actor(cara.id), 'resource:update', page('shared')).allowed, true)
+  assert.equal(auth.authorize(actor(cara.id), 'resource:delete', page('shared')).allowed, false)
+  store.updateMemberRole(ada.id, workspace.id, cara.id, 'admin')
+  assert.equal(auth.authorize(actor(cara.id), 'resource:delete', page('shared')).allowed, true)
   auth.grant(ada.id, page('shared'), 'account', bob.id, 'editor')
   assert.equal(auth.authorize(actor(bob.id), 'resource:update', page('shared')).allowed, false)
 

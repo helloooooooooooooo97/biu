@@ -3324,7 +3324,7 @@ export function CollectionBrowser({
                     className="fsdb-create-scope"
                     aria-label="新建归属"
                     aria-expanded={createScopeOpen}
-                    title={createScope === 'workspace' ? '空间内容，空间成员可查看' : '私人内容，仅自己可处理'}
+                    title={createScope === 'workspace' ? '空间内容，按各自的空间角色处理' : '私人内容，仅自己可处理'}
                     onClick={() => setCreateScopeOpen((open) => !open)}
                   >
                     {createScope === 'workspace' ? (

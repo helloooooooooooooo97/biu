@@ -399,7 +399,10 @@ export class AuthorizationService {
     if (policy.access_mode === 'private' || policy.access_mode === 'restricted') return null
     if (policy.access_mode === 'members') {
       if (this.membershipKind(accountId, resource.workspaceId) !== 'member') return null
-      return { effectiveRole: policy.member_default_role, source: 'workspace-default' }
+      const role = this.membership(accountId, resource.workspaceId)
+      const effectiveRole: ResourceRole =
+        role === 'owner' || role === 'admin' ? 'manager' : role === 'viewer' ? 'viewer' : 'editor'
+      return { effectiveRole, source: 'workspace-default' }
     }
     if (policy.access_mode === 'inherit' && policy.parent_record_id) {
       const inherited = this.effectiveRole(
