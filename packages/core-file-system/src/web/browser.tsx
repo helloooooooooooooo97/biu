@@ -103,7 +103,7 @@ import {
   visibleActions,
   placedActions,
 } from './fsdb-cells.tsx'
-import { ShareButton, SharePanel } from './share-popover.tsx'
+import { ShareButton, SharePanel, ShareScopeDetail } from './share-popover.tsx'
 import { ensureFsdbStyle } from './fsdb-style.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { PageBanner } from './page-banner.tsx'
@@ -478,7 +478,7 @@ const EMPTY_FILTERS: Record<string, string> = {}
 /** 与选区拖选同一阈值：位移超过这个距离只当拖，不当点击。 */
 const CELL_POP_DRAG_PX = 6
 const CELL_POP_IGNORE =
-  '.fsdb-row-check, .fsdb-col-resizer, .tasks-row-tools, .tasks-title-open, .fsdb-action-btn, .fsdb-boolbtn, .fsdb-thumb-btn, .fsdb-thumb, .ant-image, .fsdb-file-tools, .fsdb-ref-chip, .db-datetime, .ant-picker'
+  '.fsdb-row-check, .fsdb-col-resizer, .tasks-row-tools, .tasks-title-open, .fsdb-action-btn, .fsdb-boolbtn, .fsdb-thumb-btn, .fsdb-thumb, .ant-image, .fsdb-file-tools, .fsdb-ref-chip, .db-datetime, .ant-picker, .fsdb-scope-detail'
 
 export function CollectionBrowser({
   moduleId,
@@ -2055,6 +2055,16 @@ export function CollectionBrowser({
     })
 
   function renderCell(row: DbRecord, key: string, field: FieldSpec, surface: 'table' | 'detail' = 'detail') {
+    if (key === 'shareScope') {
+      return (
+        <ShareScopeDetail
+          collection={collectionPath}
+          recordId={row.id}
+          label={String(row[key] ?? '')}
+          tableLabel={currentTable?.label}
+        />
+      )
+    }
     const kind = resolveFieldType(field)
     const flat = parseFacetFlatColumnKey(key)
     if (surface === 'table') {

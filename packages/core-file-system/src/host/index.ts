@@ -57,9 +57,9 @@ import { readSharePluginWebJs, zipSharePluginSource } from './share-plugin-pack.
 import { collectShareResources } from '../share-resources.ts'
 import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
-import { builtinMemberViews, displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
+import { displayNameForView, isReadOnlyViewId } from '../catalog-views.ts'
 import { isSystemCollection } from '../web/database-path.ts'
-import { effectiveDataScope, highestViewRole, recordMatchesGrantedView, type DataScopeName, type ViewGrantRole } from '../view-access.ts'
+import { highestViewRole, recordMatchesGrantedView, type DataScopeName, type ViewGrantRole } from '../view-access.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { FileSystemAssets, collectAssetNames, assetNamesFromMarkdown, assetNamesFromHtml, isAssetFileName, isHashedAssetName, mimeOfAsset, AssetConflictError, parseIfMatch } from './assets-store.ts'
 import { facetsCollection, parseStampRecordId } from './facets-collection.ts'
@@ -158,7 +158,7 @@ function schemaFor(spec: CollectionSpec): CollectionSchema {
       writable: false,
       sortable: true,
       enum: ['私人', '空间', '共享'],
-      description: '计算属性。私人表示只有自己能看到；空间表示至少有一个空间成员能看到且没有非空间成员；共享表示已分享到外部或邀请了非空间成员。',
+      description: '计算属性，只看这条内容自己的协作者。私人表示只有创建者；空间表示有空间成员且没有外部协作者；共享表示邀请了外部协作者。视图继承的权限不改变这个标签。',
     }
     columns = ensureColumn(columns, 'shareScope')
   }
@@ -642,10 +642,6 @@ export class DatabaseService extends Service implements Database {
   assets = new FileSystemAssets()
   viewCatalog?: { viewsFor(collectionPath: string): Array<{ id: string; filters?: Record<string, unknown> }> }
   private ownershipCache: { key: string; map: Map<string, 'personal' | 'workspace' | 'shared'> } | null = null
-  private viewAudienceCache: {
-    key: string
-    rows: Array<{ view_id: string; subject_type: 'account' | 'member_view'; subject_id: string; member_kind: string }>
-  } | null = null
   recycleAssets?: () => void
 
   private bumpQueued = false
@@ -708,7 +704,6 @@ export class DatabaseService extends Service implements Database {
 
   private async loadCollectionRows(spec: CollectionSpec, query: CollectionListQuery) {
     this.ownershipCache = null
-    this.viewAudienceCache = null
     const rows = await spec.list(query)
     const listed = !query.ids?.length ? rows : rows.filter((row) => query.ids!.includes(row.id))
     const hidden = this.facets.deletedIds(spec.path)
@@ -717,7 +712,6 @@ export class DatabaseService extends Service implements Database {
       return scoped.map((row) => this.decorateRecord(spec, row))
     } finally {
       this.ownershipCache = null
-      this.viewAudienceCache = null
     }
   }
 
@@ -1186,33 +1180,7 @@ export class DatabaseService extends Service implements Database {
     const withMeta = this.applyMetaOverlay(spec, withPeople)
     if (isSystemCollection(spec.path)) return withMeta
     const stored = this.ownershipOf(spec.path, String(row.id ?? ''))
-    return { ...withMeta, shareScope: SHARE_SCOPE_LABEL[this.effectiveScope(spec.path, withMeta, stored)] }
-  }
-
-  private effectiveScope(collection: string, record: DbRecord, stored: DataScopeName): DataScopeName {
-    const store = this.collabStore()
-    const workspaceId = store?.activeWorkspaceId?.() ?? ''
-    if (!store?.viewGrantAudiences || !workspaceId || !this.viewCatalog) return stored
-    const key = `${workspaceId}\t${collection}`
-    if (!this.viewAudienceCache || this.viewAudienceCache.key !== key) {
-      this.viewAudienceCache = { key, rows: store.viewGrantAudiences(workspaceId, collection) }
-    }
-    const memberViews = [
-      ...builtinMemberViews(),
-      ...this.viewCatalog.viewsFor('/workspace-members'),
-    ]
-    return effectiveDataScope(
-      stored,
-      record,
-      this.viewAudienceCache.rows.map((row) => ({
-        viewId: row.view_id,
-        subjectType: row.subject_type,
-        subjectId: row.subject_id,
-        memberKind: row.member_kind,
-      })),
-      this.viewCatalog.viewsFor(collection),
-      memberViews,
-    )
+    return { ...withMeta, shareScope: SHARE_SCOPE_LABEL[stored] }
   }
 
   private ownershipOf(collection: string, id: string): 'personal' | 'workspace' | 'shared' {

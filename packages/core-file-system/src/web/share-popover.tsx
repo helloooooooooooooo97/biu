@@ -4,7 +4,7 @@ import { HeadlessDismiss } from '@biu/public-ui'
 import { listCollection, readJson } from './db-client.ts'
 import { mintSharePin, shareClipboardText, type ShareResourceStats } from '../share-resources.ts'
 import { builtinMemberViews, isBuiltinAllViewId, parseBuiltinScopeViewId, scopedCollectionName } from '../catalog-views.ts'
-import { effectiveDataScope, grantAudienceKind, recordMatchesGrantedView } from '../view-access.ts'
+import { grantAudienceKind, recordMatchesGrantedView } from '../view-access.ts'
 import type { DbRecord } from '@biu/type-file-system'
 
 export type ShareKind = 'view' | 'record'
@@ -374,19 +374,11 @@ function WorkspaceAccess({
         return [{ ...grant, name, audience, source }]
       })
     : []
-  const shownScope = !viewId && record
-    ? effectiveDataScope(scope, record, viewGrants.map((grant) => ({
-        viewId: grant.viewId,
-        subjectType: grant.subjectType,
-        subjectId: grant.subjectId,
-        memberKind: grant.memberKind,
-      })), dataViews, memberViewFilters)
-    : scope
   const internalPeople = people.filter((row) => row.memberKind === 'member')
   const externalPeople = people.filter((row) => row.memberKind === 'external' || row.memberKind === 'guest')
   const inheritedInternal = inherited.filter((row) => row.audience === 'internal')
   const inheritedExternal = inherited.filter((row) => row.audience === 'external')
-  const scopeLabel = shownScope === 'shared' ? '共享' : shownScope === 'workspace' ? '空间' : '私人'
+  const scopeLabel = scope === 'shared' ? '共享' : scope === 'workspace' ? '空间' : '私人'
   const grantedAccountIds = new Set(people.map((row) => row.id))
   const normalizedMemberQuery = memberQuery.trim().toLowerCase()
   const matchingMembers = workspaceMembers
@@ -559,6 +551,156 @@ function roleLabel(role: string) {
   if (role === 'manager') return '可管理'
   if (role === 'viewer') return '可查看'
   return '可编辑'
+}
+
+function viewRows(items: DbRecord[]) {
+  return items.flatMap((row) => {
+    const id = String(row.viewId ?? '').trim()
+    if (!id) return []
+    let filters: Record<string, unknown> | undefined
+    try {
+      const parsed = JSON.parse(String(row.filters ?? '{}'))
+      filters = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined
+    } catch {
+      filters = undefined
+    }
+    return [{ id, name: String(row.title ?? id), filters }]
+  })
+}
+
+function scopeText(scope: string) {
+  if (scope === 'shared') return '共享'
+  if (scope === 'workspace') return '空间'
+  return '私人'
+}
+
+/** 分享属性标签。归属看条目自己的协作者；点开后看直接授权和从视图继承来的权限。 */
+export function ShareScopeDetail({
+  collection,
+  recordId,
+  label,
+  tableLabel = '',
+}: {
+  collection: string
+  recordId: string
+  label: string
+  tableLabel?: string
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  const [scope, setScope] = useState(label === '共享' ? 'shared' : label === '空间' ? 'workspace' : 'personal')
+  const [direct, setDirect] = useState<Array<{ id: string; name: string; role: string; note: string }>>([])
+  const [inherited, setInherited] = useState<Array<{ id: string; name: string; role: string; source: string }>>([])
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    void (async () => {
+      const [access, recordPage, viewPage, memberViewPage] = await Promise.all([
+        readJson<{
+          scope?: 'personal' | 'workspace' | 'shared'
+          people?: Array<{ id: string; name: string; role: string; memberKind: string }>
+          groups?: Array<{ id: string; name: string; role: string }>
+          memberViews?: Array<{ id: string; role: string }>
+          viewGrants?: Array<{
+            viewId: string
+            subjectType: 'account' | 'member_view'
+            subjectId: string
+            role: string
+            name: string
+            memberKind: string
+          }>
+        }>(`/api/account/access?collection=${encodeURIComponent(collection)}&recordId=${encodeURIComponent(recordId)}`),
+        listCollection({ path: collection, limit: 1, filters: { id: recordId } }),
+        listCollection({ path: '/views', limit: 200, filters: { tablePath: collection }, columns: ['title', 'tablePath', 'viewId', 'filters'] }),
+        listCollection({ path: '/views', limit: 200, filters: { tablePath: '/workspace-members' }, columns: ['title', 'tablePath', 'viewId', 'filters'] }),
+      ])
+      if (cancelled) return
+      const record = recordPage.items[0] ?? null
+      const dataViews = viewRows(viewPage.items)
+      const memberViews = [
+        ...builtinMemberViews().map((view) => ({ id: view.id, name: view.name, filters: view.filters })),
+        ...viewRows(memberViewPage.items),
+      ]
+      const stored = access.scope ?? 'personal'
+      setScope(stored)
+      setDirect([
+        ...(access.people ?? []).map((row) => ({ id: `account:${row.id}`, name: row.name, role: row.role, note: row.memberKind === 'member' ? '空间成员' : '外部' })),
+        ...(access.groups ?? []).map((row) => ({ id: `group:${row.id}`, name: row.name, role: row.role, note: '成员组' })),
+        ...(access.memberViews ?? []).map((row) => ({
+          id: `view:${row.id}`,
+          name: memberViews.find((view) => view.id === row.id)?.name ?? row.id,
+          role: row.role,
+          note: '成员视图',
+        })),
+      ])
+      setInherited(record ? (access.viewGrants ?? []).flatMap((grant) => {
+        if (!recordMatchesGrantedView(record, grant.viewId, dataViews, stored)) return []
+        const parsed = parseBuiltinScopeViewId(grant.viewId)
+        const source = dataViews.find((view) => view.id === grant.viewId)?.name
+          || (parsed ? scopedCollectionName({ path: collection, label: tableLabel || collection.replace(/^\//, '') }, parsed.scope) : '')
+          || (isBuiltinAllViewId(grant.viewId) ? `全部${tableLabel}` : grant.viewId)
+        const name = grant.subjectType === 'member_view'
+          ? memberViews.find((view) => view.id === grant.subjectId)?.name ?? grant.name
+          : grant.name
+        return [{ id: `${grant.viewId}:${grant.subjectType}:${grant.subjectId}`, name, role: grant.role, source }]
+      }) : [])
+      setError('')
+    })().catch((err) => {
+      if (!cancelled) setError(err instanceof Error ? err.message : '无法读取权限')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, collection, recordId, tableLabel])
+
+  return (
+    <div className="fsdb-scope-detail" ref={wrapRef}>
+      <button
+        type="button"
+        className={`fsdb-scope-tag is-${scope}`}
+        aria-label={`${label || scopeText(scope)}的权限详情`}
+        aria-expanded={open}
+        onClick={(event) => {
+          event.stopPropagation()
+          setOpen((prev) => !prev)
+        }}
+      >
+        {label || scopeText(scope)}
+      </button>
+      {open ? (
+        <HeadlessDismiss onDismiss={() => setOpen(false)} insideRef={wrapRef}>
+          <div className="fsdb-scope-panel" role="dialog" aria-label="权限详情">
+            <div className="fsdb-share-collab-summary">
+              <span>数据归属</span>
+              <strong className={`fsdb-share-scope is-${scope}`}>{scopeText(scope)}</strong>
+            </div>
+            <p className="fsdb-scope-note">归属只看这条内容自己的协作者。视图上的分享会额外继承过来，不改变归属。</p>
+            <section>
+              <h3>直接授权</h3>
+              <ul>
+                {direct.map((row) => (
+                  <li key={row.id}><strong>{row.name}</strong><em>{row.note}</em><span>{roleLabel(row.role)}</span></li>
+                ))}
+                {!direct.length ? <li className="is-empty">只有创建者</li> : null}
+              </ul>
+            </section>
+            <section>
+              <h3>继承权限</h3>
+              <ul>
+                {inherited.map((row) => (
+                  <li key={row.id}><strong>{row.name}</strong><em>继承自{row.source}</em><span>{roleLabel(row.role)}</span></li>
+                ))}
+                {!inherited.length ? <li className="is-empty">没有从视图继承的权限</li> : null}
+              </ul>
+            </section>
+            {error ? <p className="fsdb-share-error is-inline">{error}</p> : null}
+          </div>
+        </HeadlessDismiss>
+      ) : null}
+    </div>
+  )
 }
 
 export function SharePanel({ target, embedded = false }: { target: ShareTarget; embedded?: boolean }) {
