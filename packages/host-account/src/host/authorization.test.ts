@@ -76,17 +76,26 @@ test('workspace ownership can be transferred to another member', () => {
   assert.equal(store.listWorkspaces(bob.id).find((row) => row.id === workspace.id)?.ownerId, bob.id)
 })
 
-test('saved views remain workspace system metadata for all members', () => {
-  const { auth, bob, workspace, actor } = setup()
-  const view = {
+test('builtin views stay workspace metadata and user views stay private', () => {
+  const { auth, ada, bob, workspace, actor } = setup()
+  const builtin = {
+    type: 'record' as const,
+    workspaceId: workspace.id,
+    collection: '/views',
+    recordId: 'sessions::builtin-all:/sessions',
+  }
+  assert.equal(auth.authorize(actor(bob.id), 'resource:read', builtin).allowed, true)
+  const mine = {
     type: 'record' as const,
     workspaceId: workspace.id,
     collection: '/views',
     recordId: 'sessions::recent',
   }
-  assert.equal(auth.authorize(actor(bob.id), 'resource:read', view).allowed, true)
-  assert.equal(auth.authorize(actor(bob.id), 'resource:update', view).allowed, true)
-  assert.equal(auth.authorize(actor(bob.id), 'resource:delete', view).allowed, true)
+  assert.equal(auth.authorize(actor(bob.id), 'resource:read', mine).allowed, false)
+  auth.attach(actor(ada.id), mine, { ownership: 'personal', accessMode: 'private' })
+  assert.equal(auth.authorize(actor(ada.id), 'resource:read', mine).allowed, true)
+  assert.equal(auth.authorize(actor(bob.id), 'resource:read', mine).allowed, false)
+  assert.equal(auth.authorize(actor(bob.id), 'resource:update', mine).allowed, false)
 })
 
 test('workspace viewers can only read resources made visible to them', () => {
