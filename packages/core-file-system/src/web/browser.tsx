@@ -691,7 +691,6 @@ export function CollectionBrowser({
   }, [chrome, columnKeys, customView, facetCatalog, groupBy, stat])
   const listColumnsKey = listColumns?.join('\0') ?? ''
   const [refreshing, setRefreshing] = useState(false)
-  const [createScope, setCreateScope] = useState<'personal' | 'workspace'>('personal')
   const [searchOpen, setSearchOpen] = useState(false)
   const [notice, setNotice] = useState('')
   const [pickedIds, setPickedIds] = useState<string[]>([])
@@ -1876,7 +1875,7 @@ export function CollectionBrowser({
       const data = await readJson<{ items?: Array<{ value?: DbRecord }> }>('/api/db/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ path: dataPath, records: [{}], scope: createScope }),
+        body: JSON.stringify({ path: dataPath, records: [{}], scope: routeScope === 'workspace' ? 'workspace' : 'personal' }),
       })
       quietUntil.current = 0
       await reload()
@@ -3302,28 +3301,16 @@ export function CollectionBrowser({
               ) : null}
             </div>
             {canCreate ? (
-              <div className="flex items-center gap-1">
-                <select
-                  className="tasks-refresh tasks-rbar-btn min-w-auto px-1"
-                  aria-label="新建数据归属"
-                  title={createScope === 'personal' ? '私人：仅自己和被授权成员可见' : '空间：空间成员可查看'}
-                  value={createScope}
-                  onChange={(event) => setCreateScope(event.target.value === 'workspace' ? 'workspace' : 'personal')}
-                >
-                  <option value="personal">私人</option>
-                  <option value="workspace">空间</option>
-                </select>
-                <button
-                  type="button"
-                  className="fsdb-create-btn"
-                  aria-label={`新建${createScope === 'personal' ? '私人' : '空间'}记录`}
-                  title={`新建${createScope === 'personal' ? '私人' : '空间'}记录`}
-                  onClick={() => void createRecord()}
-                >
-                  <PlusIcon aria-hidden className="size-[14px]" />
-                  新建
-                </button>
-              </div>
+              <button
+                type="button"
+                className="fsdb-create-btn"
+                aria-label="新建记录"
+                title="新建"
+                onClick={() => void createRecord()}
+              >
+                <PlusIcon aria-hidden className="size-[14px]" />
+                新建
+              </button>
             ) : null}
           </div>
         </div>
