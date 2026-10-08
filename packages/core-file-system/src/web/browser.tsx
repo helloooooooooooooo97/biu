@@ -1174,7 +1174,7 @@ export function CollectionBrowser({
   }
   const groupFields = useMemo(() => groupableFields(schema), [schema])
   const activeGroup = groupField(schema, groupBy)
-  const groupLocked = isBuiltinAllViewId(activeViewId ?? '')
+  const groupLocked = isBuiltinAllViewId(activeViewId ?? '') && !isSystemCollection(collectionPath)
   const grouping = Boolean(activeGroup)
   useEffect(() => {
     if (groupLocked && groupBy !== 'shareScope') setGroupBy('shareScope')
@@ -1749,7 +1749,7 @@ export function CollectionBrowser({
   }
 
   function setGroupKey(next: string) {
-    if (isBuiltinAllViewId(activeViewId ?? '')) return
+    if (isBuiltinAllViewId(activeViewId ?? '') && !isSystemCollection(collectionPath)) return
     setGroupBy(next)
     patchActiveView({ groupBy: next })
   }
@@ -2659,7 +2659,7 @@ export function CollectionBrowser({
         filters: current.builtin ? current.filters : filters,
         filterTree: current.builtin ? undefined : filterTree,
         columns: pinLabelColumn(schema, columnKeys),
-        groupBy: isBuiltinAllViewId(current.id) ? 'shareScope' : groupBy,
+        groupBy: isBuiltinAllViewId(current.id) && !isSystemCollection(collectionPath) ? 'shareScope' : groupBy,
         tree: showTree,
         wrap: wrapCells,
         truncate: truncateCells,

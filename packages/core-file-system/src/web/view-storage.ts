@@ -1,4 +1,5 @@
 import { builtinAllViewId, stubBuiltinAllView, stubBuiltinBlockKindView, stubBuiltinCatalogView, stubBuiltinTagView, stubBuiltinScopeView, stubBuiltinMemberView, isReadOnlyViewId, isBuiltinAllViewForCollection, isBuiltinAllViewId } from '../catalog-views.ts'
+import { isSystemCollection } from './database-path.ts'
 import { listCollection } from './db-client.ts'
 import { looksLikeFilterTree, normalizeFilterGroup, parseSortsInput } from '../query-logic.ts'
 import { normalizeSavedView, type SavedView } from './saved-view.ts'
@@ -442,6 +443,6 @@ export function withViewDisplay(collectionPath: string, view: SavedView): SavedV
     builtin: view.builtin,
     filters: view.filters,
     filterTree: view.builtin ? overlay.filterTree ?? view.filterTree : view.filterTree,
-    ...(isBuiltinAllViewId(view.id) ? { groupBy: 'shareScope' } : {}),
+    ...(isBuiltinAllViewId(view.id) && !isSystemCollection(view.id.slice('builtin-all:'.length)) ? { groupBy: 'shareScope' } : {}),
   })
 }
