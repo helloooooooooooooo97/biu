@@ -6,6 +6,7 @@ import {
   bumpRevealStart,
   captureChatScroll,
   CHAT_FIRST_PAINT_TURNS,
+  didRevealOlderTurns,
   firstPaintStartIndex,
   groupNodesIntoTurns,
   isChatStuckToLatest,
@@ -85,6 +86,12 @@ describe('thread reveal (visible first, then older)', () => {
     expect(
       shouldRevealFast({ scrollTop: 40, scrollHeight: 4000, clientHeight: 800 }),
     ).toBe(true)
+  })
+
+  it('distinguishes prepended history from streaming growth at the tail', () => {
+    expect(didRevealOlderTurns(8, 4)).toBe(true)
+    expect(didRevealOlderTurns(4, 4)).toBe(false)
+    expect(didRevealOlderTurns(4, 5)).toBe(false)
   })
 })
 
@@ -208,21 +215,27 @@ describe('chat scroll memory per session', () => {
     ).toBe(false)
     expect(
       nextStickToLatest({ stuck: true, distanceFromBottom: 120, scrollTop: 1480, scrollingUp: false }),
-    ).toBe(true)
+    ).toBe(false)
     expect(
       nextStickToLatest({ stuck: false, distanceFromBottom: 20, scrollTop: 1580, scrollingUp: false }),
     ).toBe(true)
+    expect(
+      nextStickToLatest({ stuck: true, distanceFromBottom: 600, scrollTop: 1000, scrollingUp: false }),
+    ).toBe(false)
   })
 })
 
 describe('thread follows the latest message', () => {
-  it('pins on pending layout, resize, and does not skip-paint the live turn', () => {
+  it('pins a sent user turn to the top and only follows while stuck to the bottom', () => {
     const src = readFileSync(resolve(import.meta.dirname, './thread.tsx'), 'utf8')
-    expect(src).toMatch(/useLayoutEffect\(\(\) => \{\s*if \(pending\) stickToBottomRef\.current = true/s)
+    expect(src).toContain("restoreChatScroll(parent, { kind: 'pin', nodeId: latestUserId })")
+    expect(src).toContain('followedUserRef.current === latestUserId')
     expect(src).toContain('ResizeObserver')
     expect(src).toContain('pinChatToLatest')
     expect(src).toContain('liveTurnId')
     expect(src).toContain('event.deltaY < 0')
+    expect(src).toContain('nextY > lastTouchY + 0.5')
     expect(src).toContain('nextStickToLatest')
+    expect(src).toContain('revealedOlder && prependHeightRef.current')
   })
 })

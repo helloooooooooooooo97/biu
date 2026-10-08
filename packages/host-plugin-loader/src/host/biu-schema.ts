@@ -133,9 +133,92 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     columns: ['name', 'first_seen', 'last_seen'],
     indexes: [],
   },
+  accounts: {
+    columns: ['id', 'name', 'token', 'password_hash', 'created_at', 'email', 'active_workspace_id'],
+    indexes: ['accounts_token', 'accounts_email'],
+  },
+  workspaces: {
+    columns: ['id', 'name', 'owner_id', 'created_at'],
+    indexes: [],
+  },
+  workspace_members: {
+    columns: ['workspace_id', 'account_id', 'role', 'created_at', 'display_name', 'avatar', 'member_kind'],
+    indexes: ['workspace_members_account'],
+  },
+  workspace_invites: {
+    columns: [
+      'id',
+      'token_hash',
+      'workspace_id',
+      'kind',
+      'role',
+      'collection',
+      'record_id',
+      'resource_role',
+      'expires_at',
+      'max_uses',
+      'use_count',
+      'created_by',
+      'created_at',
+      'revoked_at',
+    ],
+    indexes: ['workspace_invites_token', 'workspace_invites_workspace'],
+  },
+  guest_sessions: {
+    columns: ['id', 'account_id', 'workspace_id', 'expires_at', 'revoked_at', 'created_at', 'last_seen_at'],
+    indexes: ['guest_sessions_account'],
+  },
+  workspace_groups: {
+    columns: ['id', 'workspace_id', 'name', 'created_by', 'created_at'],
+    indexes: ['workspace_groups_workspace'],
+  },
+  workspace_group_members: {
+    columns: ['group_id', 'account_id', 'created_at'],
+    indexes: ['workspace_group_members_account'],
+  },
+  resource_policies: {
+    columns: [
+      'workspace_id',
+      'collection',
+      'record_id',
+      'ownership',
+      'owner_account_id',
+      'access_mode',
+      'member_default_role',
+      'parent_collection',
+      'parent_record_id',
+      'created_by',
+      'created_at',
+    ],
+    indexes: ['resource_policies_parent'],
+  },
+  record_grants: {
+    columns: ['workspace_id', 'collection', 'record_id', 'subject_type', 'subject_id', 'role', 'granted_by', 'created_at'],
+    indexes: ['record_grants_subject'],
+  },
+  record_owners: {
+    columns: ['workspace_id', 'collection', 'record_id', 'owner_id', 'version', 'updated_at'],
+    indexes: [],
+  },
+  sync_ops: {
+    columns: ['id', 'workspace_id', 'collection', 'record_id', 'field', 'value_json', 'version', 'author_id', 'created_at'],
+    indexes: ['sync_ops_ws'],
+  },
+  edit_locks: {
+    columns: ['workspace_id', 'collection', 'record_id', 'account_id', 'expires_at'],
+    indexes: [],
+  },
+  presence: {
+    columns: ['workspace_id', 'account_id', 'collection', 'record_id', 'seen_at'],
+    indexes: [],
+  },
+  collab_state: {
+    columns: ['key', 'value'],
+    indexes: [],
+  },
 }
 
-export const LATEST_BIU_SCHEMA = 17
+export const LATEST_BIU_SCHEMA = 30
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -312,6 +395,147 @@ CREATE TABLE IF NOT EXISTS gc_candidates (
   name TEXT PRIMARY KEY,
   first_seen INTEGER NOT NULL,
   last_seen INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS accounts (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  email TEXT,
+  active_workspace_id TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS accounts_token ON accounts(token);
+CREATE UNIQUE INDEX IF NOT EXISTS accounts_email ON accounts(email) WHERE email IS NOT NULL AND length(email) > 0;
+CREATE TABLE IF NOT EXISTS workspaces (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS workspace_members (
+  workspace_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  display_name TEXT NOT NULL DEFAULT '',
+  avatar TEXT NOT NULL DEFAULT '',
+  member_kind TEXT NOT NULL DEFAULT 'member',
+  PRIMARY KEY (workspace_id, account_id)
+);
+CREATE INDEX IF NOT EXISTS workspace_members_account ON workspace_members(account_id);
+CREATE TABLE IF NOT EXISTS workspace_invites (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  workspace_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  role TEXT NOT NULL,
+  collection TEXT NOT NULL DEFAULT '',
+  record_id TEXT NOT NULL DEFAULT '',
+  resource_role TEXT NOT NULL DEFAULT 'viewer',
+  expires_at INTEGER NOT NULL,
+  max_uses INTEGER NOT NULL DEFAULT 1,
+  use_count INTEGER NOT NULL DEFAULT 0,
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  revoked_at INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS workspace_invites_token ON workspace_invites(token_hash);
+CREATE INDEX IF NOT EXISTS workspace_invites_workspace ON workspace_invites(workspace_id, created_at);
+CREATE TABLE IF NOT EXISTS guest_sessions (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL UNIQUE,
+  workspace_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  revoked_at INTEGER,
+  created_at INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS guest_sessions_account ON guest_sessions(account_id);
+CREATE TABLE IF NOT EXISTS workspace_groups (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS workspace_groups_workspace ON workspace_groups(workspace_id);
+CREATE TABLE IF NOT EXISTS workspace_group_members (
+  group_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (group_id, account_id)
+);
+CREATE INDEX IF NOT EXISTS workspace_group_members_account ON workspace_group_members(account_id);
+CREATE TABLE IF NOT EXISTS record_owners (
+  workspace_id TEXT NOT NULL,
+  collection TEXT NOT NULL,
+  record_id TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, collection, record_id)
+);
+CREATE TABLE IF NOT EXISTS sync_ops (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id TEXT NOT NULL,
+  collection TEXT NOT NULL,
+  record_id TEXT NOT NULL,
+  field TEXT NOT NULL,
+  value_json TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  author_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sync_ops_ws ON sync_ops(workspace_id, id);
+CREATE TABLE IF NOT EXISTS resource_policies (
+  workspace_id TEXT NOT NULL,
+  collection TEXT NOT NULL,
+  record_id TEXT NOT NULL,
+  ownership TEXT NOT NULL,
+  owner_account_id TEXT NOT NULL,
+  access_mode TEXT NOT NULL,
+  member_default_role TEXT NOT NULL DEFAULT 'viewer',
+  parent_collection TEXT NOT NULL DEFAULT '',
+  parent_record_id TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, collection, record_id)
+);
+CREATE INDEX IF NOT EXISTS resource_policies_parent
+  ON resource_policies(workspace_id, parent_collection, parent_record_id);
+CREATE TABLE IF NOT EXISTS record_grants (
+  workspace_id TEXT NOT NULL,
+  collection TEXT NOT NULL,
+  record_id TEXT NOT NULL,
+  subject_type TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  granted_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, collection, record_id, subject_type, subject_id)
+);
+CREATE INDEX IF NOT EXISTS record_grants_subject
+  ON record_grants(workspace_id, subject_type, subject_id);
+CREATE TABLE IF NOT EXISTS edit_locks (
+  workspace_id TEXT NOT NULL,
+  collection TEXT NOT NULL,
+  record_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, collection, record_id)
+);
+CREATE TABLE IF NOT EXISTS presence (
+  workspace_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  collection TEXT NOT NULL DEFAULT '',
+  record_id TEXT NOT NULL DEFAULT '',
+  seen_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, account_id)
+);
+CREATE TABLE IF NOT EXISTS collab_state (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
 );
 `
 

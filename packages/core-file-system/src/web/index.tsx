@@ -17,7 +17,7 @@ import {
   bootLoadCollections,
   collectionNavKey,
 } from './nav-boot.ts'
-import { defaultViewId, pullSavedViews, pushAllSavedViews } from './view-storage.ts'
+import { defaultViewId, pullSavedViews } from './view-storage.ts'
 import { DATA_MODULE, DATA_MODULE_ID, DATA_MODULE_PATH, FACETS_COLLECTION_PATH, PAGE_BLOCKS_COLLECTION_PATH, VIEWS_COLLECTION_PATH, sortDataCollections } from './database-path.ts'
 import { pickMainDataRoute, readMainDataRoute, writeMainDataRoute } from './main-data-route.ts'
 import { facetsChrome } from './facet-chrome.tsx'
@@ -65,12 +65,17 @@ function CollectionPage(props: SlotProps) {
     const { user, system } = sortDataCollections(tables)
     return [...user, ...system]
   }, [tables])
+  const tablePathsKey = orderedTables.map((table) => table.path).join('\0')
   const ui = getDatabaseUi()
   const location = useLocation()
   const navigate = useNavigate()
   const [expandedViewKey, setExpandedViewKey] = useState<string | null>(null)
   const parsed = useMemo(() => parseAppPath(location.pathname, [DATA_MODULE]), [location.pathname])
   const dataHome = parsed.kind === 'module' && parsed.moduleId === DATA_MODULE_ID
+  const scopeHome = useMemo(() => {
+    if (!dataHome) return false
+    return new URLSearchParams(location.search).get('home') === 'user'
+  }, [dataHome, location.search])
   const storedHome = useMemo(
     () => (dataHome ? pickMainDataRoute(readMainDataRoute(), orderedTables) : ''),
     [dataHome, orderedTables],
@@ -120,8 +125,11 @@ function CollectionPage(props: SlotProps) {
   }
 
   useEffect(() => {
-    void pullSavedViews().then(() => pushAllSavedViews())
-  }, [])
+    if (!orderedTables.length) return
+    void pullSavedViews(orderedTables.map((table) => table.path)).then(() => {
+      window.dispatchEvent(new CustomEvent('fsdb:change', { detail: { views: true } }))
+    })
+  }, [tablePathsKey])
 
   useEffect(() => {
     if (isLegacyDatabasePath(location.pathname) && (parsed.kind === 'collection-view' || parsed.kind === 'record')) {
@@ -143,6 +151,7 @@ function CollectionPage(props: SlotProps) {
   useLayoutEffect(() => {
     if (!orderedTables.length) return
     if (!dataHome) return
+    if (scopeHome) return
     const stored = pickMainDataRoute(readMainDataRoute(), orderedTables)
     if (stored) {
       navigate(stored, { replace: true })
@@ -150,7 +159,7 @@ function CollectionPage(props: SlotProps) {
     }
     const first = orderedTables[0]!
     go({ collection: first.path, viewId: builtinAllViewId(first.path) }, { replace: true })
-  }, [dataHome, orderedTables])
+  }, [dataHome, orderedTables, scopeHome])
 
   useEffect(() => {
     if (parsed.kind !== 'collection-view' || parsed.viewId || recordFromRoute) return
@@ -181,6 +190,8 @@ function CollectionPage(props: SlotProps) {
       routeViewId={viewFromRoute}
       expandedViewKey={expandedViewKey}
       onExpandedViewKeyChange={setExpandedViewKey}
+      scopeHome={scopeHome}
+      onOpenScopeHome={() => navigate(`${DATA_MODULE_PATH}?home=user`)}
       onOpenTable={(path, viewId) =>
           go({
             collection: path,

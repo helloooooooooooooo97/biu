@@ -308,6 +308,11 @@ export class SessionViewService extends Service {
     void this.refreshSessions()
     void this.refreshApprovals()
     this.ctx.effect(() => () => this.stopDispatchedPoll())
+    if (typeof window !== 'undefined') {
+      const onLibrary = () => this.scheduleRefreshSessions()
+      window.addEventListener('fsdb:change', onLibrary)
+      this.ctx.effect(() => () => window.removeEventListener('fsdb:change', onLibrary))
+    }
   }
 
   private buildNodes(events: SessionEvent[], byTurn = this.value.dispatchedUsageByTurn) {
@@ -685,10 +690,10 @@ export class SessionViewService extends Service {
       const sessionsChanged = !sessionsEqual(this.value.sessions, next)
       if (!sessionsChanged && !busySessions) return
       const patch: Partial<SessionViewState> = {}
+      const currentId = this.value.sessionId
       if (sessionsChanged) patch.sessions = next
       if (busySessions) {
         patch.busySessions = busySessions
-        const currentId = this.value.sessionId
         if (currentId) {
           const running = Boolean(busySessions[currentId])
           patch.agentStatus = running ? 'running' : 'idle'
@@ -696,6 +701,9 @@ export class SessionViewService extends Service {
         }
       }
       this.replace(patch)
+      if (sessionsChanged && currentId && !next.some((item) => item.id === currentId)) {
+        await this.leaveMissingSession(currentId)
+      }
     } catch {
       /* host 未就绪时忽略 */
     }

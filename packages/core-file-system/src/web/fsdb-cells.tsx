@@ -32,6 +32,7 @@ import { actionVisibleToUser, asAttachmentList, asHttpHref, asImageSrc, asImageS
 import type { CollectionRowViewType, CollectionViewType } from '@biu/type-file-system/ui'
 import {
   asStringList,
+  enumDisplayLabel,
   formatField,
   isRecordLinkField,
   matchActionWhen,
@@ -359,7 +360,7 @@ export function DefaultCell({
     return (
       <TagChips>
         {tags.map((tag) => (
-          <TagChip key={tag} id={tag} label={tag} />
+          <TagChip key={tag} id={tag} label={enumDisplayLabel(field, tag)} />
         ))}
       </TagChips>
     )
@@ -451,11 +452,13 @@ export function FieldEditor({
   }
   if (kind === 'select' || kind === 'multi-select') {
     const selected = kind === 'multi-select' ? asStringList(value) : value ? [value] : []
-    const list = [...new Set([...(options ?? []), ...selected])].filter(Boolean)
+    const values = field.enum?.length ? field.enum : [...new Set([...(options ?? []), ...selected])].filter(Boolean)
+    const list = values.map((item) => ({ value: item, label: enumDisplayLabel(field, item) }))
     return (
       <TokenMultiSelect
         values={selected}
         options={list}
+        allowCreate={!field.enum?.length}
         multiple={kind === 'multi-select'}
         autoOpen={autoOpen}
         onChange={(next) => onChange(kind === 'multi-select' ? next.join(', ') : (next[0] ?? ''))}

@@ -57,6 +57,7 @@ import {
   fieldEntries,
   flattenTree,
   formatField,
+  fieldValueOptions,
   groupField,
   groupRecords,
   groupableFields,
@@ -77,6 +78,7 @@ import {
 import { DbMenu, DbSearchOption } from '@biu/database-ui'
 import { AppDialog, CellSelect, CheckRow, LocalText } from './controls.tsx'
 import { DataSidebar } from './data-sidebar.tsx'
+import { ScopeOverview } from './scope-overview.tsx'
 import { buildCrumbs, type CrumbTarget } from './sidebar-nav.ts'
 import { CrumbTrail } from './crumb-trail.tsx'
 import { fieldPickAttrs, pickDomAttrs, recordPickKind, recordSourcePath } from './pick-dom.ts'
@@ -104,6 +106,7 @@ import { ensureFsdbStyle } from './fsdb-style.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { PageBanner } from './page-banner.tsx'
 import { TableGlyph, ViewModeGlyph } from './nav-glyphs.tsx'
+import { isSystemCollection } from './database-path.ts'
 import { countFittingViewTabs, splitVisibleViews } from './view-tabs.ts'
 import { getPick } from '@biu/core-pick/web'
 import { getDatabaseUi } from './database-ui.ts'
@@ -138,7 +141,7 @@ import { HttpError, listCollection, readJson } from './db-client.ts'
 import { savedViewRecordPath } from '../paths.ts'
 import { findViewNeighbor, indexOnPage } from './view-adjacent.ts'
 import { rememberPreviewTotal, viewTotalKey } from './sidebar-preview.ts'
-import { catalogLockFilters, isReadOnlyViewId, mergeTableViews, stubBuiltinBlockKindView } from '../catalog-views.ts'
+import { catalogLockFilters, isReadOnlyViewId, mergeTableViews, parseBuiltinScopeViewId, stubBuiltinBlockKindView, viewsForScope, type DataScope } from '../catalog-views.ts'
 import { SAVED_VIEW_EVENT, showRecordInInspector } from './inspector-db-route.ts'
 import { SchemaChips, SchemaFieldEditor, schemaTagTone } from './schema-field.tsx'
 import { CellPop, cellUsesPop } from './cell-pop.tsx'
@@ -492,6 +495,8 @@ export function CollectionBrowser({
   onOpenRecord,
   onCloseRecord,
   onCrumbTarget,
+  scopeHome,
+  onOpenScopeHome,
   embed = false,
   sheet = false,
   onOpenRow,
@@ -513,6 +518,8 @@ export function CollectionBrowser({
   onOpenRecord?: (recordId: string, viewId?: string | null, collection?: string) => void
   onCloseRecord?: () => void
   onCrumbTarget?: (target: CrumbTarget) => void
+  scopeHome?: boolean
+  onOpenScopeHome?: () => void
   /** 检查器内页：只有中间舞台，不写侧栏开关/视图存储。 */
   embed?: boolean
   /** 嵌在详情里的收集表：用同一套表组件，但不写视图、不出现视图切换。 */
@@ -523,13 +530,24 @@ export function CollectionBrowser({
 }) {
   ensureFsdbStyle()
   const nested = embed || sheet
+  const routeScope: DataScope | null = (() => {
+    const builtin = routeViewId ? parseBuiltinScopeViewId(routeViewId) : null
+    if (builtin) return builtin.scope
+    const stored = routeViewId ? loadViews(collectionPath).find((view) => view.id === routeViewId && !view.builtin) : null
+    const scope = stored?.filters?.$scope
+    return scope === 'workspace' ? 'workspace' : stored ? 'personal' : null
+  })()
   const listedViews = (path: string, user: SavedView[]) => {
-    if (resolveViews) return resolveViews(path, user)
-    const table = tables.find((item) => item.path === path) ?? {
-      path,
-      label: path === collectionPath ? title : path.replace(/^\//, ''),
-    }
-    return mergeTableViews(table, user)
+    const listed = resolveViews
+      ? resolveViews(path, user)
+      : mergeTableViews(
+          tables.find((item) => item.path === path) ?? {
+            path,
+            label: path === collectionPath ? title : path.replace(/^\//, ''),
+          },
+          user,
+        )
+    return listed
   }
   const dataPath = collectionPath
   const [stat, setStat] = useState<StatResult | null>(null)
@@ -673,6 +691,7 @@ export function CollectionBrowser({
   }, [chrome, columnKeys, customView, facetCatalog, groupBy, stat])
   const listColumnsKey = listColumns?.join('\0') ?? ''
   const [refreshing, setRefreshing] = useState(false)
+  const [createScope, setCreateScope] = useState<'personal' | 'workspace'>('personal')
   const [searchOpen, setSearchOpen] = useState(false)
   const [notice, setNotice] = useState('')
   const [pickedIds, setPickedIds] = useState<string[]>([])
@@ -1063,7 +1082,12 @@ export function CollectionBrowser({
         if (cancelled || !row?.id) return
         setDetailRow(row)
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        if (cancelled || !(error instanceof HttpError) || error.status !== 404) return
+        setOpenDetailId(null)
+        setDetailRow(null)
+        queueMicrotask(() => onCloseRecord?.())
+      })
     return () => {
       cancelled = true
     }
@@ -1406,13 +1430,13 @@ export function CollectionBrowser({
       if (path) contentConflicts.current.delete(path)
       openedContentPath.current = path
     }
-    if (!detailId) {
+    if (!detailId || detailRow?.id !== detailId) {
       contentGen.current += 1
       setDetailBody(null)
       return
     }
     pullDetailBody()
-  }, [collectionPath, dataPath, detailId, pullDetailBody])
+  }, [collectionPath, dataPath, detailId, detailRow, pullDetailBody])
 
   useEffect(() => {
     if (dlg?.kind !== 'rename') return
@@ -1518,7 +1542,7 @@ export function CollectionBrowser({
   }
   syncViewsRef.current = async () => {
     if (sheet) return
-    await pullSavedViews()
+    await pullSavedViews([collectionPath])
     const listed = listedViews(collectionPath, loadViews(collectionPath)).map((view) =>
       withViewDisplay(collectionPath, view),
     )
@@ -1571,16 +1595,23 @@ export function CollectionBrowser({
     return `${base} ${n}`
   }
 
-  function addEmptyView(path = collectionPath) {
+  function addEmptyView(path = collectionPath, scope?: DataScope) {
     const target = path || collectionPath
-    const listed = target === collectionPath ? views : loadViews(target)
+    const effectiveScope = scope ?? (target === collectionPath ? routeScope ?? undefined : undefined)
+    const stored = loadViews(target)
+    const allListed = listedViews(target, stored)
+    const listed = target === collectionPath
+      ? views
+      : effectiveScope
+        ? viewsForScope(allListed, effectiveScope)
+        : allListed
     const view: SavedView = {
       id: `${Date.now()}`,
       name: uniqueViewName('新视图', listed),
       mode: 'table',
       sortField: 'title',
       sortDir: 'asc',
-      filters: { ...catalogLocks },
+      filters: { ...catalogLocks, ...(effectiveScope ? { $scope: effectiveScope } : {}) },
       columns: target === collectionPath ? [...schemaDefaultKeys] : [],
       groupBy: '',
       tree: true,
@@ -1588,7 +1619,7 @@ export function CollectionBrowser({
       truncate: true,
       query: '',
     }
-    persistViewsFor(target, [...listed.filter((item) => !item.builtin), view])
+    persistViewsFor(target, [...stored.filter((item) => !item.builtin), view])
     if (target === collectionPath) {
       selectView(view)
       return
@@ -1845,7 +1876,7 @@ export function CollectionBrowser({
       const data = await readJson<{ items?: Array<{ value?: DbRecord }> }>('/api/db/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ path: dataPath, records: [{}] }),
+        body: JSON.stringify({ path: dataPath, records: [{}], scope: createScope }),
       })
       quietUntil.current = 0
       await reload()
@@ -2685,6 +2716,7 @@ export function CollectionBrowser({
           onRenameView={renameView}
           onDeleteView={deleteView}
           onAddView={addEmptyView}
+          onOpenScopeHome={onOpenScopeHome}
           onOpenRecord={(path, view, recordId, row) => {
             if (path === collectionPath) {
               applyView(view)
@@ -2698,6 +2730,13 @@ export function CollectionBrowser({
           onCollapse={toggleViewsOpen}
         />
       ) : null}
+      {scopeHome && !nested ? (
+        <ScopeOverview
+          tables={tables}
+          onOpenTable={(path, viewId) => onOpenTable?.(path, viewId)}
+          onOpenRecord={(path, viewId, recordId) => onOpenRecord?.(recordId, viewId, path)}
+        />
+      ) : (
       <div className="fsdb-right">
         {nested ? null : (
         <header className="chat-view-header" data-biu-ignore>
@@ -2746,6 +2785,7 @@ export function CollectionBrowser({
                 <StarIcon aria-hidden className={`size-4${viewStarred ? ' text-[#f5b700]' : ''}`} />
               </button>
             ) : null}
+            {isSystemCollection(collectionPath) ? null : (
             <ShareButton
               target={
                 detailId
@@ -2766,6 +2806,7 @@ export function CollectionBrowser({
                     : null
               }
             />
+            )}
             <div className="fsdb-layout-wrap" ref={layoutRef}>
               <button
                 type="button"
@@ -3114,7 +3155,7 @@ export function CollectionBrowser({
                             value: option,
                             label: loadFacets().find((tag) => tag.id === option)?.label ?? option,
                           }))
-                        : uniqueValues(items, item.key, item.field).map((option) => ({ value: option, label: option }))
+                        : fieldValueOptions(items, item.key, item.field)
                   }
                   onChange={setFilterTree}
                 />
@@ -3261,16 +3302,28 @@ export function CollectionBrowser({
               ) : null}
             </div>
             {canCreate ? (
-              <button
-                type="button"
-                className="fsdb-create-btn"
-                aria-label="新建记录"
-                title="新建"
-                onClick={() => void createRecord()}
-              >
-                <PlusIcon aria-hidden className="size-[14px]" />
-                新建
-              </button>
+              <div className="flex items-center gap-1">
+                <select
+                  className="tasks-refresh tasks-rbar-btn min-w-auto px-1"
+                  aria-label="新建数据归属"
+                  title={createScope === 'personal' ? '私人：仅自己和被授权成员可见' : '空间：空间成员可查看'}
+                  value={createScope}
+                  onChange={(event) => setCreateScope(event.target.value === 'workspace' ? 'workspace' : 'personal')}
+                >
+                  <option value="personal">私人</option>
+                  <option value="workspace">空间</option>
+                </select>
+                <button
+                  type="button"
+                  className="fsdb-create-btn"
+                  aria-label={`新建${createScope === 'personal' ? '私人' : '空间'}记录`}
+                  title={`新建${createScope === 'personal' ? '私人' : '空间'}记录`}
+                  onClick={() => void createRecord()}
+                >
+                  <PlusIcon aria-hidden className="size-[14px]" />
+                  新建
+                </button>
+              </div>
             ) : null}
           </div>
         </div>
@@ -3539,6 +3592,7 @@ export function CollectionBrowser({
         </div>
         </div>
       </div>
+      )}
       {dlg?.kind === 'rename' ? (
         <AppDialog
           key={dlg.view.id}

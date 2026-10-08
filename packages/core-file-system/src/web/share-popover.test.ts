@@ -34,3 +34,17 @@ test('share panel uses a settings section and custom toggles', () => {
   assert.match(css, /\.fsdb-share-toggle\.is-on/)
   assert.match(css, /\.fsdb-share-link-row/)
 })
+
+test('private records can grant access to a dynamic member view', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './share-popover.tsx'), 'utf8')
+  assert.match(src, /memberViewId/)
+  assert.match(src, /data-testid="fsdb-share-member-view"/)
+  assert.match(src, /按视图动态授权/)
+  assert.match(src, /视图条件变化会立即生效/)
+})
+
+test('share panel no longer offers member-group grants', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './share-popover.tsx'), 'utf8')
+  assert.doesNotMatch(src, /availableGroups|groupId|添加成员组/)
+  assert.doesNotMatch(src, /\/groups`\)/)
+})

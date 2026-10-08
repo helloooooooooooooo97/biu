@@ -20,7 +20,8 @@ import {
 } from './plugin-create.ts'
 import { parseStoreShell, requireDeclaredShell, type StoreShell } from '../shell.ts'
 import {
-  DATA_DIR_NAME,
+  assetsRootPath,
+  biuSqlitePath,
   copyReferencedEditorAssets,
   openAndMigrateBiu,
   readEditorContent,
@@ -313,12 +314,11 @@ export class PluginStoreService extends Service {
     if (webEntry) await writeFile(join(dest, 'web.js'), await bundleStoreEntry(webEntry, 'web'))
     else if (existsSync(join(dest, 'web.js'))) await rm(join(dest, 'web.js'))
     copyPluginRuntimeDependencies(sandbox, dest)
-    const workspace = dirname(this.sandboxDir)
     let readme = await this.readReadme(id)
     if (!readme.trim()) readme = `# ${manifest.name}\n\n${manifest.blurb.trim()}\n`
     const packed = copyReferencedEditorAssets({
       body: readme,
-      assetsDir: join(workspace, DATA_DIR_NAME, 'assets'),
+      assetsDir: assetsRootPath(),
       destDir: dest,
     })
     await writeFile(join(dest, README_FILE), packed)
@@ -466,8 +466,7 @@ export class PluginStoreService extends Service {
   }
 
   async readReadme(id: string) {
-    const workspace = dirname(this.sandboxDir)
-    const sqlitePath = join(workspace, DATA_DIR_NAME, 'biu.sqlite')
+    const sqlitePath = biuSqlitePath()
     if (existsSync(sqlitePath)) {
       try {
         const db = openAndMigrateBiu(sqlitePath)
@@ -494,9 +493,9 @@ export class PluginStoreService extends Service {
 
   async writeReadme(id: string, markdown: string) {
     const text = String(markdown ?? '')
-    const workspace = dirname(this.sandboxDir)
-    mkdirSync(join(workspace, DATA_DIR_NAME), { recursive: true })
-    const db = openAndMigrateBiu(join(workspace, DATA_DIR_NAME, 'biu.sqlite'))
+    const sqlitePath = biuSqlitePath()
+    mkdirSync(dirname(sqlitePath), { recursive: true })
+    const db = openAndMigrateBiu(sqlitePath)
     try {
       writeEditorContent(db, '/plugins', id, text)
     } finally {

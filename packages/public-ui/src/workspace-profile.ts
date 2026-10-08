@@ -51,9 +51,18 @@ export function profileDisplayName(profile = readWorkspaceProfile()) {
   return profile.name.trim() || '用户'
 }
 
+function accountToken() {
+  if (typeof localStorage === 'undefined') return ''
+  return localStorage.getItem('biu.account.token') ?? ''
+}
+
 export async function hydrateWorkspaceProfile() {
+  const token = accountToken()
+  if (!token) return writeWorkspaceProfile(EMPTY)
   try {
-    const res = await fetch('/api/profile')
+    const res = await fetch('/api/account/workspace-profile', {
+      headers: { authorization: `Bearer ${token}` },
+    })
     if (!res.ok) return readWorkspaceProfile()
     const data = (await res.json()) as Partial<WorkspaceProfile>
     const next = parse(data)
@@ -67,10 +76,15 @@ export async function hydrateWorkspaceProfile() {
 
 export async function persistWorkspaceProfile(next: WorkspaceProfile) {
   const saved = writeWorkspaceProfile(next)
+  const token = accountToken()
+  if (!token) return saved
   try {
-    await fetch('/api/profile', {
+    await fetch('/api/account/workspace-profile', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify(saved),
     })
   } catch {

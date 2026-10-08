@@ -7,6 +7,7 @@ import { Service, type Context } from 'cordis'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { HUB_CHANGE } from '@biu/type-http'
 import type { Method, RouteContext, RouteHandler } from '@biu/type-http'
+import { profilePath, runWithAccount } from '@biu/host-plugin-loader/data-dir'
 import { isShareApiPath, isSharePublicPath } from './share-gate.ts'
 
 interface Route {
@@ -91,7 +92,7 @@ function defaultPublicDir() {
 
 function documentTheme(): 'light' | 'dark' {
   try {
-    const file = process.env.BIU_PROFILE || join(process.env.BIU_HOME || process.cwd(), '.biu', 'profile.json')
+    const file = profilePath()
     const raw = JSON.parse(readFileSync(file, 'utf8')) as { theme?: unknown }
     if (raw.theme === 'dark' || raw.theme === 'light') return raw.theme
   } catch {
@@ -335,7 +336,44 @@ export class HttpService extends Service {
       }
       const started = Date.now()
       try {
-        await match.handler(context)
+        const header = String(req.headers.authorization ?? '')
+        const bearerToken = /^Bearer\s+(\S+)$/i.exec(header)?.[1] ?? ''
+        const cookie = String(req.headers.cookie ?? '')
+        const encoded = cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith('biu_account='))
+        const legacyEncoded = cookie
+          .split(';')
+          .map((part) => part.trim())
+          .find((part) => part.startsWith('biu_legacy_account='))
+        const accountToken = encoded ? decodeURIComponent(encoded.slice('biu_account='.length)) : ''
+        const legacyToken = legacyEncoded ? decodeURIComponent(legacyEncoded.slice('biu_legacy_account='.length)) : ''
+        const token = bearerToken || accountToken || legacyToken
+        let accountId = ''
+        if (token) {
+          try {
+            const store = (this.ctx.get('account') as { store?: { accountByToken(token: string): { id: string } | null } } | undefined)?.store
+            accountId = store?.accountByToken(token)?.id ?? ''
+          } catch {
+            accountId = ''
+          }
+        }
+        if (accountId && legacyToken && !accountToken) {
+          res.setHeader('set-cookie', [
+            `biu_account=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict`,
+            'biu_legacy_account=; Path=/; SameSite=Strict; Max-Age=0',
+          ])
+        }
+        const hasAccountSystem = Boolean(
+          (this.ctx.get('account') as { store?: { accountByToken?: unknown } } | undefined)?.store?.accountByToken,
+        )
+        const publicApi =
+          url.pathname.startsWith('/api/account/') ||
+          url.pathname.startsWith('/api/share/') ||
+          (method === 'GET' && url.pathname.startsWith('/api/plugin-store/files/'))
+        if (hasAccountSystem && url.pathname.startsWith('/api/') && !publicApi && !accountId) {
+          context.send(401, { error: '需要登录' })
+          return
+        }
+        await runWithAccount(accountId, () => match.handler(context))
       } catch (error) {
         this.ctx.logger('http').error(error)
         if (!res.headersSent) context.send(500, { error: String(error) })

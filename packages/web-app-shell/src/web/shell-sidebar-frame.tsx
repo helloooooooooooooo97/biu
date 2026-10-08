@@ -1,8 +1,7 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from '@heroicons/react/16/solid'
-import { SidebarBrandLockup } from '@biu/public-mascot'
 import { chromeIcon } from './chrome-icon.ts'
-import { ShellSidePlaces } from './shell-chrome.tsx'
+import { ShellSidePlaces, ShellWorkspaceSwitcher } from './shell-chrome.tsx'
 import {
   isSidebarFlyoutKeepTarget,
   isSidebarFlyoutIgnoreTarget,
@@ -21,7 +20,7 @@ export type ShellSidebarFrameProps = {
   testId?: string
   activeId?: string
   agentHref?: string
-  onSettings?: () => void
+  onSettings?: (tab?: string) => void
   onSearch?: () => void
   searchOpen?: boolean
   children: ReactNode
@@ -159,7 +158,9 @@ export const ShellSidebarFrame = memo(function ShellSidebarFrame({
         />
       ) : null}
       <div className="app-side-bar-head app-side-bar-head-brand" data-biu-ignore>
-        <SidebarBrandLockup />
+        <div className="shell-workspace-head">
+          <ShellWorkspaceSwitcher onWorkspaceSettings={() => onSettings?.('workspace')} />
+        </div>
         {!visible || narrow ? (
           <button
             type="button"
@@ -189,7 +190,7 @@ export const ShellSidebarFrame = memo(function ShellSidebarFrame({
           <ShellSidePlaces
             activeId={activeId}
             agentHref={agentHref}
-            onSettings={onSettings}
+            onSettings={() => onSettings()}
             onSearch={onSearch}
             searchOpen={searchOpen}
           />

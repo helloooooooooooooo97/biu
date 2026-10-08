@@ -3,15 +3,19 @@ import assert from 'node:assert/strict'
 import { Context, Service } from 'cordis'
 import * as tools from '@biu/host-tools'
 import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { DatabaseService, apply as applyFileSystem } from './index.ts'
+import { DatabaseService, apply as applyFileSystem, databaseHttpFailure } from './index.ts'
 import { FileSystemAssets } from './assets-store.ts'
-import type { CollectionSpec } from '@biu/type-file-system'
+import type { CollectionSpec, DbRecord } from '@biu/type-file-system'
 import { REQUIRED_RECORD_FIELDS } from '@biu/type-file-system'
 import { facetsCollection } from './facets-collection.ts'
 import { trashCollection } from './trash-collection.ts'
 import { runWithSession } from '@biu/host-sessions/scope'
+import { openAndMigrateBiu, runWithAccount } from '@biu/host-plugin-loader/data-dir'
+import { CollabStore } from '@biu/host-account/store'
+import { workspaceMembersCollection } from '@biu/host-account/workspace-members-collection'
 import { builtinAllViewId } from '../catalog-views.ts'
 import { savedViewRecordPath } from '../paths.ts'
 
@@ -58,6 +62,21 @@ function notesCollection(): CollectionSpec {
   }
 }
 
+test('database HTTP failures distinguish missing resources from bad requests', () => {
+  assert.deepEqual(databaseHttpFailure(new Error('unknown record: /pages/p008')), {
+    status: 404,
+    body: { error: 'not found', code: 'NOT_FOUND' },
+  })
+  assert.deepEqual(databaseHttpFailure(new Error('permission denied: INSUFFICIENT_PERMISSION')), {
+    status: 403,
+    body: { error: 'permission denied', code: 'FORBIDDEN' },
+  })
+  assert.deepEqual(databaseHttpFailure(new Error('cannot read: /pages/p008/child')), {
+    status: 400,
+    body: { error: 'Error: cannot read: /pages/p008/child', code: 'BAD_REQUEST' },
+  })
+})
+
 test('root lists registered collections; record read/update follows schema', async () => {
   const ctx = new Context()
   const db = new DatabaseService(ctx)
@@ -100,6 +119,7 @@ test('root lists registered collections; record read/update follows schema', asy
 
   const written = await db.update('/notes/n1', { status: 'done' })
   assert.equal(written.value.status, 'done')
+  await assert.rejects(() => db.update('/notes/n1', { status: 'invalid' }), /value not in enum/)
   await assert.rejects(() => db.update('/notes/n1', { pinned: true }), /not writable/)
   await assert.rejects(() => db.update('/notes/n1', { nope: 1 }), /unknown field/)
 })
@@ -1627,4 +1647,208 @@ test('tables without records.create/delete reject create and delete', async () =
       }),
     /必须提供 create/,
   )
+})
+
+test('db tools follow the same workspace boundary as the file-system UI', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.register(notesCollection())
+  let active = 'ws-b'
+  const home = 'ws-home'
+  const mine = new Set<string>()
+  const any = new Set(['/notes\tn1'])
+  class FakeAccount extends Service {
+    store = {
+      activeWorkspaceId: () => active,
+      homeWorkspaceId: () => home,
+      membership: () => ({ active, home, mine, any }),
+      attach() {},
+    }
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(FakeAccount)
+
+  const hidden = await db.list('/notes')
+  assert.equal(hidden.kind, 'collection')
+  if (hidden.kind === 'collection') assert.deepEqual(hidden.items.map((item) => item.id), [])
+  for (const op of [
+    () => db.read('/notes/n1'),
+    () => db.update('/notes/n1', { status: 'done' }),
+    () => db.stat('/notes/n1'),
+    () => db.content('/notes/n1'),
+    () => db.editContent('/notes/n1', { command: 'view' }),
+    () => db.editAsset('/notes/n1'),
+    () => db.editDoc('/notes/n1'),
+    () => db.action('/notes/n1', 'pin'),
+  ]) {
+    await assert.rejects(op, /unknown record/)
+  }
+  mine.add('/notes\tn1')
+  const own = await db.read('/notes/n1')
+  assert.equal(own.kind, 'record')
+  mine.delete('/notes\tn1')
+  db.facets.markDeleted('/notes', 'n1')
+  const restored = await db.restore('/notes', { ids: ['n1'] })
+  assert.equal(restored.kind, 'restored')
+  if (restored.kind === 'restored') assert.deepEqual(restored.ids, [])
+  const bin = await db.listTrash()
+  assert.deepEqual(bin.items.map((item) => item.id), [])
+
+  active = home
+  const homeList = await db.list('/notes')
+  if (homeList.kind === 'collection') assert.deepEqual(homeList.items.map((item) => item.id), ['n2'])
+})
+
+test('file-system CRUD uses the unified account authorization decision', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.register(notesCollection())
+  const dir = mkdtempSync(join(tmpdir(), 'biu-db-authz-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'bob@example.com')
+  const workspace = collab.createWorkspace(ada.id, 'Shared')
+  collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+  collab.setActive(ada.id, workspace.id)
+  collab.setActive(bob.id, workspace.id)
+  runWithAccount(ada.id, () => collab.attach(workspace.id, '/notes', 'n1'))
+  runWithAccount(bob.id, () => collab.attach(workspace.id, '/notes', 'n2'))
+  collab.saveWorkspaceProfile(ada.id, { name: 'Ada 空间昵称', avatar: '' })
+
+  const adaList = await runWithAccount(ada.id, () => db.list('/notes'))
+  const bobList = await runWithAccount(bob.id, () => db.list('/notes'))
+  if (adaList.kind === 'collection') assert.deepEqual(adaList.items.map((row) => row.id), ['n1'])
+  if (bobList.kind === 'collection') assert.deepEqual(bobList.items.map((row) => row.id), ['n2'])
+  const stamped = await runWithAccount(ada.id, () => db.update('/notes/n1', { status: 'done' }))
+  assert.deepEqual(stamped.value.createdBy, { kind: 'user', name: 'Ada 空间昵称', accountId: ada.id })
+  assert.deepEqual(stamped.value.updatedBy, [{ kind: 'user', name: 'Ada 空间昵称', accountId: ada.id }])
+  await assert.rejects(
+    () => runWithAccount(bob.id, () => db.update('/notes/n1', { title: '偷改' })),
+    /unknown record/,
+  )
+  db.facets.replaceContentRefs('/notes', 'n1', ['private.png'])
+  assert.doesNotThrow(() => runWithAccount(ada.id, () => db.requireAsset('private.png', 'resource:read')))
+  assert.throws(
+    () => runWithAccount(bob.id, () => db.requireAsset('private.png', 'resource:read')),
+    /permission denied/,
+  )
+  collab.authorization.grant(
+    ada.id,
+    { type: 'record', workspaceId: workspace.id, collection: '/notes', recordId: 'n1' },
+    'account',
+    bob.id,
+    'viewer',
+  )
+  assert.doesNotThrow(() => runWithAccount(bob.id, () => db.requireAsset('private.png', 'resource:read')))
+  assert.throws(
+    () => runWithAccount(bob.id, () => db.requireAsset('private.png', 'resource:update')),
+    /permission denied/,
+  )
+})
+
+test('create scope separates personal and workspace records and viewers stay read-only', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, DbRecord>()
+  let seq = 0
+  db.register({
+    id: 'docs',
+    path: '/docs',
+    schema: {
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+      },
+    },
+    records: { create: true, update: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: (records) => records.map((record) => {
+      const row = { id: `d${++seq}`, title: String(record.title ?? `Doc ${seq}`) }
+      rows.set(row.id, row)
+      return row
+    }),
+    update: (id, patch) => {
+      const row = { ...rows.get(id)!, ...patch, id }
+      rows.set(id, row)
+      return row
+    },
+  })
+  const dir = mkdtempSync(join(tmpdir(), 'biu-db-create-scope-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'scope-ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'scope-bob@example.com')
+  const workspace = collab.createWorkspace(ada.id, 'Scoped')
+  collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+  collab.setActive(ada.id, workspace.id)
+  collab.setActive(bob.id, workspace.id)
+
+  await runWithAccount(ada.id, () => db.create('/docs', [{ title: 'Private' }], { scope: 'personal' }))
+  await runWithAccount(ada.id, () => db.create('/docs', [{ title: 'Shared' }], { scope: 'workspace' }))
+  const personal = await runWithAccount(ada.id, () => db.list('/docs', { $scope: 'personal' }))
+  const shared = await runWithAccount(ada.id, () => db.list('/docs', { $scope: 'workspace' }))
+  assert.deepEqual(personal.items.map((row) => row.title), ['Private'])
+  assert.deepEqual(shared.items.map((row) => row.title), ['Shared'])
+  assert.deepEqual((await runWithAccount(bob.id, () => db.list('/docs'))).items.map((row) => row.title), ['Shared'])
+
+  collab.updateMemberRole(ada.id, workspace.id, bob.id, 'viewer')
+  const viewerStat = await runWithAccount(bob.id, () => db.stat('/docs'))
+  assert.equal(viewerStat.kind, 'collection')
+  if (viewerStat.kind === 'collection') {
+    assert.equal(viewerStat.schema.records?.create, false)
+    assert.equal(viewerStat.schema.fields.title?.writable, false)
+  }
+  await assert.rejects(
+    () => runWithAccount(bob.id, () => db.create('/docs', [{ title: 'Blocked' }], { scope: 'workspace' })),
+    /permission denied/,
+  )
+  await assert.rejects(
+    () => runWithAccount(bob.id, () => db.update('/docs/d2', { title: 'Blocked' })),
+    /unknown record/,
+  )
+})
+
+test('workspace member tags use file-system metadata instead of role updates', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const dir = mkdtempSync(join(tmpdir(), 'biu-member-tags-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  db.register(workspaceMembersCollection(collab))
+  const ada = collab.register('', Date.now(), 'secret1', 'ada-tags@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'bob-tags@example.com')
+  const workspace = collab.createWorkspace(ada.id, 'Tags')
+  collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+  collab.setActive(ada.id, workspace.id)
+
+  const updated = await runWithAccount(ada.id, () =>
+    db.update(`/workspace-members/${bob.id}`, { tags: ['213'] }),
+  )
+  assert.deepEqual(updated.value.tags, ['213'])
+  assert.equal(collab.members(ada.id, workspace.id).find((row) => row.id === bob.id)?.role, 'member')
 })
