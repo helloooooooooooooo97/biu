@@ -34,6 +34,13 @@ test('authoritative empty saved views hide stale local workspace data', () => {
   assert.deepEqual(loadViews(path), [])
 })
 
+test('index all views do not group by share', () => {
+  const all = builtinAllView({ path: '/page-blocks', label: '组件' })
+  assert.equal(all.groupBy, '')
+  assert.equal(withViewDisplay('/page-blocks', { ...all, groupBy: 'shareScope' }).groupBy, '')
+  assert.equal(builtinAllView({ path: '/tasks', label: '任务' }).groupBy, 'shareScope')
+})
+
 test('views collection still resolves catalog stubs from the route', () => {
   assert.equal(viewForPath(VIEWS_COLLECTION_PATH, 'builtin:/events')?.filters.tablePath, '/events')
   assert.equal(viewForPath(VIEWS_COLLECTION_PATH, builtinCatalogViewId('/events'))?.id, builtinCatalogViewId('/events'))

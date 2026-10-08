@@ -23,7 +23,7 @@ test('embedded record details can share their explicit record target', () => {
   assert.match(style, /\.fsdb-detail-more-menu\.has-share/)
   assert.match(style, /\.fsdb-detail-more-caret/)
   assert.doesNotMatch(browser, /\{nested \? null : \(\s*<ShareButton/)
-  assert.match(browser, /isSystemCollection\(collectionPath\) \? null : \(\s*<ShareButton/)
+  assert.match(browser, /isSystemCollection\(collectionPath\) \|\| isIndexCollection\(collectionPath\) \? null : \(\s*<ShareButton/)
   assert.doesNotMatch(browser, /buttonClassName="fsdb-detail-float-btn"/)
 })
 
@@ -67,6 +67,8 @@ test('user and system collection sections fold independently', () => {
   assert.doesNotMatch(sidebar, /\{systemOpen \?/)
   assert.doesNotMatch(sidebar, /\{favOpen \?/)
   assert.match(sidebar, />用户数据</)
+  assert.match(sidebar, />索引数据</)
+  assert.match(sidebar, /data-testid="sidebar-index-collections"/)
   assert.match(sidebar, />系统数据</)
   assert.match(sidebar, /sidebar-user-collections/)
   assert.match(sidebar, /renderTableRows\(userTables, 'user'\)/)

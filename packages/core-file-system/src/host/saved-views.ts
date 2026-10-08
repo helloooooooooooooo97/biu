@@ -7,6 +7,7 @@ import { builtinAllView, isReadOnlyViewId } from '../catalog-views.ts'
 import { normalizeColumnWidths, type SavedView } from '../web/saved-view.ts'
 import { isViewModeId } from '../web/fields.ts'
 import { normalizeCollectionPath } from '../paths.ts'
+import { isIndexCollection } from '../web/database-path.ts'
 import {
   countFilterRules,
   flatFiltersToTree,
@@ -22,7 +23,7 @@ import {
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 
-export type StoredView = Partial<SavedView> & Pick<SavedView, 'id' | 'name'>
+export type StoredView = Partial<SavedView> & Pick<SavedView, 'id' | 'name'> & { createdBy?: string }
 
 type ViewRow = { collection: string; payload_json: string }
 
@@ -83,8 +84,23 @@ export class SavedViewsStore {
     }
   }
 
-  viewsFor(collectionPath: string): StoredView[] {
-    return this.byPath.get(normalizeCollectionPath(collectionPath)) ?? []
+  viewsFor(collectionPath: string, accountId = ''): StoredView[] {
+    const views = this.byPath.get(normalizeCollectionPath(collectionPath)) ?? []
+    if (!isIndexCollection(collectionPath)) return views
+    return views.filter((view) => view.createdBy === accountId)
+  }
+
+  /** 索引表上的视图按创建人分开存：这次写入只替换当前账号自己的视图。 */
+  replaceOwned(collectionPath: string, views: StoredView[], accountId: string) {
+    const path = normalizeCollectionPath(collectionPath)
+    const prev = this.byPath.get(path) ?? []
+    const kept = prev.filter((view) => view.createdBy && view.createdBy !== accountId)
+    const foreign = new Set(kept.map((view) => view.id))
+    const mine = views
+      .filter((view) => !view.builtin && !isReadOnlyViewId(String(view.id)) && !foreign.has(String(view.id)))
+      .map((view) => ({ ...view, id: String(view.id), name: String(view.name || view.id), createdBy: accountId }))
+    this.byPath.set(path, [...kept, ...mine])
+    this.persistPath(path)
   }
 
   replace(collectionPath: string, views: StoredView[]) {
@@ -98,7 +114,7 @@ export class SavedViewsStore {
     this.persistPath(path)
   }
 
-  rows(tables: CollectionInfo[]): DbRecord[] {
+  rows(tables: CollectionInfo[], accountId = ''): DbRecord[] {
     const labels = new Map(tables.map((item) => [normalizeCollectionPath(item.path), item.view?.title ?? item.label]))
     const out: DbRecord[] = []
     const seen = new Set<string>()
@@ -116,6 +132,7 @@ export class SavedViewsStore {
       emit(path, label, all)
       for (const view of this.byPath.get(path) ?? []) {
         if (view.builtin || isReadOnlyViewId(view.id)) continue
+        if (isIndexCollection(path) && view.createdBy !== accountId) continue
         emit(path, label, view)
       }
     }
@@ -123,13 +140,14 @@ export class SavedViewsStore {
       if (tables.some((table) => normalizeCollectionPath(table.path) === path)) continue
       for (const view of views) {
         if (view.builtin || isReadOnlyViewId(view.id)) continue
+        if (isIndexCollection(path) && view.createdBy !== accountId) continue
         emit(path, labels.get(path) ?? path, view)
       }
     }
     return out.sort((a, b) => String(a.table).localeCompare(String(b.table)) || String(a.title).localeCompare(String(b.title)))
   }
 
-  create(fields: Record<string, unknown>, tables: CollectionInfo[]): DbRecord {
+  create(fields: Record<string, unknown>, tables: CollectionInfo[], accountId = ''): DbRecord {
     const tablePath = tablePathOf(fields)
     if (!tablePath || tablePath === '/' || tablePath === '/views') throw new Error('tablePath required')
     if (!tables.some((item) => normalizeCollectionPath(item.path) === tablePath)) {
@@ -160,15 +178,18 @@ export class SavedViewsStore {
       columnWidths: normalizeColumnWidths(fields.columnWidths),
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      ...(isIndexCollection(tablePath) ? { createdBy: accountId } : {}),
     }
     this.byPath.set(tablePath, [...views, view])
     this.persistPath(tablePath)
     return asRecord(tablePath, label, view)
   }
 
-  remove(id: string): boolean {
+  remove(id: string, accountId = ''): boolean {
     if (isReadOnlyViewId(viewIdOfRow(id))) throw new Error('builtin view is read-only')
     for (const [path, views] of this.byPath) {
+      const hit = views.find((view) => rowId(path, view.id) === id)
+      if (hit && isIndexCollection(path) && hit.createdBy !== accountId) throw new Error('unknown view: ' + id)
       const next = views.filter((view) => rowId(path, view.id) !== id)
       if (next.length === views.length) continue
       this.byPath.set(path, next)
@@ -178,13 +199,14 @@ export class SavedViewsStore {
     throw new Error(`unknown view: ${id}`)
   }
 
-  write(id: string, patch: Record<string, unknown>): DbRecord {
+  write(id: string, patch: Record<string, unknown>, accountId = ''): DbRecord {
     if (isReadOnlyViewId(viewIdOfRow(id))) throw new Error('builtin view is read-only')
     for (const [path, views] of this.byPath) {
       const idx = views.findIndex((view) => rowId(path, view.id) === id)
       if (idx < 0) continue
       const cur = views[idx]!
       if (cur.builtin || isReadOnlyViewId(cur.id)) throw new Error('builtin view is read-only')
+      if (isIndexCollection(path) && cur.createdBy !== accountId) throw new Error('unknown view: ' + id)
       const next: StoredView = {
         ...cur,
         ...(typeof patch.title === 'string' ? { name: patch.title } : {}),
@@ -338,8 +360,12 @@ export function clientViewFromDbRow(row: Record<string, unknown> | undefined) {
   }
 }
 
-export function viewsCollection(store: SavedViewsStore, tables: () => CollectionInfo[]): CollectionSpec {
-  const list = () => store.rows(tables())
+export function viewsCollection(
+  store: SavedViewsStore,
+  tables: () => CollectionInfo[],
+  accountId: () => string = () => '',
+): CollectionSpec {
+  const list = () => store.rows(tables(), accountId())
   return {
     id: 'views',
     path: '/views',
@@ -380,11 +406,11 @@ export function viewsCollection(store: SavedViewsStore, tables: () => Collection
     },
     list,
     get: (id) => list().find((row) => row.id === id) ?? null,
-    update: (id, patch) => store.write(id, patch),
-    create: (rows) => rows.map((fields) => store.create(fields, tables())),
+    update: (id, patch) => store.write(id, patch, accountId()),
+    create: (rows) => rows.map((fields) => store.create(fields, tables(), accountId())),
     remove: async (query) => {
       const ids = query.ids ?? []
-      for (const id of ids) store.remove(id)
+      for (const id of ids) store.remove(id, accountId())
       return ids
     },
   }

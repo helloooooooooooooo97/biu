@@ -1,4 +1,5 @@
-import { builtinAllViewId, stubBuiltinAllView, stubBuiltinBlockKindView, stubBuiltinCatalogView, stubBuiltinTagView, stubBuiltinScopeView, stubBuiltinMemberView, isReadOnlyViewId, isBuiltinAllViewForCollection } from '../catalog-views.ts'
+import { builtinAllViewId, stubBuiltinAllView, stubBuiltinBlockKindView, stubBuiltinCatalogView, stubBuiltinTagView, stubBuiltinScopeView, stubBuiltinMemberView, isReadOnlyViewId, isBuiltinAllViewForCollection, isBuiltinAllViewId } from '../catalog-views.ts'
+import { isIndexCollection } from './database-path.ts'
 import { listCollection } from './db-client.ts'
 import { looksLikeFilterTree, normalizeFilterGroup, parseSortsInput } from '../query-logic.ts'
 import { normalizeSavedView, type SavedView } from './saved-view.ts'
@@ -430,17 +431,22 @@ export function persistViewDisplay(collectionPath: string, viewId: string, patch
   }
 }
 
-/** 内置「全部 xx」不能当用户视图存整份，显示项（换行等）单独记。 */
+/** 内置「全部 xx」不能当用户视图存整份，显示项（换行等）单独记。索引表没有分享，全部视图不按分享分组。 */
 export function withViewDisplay(collectionPath: string, view: SavedView): SavedView {
   const overlay = loadViewDisplay(collectionPath, view.id)
-  if (!Object.keys(overlay).length) return normalizeSavedView(view)
+  const painted = Object.keys(overlay).length
+    ? {
+        ...view,
+        ...overlay,
+        id: view.id,
+        name: view.name,
+        builtin: view.builtin,
+        filters: view.filters,
+        filterTree: view.builtin ? overlay.filterTree ?? view.filterTree : view.filterTree,
+      }
+    : view
   return normalizeSavedView({
-    ...view,
-    ...overlay,
-    id: view.id,
-    name: view.name,
-    builtin: view.builtin,
-    filters: view.filters,
-    filterTree: view.builtin ? overlay.filterTree ?? view.filterTree : view.filterTree,
+    ...painted,
+    ...(isIndexCollection(collectionPath) && isBuiltinAllViewId(view.id) ? { groupBy: '' } : {}),
   })
 }

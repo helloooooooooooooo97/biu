@@ -135,3 +135,24 @@ test('clientViewFromDbRow keeps flat filters and sorts for the live table', () =
   assert.equal(view?.sorts[0]?.field, 'title')
   assert.equal(view?.sorts[0]?.dir, 'desc')
 })
+
+test('index collection views stay with the account that saved them', async () => {
+  const store = new SavedViewsStore()
+  store.open(':memory:')
+  store.replaceOwned('/facets', [{ id: 'ada-view', name: 'Ada 的合集' }], 'ada')
+  store.replaceOwned('/facets', [{ id: 'bob-view', name: 'Bob 的合集' }], 'bob')
+  store.replaceOwned('/facets', [{ id: 'ada-view', name: 'Ada 改过' }], 'ada')
+  let who = 'ada'
+  const spec = viewsCollection(
+    store,
+    () => [{ path: '/facets', id: 'facets', kind: 'collection', label: '合集', view: { moduleId: 'facets', route: '/facets', title: '合集' } }],
+    () => who,
+  )
+  const adaRows = await spec.list()
+  assert.deepEqual(adaRows.map((row) => row.viewId).filter((id) => id !== builtinAllViewId('/facets')), ['ada-view'])
+  assert.equal(adaRows.find((row) => row.viewId === 'ada-view')?.title, 'Ada 改过')
+  who = 'bob'
+  const bobRows = await spec.list()
+  assert.deepEqual(bobRows.map((row) => row.viewId).filter((id) => id !== builtinAllViewId('/facets')), ['bob-view'])
+  await assert.rejects(() => spec.remove!({ ids: ['facets::ada-view'] }), /unknown view/)
+})

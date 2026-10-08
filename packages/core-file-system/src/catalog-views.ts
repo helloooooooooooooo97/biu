@@ -210,7 +210,7 @@ export function builtinAllView(table: TableRef): SavedView {
     ...builtinViewLayout(),
     filters: {},
     columns: [],
-    groupBy: 'shareScope',
+    groupBy: path === '/page-blocks' || path === '/facets' ? '' : 'shareScope',
     wrap: false,
     truncate: true,
     query: '',

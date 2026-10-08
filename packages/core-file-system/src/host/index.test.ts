@@ -2088,3 +2088,81 @@ test('workspace member tags use file-system metadata instead of role updates', a
   assert.deepEqual(updated.value.tags, ['213'])
   assert.equal(collab.members(ada.id, workspace.id).find((row) => row.id === bob.id)?.role, 'member')
 })
+
+test('index rows follow the user records each person can read and omit share', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const pages = new Map<string, { id: string; title: string }>()
+  const blocks: Array<{ id: string; title: string; collection: string; pageId: string }> = []
+  db.register({
+    id: 'pages',
+    path: '/pages',
+    schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } } },
+    records: { create: true, update: true },
+    list: () => [...pages.values()],
+    get: (id) => pages.get(id) ?? null,
+    create: (records) => records.map((record) => {
+      const row = { id: `p${pages.size + 1}`, title: String(record.title ?? '') }
+      pages.set(row.id, row)
+      blocks.push({ id: `pages::${row.id}::b`, title: `${row.title}组件`, collection: '/pages', pageId: row.id })
+      return row
+    }),
+    update: (id, patch) => {
+      const row = { ...pages.get(id)!, ...patch, id }
+      pages.set(id, row)
+      return row
+    },
+  })
+  db.register({
+    id: 'page-blocks',
+    path: '/page-blocks',
+    schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string' }, collection: { type: 'string' }, pageId: { type: 'string' } } },
+    list: () => blocks,
+    get: (id) => blocks.find((row) => row.id === id) ?? null,
+  })
+  db.register(facetsCollection(db.facets, () => [{ id: 'pages', path: '/pages', label: '页面' }]))
+  const dir = mkdtempSync(join(tmpdir(), 'biu-db-index-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'index-ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'index-bob@example.com')
+  const workspace = collab.createWorkspace(ada.id, 'Index')
+  collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+  collab.setActive(ada.id, workspace.id)
+  collab.setActive(bob.id, workspace.id)
+
+  const personal = await runWithAccount(ada.id, () => db.create('/pages', [{ title: '私人' }], { scope: 'personal' }))
+  const shared = await runWithAccount(ada.id, () => db.create('/pages', [{ title: '空间' }], { scope: 'workspace' }))
+  const personalId = personal.items[0]!.value.id
+  const sharedId = shared.items[0]!.value.id
+  const hidden = await runWithAccount(ada.id, () => db.create('/facets', [{ title: '只贴私人' }]))
+  const shown = await runWithAccount(ada.id, () => db.create('/facets', [{ title: '贴在空间' }]))
+  const hiddenId = String(hidden.items[0]!.value.id)
+  const shownId = String(shown.items[0]!.value.id)
+  await runWithAccount(ada.id, () => db.update(`/pages/${personalId}`, { facet: { tags: [hiddenId], values: {} } }))
+  await runWithAccount(ada.id, () => db.update(`/pages/${sharedId}`, { facet: { tags: [shownId], values: {} } }))
+
+  const adaBlocks = await runWithAccount(ada.id, () => db.list('/page-blocks'))
+  const bobBlocks = await runWithAccount(bob.id, () => db.list('/page-blocks'))
+  assert.deepEqual(adaBlocks.items.map((row) => row.title).sort(), ['私人组件', '空间组件'])
+  assert.deepEqual(bobBlocks.items.map((row) => row.title), ['空间组件'])
+  assert.equal(adaBlocks.items[0]?.shareScope, undefined)
+  const blockStat = await runWithAccount(ada.id, () => db.stat('/page-blocks'))
+  if (blockStat.kind === 'collection') assert.equal(blockStat.schema.fields.shareScope, undefined)
+
+  const adaFacets = await runWithAccount(ada.id, () => db.list('/facets'))
+  const bobFacets = await runWithAccount(bob.id, () => db.list('/facets'))
+  assert.deepEqual(adaFacets.items.map((row) => row.id).sort(), [hiddenId, shownId].sort())
+  assert.deepEqual(bobFacets.items.map((row) => row.id), [shownId])
+  const bobStamps = await runWithAccount(bob.id, () => db.list('/facets', { facetId: hiddenId }))
+  assert.equal(bobStamps.items.length, 0)
+  const adaStamps = await runWithAccount(ada.id, () => db.list('/facets', { facetId: hiddenId }))
+  assert.equal(adaStamps.items.length, 1)
+})

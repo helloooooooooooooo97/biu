@@ -58,7 +58,7 @@ import { collectShareResources } from '../share-resources.ts'
 import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
 import { builtinAllView, builtinMemberViews, displayNameForView, isReadOnlyViewId, stubBuiltinAllView, stubBuiltinMemberView } from '../catalog-views.ts'
-import { isSystemCollection } from '../web/database-path.ts'
+import { isIndexCollection, isSystemCollection } from '../web/database-path.ts'
 import { effectiveDataScope, highestViewRole, recordMatchesGrantedView, type DataScopeName, type ViewGrantRole } from '../view-access.ts'
 import { buildShareSnapshot } from './share-payload.ts'
 import { FileSystemAssets, collectAssetNames, assetNamesFromMarkdown, assetNamesFromHtml, isAssetFileName, isHashedAssetName, mimeOfAsset, AssetConflictError, parseIfMatch } from './assets-store.ts'
@@ -150,7 +150,7 @@ function schemaFor(spec: CollectionSpec): CollectionSchema {
     fields[key] = field.computed ? { ...field, writable: false } : field
   }
   let columns = ensureColumn(ensureColumn(spec.schema.columns, 'facet'), 'tags')
-  if (!isSystemCollection(spec.path)) {
+  if (!isSystemCollection(spec.path) && !isIndexCollection(spec.path)) {
     fields.shareScope = {
       type: 'select',
       label: '分享',
@@ -784,6 +784,11 @@ export class DatabaseService extends Service implements Database {
       const sessionId = String(row?.sessionId ?? (id.lastIndexOf(':') > 0 ? id.slice(0, id.lastIndexOf(':')) : ''))
       if (sessionId) return { collection: '/sessions', id: sessionId }
     }
+    if (collection === '/facets') {
+      const tablePath = String(row?.tablePath ?? '')
+      const sourceId = String(row?.sourceId ?? '')
+      if (tablePath && sourceId) return { collection: tablePath, id: sourceId }
+    }
     if (collection === '/page-blocks') {
       const pageId = String(row?.pageId ?? '')
       const parent = String(row?.collection ?? '')
@@ -821,6 +826,9 @@ export class DatabaseService extends Service implements Database {
           collection: target.collection,
           recordId: target.id,
         }
+        if (collection === '/facets' && !String(row.sourceId ?? '') && !String(row.tablePath ?? '')) {
+          return this.indexFacetVisible(String(row.id ?? ''), actor.accountId)
+        }
         if (authorization.authorize(actor, action, resource).allowed) return true
         const viaView = this.viewGrantRole(actor.workspaceId, collection, row, actor.accountId)
         return Boolean(viaView && roleCoversAction(viaView, action))
@@ -844,6 +852,17 @@ export class DatabaseService extends Service implements Database {
       if (!people || people.size === 0) return true
       return people.has(currentAccountId())
     })
+  }
+
+  /** 合集目录只留下当前用户能读到的源记录上贴过的合集；还没贴到公开数据上的，只留给创建人。 */
+  private indexFacetVisible(id: string, accountId: string) {
+    const found = this.facets.collect(id)
+    for (const item of found.items) {
+      if (this.facets.isDeleted(item.collection, item.id)) continue
+      if (item.collection === '/facets') continue
+      if (this.visibleRecords(item.collection, [{ id: item.id }]).length > 0) return true
+    }
+    return this.facets.recordMeta('/facets', id)?.createdBy?.accountId === accountId
   }
 
   private recordsInScope<T extends { id?: unknown; pageId?: unknown; collection?: unknown; sessionId?: unknown; sourceId?: unknown; tablePath?: unknown }>(
@@ -1199,7 +1218,7 @@ export class DatabaseService extends Service implements Database {
     const withFacet = this.applyFacetOverlay(spec, row)
     const withPeople = this.applyPersonOverlay(spec, withFacet)
     const withMeta = this.applyMetaOverlay(spec, withPeople)
-    if (isSystemCollection(spec.path)) return withMeta
+    if (isSystemCollection(spec.path) || isIndexCollection(spec.path)) return withMeta
     const stored = this.ownershipOf(spec.path, String(row.id ?? ''))
     return { ...withMeta, shareScope: SHARE_SCOPE_LABEL[this.effectiveScope(spec.path, withMeta, stored)] }
   }
@@ -2315,7 +2334,7 @@ export function apply(ctx: Context) {
     kind: 'collection' as const,
     label: item.label ?? item.id,
     view: item.view ?? null,
-  }))))
+  })), () => currentAccountId()))
   db.register(facetsCollection(facets, () => db.collectionsList().map((item) => ({
     id: item.id,
     path: item.path,
@@ -2794,8 +2813,12 @@ export function apply(ctx: Context) {
       const path = String(body?.path ?? '')
       const next = Array.isArray(body.views) ? body.views : []
       await db.requirePath(path, 'resource:update')
-      dropSharesForRemovedViews(shares, path, savedViews.viewsFor(path), next)
-      savedViews.replace(path, next)
+      if (isIndexCollection(path)) {
+        savedViews.replaceOwned(path, next, currentAccountId())
+      } else {
+        dropSharesForRemovedViews(shares, path, savedViews.viewsFor(path), next)
+        savedViews.replace(path, next)
+      }
       ctx.emit('database/change')
       route.send(200, { ok: true })
     } catch (error) {
