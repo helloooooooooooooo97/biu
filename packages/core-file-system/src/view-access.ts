@@ -1,4 +1,4 @@
-import { parseBuiltinScopeViewId } from './catalog-views.ts'
+import { isBuiltinAllViewId, parseBuiltinScopeViewId } from './catalog-views.ts'
 import { matchListFilterRecord } from './query-logic.ts'
 import type { DbRecord } from '@biu/type-file-system'
 
@@ -15,6 +15,10 @@ export function viewFiltersForGrant(
   viewId: string,
   saved: Array<{ id: string; filters?: Record<string, unknown> }>,
 ) {
+  if (isBuiltinAllViewId(viewId)) {
+    const view = saved.find((item) => item.id === viewId)
+    return { scope: '', filters: stripScope(view?.filters) }
+  }
   const scopeView = parseBuiltinScopeViewId(viewId)
   if (scopeView) {
     const base = saved.find((view) => view.id === scopeView.viewId)

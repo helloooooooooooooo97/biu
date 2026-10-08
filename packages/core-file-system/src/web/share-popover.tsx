@@ -4,7 +4,7 @@ import { HeadlessDismiss } from '@biu/public-ui'
 import { listCollection, readJson } from './db-client.ts'
 import { mintSharePin, shareClipboardText, type ShareResourceStats } from '../share-resources.ts'
 import { builtinMemberViews, isBuiltinAllViewId, parseBuiltinScopeViewId, scopedCollectionName } from '../catalog-views.ts'
-import { grantAudienceKind, recordMatchesGrantedView } from '../view-access.ts'
+import { effectiveDataScope, grantAudienceKind, recordMatchesGrantedView } from '../view-access.ts'
 import type { DbRecord } from '@biu/type-file-system'
 
 export type ShareKind = 'view' | 'record'
@@ -378,7 +378,15 @@ function WorkspaceAccess({
   const externalPeople = people.filter((row) => row.memberKind === 'external' || row.memberKind === 'guest')
   const inheritedInternal = inherited.filter((row) => row.audience === 'internal')
   const inheritedExternal = inherited.filter((row) => row.audience === 'external')
-  const scopeLabel = scope === 'shared' ? '共享' : scope === 'workspace' ? '空间' : '私人'
+  const shownScope = !viewId && record
+    ? effectiveDataScope(scope, record, viewGrants.map((grant) => ({
+        viewId: grant.viewId,
+        subjectType: grant.subjectType,
+        subjectId: grant.subjectId,
+        memberKind: grant.memberKind,
+      })), dataViews, memberViewFilters)
+    : scope
+  const scopeLabel = shownScope === 'shared' ? '共享' : shownScope === 'workspace' ? '空间' : '私人'
   const grantedAccountIds = new Set(people.map((row) => row.id))
   const normalizedMemberQuery = memberQuery.trim().toLowerCase()
   const matchingMembers = workspaceMembers
@@ -400,7 +408,7 @@ function WorkspaceAccess({
       {viewId ? null : (
         <div className="fsdb-share-collab-summary">
           <span>数据归属</span>
-          <strong className={`fsdb-share-scope is-${scope}`} data-testid="fsdb-share-scope">{scopeLabel}</strong>
+          <strong className={`fsdb-share-scope is-${shownScope}`} data-testid="fsdb-share-scope">{scopeLabel}</strong>
         </div>
       )}
 
@@ -624,7 +632,18 @@ export function ShareScopeDetail({
         ...viewRows(memberViewPage.items),
       ]
       const stored = access.scope ?? 'personal'
-      setScope(stored)
+      setScope(effectiveDataScope(
+        stored,
+        record ?? { id: recordId },
+        (access.viewGrants ?? []).map((grant) => ({
+          viewId: grant.viewId,
+          subjectType: grant.subjectType,
+          subjectId: grant.subjectId,
+          memberKind: grant.memberKind,
+        })),
+        dataViews,
+        memberViews,
+      ))
       setDirect([
         ...(access.people ?? []).map((row) => ({ id: `account:${row.id}`, name: row.name, role: row.role, note: row.memberKind === 'member' ? '空间成员' : '外部' })),
         ...(access.groups ?? []).map((row) => ({ id: `group:${row.id}`, name: row.name, role: row.role, note: '成员组' })),
@@ -676,7 +695,7 @@ export function ShareScopeDetail({
               <span>数据归属</span>
               <strong className={`fsdb-share-scope is-${scope}`}>{scopeText(scope)}</strong>
             </div>
-            <p className="fsdb-scope-note">归属只看这条内容自己的协作者。视图上的分享会额外继承过来，不改变归属。</p>
+            <p className="fsdb-scope-note">归属会算上这条内容自己的协作者，以及从匹配视图继承来的人。</p>
             <section>
               <h3>直接授权</h3>
               <ul>
