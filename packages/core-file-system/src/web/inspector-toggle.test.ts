@@ -443,9 +443,12 @@ test('create record sits at the right of the toolbar with a blue label', () => {
   assert.doesNotMatch(configBtn, /tasks-sort-dot|tasks-filter-dot/)
   assert.match(browser, /className="fsdb-create-btn"/)
   assert.doesNotMatch(browser, /aria-label="新建数据归属"/)
-  assert.match(browser, /scope: routeScope === 'workspace' \? 'workspace' : 'personal'/)
+  assert.match(browser, /scope: createScope/)
+  assert.match(browser, /aria-label="新建归属"/)
   assert.doesNotMatch(browser, /<option value="personal">私人<\/option>/)
-  assert.match(browser, /<PlusIcon[\s\S]*新建/)
+  const createBtn = browser.slice(browser.indexOf('className="fsdb-create-btn"'), browser.indexOf('aria-label="新建归属"'))
+  assert.doesNotMatch(createBtn, /PlusIcon/)
+  assert.match(createBtn, />\s*新建/)
   assert.doesNotMatch(
     browser,
     /className="tasks-toolbar-left"[\s\S]*?aria-label="新建记录"[\s\S]*?className="tasks-toolbar-right"/,

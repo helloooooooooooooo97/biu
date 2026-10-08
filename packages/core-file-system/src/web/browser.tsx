@@ -38,6 +38,8 @@ import {
   Squares2X2Icon,
   StarIcon,
   TableCellsIcon,
+  UserIcon,
+  UsersIcon,
   ViewColumnsIcon,
 } from '@heroicons/react/16/solid'
 import type { CollectionActionInfo, CollectionInfo, CollectionSchema, CollectionSchemaPack, DbRecord, FieldSpec, FieldType } from '@biu/type-file-system'
@@ -572,6 +574,8 @@ export function CollectionBrowser({
   )
   const [query, setQuery] = useState(initialView?.query ?? '')
   const [page, setPage] = useState(0)
+  const [createScope, setCreateScope] = useState<'personal' | 'workspace'>(routeScope === 'workspace' ? 'workspace' : 'personal')
+  const [createScopeOpen, setCreateScopeOpen] = useState(false)
   const [pageSize, setPageSize] = useState(() => normalizePageSize(initialView?.pageSize))
   const [total, setTotal] = useState(0)
   const [fetchQuery, setFetchQuery] = useState(initialView?.query ?? '')
@@ -1877,7 +1881,7 @@ export function CollectionBrowser({
       const data = await readJson<{ items?: Array<{ value?: DbRecord }> }>('/api/db/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ path: dataPath, records: [{}], scope: routeScope === 'workspace' ? 'workspace' : 'personal' }),
+        body: JSON.stringify({ path: dataPath, records: [{}], scope: createScope }),
       })
       quietUntil.current = 0
       await reload()
@@ -3303,16 +3307,64 @@ export function CollectionBrowser({
               ) : null}
             </div>
             {canCreate ? (
-              <button
-                type="button"
-                className="fsdb-create-btn"
-                aria-label="新建记录"
-                title="新建"
-                onClick={() => void createRecord()}
-              >
-                <PlusIcon aria-hidden className="size-[14px]" />
-                新建
-              </button>
+              <div className="fsdb-create-group">
+                <button
+                  type="button"
+                  className="fsdb-create-btn"
+                  aria-label="新建记录"
+                  title="新建"
+                  onClick={() => void createRecord()}
+                >
+                  新建
+                </button>
+                <HeadlessDismiss enabled={createScopeOpen} onDismiss={() => setCreateScopeOpen(false)}>
+                  <div className="fsdb-create-scope-wrap">
+                  <button
+                    type="button"
+                    className="fsdb-create-scope"
+                    aria-label="新建归属"
+                    aria-expanded={createScopeOpen}
+                    title={createScope === 'workspace' ? '空间内容，空间成员可查看' : '私人内容，仅自己可处理'}
+                    onClick={() => setCreateScopeOpen((open) => !open)}
+                  >
+                    {createScope === 'workspace' ? (
+                      <UsersIcon aria-hidden className="size-[14px]" />
+                    ) : (
+                      <UserIcon aria-hidden className="size-[14px]" />
+                    )}
+                    <ChevronDownIcon aria-hidden className="size-[12px]" />
+                  </button>
+                  {createScopeOpen ? (
+                    <div className="fsdb-create-scope-menu" role="menu">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={createScope === 'personal' ? 'is-on' : ''}
+                        onClick={() => {
+                          setCreateScope('personal')
+                          setCreateScopeOpen(false)
+                        }}
+                      >
+                        <UserIcon aria-hidden className="size-[14px]" />
+                        私人
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={createScope === 'workspace' ? 'is-on' : ''}
+                        onClick={() => {
+                          setCreateScope('workspace')
+                          setCreateScopeOpen(false)
+                        }}
+                      >
+                        <UsersIcon aria-hidden className="size-[14px]" />
+                        空间
+                      </button>
+                    </div>
+                  ) : null}
+                  </div>
+                </HeadlessDismiss>
+              </div>
             ) : null}
           </div>
         </div>

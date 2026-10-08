@@ -77,8 +77,15 @@ const CSS = `
 .fsdb-layout-opt{display:grid;place-items:center;min-width:28px;height:24px;padding:0 8px;border:0;border-radius:7px;background:transparent;color:var(--dsw-label-2);font:inherit;font-size:12px;font-weight:650;cursor:pointer}
 .fsdb-layout-opt:hover{background:var(--dsw-hover);color:var(--dsw-label)}
 .fsdb-layout-opt.is-active{color:var(--dsw-business);background:color-mix(in srgb,var(--dsw-business) 10%,var(--dsw-input))}
-.fsdb-create-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:26px;margin-left:8px;padding:0 10px;border:0;border-radius:4px;background:var(--dsw-pick,#2383e2);color:#fff;cursor:pointer;font:inherit;font-size:14px;font-weight:600;white-space:nowrap}
+.fsdb-create-group{position:relative;display:inline-flex;align-items:center;margin-left:8px}
+.fsdb-create-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:26px;margin-left:0;padding:0 10px;border:0;border-radius:4px 0 0 4px;background:var(--dsw-pick,#2383e2);color:#fff;cursor:pointer;font:inherit;font-size:14px;font-weight:600;white-space:nowrap}
 .fsdb-create-btn:hover{background:var(--dsw-pick,#2383e2);filter:brightness(.92)}
+.fsdb-create-scope-wrap{display:inline-flex;align-items:stretch}
+.fsdb-create-scope{display:inline-flex;align-items:center;justify-content:center;gap:2px;height:26px;padding:0 6px;border:0;border-left:1px solid color-mix(in srgb,#fff 35%,transparent);border-radius:0 4px 4px 0;background:var(--dsw-pick,#2383e2);color:#fff;cursor:pointer}
+.fsdb-create-scope:hover{filter:brightness(.92)}
+.fsdb-create-scope-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:40;display:flex;flex-direction:column;gap:2px;min-width:120px;padding:6px;background:var(--dsw-sidebar);border:1px solid var(--dsw-border);border-radius:10px;box-shadow:var(--dsw-shadow)}
+.fsdb-create-scope-menu button{display:inline-flex;align-items:center;gap:6px;width:100%;border:0;border-radius:7px;padding:6px 8px;background:transparent;color:var(--dsw-sidebar-fg);font:inherit;font-size:14px;font-weight:500;cursor:pointer;text-align:left}
+.fsdb-create-scope-menu button:hover,.fsdb-create-scope-menu button.is-on{background:var(--dsw-hover)}
 .fsdb-page .tasks-search-wrap{display:inline-flex;align-items:center;gap:0;flex:none;min-width:0;padding:0;border:0;border-radius:8px;background:transparent;color:var(--dsw-icon)}
 .fsdb-page .tasks-search-wrap.is-open{flex:0 1 168px;gap:2px;color:var(--dsw-icon-active)}
 .fsdb-page .tasks-search-wrap.is-open .tasks-sort-btn,.fsdb-page .tasks-search-wrap:hover .tasks-sort-btn{color:var(--dsw-icon-active)}
@@ -301,7 +308,7 @@ const CSS = `
 .fsdb-page .tasks-group-fold{display:grid;width:14px;min-width:14px;height:14px;flex:none;place-items:center;border:0;border-radius:4px;padding:0;background:transparent;color:inherit;cursor:pointer}
 .fsdb-page .tasks-group-fold .sidebar-group-fold{display:grid;width:14px;height:14px;place-items:center}
 .fsdb-page .tasks-queue-glabel{font-weight:650;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fsdb-page .tasks-queue-count{margin-left:auto;color:var(--dsw-label-3);font-size:14px;font-weight:600;background:var(--dsw-muted-fill);border-radius:8px;padding:1px 7px}
+.fsdb-page .tasks-queue-count{margin-left:6px;color:var(--dsw-label-3);font-size:14px;font-weight:600;background:var(--dsw-muted-fill);border-radius:8px;padding:1px 7px}
 .fsdb-page .tasks-queue-list{display:flex;flex-direction:column;margin:0;padding:0;list-style:none;gap:6px}
 .fsdb-page .tasks-queue-item{display:block;min-width:0;width:100%}
 .fsdb-page .tasks-queue-item-body{position:relative;display:flex;flex-wrap:nowrap;align-items:center;gap:6px;min-width:0;width:100%;box-sizing:border-box;border-radius:6px;padding:6px var(--fsdb-row-tools-w) 6px 0}
