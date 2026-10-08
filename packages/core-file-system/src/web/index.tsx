@@ -62,8 +62,8 @@ const EMPTY_FILTERS: Record<string, string> = {}
 function CollectionPage(props: SlotProps) {
   const tables = (props.tables as CollectionInfo[] | undefined) ?? []
   const orderedTables = useMemo(() => {
-    const { user, system } = sortDataCollections(tables)
-    return [...user, ...system]
+    const { user, index, system } = sortDataCollections(tables)
+    return [...user, ...index, ...system]
   }, [tables])
   const tablePathsKey = orderedTables.map((table) => table.path).join('\0')
   const ui = getDatabaseUi()

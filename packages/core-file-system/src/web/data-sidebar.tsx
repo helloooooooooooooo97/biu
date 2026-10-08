@@ -14,7 +14,7 @@ import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import type { CollectionInfo, CollectionSchema, DbRecord } from '@biu/type-file-system'
 import { groupField, groupRecords, parentFieldKey, treeChildren } from './fields.ts'
 import { builtinAllViewId, type DataScope } from '../catalog-views.ts'
-import { isRecordTreeCollection, isSystemCollection, sortDataCollections } from './database-path.ts'
+import { FACETS_COLLECTION_PATH, isIndexCollection, isRecordTreeCollection, isSystemCollection, PAGE_BLOCKS_COLLECTION_PATH, sortDataCollections } from './database-path.ts'
 import { readJson } from './db-client.ts'
 import { viewsForRegisteredCollection } from './collection-nav.ts'
 import type { SavedView } from './saved-view.ts'
@@ -484,9 +484,14 @@ export const DataSidebar = memo(function DataSidebar({
     return [...user, ...index, ...system]
   }, [collectionPath, tables, title])
   const { user: userTables, index: indexTables, system: systemTables } = useMemo(() => sortDataCollections(listedTables), [listedTables])
-  const [openTables, setOpenTables] = useState<Record<string, boolean>>(() => ({
-    [`user:${collectionPath}`]: true,
-  }))
+  const [openTables, setOpenTables] = useState<Record<string, boolean>>(() => {
+    const group = isIndexCollection(collectionPath) ? 'index' : isSystemCollection(collectionPath) ? 'system' : 'user'
+    return {
+      [`${group}:${collectionPath}`]: true,
+      [`index:${PAGE_BLOCKS_COLLECTION_PATH}`]: true,
+      [`index:${FACETS_COLLECTION_PATH}`]: true,
+    }
+  })
   useSyncExternalStore(subscribeStarredViews, getStarredViewsVersion, () => 0)
   useSyncExternalStore(subscribeStarredRecords, getStarredRecordsVersion, () => 0)
   const starredViews = getStarredViews()
