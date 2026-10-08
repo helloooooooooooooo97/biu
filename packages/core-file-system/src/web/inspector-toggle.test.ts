@@ -23,6 +23,7 @@ test('embedded record details can share their explicit record target', () => {
   assert.match(style, /\.fsdb-detail-more-menu\.has-share/)
   assert.match(style, /\.fsdb-detail-more-caret/)
   assert.doesNotMatch(browser, /\{nested \? null : \(\s*<ShareButton/)
+  assert.match(browser, /isSystemCollection\(collectionPath\) \? null : \(\s*<ShareButton/)
   assert.doesNotMatch(browser, /buttonClassName="fsdb-detail-float-btn"/)
 })
 

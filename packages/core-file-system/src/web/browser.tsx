@@ -106,6 +106,7 @@ import { ensureFsdbStyle } from './fsdb-style.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { PageBanner } from './page-banner.tsx'
 import { TableGlyph, ViewModeGlyph } from './nav-glyphs.tsx'
+import { isSystemCollection } from './database-path.ts'
 import { countFittingViewTabs, splitVisibleViews } from './view-tabs.ts'
 import { getPick } from '@biu/core-pick/web'
 import { getDatabaseUi } from './database-ui.ts'
@@ -2785,6 +2786,7 @@ export function CollectionBrowser({
                 <StarIcon aria-hidden className={`size-4${viewStarred ? ' text-[#f5b700]' : ''}`} />
               </button>
             ) : null}
+            {isSystemCollection(collectionPath) ? null : (
             <ShareButton
               target={
                 detailId
@@ -2805,6 +2807,7 @@ export function CollectionBrowser({
                     : null
               }
             />
+            )}
             <div className="fsdb-layout-wrap" ref={layoutRef}>
               <button
                 type="button"
