@@ -1988,6 +1988,31 @@ export class CollabStore {
     return this.viewAccessRows(workspaceId, collection, viewId)
   }
 
+  collectionOwnership(workspaceId: string, collection: string) {
+    const policies = this.db
+      .prepare(
+        `SELECT record_id, ownership FROM resource_policies
+         WHERE workspace_id = ? AND collection = ?`,
+      )
+      .all(workspaceId, collection) as Array<{ record_id: string; ownership: string }>
+    const map = new Map<string, 'personal' | 'workspace' | 'shared'>()
+    for (const row of policies) {
+      map.set(
+        row.record_id,
+        row.ownership === 'shared' || row.ownership === 'workspace' ? row.ownership : 'personal',
+      )
+    }
+    const owners = this.db
+      .prepare(
+        `SELECT record_id FROM record_owners WHERE workspace_id = ? AND collection = ?`,
+      )
+      .all(workspaceId, collection) as Array<{ record_id: string }>
+    for (const row of owners) {
+      if (!map.has(row.record_id)) map.set(row.record_id, 'workspace')
+    }
+    return map
+  }
+
   viewGrantsFor(workspaceId: string, collection: string) {
     return this.db
       .prepare(

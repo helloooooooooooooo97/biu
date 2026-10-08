@@ -480,6 +480,27 @@ test('collaborators move a record between personal, workspace, and shared scopes
   assert.equal(backToPersonal.private, true)
 })
 
+test('collection ownership reports personal, workspace, and shared records', () => {
+  const collab = store()
+  const ada = collab.register('', Date.now(), 'secret1', 'own-ada@example.com')
+  const bob = collab.register('', Date.now(), 'secret1', 'own-bob@example.com')
+  const cara = collab.register('', Date.now(), 'secret1', 'own-cara@example.com')
+  const workspaceId = collab.enter(ada.id)
+  collab.enter(bob.id)
+  collab.enter(cara.id)
+  collab.addMemberByEmail(ada.id, workspaceId, bob.email)
+  const asAda = <T>(op: () => T) => runWithAccount(ada.id, () => runWithRequestWorkspace(workspaceId, op))
+  asAda(() => collab.attach(workspaceId, '/pages', 'only-ada'))
+  asAda(() => collab.attach(workspaceId, '/pages', 'with-bob'))
+  asAda(() => collab.attach(workspaceId, '/pages', 'with-cara'))
+  asAda(() => collab.shareWithEmail(ada.id, '/pages', 'with-bob', bob.email, 'viewer', 'internal'))
+  asAda(() => collab.shareWithEmail(ada.id, '/pages', 'with-cara', cara.email, 'viewer', 'external'))
+  const scopes = asAda(() => collab.collectionOwnership(workspaceId, '/pages'))
+  assert.equal(scopes.get('only-ada'), 'personal')
+  assert.equal(scopes.get('with-bob'), 'workspace')
+  assert.equal(scopes.get('with-cara'), 'shared')
+})
+
 test('view collaborators do not change record ownership', () => {
   const collab = store()
   const ada = collab.register('', Date.now(), 'secret1', 'view-ada@example.com')
