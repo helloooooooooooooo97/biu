@@ -24,15 +24,13 @@ import { persistWorkspaceProfile, useWorkspaceProfile } from '@biu/public-ui'
 import { LayoutPrefsMenu } from '@biu/core-file-system/layout-prefs-menu'
 import { getPagePrefs, hydratePagePrefs, subscribePageWidth } from '@biu/core-file-system/page-width'
 
-import { clearWorkspaceId, isAccountApi, readWorkspaceId, requestUrl, resolveWorkspaceId, writeWorkspaceId } from './tenant-fetch.ts'
+import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './tenant-fetch.ts'
 
 if (typeof window !== 'undefined') {
   const originalFetch = window.fetch.bind(window)
-  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const token = localStorage.getItem('biu.account.token') ?? ''
-    const url = requestUrl(input)
-    let workspaceId = readWorkspaceId()
-    if (token && !workspaceId && !isAccountApi(url)) workspaceId = await resolveWorkspaceId(originalFetch, token)
+    const workspaceId = readWorkspaceId()
     if (!token && !workspaceId) return originalFetch(input, init)
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
     if (token && !headers.has('authorization')) headers.set('authorization', `Bearer ${token}`)
@@ -375,6 +373,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
                 url.searchParams.delete('guestInvite')
                 window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
                 writeAccountToken(String(body.token ?? ''))
+                if (body.workspaceId) writeWorkspaceId(String(body.workspaceId))
                 setError('')
               })
               .catch((err) => setError(err instanceof Error ? err.message : '临时访客链接无效'))
@@ -412,6 +411,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           })
             .then((body) => {
               writeAccountToken(String(body.token ?? ''))
+              if (body.workspaceId) writeWorkspaceId(String(body.workspaceId))
               setPassword('')
               setError('')
             })
