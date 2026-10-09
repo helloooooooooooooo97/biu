@@ -44,7 +44,7 @@ import { SessionInspector } from './session-inspector.tsx'
 import { SessionConfigDialog } from '@biu/web-session-view/dialog'
 import { FolderGlyph } from '@biu/web-session-view/folder-glyph'
 import { OverlayChatWindow } from './overlay-window.tsx'
-import { AuthGate, ShellSettingsAbout, ShellSettingsAccount, ShellSettingsAppearance, ShellSettingsMembers, ShellSettingsMcp, ShellSettingsPlugins, ShellSettingsShortcuts, ShellSettingsUpdate, ShellSettingsWorkspace } from './shell-chrome.tsx'
+import { AuthGate, ShellSettingsAbout, ShellSettingsAccount, ShellSettingsAppearance, ShellSettingsMembers, ShellSettingsMcp, ShellSettingsShortcuts, ShellSettingsUpdate, ShellSettingsWorkspace } from './shell-chrome.tsx'
 import { hydrateWorkspaceProfile } from '@biu/public-ui'
 import { hydrateTheme } from './theme.ts'
 import { hydratePagePrefs } from '@biu/core-file-system/page-width'
@@ -63,7 +63,6 @@ import {
   InformationCircleIcon,
   LinkIcon,
   MapIcon,
-  PuzzlePieceIcon,
   QueueListIcon,
   SwatchIcon,
   UserCircleIcon,
@@ -868,7 +867,6 @@ function Shell(props: SlotProps) {
                     { key: 'workspace', label: '空间', Icon: CircleStackIcon },
                     { key: 'members', label: '成员', Icon: UserGroupIcon },
                     { key: 'appearance', label: '外观', Icon: SwatchIcon },
-                    { key: 'plugins', label: '插件', Icon: PuzzlePieceIcon },
                     { key: 'mcp', label: 'MCP', Icon: LinkIcon },
                     { key: 'shortcuts', label: '快捷键', Icon: CommandLineIcon },
                     { key: 'routes', label: '路由', Icon: MapIcon },
@@ -904,7 +902,6 @@ function Shell(props: SlotProps) {
                   {settingsTab === 'workspace' ? <ShellSettingsWorkspace /> : null}
                   {settingsTab === 'members' ? <ShellSettingsMembers /> : null}
                   {settingsTab === 'appearance' ? <ShellSettingsAppearance /> : null}
-                  {settingsTab === 'plugins' ? <ShellSettingsPlugins /> : null}
                   {settingsTab === 'mcp' ? <ShellSettingsMcp onLeave={() => setSettingsOpen(false)} /> : null}
                   {settingsTab === 'shortcuts' ? <ShellSettingsShortcuts /> : null}
                   {settingsTab === 'routes' ? (
