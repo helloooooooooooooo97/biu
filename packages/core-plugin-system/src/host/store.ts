@@ -358,9 +358,18 @@ export class PluginStoreService extends Service {
     return { id, sandboxPath: dest }
   }
 
+  /** 线上：空间成员即可打包。改沙箱源码仍要写权限。 */
+  private requireWorkspaceMember() {
+    const accountId = currentAccountId()
+    const workspaceId = currentRequestWorkspaceId()
+    const account = this.accountStore()
+    if (!accountId || !workspaceId || !account?.isMember?.(accountId, workspaceId)) throw new Error('需要登录')
+  }
+
   /** 把沙箱 bundle 进 .plugin/<id>/。 */
   async pack(id: string) {
-    this.requireInstancePermission('plugin.packages.install')
+    if (process.env.BIU_ONLINE === '1') this.requireWorkspaceMember()
+    else this.requireInstancePermission('plugin.packages.install')
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
     const sandbox = this.sandboxPath(id)
     if (!existsSync(join(sandbox, 'manifest.json'))) throw new Error(`sandbox not found: ${sandbox}`)

@@ -5,6 +5,7 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from 'cordis'
+import { runWithAccount, runWithRequestWorkspace } from '@biu/host-plugin-loader/data-dir'
 import type { CatalogEntry } from '@biu/host-hub'
 import { PluginStoreService, defaultPluginDir, defaultStatePath } from './index.ts'
 import { hashInstalledPluginCode } from './store.ts'
@@ -70,6 +71,39 @@ test('builtin sandboxes stay in the plugin list without draft permission', async
     assert.deepEqual(rows.map((row) => row.id), ['api-playground'])
     assert.equal(store.isBuiltin('api-playground'), true)
     assert.equal(store.isBuiltin('my-draft'), false)
+  } finally {
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('online members can pack without instance install permission', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'plugin-pack-member-'))
+  const previous = process.env.BIU_ONLINE
+  const members = new Set(['ada'])
+  try {
+    const ctx = new Context()
+    stubHub(ctx)
+    ;(ctx as unknown as { get(name: string): unknown }).get = (name: string) =>
+      name === 'account'
+        ? { store: { isMember: (accountId: string) => members.has(accountId) } }
+        : undefined
+    const store = new PluginStoreService(ctx, join(dir, '.plugin'), join(dir, 'store.json'), join(dir, '.plugin-dev')).open()
+    await store.initSandbox({
+      id: 'pack-me',
+      name: '打包',
+      blurb: '成员可装',
+      hostJs: 'export default function apply() {}\n',
+    })
+    process.env.BIU_ONLINE = '1'
+    await assert.rejects(
+      () => runWithAccount('bob', () => runWithRequestWorkspace('ws', () => store.pack('pack-me'))),
+      /需要登录/,
+    )
+    const packed = await runWithAccount('ada', () => runWithRequestWorkspace('ws', () => store.pack('pack-me')))
+    assert.equal(packed.id, 'pack-me')
+    await access(join(dir, '.plugin', 'pack-me', 'host.js'))
   } finally {
     if (previous === undefined) delete process.env.BIU_ONLINE
     else process.env.BIU_ONLINE = previous
