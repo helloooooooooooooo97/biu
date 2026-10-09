@@ -159,7 +159,13 @@ async function sessionDecorations(ctx: Context) {
   const titles = new Map<string, string>()
   const mascots = new Map<string, { shape: string; color: string; eye?: number }>()
   const projects = new Map<string, { name: string; path?: string }>()
-  for (const item of await ctx.sessions.listSummaries()) {
+  let summaries: Awaited<ReturnType<Context['sessions']['listSummaries']>> = []
+  try {
+    summaries = await ctx.sessions.listSummaries()
+  } catch {
+    summaries = []
+  }
+  for (const item of summaries) {
     titles.set(item.id, item.title)
     if (item.mascot) mascots.set(item.id, item.mascot)
     if (item.project?.name) {
@@ -209,13 +215,27 @@ async function loadDispatchedUsage(
   liveId: string,
   liveEvents: SessionEvent[],
 ) {
-  const summaries = await ctx.sessions.listSummaries()
+  let summaries: Array<{ id: string }> = []
+  try {
+    summaries = await ctx.sessions.listSummaries()
+  } catch {
+    summaries = []
+  }
   const workers: Array<{ id: string; events: SessionEvent[] }> = []
   for (const item of summaries) {
     if (item.id === liveId) continue
-    const worker = await ctx.sessions.require(item.id)
-    workers.push({ id: item.id, events: worker.events })
+    try {
+      const worker = await ctx.sessions.require(item.id)
+      workers.push({ id: item.id, events: worker.events })
+    } catch {
+      // 别的会话读不出来时，派工统计仍按能读到的会话计算。
+    }
   }
-  const liveTasks = await loadLiveDispatchTasks(ctx, liveId)
+  let liveTasks: TaskDispatchSource[] = []
+  try {
+    liveTasks = await loadLiveDispatchTasks(ctx, liveId)
+  } catch {
+    liveTasks = []
+  }
   return collectLiveDispatchedTasks(liveId, liveEvents, workers, liveTasks)
 }
