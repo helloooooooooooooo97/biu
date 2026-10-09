@@ -35,7 +35,7 @@ test('list and detail share the chat column max width with side padding', () => 
   assert.doesNotMatch(css, /\.fsdb-page\.is-full-width[^{]*\{[^}]*padding:[^}]*24px/)
   assert.doesNotMatch(css, /flex:0 0 36%/)
   assert.match(css, /\.fsdb-page\{[^}]*--fsdb-check-gutter:26px/)
-  assert.match(css, /\.fsdb-page \.tasks-table td:has\(\.fsdb-title-host\)\{[^}]*position:relative/)
+  assert.match(css, /\.fsdb-page \.tasks-table th\.is-pin-col,\.fsdb-page \.tasks-table td\.is-pin-col\{[^}]*position:sticky/)
   assert.doesNotMatch(css, /\.fsdb-page \.tasks-table td:has\(\.fsdb-title-host\)\{[^}]*padding-right:var\(--fsdb-row-tools-w\)/)
   assert.match(css, /\.fsdb-page \.tasks-title-aside\{[^}]*display:inline-flex/)
   assert.match(css, /\.fsdb-page \.tasks-row-tools-slot\{[^}]*display:inline-flex/)
@@ -260,6 +260,13 @@ test('selected table cells use Super Tag blue when writable and gray when locked
   assert.doesNotMatch(css, /\.fsdb-ref-picked\{[^}]*flex-direction:column/)
   assert.match(css, /\.fsdb-ref-picked\{[^}]*flex-wrap:wrap/)
   assert.match(css, /\.fsdb-ref-picked-row\{[^}]*width:auto/)
+})
+
+test('title column stays pinned when the table scrolls sideways', () => {
+  assert.match(css, /\.fsdb-page \.tasks-table th\.is-pin-col,\.fsdb-page \.tasks-table td\.is-pin-col\{[^}]*position:sticky/)
+  assert.match(css, /\.fsdb-page \.tasks-table th\.is-pin-col,\.fsdb-page \.tasks-table td\.is-pin-col\{[^}]*left:var\(--fsdb-check-gutter\)/)
+  const browser = readFileSync(resolve(import.meta.dirname, './browser.tsx'), 'utf8')
+  assert.match(browser, /col\.key === schema\?\.labelField \? 'is-pin-col'/)
 })
 
 test('share page portals sit above the share overlay', () => {

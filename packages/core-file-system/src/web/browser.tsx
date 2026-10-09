@@ -2546,13 +2546,14 @@ export function CollectionBrowser({
                 key={col.key}
                 {...cellPickOf(row, col.key, col.field)}
                 style={colWidthStyle(columnWidths[col.key])}
-                className={
+                className={[
+                  col.key === schema?.labelField ? 'is-pin-col' : '',
                   cellPick?.id === row.id && cellPick.key === col.key
                     ? cellFieldWritable(col.field)
                       ? 'is-cell-on'
                       : 'is-cell-on is-cell-ro'
-                    : undefined
-                }
+                    : '',
+                ].filter(Boolean).join(' ') || undefined}
                 onPointerDown={(event) => {
                   if (event.button !== 0) return
                   const hit = event.target as HTMLElement | null
@@ -3497,7 +3498,7 @@ export function CollectionBrowser({
                   return (
                   <th
                     key={col.key}
-                    className={tone ? 'is-facet-col' : undefined}
+                    className={[col.key === schema?.labelField ? 'is-pin-col' : '', tone ? 'is-facet-col' : ''].filter(Boolean).join(' ') || undefined}
                     style={{
                       ...(width ?? {}),
                       ...(tone ? { ['--biu-tag' as string]: tone } : {}),
