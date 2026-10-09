@@ -275,13 +275,17 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     columns: ['workspace_id', 'plugin_id', 'account_id', 'config_json', 'updated_at'],
     indexes: ['plugin_account_config_account'],
   },
+  plugin_loads: {
+    columns: ['workspace_id', 'account_id', 'plugin_id', 'loaded_at'],
+    indexes: ['plugin_loads_plugin'],
+  },
   plugin_audit_log: {
     columns: ['id', 'account_id', 'workspace_id', 'plugin_id', 'action', 'detail_json', 'created_at'],
     indexes: ['plugin_audit_created', 'plugin_audit_workspace'],
   },
 }
 
-export const LATEST_BIU_SCHEMA = 35
+export const LATEST_BIU_SCHEMA = 36
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -720,6 +724,15 @@ CREATE TABLE IF NOT EXISTS plugin_account_config (
 );
 CREATE INDEX IF NOT EXISTS plugin_account_config_account
   ON plugin_account_config(account_id, workspace_id);
+CREATE TABLE IF NOT EXISTS plugin_loads (
+  workspace_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  plugin_id TEXT NOT NULL,
+  loaded_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, account_id, plugin_id)
+);
+CREATE INDEX IF NOT EXISTS plugin_loads_plugin
+  ON plugin_loads(plugin_id);
 CREATE TABLE IF NOT EXISTS plugin_audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   account_id TEXT NOT NULL,

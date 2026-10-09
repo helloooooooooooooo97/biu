@@ -1224,8 +1224,58 @@ export class CollabStore {
   }
 
   canAccessPlugin(accountId: string, workspaceId: string, pluginId: string) {
+    if (!accountId || !workspaceId || !pluginId || !this.isMember(accountId, workspaceId)) return false
+    return this.hasPluginLoad(accountId, workspaceId, pluginId)
+  }
+
+  hasPluginLoad(accountId: string, workspaceId: string, pluginId: string) {
     if (!accountId || !workspaceId || !pluginId) return false
-    return this.isMember(accountId, workspaceId)
+    const row = this.db
+      .prepare(
+        `SELECT 1 AS ok FROM plugin_loads
+         WHERE workspace_id = ? AND account_id = ? AND plugin_id = ?`,
+      )
+      .get(workspaceId, accountId, pluginId) as { ok?: number } | undefined
+    return Boolean(row)
+  }
+
+  pluginLoadsFor(accountId: string, workspaceId: string) {
+    if (!accountId || !workspaceId) return []
+    const rows = this.db
+      .prepare(
+        `SELECT plugin_id FROM plugin_loads
+         WHERE workspace_id = ? AND account_id = ?
+         ORDER BY plugin_id`,
+      )
+      .all(workspaceId, accountId) as Array<{ plugin_id: string }>
+    return rows.map((row) => row.plugin_id)
+  }
+
+  loadedPluginIds() {
+    const rows = this.db
+      .prepare('SELECT DISTINCT plugin_id FROM plugin_loads ORDER BY plugin_id')
+      .all() as Array<{ plugin_id: string }>
+    return rows.map((row) => row.plugin_id)
+  }
+
+  setPluginLoad(accountId: string, workspaceId: string, pluginId: string, loaded: boolean, now = Date.now()) {
+    this.requireMember(accountId, workspaceId)
+    const id = pluginId.trim()
+    if (!/^[a-z][a-z0-9-]{1,40}$/.test(id)) throw new CollabError('插件 ID 不合法', 400)
+    if (loaded) {
+      this.db
+        .prepare(
+          `INSERT INTO plugin_loads (workspace_id, account_id, plugin_id, loaded_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(workspace_id, account_id, plugin_id)
+           DO UPDATE SET loaded_at = excluded.loaded_at`,
+        )
+        .run(workspaceId, accountId, id, now)
+      return
+    }
+    this.db
+      .prepare('DELETE FROM plugin_loads WHERE workspace_id = ? AND account_id = ? AND plugin_id = ?')
+      .run(workspaceId, accountId, id)
   }
 
   availablePluginIds(accountId: string, workspaceId: string) {

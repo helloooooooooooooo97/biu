@@ -233,7 +233,7 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
         id: 'start',
         label: '运行',
         when: { installed: true, running: false },
-        description: '打开已安装插件窗口（无头则只挂 host）。when：installed 且未 running。不要对纯沙箱、未 pack 的行调用。',
+        description: '为当前账号在这个空间加载已安装插件（无头则只挂 host）。别人的加载状态互不影响。when：installed 且未 running。不要对纯沙箱、未 pack 的行调用。',
         run: async (id) => {
           await store.openPlugin(id)
         },
@@ -242,7 +242,7 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
         id: 'stop',
         label: '停止',
         when: { installed: true, running: true },
-        description: '关掉运行中的插件窗口/host。when：installed 且 running。',
+        description: '停止当前账号在这个空间加载的插件。别人如果还在用，他们的加载不受影响。when：installed 且 running。',
         run: async (id) => {
           await store.close(id)
         },

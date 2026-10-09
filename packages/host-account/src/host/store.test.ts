@@ -143,7 +143,7 @@ test('instance roles are independent, composable, and keep one super admin', () 
   assert.equal(collab.hasInstancePermission(bob.id, 'instance.roles.manage'), true)
 })
 
-test('workspace members can use plugins without a per-person grant', () => {
+test('each member loads plugins for themselves', () => {
   const collab = store()
   const ada = collab.register('Ada')
   const bob = collab.register('Bob')
@@ -151,10 +151,15 @@ test('workspace members can use plugins without a per-person grant', () => {
   const workspaceA = collab.createWorkspace(ada.id, 'A')
   const workspaceB = collab.createWorkspace(bob.id, 'B')
   collab.addMember(ada.id, workspaceA.id, bob.id)
+  assert.equal(collab.canAccessPlugin(bob.id, workspaceA.id, 'page-html-blocks'), false)
+  collab.setPluginLoad(bob.id, workspaceA.id, 'page-html-blocks', true)
   assert.equal(collab.canAccessPlugin(bob.id, workspaceA.id, 'page-html-blocks'), true)
-  assert.equal(collab.canAccessPlugin(ada.id, workspaceA.id, 'page-video'), true)
+  assert.equal(collab.canAccessPlugin(ada.id, workspaceA.id, 'page-html-blocks'), false)
   assert.equal(collab.canAccessPlugin(cara.id, workspaceA.id, 'page-html-blocks'), false)
-  assert.equal(collab.canAccessPlugin(ada.id, workspaceB.id, 'page-html-blocks'), false)
+  assert.equal(collab.canAccessPlugin(bob.id, workspaceB.id, 'page-html-blocks'), false)
+  assert.deepEqual(collab.loadedPluginIds(), ['page-html-blocks'])
+  collab.setPluginLoad(bob.id, workspaceA.id, 'page-html-blocks', false)
+  assert.equal(collab.hasPluginLoad(bob.id, workspaceA.id, 'page-html-blocks'), false)
 })
 
 test('sync bumps version and rejects a stale writer while a lock is held', () => {
