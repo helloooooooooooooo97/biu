@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type Dispatch, type SetStateAction } from 'react'
 import type { CollectionChrome, FsDetailPane } from '@biu/type-file-system/ui'
 import type { CollectionSchema, DbRecord, FieldSpec } from '@biu/type-file-system'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronUpIcon, EllipsisHorizontalIcon, HashtagIcon, ShareIcon } from '@heroicons/react/16/solid'
@@ -134,7 +134,6 @@ function DetailTitleIcon({
 function DetailMore({
   record,
   Tools,
-  actions,
   onDelete,
   deleteLabel,
   share,
@@ -142,7 +141,6 @@ function DetailMore({
 }: {
   record: DbRecord
   Tools?: CollectionChrome['DetailTools']
-  actions?: ReactNode
   onDelete?: () => void
   deleteLabel: string
   share?: ReactNode
@@ -154,10 +152,6 @@ function DetailMore({
     setAnchor(null)
     setShareItem(null)
   }
-  const actionMenu =
-    actions && isValidElement(actions)
-      ? cloneElement(actions as ReactElement<{ onDone?: () => void }>, { onDone: close })
-      : actions
   return (
     <>
       <button
@@ -183,7 +177,6 @@ function DetailMore({
           inside={(node) => node instanceof Element && Boolean(node.closest('.fsdb-detail-more-menu.has-share'))}
         >
           {Tools ? <Tools record={record} onDone={close} /> : null}
-          {actionMenu}
           {share ? (
             <button
               type="button"
@@ -255,7 +248,6 @@ export function RecordDetail({
   canPrev,
   canNext,
   headingOutline = true,
-  toolbar,
   actionProperty,
   share,
   collectionPath,
@@ -280,7 +272,6 @@ export function RecordDetail({
   canPrev?: boolean
   canNext?: boolean
   headingOutline?: boolean
-  toolbar?: ReactNode
   actionProperty?: ReactNode
   share?: ReactNode
   collectionPath?: string
@@ -534,7 +525,6 @@ export function RecordDetail({
                 <DetailMore
                   record={selected}
                   Tools={chrome?.DetailTools}
-                  actions={toolbar}
                   onDelete={onDelete}
                   deleteLabel={collectionPath === '/pages' ? '删除页面' : '删除记录'}
                   share={share}

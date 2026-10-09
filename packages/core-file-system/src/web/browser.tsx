@@ -2394,63 +2394,34 @@ export function CollectionBrowser({
     )
   }
 
-  function RecordActions({ row, place, onDone }: { row: DbRecord; place: 'row' | 'detail'; onDone?: () => void }) {
+  function RecordActions({ row }: { row: DbRecord }) {
     const Actions = chrome?.Actions
     const Action = chrome?.Action
     const busy = actingRef.current
-    const placed = placedActions(schema, place).filter((action) => {
-      if (place !== 'detail' || !nested) return true
-      return action.id !== 'open-split' && action.id !== 'open-page'
-    })
-    const wrap = (body: ReactNode) =>
-      place === 'row' ? (
-        <div className="tasks-row-actions" data-biu-ignore onClick={(event) => event.stopPropagation()}>
-          {body}
-        </div>
-      ) : (
-        <>{body}</>
-      )
+    const placed = placedActions(schema, 'row').filter(
+      (action) => !nested || (action.id !== 'open-split' && action.id !== 'open-page'),
+    )
     const finish = (action: CollectionActionInfo) => {
       void runAction(row, action)
-      onDone?.()
     }
+    const wrap = (body: ReactNode) => (
+      <div className="tasks-row-actions" data-biu-ignore onClick={(event) => event.stopPropagation()}>
+        {body}
+      </div>
+    )
     if (Actions) {
       if (!placed.length) return null
-      return wrap(<Actions actions={placed} record={row} busy={busy} place={place} run={finish} />)
+      return wrap(<Actions actions={placed} record={row} busy={busy} place="row" run={finish} />)
     }
-    const actions = visibleActions(schema, row, place).filter((action) => {
-      if (place !== 'detail' || !nested) return true
-      return action.id !== 'open-split' && action.id !== 'open-page'
-    })
-    const rowShown =
-      place === 'detail'
-        ? actions
-        : actions.filter(
-            (action) => Action || actionIcon(action.id) || action.id === 'open-split' || action.id === 'open-page',
-          )
+    const rowShown = visibleActions(schema, row, 'row')
+      .filter((action) => !nested || (action.id !== 'open-split' && action.id !== 'open-page'))
+      .filter((action) => Action || actionIcon(action.id) || action.id === 'open-split' || action.id === 'open-page')
     if (!rowShown.length) return null
     return wrap(
       rowShown.map((action) => {
         const run = () => finish(action)
         if (Action) return <Action key={action.id} action={action} record={row} busy={busy} run={run} />
         const glyph = actionIcon(action.id)
-        if (place === 'detail') {
-          return (
-            <button
-              key={action.id}
-              type="button"
-              role="menuitem"
-              className={`fsdb-detail-more-item${action.tone === 'danger' ? ' is-danger' : ''}`}
-              title={action.label}
-              aria-label={`${action.label} ${labelOf(row)}`}
-              disabled={busy}
-              onClick={run}
-            >
-              {glyph}
-              {action.label}
-            </button>
-          )
-        }
         return (
           <button
             key={action.id}
@@ -2602,7 +2573,7 @@ export function CollectionBrowser({
                 {col.key === schema?.labelField ? (
                   <RecordTitle row={row} depth={depth} hasKids={hasKids} kidCount={kidCount} />
                 ) : col.key === 'actions' ? (
-                  <RecordActions row={row} place="row" />
+                  <RecordActions row={row} />
                 ) : (
                   <span className="fsdb-cell">{renderCell(row, col.key, col.field, 'table')}</span>
                 )}
@@ -3641,7 +3612,7 @@ export function CollectionBrowser({
           writeOne={writeOne}
           writePatch={writePatch}
           tableIcon={currentTable?.view?.icon}
-          actionProperty={rowActionColumn ? <RecordActions row={selected} place="row" /> : null}
+          actionProperty={rowActionColumn ? <RecordActions row={selected} /> : null}
           share={
             nested && detailId ? (
               <SharePanel
