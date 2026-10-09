@@ -515,6 +515,15 @@ export const BIU_MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS plugin_loads_plugin ON plugin_loads(plugin_id);
     `)
   } },
+  { version: 37, module: 'host-account', name: 'drop.instance.roles', up: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS instance_role_members_account;
+      DROP INDEX IF EXISTS instance_role_permissions_permission;
+      DROP TABLE IF EXISTS instance_role_members;
+      DROP TABLE IF EXISTS instance_role_permissions;
+      DROP TABLE IF EXISTS instance_roles;
+    `)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {
