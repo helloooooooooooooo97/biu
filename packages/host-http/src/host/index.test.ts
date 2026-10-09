@@ -9,6 +9,7 @@ import { Context, Service } from 'cordis'
 import { WebSocket } from 'ws'
 import * as http from './index.ts'
 import { deliverTenantEvent } from './index.ts'
+import { currentAccountId } from '@biu/host-plugin-loader/data-dir'
 
 async function freePort() {
   return await new Promise<number>((resolve, reject) => {
@@ -207,6 +208,7 @@ test('online HTTP and WebSocket enforce account and workspace boundaries', async
       accountByToken: (token: string) =>
         validTokens.has(token) ? token === 'ada-token' ? { id: 'ada' } : { id: 'bob' } : null,
       isMember: (accountId: string, workspaceId: string) => memberships.has(`${accountId}:${workspaceId}`),
+      activeWorkspaceId: () => (currentAccountId() === 'ada' ? 'ws-a' : null),
       tenantForRecord: (_collection: string, recordId: string) =>
         recordId === 'session-a' ? { workspaceId: 'ws-a', accountId: 'ada' } : null,
     }
@@ -222,7 +224,8 @@ test('online HTTP and WebSocket enforce account and workspace boundaries', async
   ctx.http.ws('/ws/plugin-extra', (socket) => socket.send('secured'))
   try {
     assert.equal((await fetch(`http://127.0.0.1:${port}/api/db/list`)).status, 401)
-    assert.equal((await fetch(`http://127.0.0.1:${port}/api/db/list`, { headers: { Authorization: 'Bearer ada-token' } })).status, 400)
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/db/list`, { headers: { Authorization: 'Bearer ada-token' } })).status, 200)
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/db/list`, { headers: { Authorization: 'Bearer bob-token' } })).status, 400)
     assert.equal(
       (
         await fetch(`http://127.0.0.1:${port}/api/db/list`, {

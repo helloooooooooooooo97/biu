@@ -535,7 +535,21 @@ export class HttpService extends Service {
           context.send(401, { error: '需要登录' })
           return
         }
-        const requestedWorkspace = String(req.headers['x-biu-workspace-id'] ?? '').trim()
+        const headerWorkspace = String(req.headers['x-biu-workspace-id'] ?? '').trim()
+        const accountStore = (
+          this.ctx.get('account') as {
+            store?: {
+              isMember?(accountId: string, workspaceId: string): boolean
+              activeWorkspaceId?(): string | null
+              canAccessPlugin?(accountId: string, workspaceId: string, pluginId: string): boolean
+            }
+          } | undefined
+        )?.store
+        const requestedWorkspace = await runWithAccount(accountId, async () => {
+          if (headerWorkspace) return headerWorkspace
+          if (process.env.BIU_ONLINE !== '1' || !accountId) return ''
+          return String(accountStore?.activeWorkspaceId?.() ?? '').trim()
+        })
         if (
           process.env.BIU_ONLINE === '1' &&
           hasAccountSystem &&
@@ -547,23 +561,12 @@ export class HttpService extends Service {
           context.send(400, { error: '需要空间' })
           return
         }
-        const accountStore = (
-          this.ctx.get('account') as {
-            store?: {
-              isMember?(accountId: string, workspaceId: string): boolean
-            }
-          } | undefined
-        )?.store
         if (accountId && requestedWorkspace && accountStore?.isMember && !accountStore.isMember(accountId, requestedWorkspace)) {
           context.send(403, { error: '不在这个空间' })
           return
         }
         if (process.env.BIU_ONLINE === '1' && match.pluginId) {
-          const allowed = (
-            this.ctx.get('account') as {
-              store?: { canAccessPlugin?(accountId: string, workspaceId: string, pluginId: string): boolean }
-            } | undefined
-          )?.store?.canAccessPlugin?.(accountId, requestedWorkspace, match.pluginId)
+          const allowed = accountStore?.canAccessPlugin?.(accountId, requestedWorkspace, match.pluginId)
           if (!allowed) {
             context.send(404, { error: 'not found' })
             return
