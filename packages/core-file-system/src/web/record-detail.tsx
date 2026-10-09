@@ -6,7 +6,7 @@ import { AnchorMenu, RecordEmojiBoard } from '@biu/public-ui'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import { contentFieldKey, fieldHasValue, formatField, resolveFieldType } from './fields.ts'
 import { LocalText } from './controls.tsx'
-import { FilePreview, placedActions } from './fsdb-cells.tsx'
+import { FilePreview } from './fsdb-cells.tsx'
 import { PropertyRow } from './property-row.tsx'
 import { FacetPackEditor } from './schema-field.tsx'
 import { TableGlyph } from './nav-glyphs.tsx'
@@ -514,9 +514,7 @@ export function RecordDetail({
           </div>
           <HeadingOutline enabled={headingOutline} />
           {(() => {
-            const showMore = Boolean(share) || (!readOnly && Boolean(
-              chrome?.DetailTools || onDelete || chrome?.Actions || placedActions(schema, 'detail').length,
-            ))
+            const showMore = Boolean(share) || (!readOnly && Boolean(chrome?.DetailTools || onDelete))
             if (!onPrev && !onNext && !showMore) return null
             return (
             <nav className={`fsdb-detail-float-nav${share ? ' has-share' : ''}`} aria-label="按视图顺序切换记录">

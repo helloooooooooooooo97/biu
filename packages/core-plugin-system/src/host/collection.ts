@@ -251,7 +251,7 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
       },
       {
         id: 'pack',
-        label: '打包安装',
+        label: '安装',
         when: { sandbox: true },
         description: PLUGIN_PACK_DESCRIPTION,
         requiredAction: 'resource:read',

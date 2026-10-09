@@ -3641,7 +3641,6 @@ export function CollectionBrowser({
           writeOne={writeOne}
           writePatch={writePatch}
           tableIcon={currentTable?.view?.icon}
-          toolbar={<RecordActions row={selected} place="detail" />}
           actionProperty={rowActionColumn ? <RecordActions row={selected} place="row" /> : null}
           share={
             nested && detailId ? (

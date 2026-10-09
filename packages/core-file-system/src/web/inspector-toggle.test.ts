@@ -233,7 +233,7 @@ test('title cell row tools skip the overflow action menu', () => {
   assert.match(browser, /const Actions = chrome\?\.Actions/)
   assert.match(browser, /placedActions\(schema, place\)/)
   assert.match(browser, /<Actions actions=\{placed\} record=\{row\}/)
-  assert.match(browser, /toolbar=\{<RecordActions row=\{selected\} place="detail" \/>\}/)
+  assert.doesNotMatch(browser, /toolbar=\{<RecordActions row=\{selected\} place="detail" \/>\}/)
   assert.match(browser, /onDelete=\{canDelete \? \(\) => setDlg\(\{ kind: 'delete-record', row: selected \}\) : undefined\}/)
   assert.doesNotMatch(browser, /selected \? <RecordActions row=\{selected\} place="detail" \/> : null/)
   const detail = readFileSync(resolve(import.meta.dirname, './record-detail.tsx'), 'utf8')
