@@ -980,50 +980,26 @@ export function ShellSettingsMembers() {
   return <ShellSettingsCollab panel="members" />
 }
 
-type PluginCatalogRow = {
-  id: string
-  name: string
-  blurb: string
-  version: string
-  hasWeb: boolean
-  hasHost: boolean
-  available: boolean
-  assigned: boolean
-}
-
 export function ShellSettingsPlugins() {
   const token = readAccountToken()
   const workspaceId = typeof sessionStorage === 'undefined' ? '' : (sessionStorage.getItem('biu.workspaceId') ?? '')
-  const [plugins, setPlugins] = useState<PluginCatalogRow[]>([])
   const [members, setMembers] = useState<Array<{ id: string; name: string; email: string; role: string }>>([])
-  const [assignments, setAssignments] = useState<Array<Record<string, unknown>>>([])
   const [permissions, setPermissions] = useState<string[]>([])
-  const [accountId, setAccountId] = useState('')
-  const [workspaceRole, setWorkspaceRole] = useState('')
   const [instanceRoles, setInstanceRoles] = useState<Array<Record<string, unknown>>>([])
   const [instanceMembers, setInstanceMembers] = useState<Array<Record<string, unknown>>>([])
   const [selectedMember, setSelectedMember] = useState('')
-  const [selectedPlugin, setSelectedPlugin] = useState('')
   const [selectedRole, setSelectedRole] = useState('plugin-developer')
   const [message, setMessage] = useState('')
 
   const load = useCallback(async () => {
     if (!token || !workspaceId) return
-    const [me, catalog, workspaces, workspaceMembers, pluginAssignments] = await Promise.all([
+    const [me, workspaceMembers] = await Promise.all([
       accountFetch(token, '/api/account/me'),
-      accountFetch(token, '/api/plugins/catalog'),
-      accountFetch(token, '/api/account/workspaces'),
       accountFetch(token, `/api/account/workspaces/${encodeURIComponent(workspaceId)}/members`),
-      accountFetch(token, `/api/account/plugins/assignments?workspaceId=${encodeURIComponent(workspaceId)}`),
     ])
     const nextPermissions = Array.isArray(me.instancePermissions) ? me.instancePermissions.map(String) : []
-    setAccountId(String(me.id ?? ''))
     setPermissions(nextPermissions)
-    setPlugins((catalog.plugins as PluginCatalogRow[]) ?? [])
     setMembers((workspaceMembers.members as Array<{ id: string; name: string; email: string; role: string }>) ?? [])
-    setAssignments((pluginAssignments.assignments as Array<Record<string, unknown>>) ?? [])
-    const current = ((workspaces.workspaces as Array<{ id: string; role: string }>) ?? []).find((row) => row.id === workspaceId)
-    setWorkspaceRole(current?.role ?? '')
     if (nextPermissions.includes('instance.roles.manage')) {
       const instance = await accountFetch(token, '/api/account/instance/roles')
       setInstanceRoles((instance.roles as Array<Record<string, unknown>>) ?? [])
@@ -1035,81 +1011,8 @@ export function ShellSettingsPlugins() {
     void load().catch((error) => setMessage(error instanceof Error ? error.message : '插件设置加载失败'))
   }, [load])
 
-  const mutateAssignment = async (
-    method: 'POST' | 'DELETE',
-    pluginId: string,
-    subjectId: string,
-  ) => {
-    setMessage('')
-    await accountFetch(token, '/api/account/plugins/assignments', {
-      method,
-      body: JSON.stringify({ workspaceId, pluginId, subjectType: 'account', subjectId }),
-    })
-    await load()
-  }
-
-  const manager = workspaceRole === 'owner' || workspaceRole === 'admin'
-
   return (
     <section className="settings-account" data-testid="settings-plugins">
-      <header className="settings-account-head">
-        <h3 className="settings-account-title">我的插件</h3>
-        <p className="settings-muted settings-account-lead">
-          插件包由实例管理员安装；这里的开关只决定当前账号在这个空间是否加载插件。
-        </p>
-      </header>
-      {plugins.length ? plugins.map((plugin) => (
-        <div className="settings-account-row" key={plugin.id}>
-          <div className="settings-account-copy">
-            <p className="settings-account-label">{plugin.name}</p>
-            <p className="settings-muted settings-account-hint">
-              {plugin.blurb || plugin.id} · {plugin.hasHost ? 'Host + ' : ''}{plugin.hasWeb ? 'Web' : '无前端'}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="settings-account-clear"
-            disabled={!plugin.available}
-            aria-pressed={plugin.assigned}
-            onClick={() => void mutateAssignment(plugin.assigned ? 'DELETE' : 'POST', plugin.id, accountId)}
-          >
-            {plugin.assigned ? '停用' : '为我启用'}
-          </button>
-        </div>
-      )) : <p className="settings-muted">实例中还没有可用插件。</p>}
-
-      {manager ? (
-        <>
-          <header className="settings-account-head">
-            <h3 className="settings-account-title">空间插件授权</h3>
-            <p className="settings-muted settings-account-lead">管理员可像分享页面一样，把已安装插件授权给指定成员。</p>
-          </header>
-          <div className="settings-account-row">
-            <div className="settings-account-actions">
-              <select className="settings-account-input" value={selectedPlugin} onChange={(event) => setSelectedPlugin(event.target.value)}>
-                <option value="">选择插件</option>
-                {plugins.filter((row) => row.available).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-              </select>
-              <select className="settings-account-input" value={selectedMember} onChange={(event) => setSelectedMember(event.target.value)}>
-                <option value="">选择成员</option>
-                {members.map((row) => <option key={row.id} value={row.id}>{row.name || row.email}</option>)}
-              </select>
-              <button type="button" className="settings-account-clear" disabled={!selectedPlugin || !selectedMember} onClick={() => void mutateAssignment('POST', selectedPlugin, selectedMember)}>
-                授权
-              </button>
-            </div>
-          </div>
-          <ul className="settings-account-people">
-            {assignments.map((item) => (
-              <li key={`${item.plugin_id}:${item.subject_type}:${item.subject_id}`}>
-                {String(item.plugin_id)} → {members.find((row) => row.id === item.subject_id)?.name || String(item.subject_id)}
-                <button type="button" className="settings-account-clear" onClick={() => void mutateAssignment('DELETE', String(item.plugin_id), String(item.subject_id))}>移除</button>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-
       {permissions.includes('instance.roles.manage') ? (
         <>
           <header className="settings-account-head">

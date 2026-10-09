@@ -624,7 +624,6 @@ export class PluginStoreService extends Service {
             manifest,
           })
         }
-        if (process.env.BIU_ONLINE === '1') this.accountStore()?.ensurePluginOwnerAssignments?.(id)
         await this.mountFromDisk(manifest, hit)
       } catch (error) {
         this.ctx.logger('core-plugin-system').error(error)

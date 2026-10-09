@@ -1224,21 +1224,8 @@ export class CollabStore {
   }
 
   canAccessPlugin(accountId: string, workspaceId: string, pluginId: string) {
-    if (!accountId || !workspaceId || !pluginId || !this.isMember(accountId, workspaceId)) return false
-    if (isRegisteredBuiltinPlugin(pluginId)) return true
-    const rows = this.db
-      .prepare(
-        `SELECT subject_type, subject_id
-         FROM plugin_assignments
-         WHERE workspace_id = ? AND plugin_id = ?`,
-      )
-      .all(workspaceId, pluginId) as Array<{ subject_type: string; subject_id: string }>
-    return rows.some(
-      (row) =>
-        (row.subject_type === 'account' && row.subject_id === accountId) ||
-        (row.subject_type === 'member_view' &&
-          this.authorization.matchesMemberView(workspaceId, row.subject_id, accountId)),
-    )
+    if (!accountId || !workspaceId || !pluginId) return false
+    return this.isMember(accountId, workspaceId)
   }
 
   availablePluginIds(accountId: string, workspaceId: string) {

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, test } from 'vitest'
 import { openAndMigrateBiu, runWithAccount, runWithRequestWorkspace } from '@biu/host-plugin-loader/data-dir'
-import { CollabError, CollabStore, registerBuiltinPluginLookup } from './store.ts'
+import { CollabError, CollabStore } from './store.ts'
 
 const dirs: string[] = []
 
@@ -143,7 +143,7 @@ test('instance roles are independent, composable, and keep one super admin', () 
   assert.equal(collab.hasInstancePermission(bob.id, 'instance.roles.manage'), true)
 })
 
-test('plugin grants are isolated by account and workspace', () => {
+test('workspace members can use plugins without a per-person grant', () => {
   const collab = store()
   const ada = collab.register('Ada')
   const bob = collab.register('Bob')
@@ -151,78 +151,10 @@ test('plugin grants are isolated by account and workspace', () => {
   const workspaceA = collab.createWorkspace(ada.id, 'A')
   const workspaceB = collab.createWorkspace(bob.id, 'B')
   collab.addMember(ada.id, workspaceA.id, bob.id)
-  collab.addMember(ada.id, workspaceA.id, cara.id)
-  collab.recordPluginPackage(ada.id, {
-    id: 'page-html-blocks',
-    version: 'v1',
-    packageHash: 'hash',
-    packagePath: '/plugin/page-html-blocks',
-    sourceKind: 'test',
-    trustState: 'approved',
-    tenantMode: 'assigned',
-    hasWeb: true,
-    hasHost: false,
-    manifest: {},
-  })
-
-  collab.grantPluginAssignment(ada.id, workspaceA.id, 'page-html-blocks', { type: 'account', id: bob.id })
   assert.equal(collab.canAccessPlugin(bob.id, workspaceA.id, 'page-html-blocks'), true)
+  assert.equal(collab.canAccessPlugin(ada.id, workspaceA.id, 'page-video'), true)
   assert.equal(collab.canAccessPlugin(cara.id, workspaceA.id, 'page-html-blocks'), false)
-  assert.equal(collab.canAccessPlugin(bob.id, workspaceB.id, 'page-html-blocks'), false)
-
-  collab.grantPluginAssignment(cara.id, workspaceA.id, 'page-html-blocks', { type: 'account', id: cara.id })
-  assert.equal(collab.canAccessPlugin(cara.id, workspaceA.id, 'page-html-blocks'), true)
-  assert.throws(
-    () => collab.grantPluginAssignment(cara.id, workspaceA.id, 'page-html-blocks', { type: 'account', id: bob.id }),
-    /只能为自己/,
-  )
-})
-
-test('builtin plugins are available to every member without an assignment', () => {
-  const collab = store()
-  const ada = collab.register('Ada')
-  const bob = collab.register('Bob')
-  const workspace = collab.createWorkspace(ada.id, 'A')
-  collab.addMember(ada.id, workspace.id, bob.id)
-  const stop = registerBuiltinPluginLookup((id) => id === 'api-playground')
-  try {
-    assert.equal(collab.canAccessPlugin(bob.id, workspace.id, 'api-playground'), true)
-    assert.equal(collab.canAccessPlugin(ada.id, workspace.id, 'page-video'), false)
-  } finally {
-    stop()
-  }
-})
-
-test('plugin member-view grants are evaluated dynamically', () => {
-  const collab = store()
-  const ada = collab.register('Ada')
-  const bob = collab.register('Bob')
-  const workspace = collab.createWorkspace(ada.id, 'A')
-  collab.addMember(ada.id, workspace.id, bob.id)
-  collab.recordPluginPackage(ada.id, {
-    id: 'page-excalidraw',
-    version: 'v1',
-    packageHash: 'hash',
-    packagePath: '/plugin/page-excalidraw',
-    sourceKind: 'test',
-    trustState: 'approved',
-    tenantMode: 'assigned',
-    hasWeb: true,
-    hasHost: false,
-    manifest: {},
-  })
-  let included = true
-  collab.authorization.setMemberViewMatcher(
-    (workspaceId, viewId, accountId) =>
-      included && workspaceId === workspace.id && viewId === 'designers' && accountId === bob.id,
-  )
-  collab.grantPluginAssignment(ada.id, workspace.id, 'page-excalidraw', {
-    type: 'member_view',
-    id: 'designers',
-  })
-  assert.equal(collab.canAccessPlugin(bob.id, workspace.id, 'page-excalidraw'), true)
-  included = false
-  assert.equal(collab.canAccessPlugin(bob.id, workspace.id, 'page-excalidraw'), false)
+  assert.equal(collab.canAccessPlugin(ada.id, workspaceB.id, 'page-html-blocks'), false)
 })
 
 test('sync bumps version and rejects a stale writer while a lock is held', () => {
