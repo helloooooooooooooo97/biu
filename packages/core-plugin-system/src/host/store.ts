@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, watch, writeFileSync, type FSWatcher } from 'node:fs'
 import { readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { dirname, join, resolve, sep } from 'node:path'
@@ -209,6 +209,8 @@ function parseState(raw: unknown): StoreState {
 export class PluginStoreService extends Service {
   private state: StoreState = emptyState()
   private listCache: StoreListing[] | null = null
+  private sandboxWatch: FSWatcher | null = null
+  private sandboxNotifyTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     ctx: Context,
@@ -239,7 +241,38 @@ export class PluginStoreService extends Service {
   open() {
     mkdirSync(dirname(this.statePath), { recursive: true })
     this.state = this.readState()
+    this.watchSandbox()
     return this
+  }
+
+  /** .plugin-dev 里新出现清单时，让打开着的插件表立刻重拉。 */
+  private watchSandbox() {
+    mkdirSync(this.sandboxDir, { recursive: true })
+    try {
+      this.sandboxWatch = watch(this.sandboxDir, { recursive: true }, () => this.notifySandboxChanged())
+      this.ctx.on('dispose', () => {
+        this.sandboxWatch?.close()
+        this.sandboxWatch = null
+        if (this.sandboxNotifyTimer) clearTimeout(this.sandboxNotifyTimer)
+        this.sandboxNotifyTimer = null
+      })
+    } catch {
+      /* 监听失败时，打开表格仍会拉取磁盘 */
+    }
+  }
+
+  private notifySandboxChanged() {
+    if (this.sandboxNotifyTimer) return
+    this.sandboxNotifyTimer = setTimeout(() => {
+      this.sandboxNotifyTimer = null
+      let http: { broadcast?: (type: string, payload: unknown) => void } | undefined
+      try {
+        http = this.ctx.get('http') as { broadcast?: (type: string, payload: unknown) => void } | undefined
+      } catch {
+        return
+      }
+      http?.broadcast?.('database', { ts: Date.now(), collection: '/plugins' })
+    }, 80)
   }
 
   private hub(): StoreHub {
@@ -422,8 +455,17 @@ export class PluginStoreService extends Service {
     return { id: manifest.id, sandboxPath: sandbox, pluginPath: dest }
   }
 
+  /** 空间成员看得到 .plugin-dev；实例草稿权限仍单独放行。 */
+  private canSeeSandboxes() {
+    if (this.hasInstancePermission('plugin.drafts.read-all')) return true
+    if (process.env.BIU_ONLINE !== '1') return false
+    const accountId = currentAccountId()
+    const workspaceId = currentRequestWorkspaceId()
+    return Boolean(accountId && workspaceId && this.accountStore()?.isMember?.(accountId, workspaceId))
+  }
+
   async listSandboxes() {
-    const canReadDrafts = this.hasInstancePermission('plugin.drafts.read-all')
+    const canReadDrafts = this.canSeeSandboxes()
     const names = existsSync(this.sandboxDir) ? await readdir(this.sandboxDir) : []
     const items: Array<{
       id: string

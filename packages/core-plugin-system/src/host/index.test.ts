@@ -71,6 +71,10 @@ test('builtin sandboxes stay in the plugin list without draft permission', async
     assert.deepEqual(rows.map((row) => row.id), ['api-playground'])
     assert.equal(store.isBuiltin('api-playground'), true)
     assert.equal(store.isBuiltin('my-draft'), false)
+    ;(ctx as unknown as { get(name: string): unknown }).get = (name: string) =>
+      name === 'account' ? { store: { isMember: () => true } } : undefined
+    const visible = await runWithAccount('ada', () => runWithRequestWorkspace('ws', () => store.listSandboxes()))
+    assert.deepEqual(visible.map((row) => row.id).sort(), ['api-playground', 'my-draft'])
   } finally {
     if (previous === undefined) delete process.env.BIU_ONLINE
     else process.env.BIU_ONLINE = previous

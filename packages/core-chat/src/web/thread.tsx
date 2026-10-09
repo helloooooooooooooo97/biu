@@ -762,28 +762,34 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
   const navigate = useNavigate()
   const nodes = useSessionView((state) => state.nodes)
   const sessionId = useSessionView((state) => state.sessionId)
+  const switchingSession = useSessionView((state) => state.switchingSession)
   const turns = useMemo(() => groupNodesIntoTurns(nodes), [nodes])
   const totalTurns = turns.length
   const [revealStart, setRevealStart] = useState(() => firstPaintStartIndex(totalTurns))
   const sessionKeyRef = useRef(sessionId)
   const prevTotalRef = useRef(totalTurns)
+  const revealPendingRef = useRef(false)
   if (sessionId !== sessionKeyRef.current) {
     sessionKeyRef.current = sessionId
+    // 切会话时先留着上一段画面，回合数还是旧的，这时重算会把新会话切成空白。
+    revealPendingRef.current = true
+  }
+  const revealStale = totalTurns > 0 && revealStart >= totalTurns
+  if (
+    !switchingSession &&
+    (revealPendingRef.current || (prevTotalRef.current === 0 && totalTurns > 0) || revealStale)
+  ) {
+    revealPendingRef.current = false
     prevTotalRef.current = totalTurns
     const next = revealStartForMemory(nodes, recalledChatScroll(sessionId), totalTurns)
     if (next !== revealStart) setRevealStart(next)
-  } else if (prevTotalRef.current === 0 && totalTurns > 0) {
-    prevTotalRef.current = totalTurns
-    const next = revealStartForMemory(nodes, recalledChatScroll(sessionId), totalTurns)
-    if (next !== revealStart) setRevealStart(next)
-  } else {
+  } else if (!switchingSession) {
     prevTotalRef.current = totalTurns
   }
   const mountedNodes = useMemo(() => sliceTurnsFrom(nodes, revealStart), [nodes, revealStart])
   const pending = useSessionView((state) => state.pending)
   const sessions = useSessionView((state) => state.sessions)
   const error = useSessionView((state) => state.error)
-  const switchingSession = useSessionView((state) => state.switchingSession)
   const hasMoreOlder = useSessionView((state) => state.hasMoreOlder)
   const loadingOlder = useSessionView((state) => state.loadingOlder)
   const dispatchedTasksByTurn = useSessionView((state) => state.dispatchedTasksByTurn)

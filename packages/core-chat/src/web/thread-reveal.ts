@@ -172,7 +172,8 @@ export function shouldRevealFast(opts: {
 
 export function sliceTurnsFrom(nodes: ChatNode[], startTurnIndex: number): ChatNode[] {
   const turns = groupNodesIntoTurns(nodes)
-  if (startTurnIndex <= 0) return nodes
-  if (startTurnIndex >= turns.length) return []
-  return turns.slice(startTurnIndex).flat()
+  if (turns.length === 0) return []
+  const start = startTurnIndex >= turns.length ? firstPaintStartIndex(turns.length) : startTurnIndex
+  if (start <= 0) return nodes
+  return turns.slice(start).flat()
 }

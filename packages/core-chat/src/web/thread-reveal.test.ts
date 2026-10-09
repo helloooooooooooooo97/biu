@@ -64,6 +64,12 @@ describe('thread reveal (visible first, then older)', () => {
     expect(more[0]?.id).toBe('u-6')
   })
 
+  it('a start past the new session still mounts that session tail', () => {
+    const nodes = [user('u-0'), reply('r-0'), user('u-1'), reply('r-1')]
+    const shown = sliceTurnsFrom(nodes, 18)
+    expect(shown.map((n) => n.id)).toEqual(['u-0', 'r-0', 'u-1', 'r-1'])
+  })
+
   it('new message at the end stays in the mounted slice without remounting earlier tail', () => {
     const nodes = [...longThread(), user('u-10'), reply('r-10')]
     const start = firstPaintStartIndex(10)
