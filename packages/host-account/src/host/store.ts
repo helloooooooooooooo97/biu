@@ -1132,6 +1132,13 @@ export class CollabStore {
     )
   }
 
+  /** 线上空间成员走记录权限，不再套一层实例安装/卸载权限。 */
+  private onlineWorkspaceMember(accountId: string) {
+    if (process.env.BIU_ONLINE !== '1') return false
+    const workspaceId = currentRequestWorkspaceId()
+    return Boolean(accountId && workspaceId && this.isMember(accountId, workspaceId))
+  }
+
   requireInstancePermission(accountId: string, permission: InstancePermission) {
     if (!this.hasInstancePermission(accountId, permission)) {
       throw new CollabError(`缺少实例权限：${permission}`, 403)
@@ -1425,7 +1432,7 @@ export class CollabStore {
     input: PluginPackageInput,
     now = Date.now(),
   ) {
-    this.requireInstancePermission(actorId, 'plugin.packages.install')
+    if (!this.onlineWorkspaceMember(actorId)) this.requireInstancePermission(actorId, 'plugin.packages.install')
     this.db
       .prepare(
         `INSERT INTO plugin_packages
@@ -1477,7 +1484,7 @@ export class CollabStore {
   }
 
   removePluginPackage(actorId: string, pluginId: string, now = Date.now()) {
-    this.requireInstancePermission(actorId, 'plugin.packages.uninstall')
+    if (!this.onlineWorkspaceMember(actorId)) this.requireInstancePermission(actorId, 'plugin.packages.uninstall')
     this.db.exec('BEGIN IMMEDIATE')
     try {
       this.db.prepare('DELETE FROM plugin_assignments WHERE plugin_id = ?').run(pluginId)

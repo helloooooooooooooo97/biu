@@ -143,6 +143,36 @@ test('instance roles are independent, composable, and keep one super admin', () 
   assert.equal(collab.hasInstancePermission(bob.id, 'instance.roles.manage'), true)
 })
 
+test('workspace members install and uninstall plugins without instance package roles', () => {
+  const previous = process.env.BIU_ONLINE
+  process.env.BIU_ONLINE = '1'
+  try {
+    const collab = store()
+    const ada = collab.register('Ada')
+    const bob = collab.register('Bob')
+    const workspace = collab.createWorkspace(ada.id, 'Notes')
+    collab.addMember(ada.id, workspace.id, bob.id)
+    const input = {
+      id: 'brand',
+      version: '1',
+      packageHash: 'abc',
+      packagePath: '/tmp/brand',
+      sourceKind: 'sandbox',
+      trustState: 'approved',
+      tenantMode: 'assigned',
+      hasWeb: true,
+      hasHost: false,
+      manifest: { id: 'brand' },
+    }
+    assert.throws(() => collab.recordPluginPackage(bob.id, input), /缺少实例权限：plugin\.packages\.install/)
+    runWithAccount(bob.id, () => runWithRequestWorkspace(workspace.id, () => collab.recordPluginPackage(bob.id, input)))
+    runWithAccount(bob.id, () => runWithRequestWorkspace(workspace.id, () => collab.removePluginPackage(bob.id, 'brand')))
+  } finally {
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
+  }
+})
+
 test('each member loads plugins for themselves', () => {
   const collab = store()
   const ada = collab.register('Ada')

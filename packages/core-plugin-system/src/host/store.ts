@@ -605,9 +605,17 @@ export class PluginStoreService extends Service {
     this.invalidateList()
   }
 
+  /** 线上卸载只认记录上的管理权限，动作层已经查过。 */
+  private onlineWorkspaceMember() {
+    if (process.env.BIU_ONLINE !== '1') return false
+    const accountId = currentAccountId()
+    const workspaceId = currentRequestWorkspaceId()
+    return Boolean(accountId && workspaceId && this.accountStore()?.isMember?.(accountId, workspaceId))
+  }
+
   /** 卸载：停运行，只删 .plugin/<id>/，不动 .plugin-dev。 */
   async uninstall(id: string) {
-    this.requireInstancePermission('plugin.packages.uninstall')
+    if (!this.onlineWorkspaceMember()) this.requireInstancePermission('plugin.packages.uninstall')
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
     await this.hub().drop(id)
     this.setEnabled(id, false)
