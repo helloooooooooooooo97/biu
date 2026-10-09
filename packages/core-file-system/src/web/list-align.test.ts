@@ -267,6 +267,8 @@ test('title column stays pinned when the table scrolls sideways', () => {
   assert.match(css, /\.fsdb-page \.tasks-table th\.is-pin-col,\.fsdb-page \.tasks-table td\.is-pin-col\{[^}]*left:var\(--fsdb-check-gutter\)/)
   const browser = readFileSync(resolve(import.meta.dirname, './browser.tsx'), 'utf8')
   assert.match(browser, /col\.key === schema\?\.labelField \? 'is-pin-col'/)
+  assert.match(css, /\.fsdb-page \.tasks-table tr:hover td\{[^}]*background:color-mix\(in srgb,var\(--dsw-hover\) 55%,var\(--dsw-surface\)\)/)
+  assert.doesNotMatch(css, /\.fsdb-page \.tasks-table tr:hover td\{[^}]*transparent/)
 })
 
 test('share page portals sit above the share overlay', () => {

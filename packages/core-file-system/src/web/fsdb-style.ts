@@ -273,8 +273,8 @@ const CSS = `
 .fsdb-page .tasks-th svg{color:var(--dsw-icon)}
 .fsdb-page .tasks-th.is-on svg{color:var(--dsw-icon-active)}
 .fsdb-page .tasks-table tr{cursor:default}
-.fsdb-page .tasks-table tr:hover td{background:color-mix(in srgb,var(--dsw-hover) 55%,transparent)}
-.fsdb-page .tasks-table tr.is-active td{background:color-mix(in srgb,var(--dsw-business) 8%,transparent)}
+.fsdb-page .tasks-table tr:hover td{background:color-mix(in srgb,var(--dsw-hover) 55%,var(--dsw-surface))}
+.fsdb-page .tasks-table tr.is-active td{background:color-mix(in srgb,var(--dsw-business) 8%,var(--dsw-surface))}
 .fsdb-page .tasks-table tr.fsdb-group-row td{padding:6px 6px 4px;background:transparent;cursor:default}
 .fsdb-page .tasks-table tr.fsdb-group-row:hover td{background:transparent}
 .fsdb-page .tasks-table tr.fsdb-group-row .tasks-queue-ghead{padding:0;gap:5px}
