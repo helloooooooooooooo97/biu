@@ -203,7 +203,7 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
     },
     remove: async (query) => {
       const ids = query.ids ?? []
-      for (const id of ids) await store.uninstall(id)
+      for (const id of ids) await store.destroy(id)
       return ids
     },
     actions: [
