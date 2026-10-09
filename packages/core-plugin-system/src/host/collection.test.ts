@@ -283,4 +283,7 @@ test('builtin plugins list BIU官方 and the GitHub link', async () => {
   assert.deepEqual(row?.updatedBy, [{ kind: 'user', name: BIU_OFFICIAL_NAME }])
   assert.equal(spec.schema.columns?.includes('createdBy'), true)
   assert.equal(spec.schema.columns?.includes('updatedBy'), true)
+  assert.equal(spec.schema.fields.author, undefined)
+  assert.equal(spec.schema.fields.authorUrl, undefined)
+  assert.equal(spec.schema.columns?.includes('author'), false)
 })

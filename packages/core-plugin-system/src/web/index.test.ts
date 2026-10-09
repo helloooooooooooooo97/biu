@@ -73,7 +73,7 @@ test('plugin system web passes name/tags/action chrome into databaseUi', async (
   await ctx.plugin(plugins2Ui)
   assert.equal(ui.last?.path, '/plugins')
   assert.equal(typeof ui.last?.chrome.Title, 'function')
-  assert.equal(typeof ui.last?.chrome.cells?.author, 'function')
+  assert.equal(ui.last?.chrome.cells?.author, undefined)
   assert.equal(ui.last?.chrome.cells?.tags, undefined)
   assert.equal(ui.last?.chrome.Actions, undefined)
   assert.equal(ui.last?.chrome.Action, undefined)
