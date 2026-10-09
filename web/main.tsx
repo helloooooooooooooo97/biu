@@ -2,6 +2,9 @@ import { Context } from 'cordis'
 import './types.ts'
 import './style.css'
 import { applyStoredTheme } from '@biu/web-app-shell/theme'
+import { installTenantFetch } from '../packages/web-app-shell/src/web/tenant-fetch.ts'
+
+installTenantFetch()
 import { applyPagePrefs } from '../packages/core-file-system/src/web/page-width.ts'
 import { webRuntimeLoaders } from 'virtual:cordis-web-runtime'
 import { isShareHref, mountShareApp } from './share-mount.tsx'
