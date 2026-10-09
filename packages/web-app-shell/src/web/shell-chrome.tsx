@@ -24,11 +24,15 @@ import { persistWorkspaceProfile, useWorkspaceProfile } from '@biu/public-ui'
 import { LayoutPrefsMenu } from '@biu/core-file-system/layout-prefs-menu'
 import { getPagePrefs, hydratePagePrefs, subscribePageWidth } from '@biu/core-file-system/page-width'
 
+import { clearWorkspaceId, isAccountApi, readWorkspaceId, requestUrl, resolveWorkspaceId, writeWorkspaceId } from './tenant-fetch.ts'
+
 if (typeof window !== 'undefined') {
   const originalFetch = window.fetch.bind(window)
-  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const token = localStorage.getItem('biu.account.token') ?? ''
-    const workspaceId = sessionStorage.getItem('biu.workspaceId') ?? ''
+    const url = requestUrl(input)
+    let workspaceId = readWorkspaceId()
+    if (token && !workspaceId && !isAccountApi(url)) workspaceId = await resolveWorkspaceId(originalFetch, token)
     if (!token && !workspaceId) return originalFetch(input, init)
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
     if (token && !headers.has('authorization')) headers.set('authorization', `Bearer ${token}`)
@@ -277,7 +281,10 @@ export function writeAccountToken(next: string) {
     void fetch('/api/account/logout', { method: 'POST' }).catch(() => undefined)
   }
   if (next) localStorage.setItem(ACCOUNT_KEY, next)
-  else localStorage.removeItem(ACCOUNT_KEY)
+  else {
+    localStorage.removeItem(ACCOUNT_KEY)
+    clearWorkspaceId()
+  }
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(ACCOUNT_EVENT))
 }
 
@@ -504,7 +511,7 @@ export function ShellWorkspaceSwitcher({ onWorkspaceSettings }: { onWorkspaceSet
         setWorkspaces(listed.workspaces ?? [])
         const workspaceId = String(current.workspaceId ?? '')
         setActive(workspaceId)
-        if (workspaceId) sessionStorage.setItem('biu.workspaceId', workspaceId)
+        if (workspaceId) writeWorkspaceId(workspaceId)
       } catch {
         if (!cancelled) setWorkspaces([])
       }
@@ -524,7 +531,7 @@ export function ShellWorkspaceSwitcher({ onWorkspaceSettings }: { onWorkspaceSet
     setOpen(false)
     if (!token || !workspaceId || workspaceId === active) return
     setActive(workspaceId)
-    sessionStorage.setItem('biu.workspaceId', workspaceId)
+    writeWorkspaceId(workspaceId)
     void accountFetch(token, '/api/account/active', {
       method: 'POST',
       body: JSON.stringify({ workspaceId }),
