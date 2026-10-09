@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from 'cordis'
@@ -35,6 +35,47 @@ function stubHub(ctx: Context) {
   }
   return { adopted, dropped, forks }
 }
+
+test('builtin sandboxes stay in the plugin list without draft permission', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'plugin-builtin-'))
+  const previous = process.env.BIU_ONLINE
+  process.env.BIU_ONLINE = '1'
+  try {
+    const ctx = new Context()
+    stubHub(ctx)
+    const sandbox = join(dir, '.plugin-dev')
+    const store = new PluginStoreService(ctx, join(dir, '.plugin'), join(dir, 'store.json'), sandbox).open()
+    await mkdir(join(sandbox, 'api-playground'), { recursive: true })
+    await mkdir(join(sandbox, 'my-draft'), { recursive: true })
+    await writeFile(join(sandbox, 'api-playground', 'manifest.json'), `${JSON.stringify({
+      id: 'api-playground',
+      name: 'API 调试块',
+      blurb: '调试',
+      tags: [],
+      author: 'BIU官方',
+      authorUrl: 'https://github.com/helloooooooooooooo97/biu',
+      builtin: true,
+      createdAt: 1,
+    })}\n`)
+    await writeFile(join(sandbox, 'my-draft', 'manifest.json'), `${JSON.stringify({
+      id: 'my-draft',
+      name: '我的草稿',
+      blurb: '草稿',
+      tags: [],
+      author: 'Ada',
+      authorUrl: '',
+      createdAt: 1,
+    })}\n`)
+    const rows = await store.listSandboxes()
+    assert.deepEqual(rows.map((row) => row.id), ['api-playground'])
+    assert.equal(store.isBuiltin('api-playground'), true)
+    assert.equal(store.isBuiltin('my-draft'), false)
+  } finally {
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
+    await rm(dir, { recursive: true, force: true })
+  }
+})
 
 test('default plugin dir is repo-root .plugin, not nested catalog', () => {
   const dir = defaultPluginDir().replace(/\\/g, '/')

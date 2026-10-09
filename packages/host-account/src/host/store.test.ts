@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, test } from 'vitest'
 import { openAndMigrateBiu, runWithAccount, runWithRequestWorkspace } from '@biu/host-plugin-loader/data-dir'
-import { CollabError, CollabStore } from './store.ts'
+import { CollabError, CollabStore, registerBuiltinPluginLookup } from './store.ts'
 
 const dirs: string[] = []
 
@@ -176,6 +176,21 @@ test('plugin grants are isolated by account and workspace', () => {
     () => collab.grantPluginAssignment(cara.id, workspaceA.id, 'page-html-blocks', { type: 'account', id: bob.id }),
     /只能为自己/,
   )
+})
+
+test('builtin plugins are available to every member without an assignment', () => {
+  const collab = store()
+  const ada = collab.register('Ada')
+  const bob = collab.register('Bob')
+  const workspace = collab.createWorkspace(ada.id, 'A')
+  collab.addMember(ada.id, workspace.id, bob.id)
+  const stop = registerBuiltinPluginLookup((id) => id === 'api-playground')
+  try {
+    assert.equal(collab.canAccessPlugin(bob.id, workspace.id, 'api-playground'), true)
+    assert.equal(collab.canAccessPlugin(ada.id, workspace.id, 'page-video'), false)
+  } finally {
+    stop()
+  }
 })
 
 test('plugin member-view grants are evaluated dynamically', () => {

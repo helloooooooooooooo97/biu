@@ -9,8 +9,9 @@
     "iframe",
     "slide"
   ],
-  "author": "Biu",
-  "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",
+  "author": "BIU官方",
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu",
   "createdAt": 1788577761418,
-  "headless": true
+  "headless": true,
+  "builtin": true
 }

@@ -10,6 +10,22 @@ import type { PluginStoreService, StoreListing } from './store.ts'
 
 type SandboxListing = Awaited<ReturnType<PluginStoreService['listSandboxes']>>[number]
 
+export const BIU_OFFICIAL_NAME = 'BIU官方'
+export const BIU_GITHUB = 'https://github.com/helloooooooooooooo97/biu'
+
+const BIU_OFFICIAL = { kind: 'user' as const, name: BIU_OFFICIAL_NAME }
+
+function withOfficial<T extends { builtin?: boolean; author: string; authorUrl: string }>(row: T) {
+  if (!row.builtin) return row
+  return {
+    ...row,
+    author: BIU_OFFICIAL_NAME,
+    authorUrl: BIU_GITHUB,
+    createdBy: BIU_OFFICIAL,
+    updatedBy: [BIU_OFFICIAL],
+  }
+}
+
 function omitEmpty(row: DbRecord): DbRecord {
   const next: DbRecord = { id: row.id }
   for (const [key, value] of Object.entries(row)) {
@@ -30,8 +46,7 @@ function asInstalledRecord(row: StoreListing, store: PluginStoreService): DbReco
     title: row.name,
     blurb: row.blurb,
     tags: row.tags,
-    author: row.author,
-    authorUrl: row.authorUrl,
+    ...withOfficial(row),
     installed: true,
     ...(canReadDrafts ? { pluginPath: store.pluginPath(row.id) } : {}),
     enabled: row.enabled,
@@ -64,8 +79,7 @@ function asSandboxRecord(row: SandboxListing, store: PluginStoreService): DbReco
     title: row.name,
     blurb: row.blurb,
     tags: row.tags,
-    author: row.author,
-    authorUrl: row.authorUrl,
+    ...withOfficial(row),
     sandbox: true,
     ...(canReadDrafts ? { sandboxPath: store.sandboxPath(row.id) } : {}),
     hasHost: row.hasHost,
@@ -81,6 +95,10 @@ function mergeLifecycle(
   sandbox: SandboxListing | undefined,
   store: PluginStoreService,
 ): DbRecord {
+  const builtin = Boolean(installed?.builtin || sandbox?.builtin)
+  const official = builtin
+    ? { builtin: true, author: BIU_OFFICIAL_NAME, authorUrl: BIU_GITHUB, createdBy: BIU_OFFICIAL, updatedBy: [BIU_OFFICIAL] }
+    : {}
   if (installed && sandbox) {
     const canReadDrafts = store.hasInstancePermission('plugin.drafts.read-all')
     return omitEmpty({
@@ -88,10 +106,11 @@ function mergeLifecycle(
       sandbox: true,
       ...(canReadDrafts ? { sandboxPath: store.sandboxPath(sandbox.id) } : {}),
       updatedAt: Math.max(installed.updatedAt, sandbox.updatedAt),
+      ...official,
     })
   }
-  if (installed) return asInstalledRecord(installed, store)
-  if (sandbox) return asSandboxRecord(sandbox, store)
+  if (installed) return { ...asInstalledRecord(installed, store), ...official }
+  if (sandbox) return { ...asSandboxRecord(sandbox, store), ...official }
   throw new Error('empty plugin row')
 }
 
@@ -139,6 +158,8 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
         'enabled',
         'tags',
         'author',
+        'createdBy',
+        'updatedBy',
         'bytes',
         'shellWidth',
         'shellHeight',

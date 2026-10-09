@@ -8,8 +8,9 @@
     "code",
     "dev"
   ],
-  "author": "Biu",
-  "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",
+  "author": "BIU官方",
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu",
   "createdAt": 1788900000000,
-  "headless": true
+  "headless": true,
+  "builtin": true
 }

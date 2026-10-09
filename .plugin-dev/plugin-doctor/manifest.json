@@ -7,8 +7,9 @@
     "editor",
     "dev"
   ],
-  "author": "Biu",
-  "authorUrl": "",
+  "author": "BIU官方",
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu",
   "createdAt": 1789444148683,
-  "headless": true
+  "headless": true,
+  "builtin": true
 }

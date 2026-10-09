@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import type { DbRecord } from '@biu/type-file-system'
-import { pluginsCollection } from './collection.ts'
+import { BIU_GITHUB, BIU_OFFICIAL_NAME, pluginsCollection } from './collection.ts'
 import type { PluginStoreService } from './store.ts'
 import { defaultStoreShell } from '../shell.ts'
 
@@ -251,4 +251,32 @@ test('plugin intro is README.md via contentField readme', async () => {
   assert.equal(written.readme, '# Demo\n\n介绍\n')
   assert.equal(files.get('demo'), '# Demo\n\n介绍\n')
   await assert.rejects(() => spec.update!('demo', { name: '改名' }), /not writable/)
+})
+
+test('builtin plugins list BIU官方 and the GitHub link', async () => {
+  const spec = pluginsCollection(stubStore({
+    list: () => Promise.resolve([]),
+    listSandboxes: () => Promise.resolve([
+      {
+        id: 'api-playground',
+        name: 'API 调试块',
+        blurb: '调试',
+        tags: [],
+        author: 'Biu',
+        authorUrl: '',
+        builtin: true,
+        hasHost: true,
+        hasWeb: true,
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ]),
+  }))
+  const row = (await spec.list()).find((item) => item.id === 'api-playground')
+  assert.equal(row?.author, BIU_OFFICIAL_NAME)
+  assert.equal(row?.authorUrl, BIU_GITHUB)
+  assert.deepEqual(row?.createdBy, { kind: 'user', name: BIU_OFFICIAL_NAME })
+  assert.deepEqual(row?.updatedBy, [{ kind: 'user', name: BIU_OFFICIAL_NAME }])
+  assert.equal(spec.schema.columns?.includes('createdBy'), true)
+  assert.equal(spec.schema.columns?.includes('updatedBy'), true)
 })

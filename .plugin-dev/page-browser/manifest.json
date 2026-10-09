@@ -11,8 +11,9 @@
     "electron",
     "web"
   ],
-  "author": "Biu",
-  "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",
+  "author": "BIU官方",
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu",
   "headless": true,
-  "createdAt": 1789204058242
+  "createdAt": 1789204058242,
+  "builtin": true
 }

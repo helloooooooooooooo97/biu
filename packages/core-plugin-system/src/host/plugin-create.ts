@@ -13,6 +13,7 @@ export type PluginCreateInput = {
   tags?: string[]
   author?: string
   authorUrl?: string
+  builtin?: boolean
   headless?: boolean
   shell?: StoreShell | Record<string, unknown>
   hostJs?: string
@@ -26,6 +27,7 @@ export type StoreManifestFields = {
   tags: string[]
   author: string
   authorUrl: string
+  builtin?: boolean
   createdAt: number
   headless?: boolean
   shell?: StoreShell
@@ -46,7 +48,7 @@ export function parseTags(value: unknown): string[] {
 }
 
 export function buildStoreManifest(
-  input: Pick<PluginCreateInput, 'id' | 'name' | 'blurb' | 'tags' | 'author' | 'authorUrl' | 'shell' | 'headless'>,
+  input: Pick<PluginCreateInput, 'id' | 'name' | 'blurb' | 'tags' | 'author' | 'authorUrl' | 'shell' | 'headless' | 'builtin'>,
   existing?: Partial<StoreManifestFields>,
   now = Date.now(),
 ): StoreManifestFields {
@@ -60,6 +62,7 @@ export function buildStoreManifest(
     author: String(input.author ?? existing?.author ?? '').trim(),
     authorUrl: String(input.authorUrl ?? existing?.authorUrl ?? '').trim(),
     createdAt: Number.isFinite(createdAt) && createdAt > 0 ? createdAt : now,
+    ...(input.builtin === true || existing?.builtin === true ? { builtin: true as const } : {}),
     ...(headless ? { headless: true } : {}),
     ...(!headless && declaredStoreShell(input.shell ?? existing?.shell)
       ? { shell: parseStoreShell(input.shell ?? existing?.shell) }
@@ -81,6 +84,7 @@ export function parseStoreManifest(raw: unknown): StoreManifestFields {
       tags: parseTags(data.tags),
       author: data.author != null ? String(data.author) : undefined,
       authorUrl: data.authorUrl != null ? String(data.authorUrl) : data.author_url != null ? String(data.author_url) : undefined,
+      builtin: data.builtin === true,
       headless: data.headless === true,
       shell: data.shell,
     },

@@ -29,6 +29,23 @@ export const INSTANCE_PERMISSIONS = [
 
 export type InstancePermission = (typeof INSTANCE_PERMISSIONS)[number]
 
+const builtinPluginLookups = new Set<(pluginId: string) => boolean>()
+
+/** 内置插件由插件商店登记。成员不需要再在设置里授权。 */
+export function registerBuiltinPluginLookup(lookup: (pluginId: string) => boolean) {
+  builtinPluginLookups.add(lookup)
+  return () => {
+    builtinPluginLookups.delete(lookup)
+  }
+}
+
+export function isRegisteredBuiltinPlugin(pluginId: string) {
+  for (const lookup of builtinPluginLookups) {
+    if (lookup(pluginId)) return true
+  }
+  return false
+}
+
 const BUILTIN_INSTANCE_ROLES: Record<string, { name: string; permissions: readonly InstancePermission[] }> = {
   'super-admin': { name: '超级管理员', permissions: INSTANCE_PERMISSIONS },
   'plugin-developer': {
@@ -1208,6 +1225,7 @@ export class CollabStore {
 
   canAccessPlugin(accountId: string, workspaceId: string, pluginId: string) {
     if (!accountId || !workspaceId || !pluginId || !this.isMember(accountId, workspaceId)) return false
+    if (isRegisteredBuiltinPlugin(pluginId)) return true
     const rows = this.db
       .prepare(
         `SELECT subject_type, subject_id

@@ -1294,6 +1294,10 @@ export class DatabaseService extends Service implements Database {
   }
 
   private applyPersonOverlay(spec: CollectionSpec, row: DbRecord): DbRecord {
+    if (spec.path === '/plugins' && row.builtin === true) {
+      const official = { kind: 'user' as const, name: 'BIU官方' }
+      return { ...row, createdBy: official, updatedBy: [official] }
+    }
     const meta = this.facets.recordMeta(spec.path, row.id)
     if (!meta) return row
     const editors = asPersonList(meta.updatedBy).map((item) => this.namedPerson(item))

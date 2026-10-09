@@ -19,6 +19,7 @@ import {
   type StoreManifestFields,
 } from './plugin-create.ts'
 import { parseStoreShell, requireDeclaredShell, type StoreShell } from '../shell.ts'
+import { registerBuiltinPluginLookup } from '@biu/host-account/store'
 import {
   assetsRootPath,
   biuSqlitePath,
@@ -47,6 +48,7 @@ export type StoreListing = {
   lastRunAt: number | null
   hasHost: boolean
   hasWeb: boolean
+  builtin?: boolean
   /** 已安装 host.js + web.js 的内容短哈希，与加载 URL 的 v 参数一致。 */
   codeVersion?: string
   headless?: boolean
@@ -215,6 +217,23 @@ export class PluginStoreService extends Service {
     readonly sandboxDir: string = defaultSandboxDir(),
   ) {
     super(ctx, 'pluginStore')
+    this.ctx.on('dispose', registerBuiltinPluginLookup((id) => this.isBuiltin(id)))
+  }
+
+  /** 随仓库发布的 .plugin-dev 插件。用户后来开的沙箱没有这个标记。 */
+  isBuiltin(id: string) {
+    if (!/^[a-z][a-z0-9-]{1,40}$/.test(id)) return false
+    for (const dir of [this.sandboxPath(id), this.pluginPath(id)]) {
+      const file = join(dir, 'manifest.json')
+      if (!existsSync(file)) continue
+      try {
+        const raw = JSON.parse(readFileSync(file, 'utf8')) as { id?: unknown; builtin?: unknown }
+        if (raw.builtin === true && String(raw.id ?? '') === id) return true
+      } catch {
+        /* 坏清单不当内置 */
+      }
+    }
+    return false
   }
 
   open() {
@@ -390,7 +409,7 @@ export class PluginStoreService extends Service {
   }
 
   async listSandboxes() {
-    if (!this.hasInstancePermission('plugin.drafts.read-all')) return []
+    const canReadDrafts = this.hasInstancePermission('plugin.drafts.read-all')
     const names = existsSync(this.sandboxDir) ? await readdir(this.sandboxDir) : []
     const items: Array<{
       id: string
@@ -399,6 +418,7 @@ export class PluginStoreService extends Service {
       tags: string[]
       author: string
       authorUrl: string
+      builtin?: boolean
       hasHost: boolean
       hasWeb: boolean
       headless?: boolean
@@ -410,6 +430,7 @@ export class PluginStoreService extends Service {
       if (!(await stat(dir)).isDirectory()) continue
       if (!existsSync(join(dir, 'manifest.json'))) continue
       const manifest = await readManifest(dir)
+      if (!manifest.builtin && !canReadDrafts) continue
       const stats = await pluginDirStats(dir)
       items.push({
         id: manifest.id,
@@ -418,6 +439,7 @@ export class PluginStoreService extends Service {
         tags: manifest.tags,
         author: manifest.author,
         authorUrl: manifest.authorUrl,
+        ...(manifest.builtin ? { builtin: true } : {}),
         hasHost: Boolean(findEntry(dir, HOST_ENTRIES)),
         hasWeb: Boolean(findEntry(dir, WEB_ENTRIES)),
         ...(manifest.headless ? { headless: true } : {}),
@@ -716,7 +738,9 @@ export async function openStore(ctx: Context) {
     const canManagePackages = Boolean(
       account?.hasInstancePermission?.(accountId, 'plugin.packages.install'),
     )
-    const plugins = (await store.list()).map((item) => ({
+    const plugins = (await store.list())
+      .filter((item) => !item.builtin && !store.isBuiltin(item.id))
+      .map((item) => ({
       id: item.id,
       name: item.name,
       blurb: item.blurb,
