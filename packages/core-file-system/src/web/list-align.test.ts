@@ -214,6 +214,8 @@ test('table columns resize with a Super Tag blue highlight on the divider', () =
 
 test('selected table cells use Super Tag blue when writable and gray when locked', () => {
   assert.match(css, /\.fsdb-page \.tasks-table td\.is-cell-on\{[^}]*box-shadow:inset 0 0 0 2px var\(--dsw-pick/)
+  assert.match(css, /\.fsdb-page \.tasks-table td\.is-cell-on:not\(\.is-pin-col\)\{[^}]*position:relative/)
+  assert.doesNotMatch(css, /\.fsdb-page \.tasks-table td\.is-cell-on\{[^}]*position:relative/)
   assert.match(css, /\.fsdb-page \.tasks-table td\.is-cell-on\.is-cell-ro\{[^}]*box-shadow:inset 0 0 0 2px var\(--dsw-label-3\)/)
   assert.match(css, /\.fsdb-page \.tasks-table td \.db-cell-select-trigger,.fsdb-page \.tasks-table td \.fsdb-cellselect-trigger\{[^}]*width:100%/)
   assert.match(css, /\.fsdb-page \.tasks-table td \.db-cell-select-trigger,.fsdb-page \.tasks-table td \.fsdb-cellselect-trigger\{[^}]*max-width:none/)
