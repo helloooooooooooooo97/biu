@@ -503,6 +503,18 @@ export const BIU_MIGRATIONS: Migration[] = [
     `)
     addColumn(db, 'workspace_invites', 'view_id', "view_id TEXT NOT NULL DEFAULT ''")
   } },
+  { version: 36, module: 'host-account', name: 'plugin.per-user-load', up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS plugin_loads (
+        workspace_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        plugin_id TEXT NOT NULL,
+        loaded_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, account_id, plugin_id)
+      );
+      CREATE INDEX IF NOT EXISTS plugin_loads_plugin ON plugin_loads(plugin_id);
+    `)
+  } },
 ]
 
 export function assertBiuMigrationLog(rows: Array<{ version: number }> = BIU_MIGRATIONS) {

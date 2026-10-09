@@ -1762,7 +1762,8 @@ export class DatabaseService extends Service implements Database {
     const loaded = await spec.get(parts[1]!)
     const record = loaded ?? (action.allowMissing ? { id: parts[1]! } : null)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    if (loaded || !action.allowMissing) {
+    const personalLoad = spec.path === '/plugins' && (actionId === 'start' || actionId === 'stop')
+    if (!personalLoad && (loaded || !action.allowMissing)) {
       this.assertLiveRecord(spec, record.id, (action.requiredAction ?? 'resource:update') as PermissionAction, record)
     } else {
       await this.requirePath(spec.path, (action.requiredAction ?? 'resource:update') as PermissionAction)

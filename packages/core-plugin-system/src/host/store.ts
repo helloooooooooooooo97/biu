@@ -252,6 +252,11 @@ export class PluginStoreService extends Service {
         store?: {
           hasInstancePermission?(accountId: string, permission: string): boolean
           canAccessPlugin?(accountId: string, workspaceId: string, pluginId: string): boolean
+          hasPluginLoad?(accountId: string, workspaceId: string, pluginId: string): boolean
+          pluginLoadsFor?(accountId: string, workspaceId: string): string[]
+          loadedPluginIds?(): string[]
+          setPluginLoad?(accountId: string, workspaceId: string, pluginId: string, loaded: boolean): void
+          isMember?(accountId: string, workspaceId: string): boolean
           ensurePluginOwnerAssignments?(pluginId: string): number
           recordPluginPackage?(accountId: string, input: Record<string, unknown>): void
           syncInstalledPluginPackage?(input: Record<string, unknown>): boolean
@@ -451,7 +456,7 @@ export class PluginStoreService extends Service {
   }
 
   async list(): Promise<StoreListing[]> {
-    if (this.listCache) return this.listCache
+    if (this.listCache) return this.withViewerLoads(this.listCache)
     const names = existsSync(this.pluginDir) ? await readdir(this.pluginDir) : []
     const running = new Set(
       this.hub()
@@ -484,12 +489,40 @@ export class PluginStoreService extends Service {
       })
     }
     this.listCache = items
-    return items
+    return this.withViewerLoads(items)
+  }
+
+  /** 线上每人一份加载记录。进程里的 host 仍只挂一份，没人加载时才卸下。 */
+  private withViewerLoads(items: StoreListing[]) {
+    if (process.env.BIU_ONLINE !== '1') return items
+    const accountId = currentAccountId()
+    const workspaceId = currentRequestWorkspaceId()
+    const loaded = new Set(this.accountStore()?.pluginLoadsFor?.(accountId, workspaceId) ?? [])
+    return items.map((item) => ({ ...item, enabled: loaded.has(item.id), running: loaded.has(item.id) }))
+  }
+
+  private async mountInstalled(id: string) {
+    const hit = await this.findPluginDir(id)
+    if (!hit) throw new Error(`unknown store plugin: ${id}`)
+    const manifest = await readManifest(hit)
+    const running = this.hub().snapshot().plugins.some((row) => row.id === manifest.id)
+    if (!running) await this.mountFromDisk(manifest, hit)
+    return manifest
   }
 
   async openPlugin(id: string) {
-    this.requireInstancePermission('plugin.packages.install')
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
+    if (process.env.BIU_ONLINE === '1') {
+      const accountId = currentAccountId()
+      const workspaceId = currentRequestWorkspaceId()
+      const account = this.accountStore()
+      if (!accountId || !workspaceId || !account?.isMember?.(accountId, workspaceId)) throw new Error('需要登录')
+      account.setPluginLoad?.(accountId, workspaceId, id, true)
+      await this.mountInstalled(id)
+      this.invalidateList()
+      return (await this.list()).find((item) => item.id === id)
+    }
+    this.requireInstancePermission('plugin.packages.install')
     const hit = await this.findPluginDir(id)
     if (!hit) throw new Error(`unknown store plugin: ${id}`)
     const manifest = await readManifest(hit)
@@ -500,10 +533,21 @@ export class PluginStoreService extends Service {
     return (await this.list()).find((item) => item.id === manifest.id)
   }
 
-  /** 关闭：停运行，.plugin 代码留着。 */
+  /** 关闭：停运行，.plugin 代码留着。线上只停当前这个人。 */
   async close(id: string) {
-    this.requireInstancePermission('plugin.packages.update')
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
+    if (process.env.BIU_ONLINE === '1') {
+      const accountId = currentAccountId()
+      const workspaceId = currentRequestWorkspaceId()
+      const account = this.accountStore()
+      if (!accountId || !workspaceId || !account?.isMember?.(accountId, workspaceId)) throw new Error('需要登录')
+      account.setPluginLoad?.(accountId, workspaceId, id, false)
+      const still = account.loadedPluginIds?.().includes(id)
+      if (!still) await this.hub().drop(id)
+      this.invalidateList()
+      return
+    }
+    this.requireInstancePermission('plugin.packages.update')
     await this.hub().drop(id)
     this.setEnabled(id, false)
     this.invalidateList()
@@ -603,7 +647,10 @@ export class PluginStoreService extends Service {
   }
 
   async restore() {
-    for (const id of this.state.enabled) {
+    const ids = process.env.BIU_ONLINE === '1'
+      ? [...new Set([...(this.accountStore()?.loadedPluginIds?.() ?? []), ...this.state.enabled])]
+      : this.state.enabled
+    for (const id of ids) {
       const hit = await this.findPluginDir(id)
       if (!hit) continue
       try {
@@ -633,14 +680,13 @@ export class PluginStoreService extends Service {
 
   async readInstalledFile(id: string, file: string) {
     if (!isSafeId(id) || !ALLOWED_FILES.has(file)) throw new Error('not found')
-    if (!this.isEnabled(id)) throw new Error('not found')
     if (process.env.BIU_ONLINE === '1') {
       const accountId = currentAccountId()
       const workspaceId = currentRequestWorkspaceId()
       if (!accountId || !workspaceId || !this.accountStore()?.canAccessPlugin?.(accountId, workspaceId, id)) {
         throw new Error('not found')
       }
-    }
+    } else if (!this.isEnabled(id)) throw new Error('not found')
     const hit = await this.findPluginDir(id)
     if (!hit) throw new Error('not found')
     const path = join(hit, file)
