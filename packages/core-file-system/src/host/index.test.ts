@@ -1970,6 +1970,12 @@ test('granting the all-members view lets the other member read the owner private
   const bobList = await runWithAccount(bob.id, () => db.list('/tasks'))
   assert.deepEqual(bobList.items.map((row) => row.title).sort(), ['A私人', 'A空间'])
   assert.equal(bobList.items.find((row) => row.title === 'A私人')?.shareScope, '空间')
+  assert.equal(bobList.items.find((row) => row.title === 'A私人')?.shareRole, '编辑')
+  assert.equal(bobList.items.find((row) => row.title === 'A空间')?.shareRole, '编辑')
+  const adaList = await runWithAccount(ada.id, () => db.list('/tasks'))
+  assert.equal(adaList.items.find((row) => row.title === 'A私人')?.shareRole, '管理')
+  assert.equal(adaList.schema.fields.shareRole?.label, '权限')
+  assert.equal(adaList.schema.fields.shareRole?.enum?.join(','), '管理,编辑,阅读')
 })
 
 test('sharing one person all-tasks view does not reclassify the other person private tasks', async () => {
@@ -2211,6 +2217,7 @@ test('builtin plugins stay visible in the workspace plugin list', async () => {
     const bobList = await runWithAccount(bob.id, () => db.list('/plugins'))
     assert.deepEqual(bobList.items.map((row) => row.id), ['api-playground'])
     assert.equal(bobList.items[0]?.shareScope, '共享')
+    assert.equal(bobList.items[0]?.shareRole, '阅读')
     assert.equal(bobList.items[0]?.createdBy && (bobList.items[0].createdBy as { name?: string }).name, 'BIU官方')
     const read = await runWithAccount(bob.id, () => db.read('/plugins/api-playground'))
     assert.equal(read.kind === 'record' && read.value.id, 'api-playground')

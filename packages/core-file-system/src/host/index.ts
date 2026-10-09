@@ -136,11 +136,33 @@ function ensureColumn(columns: string[] | undefined, key: string) {
   return columns.includes(key) ? columns : [...columns, key]
 }
 
+function columnAfter(columns: string[] | undefined, key: string, after: string) {
+  if (!columns || columns.includes(key)) return columns
+  const index = columns.indexOf(after)
+  if (index < 0) return [...columns, key]
+  return [...columns.slice(0, index + 1), key, ...columns.slice(index + 1)]
+}
+
 const SHARE_SCOPE_LABEL = {
   personal: '私人',
   workspace: '空间',
   shared: '共享',
 } as const
+
+const ACCESS_RANK = { viewer: 1, editor: 2, manager: 3, owner: 4 } as const
+
+function accessLabel(role: keyof typeof ACCESS_RANK | null | undefined) {
+  if (role === 'editor') return '编辑'
+  if (role === 'viewer') return '阅读'
+  if (role === 'manager' || role === 'owner') return '管理'
+  return '阅读'
+}
+
+function higherAccess(left: keyof typeof ACCESS_RANK | null, right: keyof typeof ACCESS_RANK | null) {
+  if (!left) return right
+  if (!right) return left
+  return ACCESS_RANK[left] >= ACCESS_RANK[right] ? left : right
+}
 
 function schemaFor(spec: CollectionSpec): CollectionSchema {
   const contentField = spec.schema.contentField ?? 'content'
@@ -160,7 +182,16 @@ function schemaFor(spec: CollectionSpec): CollectionSchema {
       enum: ['私人', '空间', '共享'],
       description: '计算属性。私人表示只有创建者能看到；空间表示空间成员能看到且没有外部协作者；共享表示有外部协作者。视图上的授权也会算进来。',
     }
-    columns = ensureColumn(columns, 'shareScope')
+    fields.shareRole = {
+      type: 'select',
+      label: '权限',
+      computed: true,
+      writable: false,
+      sortable: true,
+      enum: ['管理', '编辑', '阅读'],
+      description: '计算属性。当前用户对这一条的权限：管理、编辑或阅读。记录授权和视图授权里取较高的一级。',
+    }
+    columns = columnAfter(ensureColumn(columns, 'shareScope'), 'shareRole', 'shareScope')
   }
   return {
     ...spec.schema,
@@ -1225,9 +1256,30 @@ export class DatabaseService extends Service implements Database {
     const withPeople = this.applyPersonOverlay(spec, withFacet)
     const withMeta = this.applyMetaOverlay(spec, withPeople)
     if (isSystemCollection(spec.path) || isIndexCollection(spec.path)) return withMeta
-    if (spec.path === '/plugins' && row.builtin === true) return { ...withMeta, shareScope: '共享' }
+    if (spec.path === '/plugins' && row.builtin === true) return { ...withMeta, shareScope: '共享', shareRole: '阅读' }
     const stored = this.ownershipOf(spec.path, String(row.id ?? ''))
-    return { ...withMeta, shareScope: SHARE_SCOPE_LABEL[this.effectiveScope(spec.path, withMeta, stored)] }
+    return {
+      ...withMeta,
+      shareScope: SHARE_SCOPE_LABEL[this.effectiveScope(spec.path, withMeta, stored)],
+      shareRole: this.shareRoleLabel(spec, withMeta),
+    }
+  }
+
+  /** 当前用户对这一条的权限。记录上的角色和视图授权取较高的一级。 */
+  private shareRoleLabel(spec: CollectionSpec, record: DbRecord) {
+    const authorization = this.authorization()
+    const actor = authorization?.currentActor()
+    if (!authorization || !actor) return '管理'
+    const target = this.scopeTarget(spec.path, String(record.id ?? ''), record)
+    const decision = authorization.authorize(actor, 'resource:read', {
+      type: 'record',
+      workspaceId: actor.workspaceId,
+      collection: target.collection,
+      recordId: target.id,
+    })
+    const direct = decision.allowed ? decision.effectiveRole : null
+    const via = this.viewGrantRole(actor.workspaceId, spec.path, record, actor.accountId)
+    return accessLabel(higherAccess(direct, via))
   }
 
   private effectiveScope(collection: string, record: DbRecord, stored: DataScopeName): DataScopeName {
