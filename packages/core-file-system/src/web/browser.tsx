@@ -1116,15 +1116,23 @@ export function CollectionBrowser({
   }, [collectionPath])
   const bodyKey = contentFieldKey(schema)
   const entries = useMemo(() => fieldEntries(schema), [schema])
+  const rowActionColumn = placedActions(schema, 'row').length > 0
   const allColumns = useMemo(
     () => [
       ...entries.filter((item) => isListColumn(item.key) && item.key !== bodyKey && resolveFieldType(item.field) !== 'file'),
+      ...(rowActionColumn
+        ? [{ key: 'actions', kind: 'action' as const, field: { type: 'action' as const, label: '动作' } }]
+        : []),
       ...flattenFacetColumns(facetCatalog),
     ],
-    [bodyKey, entries, facetCatalog],
+    [bodyKey, entries, facetCatalog, rowActionColumn],
   )
   const allColumnKeys = useMemo(() => allColumns.map((item) => item.key), [allColumns])
-  const schemaDefaultKeys = useMemo(() => defaultColumnKeys(schema, allColumnKeys), [schema, allColumnKeys])
+  const schemaDefaultKeys = useMemo(() => {
+    const keys = defaultColumnKeys(schema, allColumnKeys.filter((key) => key !== 'actions'))
+    if (!rowActionColumn || keys.includes('actions')) return keys
+    return [...keys, 'actions']
+  }, [allColumnKeys, rowActionColumn, schema])
   const schemaDefaultSig = schemaDefaultKeys.join('\0')
   const prevSchemaDefaultSig = useRef('')
   const columns = useMemo(() => {
@@ -1241,8 +1249,7 @@ export function CollectionBrowser({
     const rows = grouping ? grouped.flatMap((group) => group.rows) : visible
     return flattenRows(rows).map((item) => item.row.id)
   }, [flattenRows, grouped, grouping, visible])
-  const showActionColumn = placedActions(schema, 'row').length > 0
-  const tableColSpan = Math.max(columns.length + (showActionColumn ? 1 : 0), 1)
+  const tableColSpan = Math.max(columns.length, 1)
   const tableRef = useRef<HTMLTableElement>(null)
   const checkStackRef = useRef<HTMLDivElement>(null)
   const checkHoverRef = useRef<string | 'head' | null>(null)
@@ -2594,16 +2601,13 @@ export function CollectionBrowser({
               >
                 {col.key === schema?.labelField ? (
                   <RecordTitle row={row} depth={depth} hasKids={hasKids} kidCount={kidCount} />
+                ) : col.key === 'actions' ? (
+                  <RecordActions row={row} place="row" />
                 ) : (
                   <span className="fsdb-cell">{renderCell(row, col.key, col.field, 'table')}</span>
                 )}
               </td>
             ))}
-            {showActionColumn ? (
-              <td className="fsdb-action-col" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
-                <RecordActions row={row} place="row" />
-              </td>
-            ) : null}
           </tr>
         ))}
       </>
@@ -3501,7 +3505,6 @@ export function CollectionBrowser({
               {columns.map((col) => (
                 <col key={col.key} style={colWidthStyle(columnWidths[col.key])} />
               ))}
-              {showActionColumn ? <col className="fsdb-action-col" /> : null}
             </colgroup>
             <thead>
               <tr>
@@ -3530,14 +3533,6 @@ export function CollectionBrowser({
                   </th>
                   )
                 })}
-                {showActionColumn ? (
-                  <th className="fsdb-action-col">
-                    <span className="tasks-th">
-                      <FieldGlyph kind="action" />
-                      动作
-                    </span>
-                  </th>
-                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -3647,7 +3642,7 @@ export function CollectionBrowser({
           writePatch={writePatch}
           tableIcon={currentTable?.view?.icon}
           toolbar={<RecordActions row={selected} place="detail" />}
-          actionProperty={showActionColumn ? <RecordActions row={selected} place="row" /> : null}
+          actionProperty={rowActionColumn ? <RecordActions row={selected} place="row" /> : null}
           share={
             nested && detailId ? (
               <SharePanel
