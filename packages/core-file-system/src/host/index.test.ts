@@ -2166,3 +2166,56 @@ test('index rows follow the user records each person can read and omit share', a
   const adaStamps = await runWithAccount(ada.id, () => db.list('/facets', { facetId: hiddenId }))
   assert.equal(adaStamps.items.length, 1)
 })
+
+test('builtin plugins stay visible in the workspace plugin list', async () => {
+  const previous = process.env.BIU_ONLINE
+  process.env.BIU_ONLINE = '1'
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.register({
+    id: 'plugins',
+    path: '/plugins',
+    schema: {
+      labelField: 'title',
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string' },
+        builtin: { type: 'boolean' },
+      },
+    },
+    list: () => [
+      { id: 'api-playground', title: 'API 调试块', builtin: true, author: 'BIU官方' },
+      { id: 'my-draft', title: '我的草稿', author: 'Ada' },
+    ],
+    get: (id) => (id === 'api-playground'
+      ? { id, title: 'API 调试块', builtin: true }
+      : null),
+  })
+  const dir = mkdtempSync(join(tmpdir(), 'biu-db-builtin-plugin-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  try {
+    await ctx.plugin(AccountBridge)
+    const ada = collab.register('', Date.now(), 'secret1', 'plugin-ada@example.com')
+    const bob = collab.register('', Date.now(), 'secret1', 'plugin-bob@example.com')
+    const workspace = collab.createWorkspace(ada.id, 'Plugins')
+    collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+    collab.setActive(ada.id, workspace.id)
+    collab.setActive(bob.id, workspace.id)
+    const bobList = await runWithAccount(bob.id, () => db.list('/plugins'))
+    assert.deepEqual(bobList.items.map((row) => row.id), ['api-playground'])
+    assert.equal(bobList.items[0]?.shareScope, '空间')
+    assert.equal(bobList.items[0]?.createdBy && (bobList.items[0].createdBy as { name?: string }).name, 'BIU官方')
+    const read = await runWithAccount(bob.id, () => db.read('/plugins/api-playground'))
+    assert.equal(read.kind === 'record' && read.value.id, 'api-playground')
+  } finally {
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
+  }
+})

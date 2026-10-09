@@ -819,6 +819,7 @@ export class DatabaseService extends Service implements Database {
     const actor = authorization?.currentActor()
     if (authorization && actor) {
       return rows.filter((row) => {
+        if (collection === '/plugins' && (row as { builtin?: unknown }).builtin === true) return true
         const target = this.scopeTarget(collection, String(row.id ?? ''), row)
         const resource = {
           type: 'record' as const,
@@ -956,6 +957,7 @@ export class DatabaseService extends Service implements Database {
     record?: { id?: unknown },
   ) {
     if (this.facets.isDeleted(spec.path, id)) throw new Error(`unknown record: ${spec.path}/${id}`)
+    if (spec.path === '/plugins' && record && (record as { builtin?: unknown }).builtin === true) return
     const authorization = this.authorization()
     const actor = authorization?.currentActor()
     if (authorization && actor) {
@@ -1219,6 +1221,7 @@ export class DatabaseService extends Service implements Database {
     const withPeople = this.applyPersonOverlay(spec, withFacet)
     const withMeta = this.applyMetaOverlay(spec, withPeople)
     if (isSystemCollection(spec.path) || isIndexCollection(spec.path)) return withMeta
+    if (spec.path === '/plugins' && row.builtin === true) return { ...withMeta, shareScope: '空间' }
     const stored = this.ownershipOf(spec.path, String(row.id ?? ''))
     return { ...withMeta, shareScope: SHARE_SCOPE_LABEL[this.effectiveScope(spec.path, withMeta, stored)] }
   }

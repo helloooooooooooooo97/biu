@@ -470,6 +470,7 @@ export class PluginStoreService extends Service {
       const codeVersion = await hashInstalledPluginCode(dir)
       items.push({
         ...manifest,
+        ...(manifest.builtin || this.isBuiltin(manifest.id) ? { builtin: true } : {}),
         enabled,
         running: running.has(manifest.id),
         bytes: stats.bytes,
