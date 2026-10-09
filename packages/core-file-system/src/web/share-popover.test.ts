@@ -36,6 +36,16 @@ test('share panel uses a compact settings section and custom toggles', () => {
   assert.match(css, /\.fsdb-share-invite-row\{[^}]*grid-template-columns:minmax\(0,1fr\) 78px 52px/)
 })
 
+test('permission column opens the same kind of chain as data scope', () => {
+  const src = readFileSync(resolve(import.meta.dirname, './share-popover.tsx'), 'utf8')
+  const browser = readFileSync(resolve(import.meta.dirname, './browser.tsx'), 'utf8')
+  assert.match(src, /aria-label="权限链路"/)
+  assert.match(src, /权限继承自上一级|记录上的权限、继承层级和匹配到的视图/)
+  assert.match(src, /roleChain/)
+  assert.match(browser, /key === 'shareRole'/)
+  assert.match(browser, /<ShareRoleDetail/)
+})
+
 test('private records can grant access to a dynamic member view', () => {
   const src = readFileSync(resolve(import.meta.dirname, './share-popover.tsx'), 'utf8')
   assert.match(src, /memberViewId/)

@@ -1878,7 +1878,16 @@ export class CollabStore {
     if (!workspaceId) throw new CollabError('没有工作区', 400)
     this.requireMember(actorId, workspaceId)
     if (!this.canReadRecord(collection, recordId)) throw new CollabError('没有权限', 403)
-    return { ...this.accessRows(workspaceId, collection, recordId), viewGrants: this.viewGrantShares(workspaceId, collection) }
+    return {
+      ...this.accessRows(workspaceId, collection, recordId),
+      viewGrants: this.viewGrantShares(workspaceId, collection),
+      roleChain: this.authorization.roleChain(actorId, {
+        type: 'record',
+        workspaceId,
+        collection,
+        recordId,
+      }),
+    }
   }
 
   viewGrantAudiences(workspaceId: string, collection: string) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowPathIcon, CheckIcon, LinkIcon, ShareIcon, UserIcon, UsersIcon, XMarkIcon } from '@heroicons/react/16/solid'
+import { ArrowPathIcon, CheckIcon, EyeIcon, LinkIcon, PencilSquareIcon, ShareIcon, ShieldCheckIcon, UserIcon, UsersIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { HeadlessDismiss } from '@biu/public-ui'
 import { listCollection, readJson } from './db-client.ts'
 import { mintSharePin, shareClipboardText, type ShareResourceStats } from '../share-resources.ts'
@@ -584,6 +584,29 @@ function scopeText(scope: string) {
   return '私人'
 }
 
+function accessText(role: string) {
+  if (role === '管理' || role === '编辑' || role === '阅读') return role
+  if (role === 'owner' || role === 'manager') return '管理'
+  if (role === 'editor') return '编辑'
+  return '阅读'
+}
+
+function accessTone(text: string) {
+  if (text === '管理') return 'manage'
+  if (text === '编辑') return 'edit'
+  return 'read'
+}
+
+function AccessMark({ role }: { role: string }) {
+  const text = accessText(role)
+  const icon = text === '管理'
+    ? <ShieldCheckIcon aria-hidden className="size-[14px]" />
+    : text === '编辑'
+      ? <PencilSquareIcon aria-hidden className="size-[14px]" />
+      : <EyeIcon aria-hidden className="size-[14px]" />
+  return <>{icon}{text}</>
+}
+
 function ScopeMark({ scope }: { scope: string }) {
   const text = scope === '私人' || scope === '空间' || scope === '共享' ? scope : scopeText(scope)
   const icon = text === '空间'
@@ -763,6 +786,153 @@ export function ShareScopeDetail({
                 </ul>
               </section>
             ) : null}
+          </div>
+        </HeadlessDismiss>,
+        document.body,
+      ) : null}
+    </div>
+  )
+}
+
+/** 权限属性标签。点开后看记录自己的权限、往上继承的层级，以及匹配到的视图授权。 */
+export function ShareRoleDetail({
+  collection,
+  recordId,
+  label,
+  tableLabel = '',
+  builtin = false,
+}: {
+  collection: string
+  recordId: string
+  label: string
+  tableLabel?: string
+  builtin?: boolean
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  const [box, setBox] = useState<{ top: number; left: number } | null>(null)
+  const [chain, setChain] = useState<Array<{ id: string; title: string; detail: string; result: string }>>([])
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    if (builtin) {
+      setChain([{ id: 'builtin', title: '内置插件', detail: '所有成员只能查看', result: '阅读' }])
+      setError('')
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const [access, recordPage, viewPage, memberViewPage] = await Promise.all([
+        readJson<{
+          scope?: 'personal' | 'workspace' | 'shared'
+          ownerId?: string
+          roleChain?: Array<{ id: string; title: string; detail: string; role: string }>
+          viewGrants?: Array<{
+            viewId: string
+            subjectType: 'account' | 'member_view'
+            subjectId: string
+            role: string
+            name: string
+            memberKind: string
+            grantedBy?: string
+          }>
+        }>(`/api/account/access?collection=${encodeURIComponent(collection)}&recordId=${encodeURIComponent(recordId)}`),
+        listCollection({ path: collection, limit: 1, filters: { id: recordId } }),
+        listCollection({ path: '/views', limit: 200, filters: { tablePath: collection }, columns: ['title', 'tablePath', 'viewId', 'filters'] }),
+        listCollection({ path: '/views', limit: 200, filters: { tablePath: '/workspace-members' }, columns: ['title', 'tablePath', 'viewId', 'filters'] }),
+      ])
+      if (cancelled) return
+      const record = recordPage.items[0] ?? null
+      const dataViews = viewRows(viewPage.items)
+      const memberViews = [
+        { ...builtinAllView({ path: '/workspace-members' }), name: builtinAllView({ path: '/workspace-members' }).name },
+        ...builtinMemberViews().map((view) => ({ id: view.id, name: view.name, filters: view.filters })),
+        ...viewRows(memberViewPage.items),
+      ]
+      const stored = access.scope ?? 'personal'
+      const ownerId = access.ownerId ?? ''
+      const matched = record ? (access.viewGrants ?? []).flatMap((grant) => {
+        if (!recordMatchesGrantedView(record, grant.viewId, dataViews, stored, { grantedBy: grant.grantedBy, recordOwnerId: ownerId })) return []
+        const parsed = parseBuiltinScopeViewId(grant.viewId)
+        const source = dataViews.find((view) => view.id === grant.viewId)?.name
+          || (parsed ? scopedCollectionName({ path: collection, label: tableLabel || collection.replace(/^\//, '') }, parsed.scope) : '')
+          || (isBuiltinAllViewId(grant.viewId) ? `全部${tableLabel}` : grant.viewId)
+        const name = grant.subjectType === 'member_view'
+          ? memberViews.find((view) => view.id === grant.subjectId)?.name ?? grant.name
+          : grant.name
+        return [{ id: `${grant.viewId}:${grant.subjectType}:${grant.subjectId}`, name, role: grant.role, source }]
+      }) : []
+      setChain([
+        ...(access.roleChain ?? []).map((step) => ({
+          id: step.id,
+          title: step.title,
+          detail: step.detail,
+          result: accessText(step.role),
+        })),
+        ...matched.map((row) => ({
+          id: row.id,
+          title: `视图「${row.source}」`,
+          detail: `${row.name} ${roleLabel(row.role)}`,
+          result: accessText(row.role),
+        })),
+      ])
+      setError('')
+    })().catch((err) => {
+      if (!cancelled) setError(err instanceof Error ? err.message : '无法读取权限')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, builtin, collection, recordId, tableLabel])
+
+  const shown = chain.reduce((best, step) => {
+    const rank = { 阅读: 1, 编辑: 2, 管理: 3 } as Record<string, number>
+    return (rank[step.result] ?? 0) >= (rank[best] ?? 0) ? step.result : best
+  }, accessText(label))
+
+  return (
+    <div className="fsdb-scope-detail" ref={wrapRef}>
+      <button
+        type="button"
+        className={`fsdb-scope-tag is-${accessTone(label)}`}
+        aria-label={`${accessText(label)}的权限链路`}
+        aria-expanded={open}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation()
+          const rect = event.currentTarget.getBoundingClientRect()
+          setBox({ top: rect.bottom + 6, left: Math.min(rect.left, window.innerWidth - 336) })
+          setOpen((prev) => !prev)
+        }}
+      >
+        <AccessMark role={label} />
+      </button>
+      {open && box ? createPortal(
+        <HeadlessDismiss
+          onDismiss={() => setOpen(false)}
+          inside={(node) => Boolean(wrapRef.current?.contains(node) || panelRef.current?.contains(node))}
+        >
+          <div ref={panelRef} className="fsdb-scope-panel" role="dialog" aria-label="权限链路" style={{ top: box.top, left: box.left }}>
+            <header className="fsdb-scope-head">
+              <div>
+                <strong>权限</strong>
+                <em>记录上的权限、继承层级和匹配到的视图，取较高的一级</em>
+              </div>
+              <b className={`fsdb-scope-pill is-${accessTone(shown)}`}><AccessMark role={shown} /></b>
+            </header>
+            <ol className="fsdb-scope-chain">
+              {chain.length ? chain.map((step) => (
+                <li key={step.id}>
+                  <div>
+                    <strong>{step.title}</strong>
+                    <em>{step.detail}</em>
+                  </div>
+                  <b className={`fsdb-scope-pill is-${accessTone(step.result)}`}><AccessMark role={step.result} /></b>
+                </li>
+              )) : <li className="is-empty">{error ? error : '正在读取'}</li>}
+            </ol>
           </div>
         </HeadlessDismiss>,
         document.body,

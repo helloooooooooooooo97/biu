@@ -1976,6 +1976,14 @@ test('granting the all-members view lets the other member read the owner private
   assert.equal(adaList.items.find((row) => row.title === 'A私人')?.shareRole, '管理')
   assert.equal(adaList.schema.fields.shareRole?.label, '权限')
   assert.equal(adaList.schema.fields.shareRole?.enum?.join(','), '管理,编辑,阅读')
+  const spaceId = String(bobList.items.find((row) => row.title === 'A空间')?.id ?? '')
+  const privateId = String(bobList.items.find((row) => row.title === 'A私人')?.id ?? '')
+  const spaceChain = runWithAccount(bob.id, () => collab.recordAccess(bob.id, '/tasks', spaceId)).roleChain
+  assert.equal(spaceChain[0]?.detail, '空间成员默认可编辑')
+  assert.equal(spaceChain[0]?.role, 'editor')
+  const ownChain = runWithAccount(ada.id, () => collab.recordAccess(ada.id, '/tasks', privateId)).roleChain
+  assert.equal(ownChain[0]?.detail, '你是创建者')
+  assert.equal(ownChain[0]?.role, 'owner')
 })
 
 test('sharing one person all-tasks view does not reclassify the other person private tasks', async () => {

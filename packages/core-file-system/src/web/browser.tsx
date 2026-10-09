@@ -104,7 +104,7 @@ import {
   visibleActions,
   placedActions,
 } from './fsdb-cells.tsx'
-import { ShareButton, SharePanel, ShareScopeDetail } from './share-popover.tsx'
+import { ShareButton, SharePanel, ShareRoleDetail, ShareScopeDetail } from './share-popover.tsx'
 import { ensureFsdbStyle } from './fsdb-style.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { PageBanner } from './page-banner.tsx'
@@ -2055,6 +2055,17 @@ export function CollectionBrowser({
           recordId={row.id}
           label={String(row[key] ?? '')}
           tableLabel={currentTable?.label}
+        />
+      )
+    }
+    if (key === 'shareRole') {
+      return (
+        <ShareRoleDetail
+          collection={collectionPath}
+          recordId={row.id}
+          label={String(row[key] ?? '')}
+          tableLabel={currentTable?.label}
+          builtin={collectionPath === '/plugins' && row.builtin === true}
         />
       )
     }
