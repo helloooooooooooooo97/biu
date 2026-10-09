@@ -1846,6 +1846,9 @@ export class DatabaseService extends Service implements Database {
     if (spec.path === '/plugins' && actionId === 'sandbox' && !this.recordOwner(spec.path, parts[1]!)) {
       this.attachWorkspaceRecord(spec.path, parts[1]!, { ownership: 'personal', accessMode: 'private' })
     }
+    if (spec.path === '/plugins' && (actionId === 'sandbox' || actionId === 'pack')) {
+      await this.stampActor(spec.path, parts[1]!)
+    }
     const next = (await spec.get(parts[1]!)) ?? record
     this.indexFacetRecord(spec, next)
     this.bump()
