@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Context } from 'cordis'
-import { compileSafe, formatReport } from './compose.ts'
+import { compileSafe, formatReport } from '../shared/compose.ts'
 
 export const name = 'page-video'
 export const inject = ['http', 'tools']

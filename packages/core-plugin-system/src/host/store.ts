@@ -321,8 +321,14 @@ export class PluginStoreService extends Service {
     requireDeclaredShell(input.shell, hasWeb, 'sandbox', Boolean(input.headless) || Boolean(existing?.headless))
     const manifest = buildStoreManifest(input, existing)
     await writeFile(join(dest, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
-    if (hostJs) await writeFile(join(dest, 'host.ts'), hostJs.endsWith('\n') ? hostJs : `${hostJs}\n`)
-    if (webSrc) await writeFile(join(dest, 'web.tsx'), webSrc.endsWith('\n') ? webSrc : `${webSrc}\n`)
+    if (hostJs) {
+      mkdirSync(join(dest, 'host'), { recursive: true })
+      await writeFile(join(dest, 'host/index.ts'), hostJs.endsWith('\n') ? hostJs : `${hostJs}\n`)
+    }
+    if (webSrc) {
+      mkdirSync(join(dest, 'web'), { recursive: true })
+      await writeFile(join(dest, 'web/index.tsx'), webSrc.endsWith('\n') ? webSrc : `${webSrc}\n`)
+    }
     await ensureSandboxPackageJson(dest, id)
     await this.ensureReadme(dest, manifest.name, manifest.blurb)
     return { id, sandboxPath: dest }
@@ -338,7 +344,7 @@ export class PluginStoreService extends Service {
     const raw = JSON.parse(await readFile(join(sandbox, 'manifest.json'), 'utf8')) as unknown
     const hostEntry = findEntry(sandbox, HOST_ENTRIES)
     const webEntry = findEntry(sandbox, WEB_ENTRIES)
-    if (!hostEntry && !webEntry) throw new Error('sandbox needs host.ts/js or web.tsx/ts/js')
+    if (!hostEntry && !webEntry) throw new Error('sandbox needs host/index.ts or web/index.tsx')
     requireDeclaredShell(
       raw && typeof raw === 'object' ? (raw as { shell?: unknown }).shell : undefined,
       Boolean(webEntry),

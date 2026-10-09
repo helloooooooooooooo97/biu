@@ -1,5 +1,5 @@
 import { transform } from 'sucrase'
-import { easeMotion } from './motion.ts'
+import { easeMotion } from '../shared/motion.ts'
 
 export type FrameProps = {
   frame: number

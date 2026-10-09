@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { DEFAULT_AD_SCENE_SOURCE, DEFAULT_AD_TRANSITION_SOURCE } from './default-ad.ts'
-import { compileComponentSource, interpolate, makeAbsoluteFill, spring } from './runtime.ts'
+import { DEFAULT_AD_SCENE_SOURCE, DEFAULT_AD_TRANSITION_SOURCE } from './web/default-ad.ts'
+import { compileComponentSource, interpolate, makeAbsoluteFill, spring } from './web/runtime.ts'
 
 const React = {
   createElement: (type: unknown, props: unknown, ...children: unknown[]) => {

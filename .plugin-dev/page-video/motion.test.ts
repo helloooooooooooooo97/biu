@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { MOTION_ALIASES, parseMotion, sampleMotion } from './motion.ts'
+import { MOTION_ALIASES, parseMotion, sampleMotion } from './shared/motion.ts'
 
 test('aliases expand to atoms', () => {
   const up = parseMotion('fadeUp')

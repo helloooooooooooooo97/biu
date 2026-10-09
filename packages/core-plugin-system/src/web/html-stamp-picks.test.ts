@@ -5,7 +5,7 @@ import {
   stampHtmlPickSurfaces,
   stampHtmlSource,
   htmlBlockKey,
-} from '../../../../.plugin-dev/page-html-blocks/stamp-picks.ts'
+} from '../../../../.plugin-dev/page-html-blocks/web/stamp-picks.ts'
 
 test('stamps every div and span plus semantic nodes', () => {
   const root = document.createElement('div')

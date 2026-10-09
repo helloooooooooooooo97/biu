@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { headingElById, headingsFromPage, pageRootFrom } from './outline.ts'
+import { headingElById, headingsFromPage, pageRootFrom } from './web/outline.ts'
 
 test('headingsFromPage extracts h1–h3, skips chrome and the toc host', () => {
   const root = document.createElement('div')

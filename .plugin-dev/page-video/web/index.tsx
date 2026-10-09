@@ -72,7 +72,7 @@ import {
   staggerDelay,
   type Clip,
   type Project,
-} from './compose.ts'
+} from '../shared/compose.ts'
 import { DEFAULT_AD_SCENE_SOURCE, DEFAULT_AD_TRANSITION_SOURCE } from './default-ad.ts'
 import { compileComponentSource, interpolate, makeAbsoluteFill, spring, type FrameProps } from './runtime.ts'
 

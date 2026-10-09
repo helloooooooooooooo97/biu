@@ -110,7 +110,7 @@ test('sandbox then pack compiles host source into .plugin/<id>/', async () => {
     assert.equal(await readFile(join(pluginDir, 'store-echo', 'README.md'), 'utf8'), '# Echo\n\n自定义介绍\n')
     assert.equal(await readFile(join(dir, '.plugin-dev', 'store-echo', 'README.md'), 'utf8'), '# Echo\n\n自定义介绍\n')
     await store.initSandbox({ id: 'store-empty', name: 'Empty' })
-    await assert.rejects(() => store.pack('store-empty'), /host\.ts/)
+    await assert.rejects(() => store.pack('store-empty'), /host\/index\.ts/)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
@@ -181,8 +181,9 @@ test('pack with web rejects sandbox manifest without shell size', async () => {
     ).open()
     await store.initSandbox({ id: 'store-ui', name: 'UI' })
     const sandbox = join(dir, '.plugin-dev', 'store-ui')
+    await mkdir(join(sandbox, 'web'), { recursive: true })
     await writeFile(
-      join(sandbox, 'web.tsx'),
+      join(sandbox, 'web/index.tsx'),
       `export const name = 'store-ui'\nexport function apply() {}\n`,
     )
     await assert.rejects(() => store.pack('store-ui'), /shell\.width and shell\.height/)
@@ -220,7 +221,8 @@ test('sandbox and pack allow web without shell when headless', async () => {
 
     await store.initSandbox({ id: 'store-skin-src', name: 'Skin Src', headless: true })
     const sandbox = join(dir, '.plugin-dev', 'store-skin-src')
-    await writeFile(join(sandbox, 'web.tsx'), `export const name = 'store-skin-src'\nexport function apply() {}\n`)
+    await mkdir(join(sandbox, 'web'), { recursive: true })
+    await writeFile(join(sandbox, 'web/index.tsx'), `export const name = 'store-skin-src'\nexport function apply() {}\n`)
     await store.pack('store-skin-src')
     const packed = JSON.parse(await readFile(join(dir, '.plugin', 'store-skin-src', 'manifest.json'), 'utf8')) as {
       headless?: boolean
@@ -297,9 +299,10 @@ test('pack bundles relative imports from sandbox', async () => {
     ).open()
     await store.initSandbox({ id: 'store-math', name: 'Math' })
     const sandbox = join(dir, '.plugin-dev', 'store-math')
-    await writeFile(join(sandbox, 'util.ts'), `export const ping = 'pong'\n`)
+    await mkdir(join(sandbox, 'host'), { recursive: true })
+    await writeFile(join(sandbox, 'host/util.ts'), `export const ping = 'pong'\n`)
     await writeFile(
-      join(sandbox, 'host.ts'),
+      join(sandbox, 'host/index.ts'),
       `import { ping } from './util.ts'\nexport const name = 'store-math'\nexport function apply() { return ping }\n`,
     )
     await store.pack('store-math')
@@ -330,7 +333,7 @@ test('sandbox/pack live on the plugins collection, not as tools', () => {
   assert.equal(spec.actions?.find((item) => item.id === 'create'), undefined)
   assert.equal(sandbox?.allowMissing, true)
   assert.match(JSON.stringify(sandbox?.parameters), /listing\.shell/)
-  assert.match(String(pack?.parameters?.description ?? ''), /host\.ts/)
+  assert.match(String(pack?.parameters?.description ?? ''), /host\/index\.ts/)
   assert.match(String(pack?.parameters?.description ?? ''), /每个沙箱都有 package.json/)
 })
 
@@ -351,8 +354,9 @@ test('pack web jsx uses globalThis.React instead of bundling npm react', async (
       shell: { width: 320, height: 200 },
     })
     const sandbox = join(dir, '.plugin-dev', 'store-jsx')
+    await mkdir(join(sandbox, 'web'), { recursive: true })
     await writeFile(
-      join(sandbox, 'web.tsx'),
+      join(sandbox, 'web/index.tsx'),
       `export const name = 'store-jsx'\nexport const inject = ['slots']\nfunction Hi() { return <div data-testid="hi">hi</div> }\nexport function apply(ctx: { slots: { place: (name: string, Comp: unknown, opt: unknown) => void } }) {\n  ctx.slots.place('plugin-store-extras', Hi, { key: 'store-jsx' })\n}\n`,
     )
     await store.pack('store-jsx')
@@ -382,8 +386,9 @@ test('pack maps react/jsx-runtime to globalThis.ReactJSXRuntime', async () => {
       shell: { width: 320, height: 200 },
     })
     const sandbox = join(dir, '.plugin-dev', 'store-jsx-rt')
+    await mkdir(join(sandbox, 'web'), { recursive: true })
     await writeFile(
-      join(sandbox, 'web.tsx'),
+      join(sandbox, 'web/index.tsx'),
       `import { jsx } from 'react/jsx-runtime'\nexport const name = 'store-jsx-rt'\nexport function apply() { return jsx('div', { children: 'hi' }, 'k') }\n`,
     )
     await store.pack('store-jsx-rt')
@@ -413,8 +418,8 @@ test('pack bundles npm deps but keeps react on globalThis', async () => {
     })
     const sandbox = join(dir, '.plugin-dev', 'store-dep')
     const pkg = join(dir, '.plugin-dev', 'store-dep', 'node_modules', 'tiny-ping')
-    await writeFile(join(sandbox, 'web.tsx'), `import { ping } from 'tiny-ping'\nimport { useMemo } from 'react'\nexport const name = 'store-dep'\nexport function apply() { return ping + useMemo(() => 1, []) }\n`)
-    const { mkdir } = await import('node:fs/promises')
+    await mkdir(join(sandbox, 'web'), { recursive: true })
+    await writeFile(join(sandbox, 'web/index.tsx'), `import { ping } from 'tiny-ping'\nimport { useMemo } from 'react'\nexport const name = 'store-dep'\nexport function apply() { return ping + useMemo(() => 1, []) }\n`)
     await mkdir(pkg, { recursive: true })
     await writeFile(join(pkg, 'package.json'), JSON.stringify({ name: 'tiny-ping', type: 'module', main: 'index.js' }))
     await writeFile(join(pkg, 'index.js'), `export const ping = 'pong'\n`)
@@ -455,8 +460,9 @@ test('pack installs sandbox package.json deps without host node_modules', async 
       join(sandbox, 'package.json'),
       `${JSON.stringify({ name: 'store-file-dep', private: true, dependencies: { 'tiny-ping': 'file:./vendor/tiny-ping' } }, null, 2)}\n`,
     )
+    await mkdir(join(sandbox, 'web'), { recursive: true })
     await writeFile(
-      join(sandbox, 'web.tsx'),
+      join(sandbox, 'web/index.tsx'),
       `import { ping } from 'tiny-ping'\nexport const name = 'store-file-dep'\nexport function apply() { return ping }\n`,
     )
     await store.pack('store-file-dep')
@@ -481,8 +487,9 @@ test('pack rejects @biu imports', async () => {
     ).open()
     await store.initSandbox({ id: 'store-biu', name: 'Biu', headless: true })
     const sandbox = join(dir, '.plugin-dev', 'store-biu')
+    await mkdir(join(sandbox, 'web'), { recursive: true })
     await writeFile(
-      join(sandbox, 'web.tsx'),
+      join(sandbox, 'web/index.tsx'),
       `import { foo } from '@biu/web-slots'\nexport const name = 'store-biu'\nexport function apply() { return foo }\n`,
     )
     await assert.rejects(() => store.pack('store-biu'), /@biu\/web-slots/)
@@ -552,7 +559,7 @@ test('native esbuild starts its platform binary without a PATH node executable',
 })
 
 test('excalidraw board onChange does not setState', async () => {
-  const src = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-excalidraw/web.tsx'), 'utf8')
+  const src = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-excalidraw/web/index.tsx'), 'utf8')
   const onChange = src.match(/const onChange = useCallback\([\s\S]*?\}, \[file\]\)/)?.[0]
   assert.ok(onChange)
   assert.doesNotMatch(onChange, /setScene/)

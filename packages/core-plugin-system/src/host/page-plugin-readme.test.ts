@@ -8,10 +8,10 @@ const sandbox = join(root, '.plugin-dev')
 
 test('development page blocks register under the 测试 slash group', () => {
   const files = [
-    'api-playground/web.tsx',
-    'option-matrix/web.tsx',
-    'page-regression/web.tsx',
-    'plugin-doctor/web.tsx',
+    'api-playground/web/index.tsx',
+    'option-matrix/web/index.tsx',
+    'page-regression/web/index.tsx',
+    'plugin-doctor/web/index.tsx',
   ]
   for (const file of files) {
     const src = readFileSync(join(sandbox, file), 'utf8')
@@ -23,11 +23,11 @@ test('development page blocks register under the 测试 slash group', () => {
 
 test('page block playground UIs use design tokens instead of hardcoded light-theme colors', () => {
   const files = [
-    'page-toc/web.tsx',
-    'api-playground/web.tsx',
-    'option-matrix/web.tsx',
-    'page-regression/web.tsx',
-    'plugin-doctor/web.tsx',
+    'page-toc/web/index.tsx',
+    'api-playground/web/index.tsx',
+    'option-matrix/web/index.tsx',
+    'page-regression/web/index.tsx',
+    'plugin-doctor/web/index.tsx',
   ]
   for (const file of files) {
     const src = readFileSync(join(sandbox, file), 'utf8')
@@ -40,11 +40,11 @@ test('page block playground UIs use design tokens instead of hardcoded light-the
 
 test('page block STYLE_CSS template strings are closed', () => {
   const files = [
-    'page-toc/web.tsx',
-    'api-playground/web.tsx',
-    'option-matrix/web.tsx',
-    'page-regression/web.tsx',
-    'plugin-doctor/web.tsx',
+    'page-toc/web/index.tsx',
+    'api-playground/web/index.tsx',
+    'option-matrix/web/index.tsx',
+    'page-regression/web/index.tsx',
+    'plugin-doctor/web/index.tsx',
   ]
   for (const file of files) {
     const src = readFileSync(join(sandbox, file), 'utf8')

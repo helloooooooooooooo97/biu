@@ -59,8 +59,8 @@ describe('page terminal store plugin', () => {
   })
 
   it('bundles host and web entries as a standalone store plugin', async () => {
-    const host = await bundleStoreEntry(pluginFile('page-terminal', 'host.ts'), 'host')
-    const web = await bundleStoreEntry(pluginFile('page-terminal', 'web.tsx'), 'web')
+    const host = await bundleStoreEntry(pluginFile('page-terminal', 'host/index.ts'), 'host')
+    const web = await bundleStoreEntry(pluginFile('page-terminal', 'web/index.tsx'), 'web')
 
     assert.match(host, /\/ws\/page-terminal/)
     assert.match(host, /node-pty/)
@@ -115,7 +115,7 @@ describe('page terminal store plugin', () => {
   })
 
   it('page terminal keeps the helper textarea focusable and paints a custom scrollbar', async () => {
-    const web = await readFile(pluginFile('page-terminal', 'web.tsx'), 'utf8')
+    const web = await readFile(pluginFile('page-terminal', 'web/index.tsx'), 'utf8')
     assert.match(web, /HELPER_TEXTAREA/)
     assert.match(web, /removeProperty\('display'\)/)
     assert.match(web, /setProperty\('opacity', '0'/)
@@ -139,8 +139,8 @@ describe('page terminal store plugin', () => {
   })
 
   it('page terminal persists history into block data and keeps sessions alive', async () => {
-    const web = await readFile(pluginFile('page-terminal', 'web.tsx'), 'utf8')
-    const host = await readFile(pluginFile('page-terminal', 'host.ts'), 'utf8')
+    const web = await readFile(pluginFile('page-terminal', 'web/index.tsx'), 'utf8')
+    const host = await readFile(pluginFile('page-terminal', 'host/index.ts'), 'utf8')
     assert.match(web, /update\(\{ history: next \}\)/)
     assert.match(web, /HISTORY_MAX/)
     assert.match(web, /function parseHistory/)

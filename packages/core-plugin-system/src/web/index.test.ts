@@ -159,7 +159,7 @@ test('plugin window hover controls sit on the right without a title bar', async 
 test('page-excalidraw sandbox stores scenes as page assets', async () => {
   const { readFile } = await import('node:fs/promises')
   const { resolve } = await import('node:path')
-  const src = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-excalidraw/web.tsx'), 'utf8')
+  const src = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-excalidraw/web/index.tsx'), 'utf8')
   const manifest = JSON.parse(
     await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-excalidraw/manifest.json'), 'utf8'),
   ) as { headless?: boolean }
@@ -224,7 +224,7 @@ test('page-excalidraw sandbox stores scenes as page assets', async () => {
 test('html page blocks register plugin id for slash', async () => {
   const { readFile } = await import('node:fs/promises')
   const { resolve } = await import('node:path')
-  const html = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-html-blocks/web.tsx'), 'utf8')
+  const html = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-html-blocks/web/index.tsx'), 'utf8')
   assert.match(html, /plugin: name/)
   assert.match(html, /kind: 'html'/)
   assert.match(html, /kind: 'htmlframe'/)
@@ -273,7 +273,7 @@ test('html page blocks register plugin id for slash', async () => {
 test('algorithm card drafts locally and saves on blur like html source', async () => {
   const { readFile } = await import('node:fs/promises')
   const { resolve } = await import('node:path')
-  const src = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-algorithm/web.tsx'), 'utf8')
+  const src = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-algorithm/web/index.tsx'), 'utf8')
   assert.match(src, /function DraftField/)
   assert.match(src, /onChange=\{\(event\) => setDraft\(event\.currentTarget\.value\)\}/)
   assert.match(src, /onBlur=\{\(\) => \{[\s\S]*flush\(\)/)
@@ -294,7 +294,7 @@ test('algorithm card drafts locally and saves on blur like html source', async (
 test('code runner and terminals share a trash icon for clear', async () => {
   const { readFile } = await import('node:fs/promises')
   const { resolve } = await import('node:path')
-  const runner = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-code-runner/web.tsx'), 'utf8')
+  const runner = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-code-runner/web/index.tsx'), 'utf8')
   assert.match(runner, /aria-label="清空"/)
   assert.match(runner, /aria-label=\{running \? '运行中' : '运行'\}/)
   assert.match(runner, /justifyContent: 'space-between'/)
@@ -307,9 +307,9 @@ test('code runner and terminals share a trash icon for clear', async () => {
 test('page-browser is both a page block and the inspector browser', async () => {
   const { readFile } = await import('node:fs/promises')
   const { resolve } = await import('node:path')
-  const web = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-browser/web.tsx'), 'utf8')
-  const panel = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-browser/panel.tsx'), 'utf8')
-  const open = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-browser/open.ts'), 'utf8')
+  const web = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-browser/web/index.tsx'), 'utf8')
+  const panel = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-browser/web/panel.tsx'), 'utf8')
+  const open = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-browser/web/open.ts'), 'utf8')
   assert.match(web, /export const inject = \['pageEditor', 'slots', 'pick'\]/)
   assert.match(web, /placeInspectorBrowser/)
   assert.match(web, /openSidebarBrowser/)

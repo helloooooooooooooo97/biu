@@ -5,7 +5,7 @@ import { sharePluginInjectOk, sharePluginModuleUrls, shareWebPluginOf } from './
 test('share plugin urls try packed share API then sandbox source', () => {
   const urls = sharePluginModuleUrls('tok', 'page-terminal', '123456')
   assert.equal(urls[0], '/api/share/tok/plugin/page-terminal/web.js?password=123456')
-  assert.ok(urls.some((item) => item.includes('/.plugin-dev/page-terminal/web.tsx')))
+  assert.ok(urls.some((item) => item.includes('/.plugin-dev/page-terminal/web/index.tsx')))
 })
 
 test('share web plugin keeps pageEditor inject', () => {

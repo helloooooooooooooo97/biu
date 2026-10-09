@@ -59,7 +59,7 @@ test('electron scripts compile ts and reuse busy ports', async () => {
 
   const preload = await readFile(resolve(import.meta.dirname, '../electron/preload.cjs'), 'utf8')
   assert.match(preload, /cancelInspect: \(\) => cmd\(\{ type: 'cancelInspect' \}\)/)
-  const panel = await readFile(resolve(import.meta.dirname, '../.plugin-dev/page-browser/panel.tsx'), 'utf8')
+  const panel = await readFile(resolve(import.meta.dirname, '../.plugin-dev/page-browser/web/panel.tsx'), 'utf8')
   assert.match(panel, /if \(picking\)/)
   assert.match(panel, /api\.cancelInspect\(\)/)
   assert.match(panel, /event\.key !== 'Escape'/)

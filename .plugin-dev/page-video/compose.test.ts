@@ -15,7 +15,7 @@ import {
   propAt,
   resizeClip,
   SAMPLE_SCRIPT,
-} from './compose.ts'
+} from './shared/compose.ts'
 
 test('default sample is a frame-driven React advertisement', () => {
   const result = compileSafe(SAMPLE_SCRIPT)
