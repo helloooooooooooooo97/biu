@@ -1020,6 +1020,78 @@ declare module 'cordis' {
   }
 }
 
+export async function openSessionHttpPayload(ctx: Context, id: string, limitTurns: number) {
+  const record = await ctx.sessions.get(id)
+  if (!record || !ctx.sessions.inWorkspace(id)) return { status: 404 as const, body: { error: 'unknown session' } }
+  if (databaseOf(ctx)?.facets.isDeleted('/sessions', record.id)) {
+    return { status: 404 as const, body: { error: 'unknown session' } }
+  }
+  const window = sliceTailTurns(record.events, limitTurns)
+  const payload: Record<string, unknown> = {
+    id: record.id,
+    version: record.version,
+    events: window.events,
+    hasMore: window.hasMore,
+    totalTurns: window.totalTurns,
+    totalEvents: window.totalEvents,
+    oldestSeq: window.oldestSeq,
+    newestSeq: window.newestSeq,
+    ...(record.project ? { project: record.project } : {}),
+    ...(record.mascot ? { mascot: record.mascot } : {}),
+    ...(record.config ? { config: record.config } : {}),
+  }
+  let summaries: Awaited<ReturnType<typeof ctx.sessions.listSummaries>> = []
+  try {
+    summaries = liveSessionItems(ctx, await ctx.sessions.listSummaries())
+  } catch {
+    summaries = []
+  }
+  const workers = []
+  const titles = new Map<string, string>()
+  const mascots = new Map<string, NonNullable<(typeof summaries)[number]['mascot']>>()
+  const projects = new Map<string, { name: string; path?: string }>()
+  for (const item of summaries) {
+    titles.set(item.id, item.title)
+    if (item.mascot) mascots.set(item.id, item.mascot)
+    if (item.project?.name) {
+      projects.set(item.id, {
+        name: item.project.name,
+        ...(item.project.path ? { path: item.project.path } : {}),
+      })
+    }
+    if (item.id === record.id) continue
+    try {
+      const worker = await ctx.sessions.require(item.id)
+      workers.push({ id: item.id, events: worker.events })
+    } catch {
+      // 别的会话读失败不能挡住当前这条。表格详情只读这一条，侧栏打开却会扫全部。
+    }
+  }
+  let liveTasks: Awaited<ReturnType<typeof loadLiveDispatchTasks>> = []
+  try {
+    liveTasks = await loadLiveDispatchTasks(ctx, record.id)
+  } catch {
+    liveTasks = []
+  }
+  const dispatched = collectLiveDispatchedTasks(record.id, record.events, workers, liveTasks)
+  payload.dispatchedUsage = dispatched.total
+  payload.dispatchedUsageByTurn = Object.fromEntries(
+    Object.entries(dispatched.byLiveTurn).map(([key, value]) => [key, value.usage]),
+  )
+  payload.dispatchedTasksByTurn = Object.fromEntries(
+    Object.entries(dispatched.byLiveTurn).map(([key, value]) => [
+      key,
+      value.tasks.map((task) => ({
+        ...task,
+        title: titles.get(task.sessionId) ?? task.sessionId.slice(0, 8),
+        ...(mascots.get(task.sessionId) ? { mascot: mascots.get(task.sessionId) } : {}),
+        ...(projects.get(task.sessionId) ? { project: projects.get(task.sessionId) } : {}),
+      })),
+    ]),
+  )
+  return { status: 200 as const, body: payload }
+}
+
 export function apply(ctx: Context) {
   const chat = new ChatService(ctx)
   ctx.hub.register({
@@ -1174,11 +1246,6 @@ export function apply(ctx: Context) {
     return record && ctx.sessions.inWorkspace(id) ? record : null
   }
   ctx.http.route('GET', '/api/sessions/:id', async (route) => {
-    const record = await visibleSession(route.params.id)
-    if (!record) return route.send(404, { error: 'unknown session' })
-    if (databaseOf(ctx)?.facets.isDeleted('/sessions', record.id)) {
-      return route.send(404, { error: 'unknown session' })
-    }
     const turnsRaw = route.query.get('turns')
     const limitTurns =
       turnsRaw == null || turnsRaw === ''
@@ -1186,56 +1253,8 @@ export function apply(ctx: Context) {
         : turnsRaw === 'all'
           ? 0
           : Math.max(0, Number(turnsRaw) || DEFAULT_TAIL_TURNS)
-    const window = sliceTailTurns(record.events, limitTurns)
-    const payload: Record<string, unknown> = {
-      id: record.id,
-      version: record.version,
-      events: window.events,
-      hasMore: window.hasMore,
-      totalTurns: window.totalTurns,
-      totalEvents: window.totalEvents,
-      oldestSeq: window.oldestSeq,
-      newestSeq: window.newestSeq,
-      ...(record.project ? { project: record.project } : {}),
-      ...(record.mascot ? { mascot: record.mascot } : {}),
-      ...(record.config ? { config: record.config } : {}),
-    }
-    const summaries = liveSessionItems(ctx, await ctx.sessions.listSummaries())
-    const workers = []
-    const titles = new Map<string, string>()
-    const mascots = new Map<string, NonNullable<(typeof summaries)[number]['mascot']>>()
-    const projects = new Map<string, { name: string; path?: string }>()
-    for (const item of summaries) {
-      titles.set(item.id, item.title)
-      if (item.mascot) mascots.set(item.id, item.mascot)
-      if (item.project?.name) {
-        projects.set(item.id, {
-          name: item.project.name,
-          ...(item.project.path ? { path: item.project.path } : {}),
-        })
-      }
-      if (item.id === record.id) continue
-      const worker = await ctx.sessions.require(item.id)
-      workers.push({ id: item.id, events: worker.events })
-    }
-    const liveTasks = await loadLiveDispatchTasks(ctx, record.id)
-    const dispatched = collectLiveDispatchedTasks(record.id, record.events, workers, liveTasks)
-    payload.dispatchedUsage = dispatched.total
-    payload.dispatchedUsageByTurn = Object.fromEntries(
-      Object.entries(dispatched.byLiveTurn).map(([key, value]) => [key, value.usage]),
-    )
-    payload.dispatchedTasksByTurn = Object.fromEntries(
-      Object.entries(dispatched.byLiveTurn).map(([key, value]) => [
-        key,
-        value.tasks.map((task) => ({
-          ...task,
-          title: titles.get(task.sessionId) ?? task.sessionId.slice(0, 8),
-          ...(mascots.get(task.sessionId) ? { mascot: mascots.get(task.sessionId) } : {}),
-          ...(projects.get(task.sessionId) ? { project: projects.get(task.sessionId) } : {}),
-        })),
-      ]),
-    )
-    route.send(200, payload)
+    const result = await openSessionHttpPayload(ctx, route.params.id, limitTurns)
+    route.send(result.status, result.body)
   })
   ctx.http.route('GET', '/api/sessions/:id/events', async (route) => {
     const record = await visibleSession(route.params.id)
