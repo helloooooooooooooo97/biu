@@ -283,7 +283,6 @@ export class PluginStoreService extends Service {
     return (
       this.ctx.get('account') as {
         store?: {
-          hasInstancePermission?(accountId: string, permission: string): boolean
           canAccessPlugin?(accountId: string, workspaceId: string, pluginId: string): boolean
           hasPluginLoad?(accountId: string, workspaceId: string, pluginId: string): boolean
           pluginLoadsFor?(accountId: string, workspaceId: string): string[]
@@ -297,16 +296,6 @@ export class PluginStoreService extends Service {
         }
       } | undefined
     )?.store
-  }
-
-  hasInstancePermission(permission: string) {
-    if (process.env.BIU_ONLINE !== '1') return true
-    const accountId = currentAccountId()
-    return Boolean(accountId && this.accountStore()?.hasInstancePermission?.(accountId, permission))
-  }
-
-  private requireInstancePermission(permission: string) {
-    if (!this.hasInstancePermission(permission)) throw new Error(`permission denied: ${permission}`)
   }
 
   private readState(): StoreState {
@@ -365,7 +354,6 @@ export class PluginStoreService extends Service {
   /** 在 .plugin-dev/<id>/ 开沙箱，不写入已安装目录。线上任何空间成员都能开。 */
   async initSandbox(input: PluginCreateInput) {
     if (process.env.BIU_ONLINE === '1') this.requireWorkspaceMember()
-    else this.requireInstancePermission('plugin.drafts.create')
     const id = String(input.id ?? '').trim()
     const name = String(input.name ?? '').trim()
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
@@ -403,7 +391,6 @@ export class PluginStoreService extends Service {
   /** 把沙箱 bundle 进 .plugin/<id>/。 */
   async pack(id: string) {
     if (process.env.BIU_ONLINE === '1') this.requireWorkspaceMember()
-    else this.requireInstancePermission('plugin.packages.install')
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
     const sandbox = this.sandboxPath(id)
     if (!existsSync(join(sandbox, 'manifest.json'))) throw new Error(`sandbox not found: ${sandbox}`)
@@ -458,8 +445,7 @@ export class PluginStoreService extends Service {
 
   /** 空间成员看得到 .plugin-dev；实例草稿权限仍单独放行。 */
   private canSeeSandboxes() {
-    if (this.hasInstancePermission('plugin.drafts.read-all')) return true
-    if (process.env.BIU_ONLINE !== '1') return false
+    if (process.env.BIU_ONLINE !== '1') return true
     const accountId = currentAccountId()
     const workspaceId = currentRequestWorkspaceId()
     return Boolean(accountId && workspaceId && this.accountStore()?.isMember?.(accountId, workspaceId))
@@ -574,7 +560,6 @@ export class PluginStoreService extends Service {
       this.invalidateList()
       return (await this.list()).find((item) => item.id === id)
     }
-    this.requireInstancePermission('plugin.packages.install')
     const hit = await this.findPluginDir(id)
     if (!hit) throw new Error(`unknown store plugin: ${id}`)
     const manifest = await readManifest(hit)
@@ -599,7 +584,6 @@ export class PluginStoreService extends Service {
       this.invalidateList()
       return
     }
-    this.requireInstancePermission('plugin.packages.update')
     await this.hub().drop(id)
     this.setEnabled(id, false)
     this.invalidateList()
@@ -607,7 +591,7 @@ export class PluginStoreService extends Service {
 
   /** 卸载：停运行，只删 .plugin/<id>/，不动 .plugin-dev。 */
   async uninstall(id: string) {
-    this.requireInstancePermission('plugin.packages.uninstall')
+    if (process.env.BIU_ONLINE === '1') this.requireWorkspaceMember()
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
     await this.hub().drop(id)
     this.setEnabled(id, false)
@@ -677,7 +661,7 @@ export class PluginStoreService extends Service {
   }
 
   async writeReadme(id: string, markdown: string) {
-    this.requireInstancePermission('plugin.drafts.create')
+    if (process.env.BIU_ONLINE === '1') this.requireWorkspaceMember()
     const text = String(markdown ?? '')
     const sqlitePath = this.contentSqlitePath()
     mkdirSync(dirname(sqlitePath), { recursive: true })
@@ -829,13 +813,12 @@ export async function openStore(ctx: Context) {
       ctx.get('account') as {
         store?: {
           canAccessPlugin?(accountId: string, workspaceId: string, pluginId: string): boolean
-          hasInstancePermission?(accountId: string, permission: string): boolean
+          isMember?(accountId: string, workspaceId: string): boolean
         }
       } | undefined
     )?.store
-    const canManagePackages = Boolean(
-      account?.hasInstancePermission?.(accountId, 'plugin.packages.install'),
-    )
+    const canManagePackages =
+      process.env.BIU_ONLINE !== '1' || Boolean(accountId && workspaceId && account?.isMember?.(accountId, workspaceId))
     const plugins = (await store.list())
       .filter((item) => !item.builtin && !store.isBuiltin(item.id))
       .map((item) => ({

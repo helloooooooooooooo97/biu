@@ -233,18 +233,6 @@ export const BIU_TABLES: Record<string, TableSpec> = {
     columns: ['key', 'value'],
     indexes: [],
   },
-  instance_roles: {
-    columns: ['id', 'name', 'builtin', 'created_by', 'created_at'],
-    indexes: [],
-  },
-  instance_role_permissions: {
-    columns: ['role_id', 'permission'],
-    indexes: ['instance_role_permissions_permission'],
-  },
-  instance_role_members: {
-    columns: ['role_id', 'account_id', 'assigned_by', 'created_at'],
-    indexes: ['instance_role_members_account'],
-  },
   plugin_packages: {
     columns: [
       'id',
@@ -285,7 +273,7 @@ export const BIU_TABLES: Record<string, TableSpec> = {
   },
 }
 
-export const LATEST_BIU_SCHEMA = 36
+export const LATEST_BIU_SCHEMA = 37
 
 export const CREATE_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS pages (
@@ -651,29 +639,6 @@ CREATE TABLE IF NOT EXISTS collab_state (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS instance_roles (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  builtin INTEGER NOT NULL DEFAULT 0,
-  created_by TEXT,
-  created_at INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS instance_role_permissions (
-  role_id TEXT NOT NULL,
-  permission TEXT NOT NULL,
-  PRIMARY KEY (role_id, permission)
-);
-CREATE INDEX IF NOT EXISTS instance_role_permissions_permission
-  ON instance_role_permissions(permission, role_id);
-CREATE TABLE IF NOT EXISTS instance_role_members (
-  role_id TEXT NOT NULL,
-  account_id TEXT NOT NULL,
-  assigned_by TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
-  PRIMARY KEY (role_id, account_id)
-);
-CREATE INDEX IF NOT EXISTS instance_role_members_account
-  ON instance_role_members(account_id, role_id);
 CREATE TABLE IF NOT EXISTS plugin_packages (
   id TEXT NOT NULL,
   version TEXT NOT NULL,

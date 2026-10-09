@@ -15,7 +15,6 @@ function stubStore(partial: Partial<PluginStoreService>): PluginStoreService {
     close: async () => {},
     pack: async (id: string) => ({ id, sandboxPath: '', pluginPath: '' }),
     uninstall: async () => {},
-    hasInstancePermission: () => true,
     pluginPath: (id: string) => `/workspace/.plugin/${id}`,
     sandboxPath: (id: string) => `/workspace/.plugin-dev/${id}`,
     ...partial,
@@ -129,8 +128,9 @@ test('pluginsCollection lists installed plugins and sandboxes in one table', asy
   assert.equal(spec.actions?.find((item) => item.id === 'start')?.requiredAction, 'resource:read')
   assert.equal(spec.actions?.find((item) => item.id === 'stop')?.requiredAction, 'resource:read')
   assert.equal(spec.actions?.find((item) => item.id === 'pack')?.requiredAction, 'resource:read')
-  assert.equal(spec.actions?.find((item) => item.id === 'sandbox')?.requiredAction, 'resource:create')
+  assert.equal(spec.actions?.find((item) => item.id === 'sandbox')?.requiredAction, 'resource:read')
   assert.deepEqual(spec.actions?.find((item) => item.id === 'uninstall')?.when, { installed: true, builtin: false })
+  assert.equal(spec.actions?.find((item) => item.id === 'uninstall')?.requiredAction, 'resource:delete')
   assert.equal(spec.actions?.find((item) => item.id === 'sandbox')?.for, 'agent')
   assert.equal(spec.actions?.find((item) => item.id === 'start')?.for, undefined)
 })
