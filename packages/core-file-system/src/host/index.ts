@@ -876,6 +876,7 @@ export class DatabaseService extends Service implements Database {
     const actor = authorization?.currentActor()
     if (!authorization || !actor) return rows
     return rows.filter((row) => {
+      if (collection === '/plugins' && (row as { builtin?: unknown }).builtin === true) return scope === 'shared'
       const target = this.scopeTarget(collection, String(row.id ?? ''), row)
       return authorization.scopeCurrent({
         type: 'record',
@@ -957,7 +958,10 @@ export class DatabaseService extends Service implements Database {
     record?: { id?: unknown },
   ) {
     if (this.facets.isDeleted(spec.path, id)) throw new Error(`unknown record: ${spec.path}/${id}`)
-    if (spec.path === '/plugins' && record && (record as { builtin?: unknown }).builtin === true) return
+    if (spec.path === '/plugins' && record && (record as { builtin?: unknown }).builtin === true) {
+      if (action === 'resource:read') return
+      throw new Error('permission denied: INSUFFICIENT_PERMISSION')
+    }
     const authorization = this.authorization()
     const actor = authorization?.currentActor()
     if (authorization && actor) {
@@ -1221,7 +1225,7 @@ export class DatabaseService extends Service implements Database {
     const withPeople = this.applyPersonOverlay(spec, withFacet)
     const withMeta = this.applyMetaOverlay(spec, withPeople)
     if (isSystemCollection(spec.path) || isIndexCollection(spec.path)) return withMeta
-    if (spec.path === '/plugins' && row.builtin === true) return { ...withMeta, shareScope: '空间' }
+    if (spec.path === '/plugins' && row.builtin === true) return { ...withMeta, shareScope: '共享' }
     const stored = this.ownershipOf(spec.path, String(row.id ?? ''))
     return { ...withMeta, shareScope: SHARE_SCOPE_LABEL[this.effectiveScope(spec.path, withMeta, stored)] }
   }

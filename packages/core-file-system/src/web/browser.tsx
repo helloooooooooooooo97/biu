@@ -2782,7 +2782,7 @@ export function CollectionBrowser({
                 <StarIcon aria-hidden className={`size-4${viewStarred ? ' text-[#f5b700]' : ''}`} />
               </button>
             ) : null}
-            {isSystemCollection(collectionPath) || isIndexCollection(collectionPath) ? null : (
+            {isSystemCollection(collectionPath) || isIndexCollection(collectionPath) || (collectionPath === '/plugins' && detailRow?.builtin === true) ? null : (
             <ShareButton
               target={
                 detailId

@@ -2210,10 +2210,16 @@ test('builtin plugins stay visible in the workspace plugin list', async () => {
     collab.setActive(bob.id, workspace.id)
     const bobList = await runWithAccount(bob.id, () => db.list('/plugins'))
     assert.deepEqual(bobList.items.map((row) => row.id), ['api-playground'])
-    assert.equal(bobList.items[0]?.shareScope, '空间')
+    assert.equal(bobList.items[0]?.shareScope, '共享')
     assert.equal(bobList.items[0]?.createdBy && (bobList.items[0].createdBy as { name?: string }).name, 'BIU官方')
     const read = await runWithAccount(bob.id, () => db.read('/plugins/api-playground'))
     assert.equal(read.kind === 'record' && read.value.id, 'api-playground')
+    const sharedOnly = await runWithAccount(bob.id, () => db.list('/plugins', { $scope: 'shared' }))
+    assert.deepEqual(sharedOnly.items.map((row) => row.id), ['api-playground'])
+    await assert.rejects(
+      () => runWithAccount(bob.id, () => db.update('/plugins/api-playground', { title: '改掉' })),
+      /INSUFFICIENT_PERMISSION/,
+    )
   } finally {
     if (previous === undefined) delete process.env.BIU_ONLINE
     else process.env.BIU_ONLINE = previous
