@@ -75,7 +75,6 @@ test('an online instance seeds root as super admin with the default password', (
     const root = collab.login('root', '123456')
     assert.equal(root.name, 'root')
     assert.equal(root.mustChangePassword, false)
-    assert.equal(collab.hasInstancePermission(root.id, 'instance.roles.manage'), true)
     assert.equal(collab.requiresPasswordChange(root.id), false)
     collab.changePassword(root.id, '123456', 'new-secret', root.token)
     assert.equal(collab.requiresPasswordChange(root.id), false)
@@ -101,7 +100,6 @@ test('online startup adds root to a database that already has accounts', () => {
     const online = new CollabStore(db)
     const root = online.login('root', '123456')
     assert.notEqual(root.id, ada.id)
-    assert.equal(online.hasInstancePermission(root.id, 'instance.roles.manage'), true)
   } finally {
     if (previous === undefined) delete process.env.BIU_ONLINE
     else process.env.BIU_ONLINE = previous
@@ -124,26 +122,7 @@ test('owners and managers can rename a workspace but regular members cannot', ()
   assert.throws(() => collab.renameWorkspace(ada.id, workspace.id, '  '), /不能为空/)
 })
 
-test('instance roles are independent, composable, and keep one super admin', () => {
-  const collab = store()
-  const ada = collab.register('Ada')
-  const bob = collab.register('Bob')
-  assert.equal(collab.hasInstancePermission(ada.id, 'instance.roles.manage'), true)
-  assert.equal(collab.hasInstancePermission(bob.id, 'instance.roles.manage'), false)
-
-  collab.assignInstanceRole(ada.id, bob.id, 'plugin-developer')
-  collab.assignInstanceRole(ada.id, bob.id, 'plugin-reviewer')
-  assert.equal(collab.hasInstancePermission(bob.id, 'plugin.drafts.create'), true)
-  assert.equal(collab.hasInstancePermission(bob.id, 'plugin.reviews.approve'), true)
-  assert.equal(collab.hasInstancePermission(bob.id, 'plugin.packages.install'), false)
-  assert.throws(() => collab.removeInstanceRole(ada.id, ada.id, 'super-admin'), /最后一个超级管理员/)
-
-  collab.assignInstanceRole(ada.id, bob.id, 'super-admin')
-  collab.removeInstanceRole(ada.id, ada.id, 'super-admin')
-  assert.equal(collab.hasInstancePermission(bob.id, 'instance.roles.manage'), true)
-})
-
-test('workspace members install and uninstall plugins without instance package roles', () => {
+test('plugin packages record without instance roles', () => {
   const previous = process.env.BIU_ONLINE
   process.env.BIU_ONLINE = '1'
   try {
@@ -164,8 +143,7 @@ test('workspace members install and uninstall plugins without instance package r
       hasHost: false,
       manifest: { id: 'brand' },
     }
-    assert.throws(() => collab.recordPluginPackage(bob.id, input), /缺少实例权限：plugin\.packages\.install/)
-    runWithAccount(bob.id, () => runWithRequestWorkspace(workspace.id, () => collab.recordPluginPackage(bob.id, input)))
+    collab.recordPluginPackage(bob.id, input)
     runWithAccount(bob.id, () => runWithRequestWorkspace(workspace.id, () => collab.removePluginPackage(bob.id, 'brand')))
   } finally {
     if (previous === undefined) delete process.env.BIU_ONLINE

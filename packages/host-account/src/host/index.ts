@@ -227,52 +227,7 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   ctx.http.route('GET', '/api/account/me', async (route) => {
     try {
       const me = actor(route)
-      route.send(200, {
-        ...me,
-        instanceRoles: account.store.instanceRoles(me.id),
-        instancePermissions: account.store.instancePermissions(me.id),
-      })
-    } catch (error) {
-      fail(route, error)
-    }
-  })
-
-  ctx.http.route('GET', '/api/account/instance/roles', async (route) => {
-    try {
-      const me = actor(route)
-      route.send(200, {
-        roles: account.store.listInstanceRoles(me.id),
-        members: account.store.listInstanceRoleMembers(me.id),
-      })
-    } catch (error) {
-      fail(route, error)
-    }
-  })
-
-  ctx.http.route('POST', '/api/account/instance/roles/:roleId/members', async (route) => {
-    try {
-      const me = actor(route)
-      const body = (await route.json()) as { accountId?: unknown }
-      route.send(
-        201,
-        account.store.assignInstanceRole(me.id, String(body.accountId ?? ''), String(route.params.roleId ?? '')),
-      )
-    } catch (error) {
-      fail(route, error)
-    }
-  })
-
-  ctx.http.route('DELETE', '/api/account/instance/roles/:roleId/members/:accountId', async (route) => {
-    try {
-      const me = actor(route)
-      route.send(
-        200,
-        account.store.removeInstanceRole(
-          me.id,
-          String(route.params.accountId ?? ''),
-          String(route.params.roleId ?? ''),
-        ),
-      )
+      route.send(200, me)
     } catch (error) {
       fail(route, error)
     }

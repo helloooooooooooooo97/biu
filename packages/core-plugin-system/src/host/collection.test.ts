@@ -15,7 +15,6 @@ function stubStore(partial: Partial<PluginStoreService>): PluginStoreService {
     close: async () => {},
     pack: async (id: string) => ({ id, sandboxPath: '', pluginPath: '' }),
     uninstall: async () => {},
-    hasInstancePermission: () => true,
     pluginPath: (id: string) => `/workspace/.plugin/${id}`,
     sandboxPath: (id: string) => `/workspace/.plugin-dev/${id}`,
     ...partial,

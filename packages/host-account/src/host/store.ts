@@ -8,27 +8,6 @@ export const DEFAULT_LOCK_MS = 60_000
 export const DEFAULT_SESSION_MS = 30 * 24 * 60 * 60 * 1000
 export const DEFAULT_MCP_CREDENTIAL_MS = 90 * 24 * 60 * 60 * 1000
 
-export const INSTANCE_PERMISSIONS = [
-  'instance.settings.read',
-  'instance.settings.write',
-  'instance.roles.manage',
-  'instance.accounts.manage',
-  'plugin.packages.read',
-  'plugin.packages.install',
-  'plugin.packages.update',
-  'plugin.packages.uninstall',
-  'plugin.drafts.create',
-  'plugin.drafts.read-all',
-  'plugin.reviews.approve',
-  'plugin.reviews.reject',
-  'plugin.audit.read',
-  'instance.backups.create',
-  'instance.backups.restore',
-  'instance.audit.read',
-] as const
-
-export type InstancePermission = (typeof INSTANCE_PERMISSIONS)[number]
-
 const builtinPluginLookups = new Set<(pluginId: string) => boolean>()
 
 /** 内置插件由插件商店登记。成员不需要再在设置里授权。 */
@@ -44,42 +23,6 @@ export function isRegisteredBuiltinPlugin(pluginId: string) {
     if (lookup(pluginId)) return true
   }
   return false
-}
-
-const BUILTIN_INSTANCE_ROLES: Record<string, { name: string; permissions: readonly InstancePermission[] }> = {
-  'super-admin': { name: '超级管理员', permissions: INSTANCE_PERMISSIONS },
-  'plugin-developer': {
-    name: '插件开发者',
-    permissions: ['plugin.packages.read', 'plugin.drafts.create', 'plugin.drafts.read-all'],
-  },
-  'plugin-reviewer': {
-    name: '插件审核员',
-    permissions: ['plugin.packages.read', 'plugin.reviews.approve', 'plugin.reviews.reject', 'plugin.audit.read'],
-  },
-  'plugin-admin': {
-    name: '插件管理员',
-    permissions: [
-      'plugin.packages.read',
-      'plugin.packages.install',
-      'plugin.packages.update',
-      'plugin.packages.uninstall',
-      'plugin.audit.read',
-    ],
-  },
-  'ops-admin': {
-    name: '运维管理员',
-    permissions: [
-      'instance.settings.read',
-      'instance.settings.write',
-      'instance.backups.create',
-      'instance.backups.restore',
-      'instance.audit.read',
-    ],
-  },
-  'security-auditor': {
-    name: '安全审计员',
-    permissions: ['instance.settings.read', 'plugin.packages.read', 'plugin.audit.read', 'instance.audit.read'],
-  },
 }
 
 export type PluginAssignmentSubject =
@@ -184,9 +127,7 @@ export class CollabStore {
 
   constructor(private db: DatabaseSync) {
     this.authorization = new AuthorizationService(db, (accountId) => this.accountActiveWorkspace(accountId))
-    this.ensureBuiltinInstanceRoles()
     this.ensureBuiltInRoot()
-    this.ensureInitialInstanceAdmin()
   }
 
   bootstrapLocal(input: { accountName?: string; workspaceName?: string; now?: number } = {}) {
@@ -254,7 +195,6 @@ export class CollabStore {
     this.db
       .prepare('INSERT INTO accounts (id, name, token, password_hash, created_at, email) VALUES (?, ?, ?, ?, ?, ?)')
       .run(account.id, account.name, account.token, secret ? hashPassword(secret) : '', account.createdAt, normalized || null)
-    this.ensureInitialInstanceAdmin(account.id)
     return account
   }
 
@@ -1088,148 +1028,6 @@ export class CollabStore {
     }))
   }
 
-  instanceRoles(accountId: string) {
-    return this.db
-      .prepare(
-        `SELECT r.id, r.name
-         FROM instance_role_members m
-         JOIN instance_roles r ON r.id = m.role_id
-         WHERE m.account_id = ?
-         ORDER BY r.id`,
-      )
-      .all(accountId) as Array<{ id: string; name: string }>
-  }
-
-  instancePermissions(accountId: string): InstancePermission[] {
-    const rows = this.db
-      .prepare(
-        `SELECT DISTINCT p.permission
-         FROM instance_role_members m
-         JOIN instance_role_permissions p ON p.role_id = m.role_id
-         WHERE m.account_id = ?
-         ORDER BY p.permission`,
-      )
-      .all(accountId) as Array<{ permission: string }>
-    return rows
-      .map((row) => row.permission)
-      .filter((permission): permission is InstancePermission =>
-        (INSTANCE_PERMISSIONS as readonly string[]).includes(permission),
-      )
-  }
-
-  hasInstancePermission(accountId: string, permission: InstancePermission) {
-    if (!accountId) return false
-    return Boolean(
-      this.db
-        .prepare(
-          `SELECT 1 AS ok
-           FROM instance_role_members m
-           JOIN instance_role_permissions p ON p.role_id = m.role_id
-           WHERE m.account_id = ? AND p.permission = ?
-           LIMIT 1`,
-        )
-        .get(accountId, permission),
-    )
-  }
-
-  /** 线上空间成员走记录权限，不再套一层实例安装/卸载权限。 */
-  private onlineWorkspaceMember(accountId: string) {
-    if (process.env.BIU_ONLINE !== '1') return false
-    const workspaceId = currentRequestWorkspaceId()
-    return Boolean(accountId && workspaceId && this.isMember(accountId, workspaceId))
-  }
-
-  requireInstancePermission(accountId: string, permission: InstancePermission) {
-    if (!this.hasInstancePermission(accountId, permission)) {
-      throw new CollabError(`缺少实例权限：${permission}`, 403)
-    }
-  }
-
-  listInstanceRoles(actorId: string) {
-    this.requireInstancePermission(actorId, 'instance.settings.read')
-    const roles = this.db
-      .prepare('SELECT id, name, builtin, created_by, created_at FROM instance_roles ORDER BY builtin DESC, id')
-      .all() as Array<Record<string, unknown>>
-    const permissions = this.db
-      .prepare('SELECT role_id, permission FROM instance_role_permissions ORDER BY role_id, permission')
-      .all() as Array<{ role_id: string; permission: string }>
-    return roles.map((role) => ({
-      ...role,
-      permissions: permissions.filter((row) => row.role_id === role.id).map((row) => row.permission),
-    }))
-  }
-
-  listInstanceRoleMembers(actorId: string) {
-    this.requireInstancePermission(actorId, 'instance.roles.manage')
-    return this.db
-      .prepare(
-        `SELECT m.role_id, m.account_id, a.name, COALESCE(a.email, '') AS email,
-                m.assigned_by, m.created_at
-         FROM instance_role_members m
-         JOIN accounts a ON a.id = m.account_id
-         ORDER BY m.role_id, m.created_at`,
-      )
-      .all()
-  }
-
-  assignInstanceRole(actorId: string, accountId: string, roleId: string, now = Date.now()) {
-    this.requireInstancePermission(actorId, 'instance.roles.manage')
-    this.requireAccount(accountId)
-    const role = this.db.prepare('SELECT id FROM instance_roles WHERE id = ?').get(roleId)
-    if (!role) throw new CollabError('实例角色不存在', 404)
-    this.db
-      .prepare(
-        `INSERT INTO instance_role_members (role_id, account_id, assigned_by, created_at)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(role_id, account_id) DO NOTHING`,
-      )
-      .run(roleId, accountId, actorId, now)
-    this.auditPlugin(actorId, '', '', 'instance.role.assign', { roleId, accountId }, now)
-    return { roleId, accountId }
-  }
-
-  removeInstanceRole(actorId: string, accountId: string, roleId: string, now = Date.now()) {
-    this.requireInstancePermission(actorId, 'instance.roles.manage')
-    if (roleId === 'super-admin') {
-      const count = this.db
-        .prepare(`SELECT COUNT(*) AS count FROM instance_role_members WHERE role_id = 'super-admin'`)
-        .get() as { count: number }
-      if (Number(count.count) <= 1) throw new CollabError('不能移除最后一个超级管理员', 409)
-    }
-    const removed = this.db
-      .prepare('DELETE FROM instance_role_members WHERE role_id = ? AND account_id = ?')
-      .run(roleId, accountId)
-    if (!removed.changes) throw new CollabError('实例角色绑定不存在', 404)
-    this.auditPlugin(actorId, '', '', 'instance.role.remove', { roleId, accountId }, now)
-    return { roleId, accountId }
-  }
-
-  ensureInitialInstanceAdmin(preferredAccountId = '', now = Date.now()) {
-    const existing = this.db.prepare('SELECT 1 AS ok FROM instance_role_members LIMIT 1').get()
-    if (existing) return false
-    let accountId = preferredAccountId
-    if (!accountId) {
-      const first = this.db
-        .prepare(
-          `SELECT a.id
-           FROM accounts a
-           LEFT JOIN workspace_members m ON m.account_id = a.id AND m.role = 'owner'
-           ORDER BY CASE WHEN m.account_id IS NULL THEN 1 ELSE 0 END, a.created_at, a.id
-           LIMIT 1`,
-        )
-        .get() as { id?: string } | undefined
-      accountId = first?.id ?? ''
-    }
-    if (!accountId) return false
-    this.db
-      .prepare(
-        `INSERT OR IGNORE INTO instance_role_members (role_id, account_id, assigned_by, created_at)
-         VALUES ('super-admin', ?, ?, ?)`,
-      )
-      .run(accountId, accountId, now)
-    return true
-  }
-
   canAccessPlugin(accountId: string, workspaceId: string, pluginId: string) {
     if (!accountId || !workspaceId || !pluginId || !this.isMember(accountId, workspaceId)) return false
     return this.hasPluginLoad(accountId, workspaceId, pluginId)
@@ -1405,14 +1203,9 @@ export class CollabStore {
   }
 
   listPluginAudit(actorId: string, workspaceId = '', limit = 100) {
-    if (workspaceId) {
-      const role = this.workspaceRole(actorId, workspaceId)
-      if (role !== 'owner' && role !== 'admin' && !this.hasInstancePermission(actorId, 'plugin.audit.read')) {
-        throw new CollabError('没有插件审计权限', 403)
-      }
-    } else {
-      this.requireInstancePermission(actorId, 'plugin.audit.read')
-    }
+    if (!workspaceId) throw new CollabError('需要空间', 400)
+    const role = this.workspaceRole(actorId, workspaceId)
+    if (role !== 'owner' && role !== 'admin') throw new CollabError('没有插件审计权限', 403)
     return this.db
       .prepare(
         `SELECT id, account_id, workspace_id, plugin_id, action, detail_json, created_at
@@ -1432,7 +1225,6 @@ export class CollabStore {
     input: PluginPackageInput,
     now = Date.now(),
   ) {
-    if (!this.onlineWorkspaceMember(actorId)) this.requireInstancePermission(actorId, 'plugin.packages.install')
     this.db
       .prepare(
         `INSERT INTO plugin_packages
@@ -1472,19 +1264,18 @@ export class CollabStore {
     input: PluginPackageInput,
     now = Date.now(),
   ) {
-    const actor = this.db
-      .prepare(
-        `SELECT account_id FROM instance_role_members
-         WHERE role_id = 'super-admin' ORDER BY created_at, account_id LIMIT 1`,
-      )
-      .get() as { account_id?: string } | undefined
-    if (!actor?.account_id) return false
-    this.recordPluginPackage(actor.account_id, input, now)
+    const actorId =
+      currentAccountId() ||
+      (
+        this.db.prepare('SELECT id FROM accounts ORDER BY created_at, id LIMIT 1').get() as { id?: string } | undefined
+      )?.id ||
+      ''
+    if (!actorId) return false
+    this.recordPluginPackage(actorId, input, now)
     return true
   }
 
   removePluginPackage(actorId: string, pluginId: string, now = Date.now()) {
-    if (!this.onlineWorkspaceMember(actorId)) this.requireInstancePermission(actorId, 'plugin.packages.uninstall')
     this.db.exec('BEGIN IMMEDIATE')
     try {
       this.db.prepare('DELETE FROM plugin_assignments WHERE plugin_id = ?').run(pluginId)
@@ -2604,21 +2395,6 @@ export class CollabStore {
     return Number(inserted.changes)
   }
 
-  private ensureBuiltinInstanceRoles(now = Date.now()) {
-    const insertRole = this.db.prepare(
-      `INSERT INTO instance_roles (id, name, builtin, created_by, created_at)
-       VALUES (?, ?, 1, NULL, ?)
-       ON CONFLICT(id) DO UPDATE SET name = excluded.name, builtin = 1`,
-    )
-    const insertPermission = this.db.prepare(
-      `INSERT OR IGNORE INTO instance_role_permissions (role_id, permission) VALUES (?, ?)`,
-    )
-    for (const [roleId, definition] of Object.entries(BUILTIN_INSTANCE_ROLES)) {
-      insertRole.run(roleId, definition.name, now)
-      for (const permission of definition.permissions) insertPermission.run(roleId, permission)
-    }
-  }
-
   private ensureBuiltInRoot(now = Date.now()) {
     if (process.env.BIU_ONLINE !== '1') return false
     const existing = this.db
@@ -2640,12 +2416,6 @@ export class CollabStore {
       } else {
         this.db.prepare('UPDATE accounts SET must_change_password = 0 WHERE id = ?').run(accountId)
       }
-      this.db
-        .prepare(
-          `INSERT OR IGNORE INTO instance_role_members (role_id, account_id, assigned_by, created_at)
-           VALUES ('super-admin', ?, ?, ?)`,
-        )
-        .run(accountId, accountId, now)
       this.db.exec('COMMIT')
       return !existing
     } catch (error) {

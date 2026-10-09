@@ -39,7 +39,6 @@ function omitEmpty(row: DbRecord): DbRecord {
 
 function asInstalledRecord(row: StoreListing, store: PluginStoreService): DbRecord {
   const shell = row.shell
-  const canReadDrafts = store.hasInstancePermission('plugin.drafts.read-all')
   return omitEmpty({
     id: row.id,
     name: row.name,
@@ -48,7 +47,7 @@ function asInstalledRecord(row: StoreListing, store: PluginStoreService): DbReco
     tags: row.tags,
     ...withOfficial(row),
     installed: true,
-    ...(canReadDrafts ? { pluginPath: store.pluginPath(row.id) } : {}),
+    pluginPath: store.pluginPath(row.id),
     enabled: row.enabled,
     running: row.running,
     bytes: row.bytes,
@@ -72,7 +71,6 @@ function asInstalledRecord(row: StoreListing, store: PluginStoreService): DbReco
 }
 
 function asSandboxRecord(row: SandboxListing, store: PluginStoreService): DbRecord {
-  const canReadDrafts = store.hasInstancePermission('plugin.drafts.read-all')
   return omitEmpty({
     id: row.id,
     name: row.name,
@@ -81,7 +79,7 @@ function asSandboxRecord(row: SandboxListing, store: PluginStoreService): DbReco
     tags: row.tags,
     ...withOfficial(row),
     sandbox: true,
-    ...(canReadDrafts ? { sandboxPath: store.sandboxPath(row.id) } : {}),
+    sandboxPath: store.sandboxPath(row.id),
     hasHost: row.hasHost,
     hasWeb: row.hasWeb,
     headless: row.headless === true,
@@ -100,11 +98,10 @@ function mergeLifecycle(
     ? { builtin: true, author: BIU_OFFICIAL_NAME, authorUrl: BIU_GITHUB, createdBy: BIU_OFFICIAL, updatedBy: [BIU_OFFICIAL] }
     : {}
   if (installed && sandbox) {
-    const canReadDrafts = store.hasInstancePermission('plugin.drafts.read-all')
     return omitEmpty({
       ...asInstalledRecord(installed, store),
       sandbox: true,
-      ...(canReadDrafts ? { sandboxPath: store.sandboxPath(sandbox.id) } : {}),
+      sandboxPath: store.sandboxPath(sandbox.id),
       updatedAt: Math.max(installed.updatedAt, sandbox.updatedAt),
       ...official,
     })
