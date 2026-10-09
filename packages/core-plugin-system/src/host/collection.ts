@@ -216,7 +216,7 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
         for: 'agent',
         placement: [],
         allowMissing: true,
-        requiredAction: 'resource:create',
+        requiredAction: 'resource:read',
         description: PLUGIN_SANDBOX_DESCRIPTION,
         parameters: {
           type: 'object',

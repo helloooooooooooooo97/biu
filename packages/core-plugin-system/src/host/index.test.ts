@@ -82,6 +82,32 @@ test('builtin sandboxes stay in the plugin list without draft permission', async
   }
 })
 
+test('online members can open a sandbox without instance draft permission', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'plugin-sandbox-member-'))
+  const previous = process.env.BIU_ONLINE
+  process.env.BIU_ONLINE = '1'
+  try {
+    const ctx = new Context()
+    stubHub(ctx)
+    ;(ctx as unknown as { get(name: string): unknown }).get = (name: string) =>
+      name === 'account' ? { store: { isMember: (accountId: string) => accountId === 'ada' } } : undefined
+    const store = new PluginStoreService(ctx, join(dir, '.plugin'), join(dir, 'store.json'), join(dir, '.plugin-dev')).open()
+    await assert.rejects(
+      () => runWithAccount('bob', () => runWithRequestWorkspace('ws', () => store.initSandbox({ id: 'bob-plug', name: 'Bob' }))),
+      /需要登录/,
+    )
+    const created = await runWithAccount('ada', () =>
+      runWithRequestWorkspace('ws', () => store.initSandbox({ id: 'ada-plug', name: 'Ada' })),
+    )
+    assert.equal(created.id, 'ada-plug')
+    await access(join(dir, '.plugin-dev', 'ada-plug', 'manifest.json'))
+  } finally {
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('online members can pack without instance install permission', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'plugin-pack-member-'))
   const previous = process.env.BIU_ONLINE

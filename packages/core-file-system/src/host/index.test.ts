@@ -2247,3 +2247,84 @@ test('builtin plugins stay visible in the workspace plugin list', async () => {
     else process.env.BIU_ONLINE = previous
   }
 })
+
+test('a member sandbox is private until the owner shares it', async () => {
+  const previous = process.env.BIU_ONLINE
+  process.env.BIU_ONLINE = '1'
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  const rows = new Map<string, { id: string; title: string; sandbox: boolean }>()
+  db.register({
+    id: 'plugins',
+    path: '/plugins',
+    schema: {
+      labelField: 'title',
+      fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string' }, sandbox: { type: 'boolean' } },
+    },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    actions: [
+      {
+        id: 'sandbox',
+        label: '开沙箱',
+        allowMissing: true,
+        requiredAction: 'resource:read',
+        run: async (id) => {
+          rows.set(id, { id, title: id, sandbox: true })
+        },
+      },
+      {
+        id: 'pack',
+        label: '安装',
+        requiredAction: 'resource:read',
+        run: async (id) => rows.get(id),
+      },
+    ],
+  })
+  const dir = mkdtempSync(join(tmpdir(), 'biu-db-private-plugin-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  try {
+    await ctx.plugin(AccountBridge)
+    const ada = collab.register('', Date.now(), 'secret1', 'private-ada@example.com')
+    const bob = collab.register('', Date.now(), 'secret1', 'private-bob@example.com')
+    const cara = collab.register('', Date.now(), 'secret1', 'private-cara@example.com')
+    const workspace = collab.createWorkspace(ada.id, 'Plugins')
+    collab.addMemberByEmail(ada.id, workspace.id, bob.email)
+    collab.addMemberByEmail(ada.id, workspace.id, cara.email)
+    collab.updateMemberRole(ada.id, workspace.id, cara.id, 'viewer')
+    collab.setActive(ada.id, workspace.id)
+    collab.setActive(bob.id, workspace.id)
+    collab.setActive(cara.id, workspace.id)
+    await runWithAccount(cara.id, () => db.action('/plugins/cara-plug', 'sandbox'))
+    await runWithAccount(ada.id, () => db.action('/plugins/ada-plug', 'sandbox'))
+    const adaList = await runWithAccount(ada.id, () => db.list('/plugins'))
+    assert.deepEqual(adaList.items.map((row) => row.id), ['ada-plug'])
+    assert.equal(adaList.items[0]?.shareScope, '私人')
+    const bobList = await runWithAccount(bob.id, () => db.list('/plugins'))
+    assert.deepEqual(bobList.items.map((row) => row.id), [])
+    await assert.rejects(() => runWithAccount(bob.id, () => db.action('/plugins/ada-plug', 'pack')), /unknown record/)
+    collab.authorization.grant(
+      ada.id,
+      { type: 'record', workspaceId: workspace.id, collection: '/plugins', recordId: 'ada-plug' },
+      'account',
+      bob.id,
+      'viewer',
+      Date.now(),
+    )
+    const shared = await runWithAccount(bob.id, () => db.list('/plugins'))
+    assert.deepEqual(shared.items.map((row) => row.id), ['ada-plug'])
+    await runWithAccount(bob.id, () => db.action('/plugins/ada-plug', 'pack'))
+    const caraList = await runWithAccount(cara.id, () => db.list('/plugins'))
+    assert.deepEqual(caraList.items.map((row) => row.id), ['cara-plug'])
+  } finally {
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
+  }
+})

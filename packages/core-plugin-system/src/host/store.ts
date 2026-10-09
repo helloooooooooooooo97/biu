@@ -362,9 +362,10 @@ export class PluginStoreService extends Service {
     return join(this.sandboxDir, id)
   }
 
-  /** 在 .plugin-dev/<id>/ 开沙箱，不写入已安装目录。 */
+  /** 在 .plugin-dev/<id>/ 开沙箱，不写入已安装目录。线上任何空间成员都能开。 */
   async initSandbox(input: PluginCreateInput) {
-    this.requireInstancePermission('plugin.drafts.create')
+    if (process.env.BIU_ONLINE === '1') this.requireWorkspaceMember()
+    else this.requireInstancePermission('plugin.drafts.create')
     const id = String(input.id ?? '').trim()
     const name = String(input.name ?? '').trim()
     if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)

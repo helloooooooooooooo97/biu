@@ -988,6 +988,8 @@ export class DatabaseService extends Service implements Database {
     const workspaceId = store?.activeWorkspaceId()
     if (!store || !workspaceId) return
     store.attach(workspaceId, collection, recordId, Date.now(), policy)
+    this.ownerCache = null
+    this.ownershipCache = null
   }
 
   private assertLiveRecord(
@@ -1825,14 +1827,25 @@ export class DatabaseService extends Service implements Database {
     const loaded = await spec.get(parts[1]!)
     const record = loaded ?? (action.allowMissing ? { id: parts[1]! } : null)
     if (!record) throw new Error(`unknown record: ${spec.path}/${parts[1]}`)
-    const personalLoad = spec.path === '/plugins' && (actionId === 'start' || actionId === 'stop' || actionId === 'pack')
-    if (!personalLoad && (loaded || !action.allowMissing)) {
+    const personalLoad = spec.path === '/plugins' && (actionId === 'start' || actionId === 'stop')
+    const pluginAuthor = spec.path === '/plugins' && (actionId === 'sandbox' || actionId === 'pack')
+    if (pluginAuthor) {
+      await this.requirePath(spec.path, 'resource:read')
+      if (loaded) {
+        const owner = this.recordOwner(spec.path, record.id)
+        if (!owner) this.attachWorkspaceRecord(spec.path, record.id, { ownership: 'personal', accessMode: 'private' })
+        else this.assertLiveRecord(spec, record.id, 'resource:read', record)
+      }
+    } else if (!personalLoad && (loaded || !action.allowMissing)) {
       this.assertLiveRecord(spec, record.id, (action.requiredAction ?? 'resource:update') as PermissionAction, record)
     } else {
       await this.requirePath(spec.path, (action.requiredAction ?? 'resource:update') as PermissionAction)
     }
     if (!matchActionWhen(record, action.when)) throw new Error(`action not available: ${actionId}`)
     const result = await action.run(parts[1]!, record, args)
+    if (spec.path === '/plugins' && actionId === 'sandbox' && !this.recordOwner(spec.path, parts[1]!)) {
+      this.attachWorkspaceRecord(spec.path, parts[1]!, { ownership: 'personal', accessMode: 'private' })
+    }
     const next = (await spec.get(parts[1]!)) ?? record
     this.indexFacetRecord(spec, next)
     this.bump()
