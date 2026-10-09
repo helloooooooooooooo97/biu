@@ -607,6 +607,18 @@ export class PluginStoreService extends Service {
     this.accountStore()?.removePluginPackage?.(currentAccountId(), id)
   }
 
+  /** 彻底删除：安装产物和沙箱一起删。回收站清空走这条。 */
+  async destroy(id: string) {
+    if (!isSafeId(id)) throw new Error(`invalid plugin id: ${id}`)
+    if (this.isBuiltin(id)) throw new Error(`cannot delete built-in plugin: ${id}`)
+    await this.uninstall(id)
+    const sandbox = this.sandboxPath(id)
+    if (isPathInside(this.sandboxDir, sandbox) && existsSync(sandbox)) {
+      await rm(sandbox, { recursive: true, force: true })
+    }
+    this.invalidateList()
+  }
+
   private readmeDir(id: string) {
     const sandbox = this.sandboxPath(id)
     if (existsSync(join(sandbox, 'manifest.json'))) return sandbox

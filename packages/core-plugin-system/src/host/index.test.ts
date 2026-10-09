@@ -264,6 +264,30 @@ test('uninstall deletes .plugin/<id>/ and leaves .plugin-dev/<id>/', async () =>
   }
 })
 
+test('destroy deletes both the installed plugin and its sandbox', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'plugin-root-'))
+  const pluginDir = join(dir, '.plugin')
+  const sandboxDir = join(dir, '.plugin-dev')
+  try {
+    const ctx = new Context()
+    stubHub(ctx)
+    const store = new PluginStoreService(ctx, pluginDir, join(dir, 'store.json'), sandboxDir).open()
+    await store.initSandbox({
+      id: 'store-gone',
+      name: 'Gone',
+      hostJs: `export const name = 'store-gone'\nexport function apply() {}\n`,
+    })
+    await store.pack('store-gone')
+    await store.destroy('store-gone')
+    await assert.rejects(() => access(join(pluginDir, 'store-gone', 'host.js')))
+    await assert.rejects(() => access(join(sandboxDir, 'store-gone', 'manifest.json')))
+    assert.equal((await store.list()).find((item) => item.id === 'store-gone'), undefined)
+    assert.equal((await store.listSandboxes()).find((item) => item.id === 'store-gone'), undefined)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('web-only plugin opens without host.js', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'plugin-root-'))
   try {
