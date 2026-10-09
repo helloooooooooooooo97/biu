@@ -102,8 +102,8 @@ export function PersonFace({ value, empty = '' }: { value: unknown; empty?: stri
           ? profileDisplayName(profile)
           : resolveAgentName(person, sessionNames) || (person.kind === 'agent' ? person.name : person.name)
         const label = displayName || empty
-        return (
-          <span key={personKey(person) || person.name} className="fsdb-person" title={label || undefined}>
+        const body = (
+          <>
             {person.kind === 'agent' && (person.sessionId || person.mascot) ? (
               <span className="fsdb-person-face" aria-hidden>
                 <SidebarMascot
@@ -122,6 +122,26 @@ export function PersonFace({ value, empty = '' }: { value: unknown; empty?: stri
               </span>
             )}
             {label ? <span className="fsdb-person-name">{label}</span> : null}
+          </>
+        )
+        if (person.url) {
+          return (
+            <a
+              key={personKey(person) || person.name}
+              className="fsdb-person is-link"
+              href={person.url}
+              title={label || undefined}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {body}
+            </a>
+          )
+        }
+        return (
+          <span key={personKey(person) || person.name} className="fsdb-person" title={label || undefined}>
+            {body}
           </span>
         )
       })}

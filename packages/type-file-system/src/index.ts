@@ -51,6 +51,7 @@ export type PersonValue = {
   name: string
   accountId?: string
   sessionId?: string
+  url?: string
   mascot?: { shape: string; color: string; eye?: number }
 }
 
@@ -89,11 +90,13 @@ export function asPerson(value: unknown): PersonValue | null {
     (kind === 'system' ? '系统' : kind === 'user' ? '用户' : sessionId.slice(0, 8) || '')
   if (!name && !sessionId) return null
   const mascot = personMascot(rec.mascot)
+  const url = typeof rec.url === 'string' && /^https?:\/\//.test(rec.url.trim()) ? rec.url.trim() : ''
   return {
     kind,
     name: name || 'Agent',
     ...(accountId ? { accountId } : {}),
     ...(sessionId ? { sessionId } : {}),
+    ...(url ? { url } : {}),
     ...(mascot ? { mascot } : {}),
   }
 }

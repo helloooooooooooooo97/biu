@@ -13,7 +13,7 @@ type SandboxListing = Awaited<ReturnType<PluginStoreService['listSandboxes']>>[n
 export const BIU_OFFICIAL_NAME = 'BIU官方'
 export const BIU_GITHUB = 'https://github.com/helloooooooooooooo97/biu'
 
-const BIU_OFFICIAL = { kind: 'user' as const, name: BIU_OFFICIAL_NAME }
+const BIU_OFFICIAL = { kind: 'user' as const, name: BIU_OFFICIAL_NAME, url: BIU_GITHUB }
 
 function withOfficial<T extends { builtin?: boolean; author: string; authorUrl: string }>(row: T) {
   if (!row.builtin) return row

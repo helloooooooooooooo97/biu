@@ -2227,6 +2227,8 @@ test('builtin plugins stay visible in the workspace plugin list', async () => {
     assert.equal(bobList.items[0]?.shareScope, '共享')
     assert.equal(bobList.items[0]?.shareRole, '阅读')
     assert.equal(bobList.items[0]?.createdBy && (bobList.items[0].createdBy as { name?: string }).name, 'BIU官方')
+    assert.equal((bobList.items[0]?.createdBy as { url?: string }).url, 'https://github.com/helloooooooooooooo97/biu')
+    assert.equal((bobList.items[0]?.updatedBy as Array<{ url?: string }>)[0]?.url, 'https://github.com/helloooooooooooooo97/biu')
     const read = await runWithAccount(bob.id, () => db.read('/plugins/api-playground'))
     assert.equal(read.kind === 'record' && read.value.id, 'api-playground')
     const sharedOnly = await runWithAccount(bob.id, () => db.list('/plugins', { $scope: 'shared' }))
