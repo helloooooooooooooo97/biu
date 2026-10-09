@@ -1780,7 +1780,9 @@ export class DatabaseService extends Service implements Database {
       const authorization = this.authorization()
       const actor = authorization?.currentActor()
       if (authorization && actor) {
-        if (!authorization.authorize(actor, 'resource:read', {
+        const pluginTrash = row.collection === '/plugins'
+          && Boolean(this.collabStore()?.isMember?.(actor.accountId, actor.workspaceId))
+        if (!pluginTrash && !authorization.authorize(actor, 'resource:read', {
           type: 'record',
           workspaceId: actor.workspaceId,
           collection: row.collection,
