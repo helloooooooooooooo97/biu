@@ -2307,6 +2307,8 @@ test('a member sandbox is private until the owner shares it', async () => {
     const adaList = await runWithAccount(ada.id, () => db.list('/plugins'))
     assert.deepEqual(adaList.items.map((row) => row.id), ['ada-plug'])
     assert.equal(adaList.items[0]?.shareScope, '私人')
+    assert.deepEqual(adaList.items[0]?.createdBy, { kind: 'user', name: ada.name, accountId: ada.id })
+    assert.deepEqual(adaList.items[0]?.updatedBy, [{ kind: 'user', name: ada.name, accountId: ada.id }])
     const bobList = await runWithAccount(bob.id, () => db.list('/plugins'))
     assert.deepEqual(bobList.items.map((row) => row.id), [])
     await assert.rejects(() => runWithAccount(bob.id, () => db.action('/plugins/ada-plug', 'pack')), /unknown record/)
@@ -2321,6 +2323,12 @@ test('a member sandbox is private until the owner shares it', async () => {
     const shared = await runWithAccount(bob.id, () => db.list('/plugins'))
     assert.deepEqual(shared.items.map((row) => row.id), ['ada-plug'])
     await runWithAccount(bob.id, () => db.action('/plugins/ada-plug', 'pack'))
+    const edited = await runWithAccount(ada.id, () => db.list('/plugins'))
+    assert.deepEqual(edited.items[0]?.createdBy, { kind: 'user', name: ada.name, accountId: ada.id })
+    assert.deepEqual(edited.items[0]?.updatedBy, [
+      { kind: 'user', name: ada.name, accountId: ada.id },
+      { kind: 'user', name: bob.name, accountId: bob.id },
+    ])
     const caraList = await runWithAccount(cara.id, () => db.list('/plugins'))
     assert.deepEqual(caraList.items.map((row) => row.id), ['cara-plug'])
   } finally {
