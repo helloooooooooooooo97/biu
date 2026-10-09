@@ -2238,10 +2238,10 @@ test('builtin plugins stay visible in the workspace plugin list', async () => {
       /INSUFFICIENT_PERMISSION/,
     )
     db.facets.markDeleted('/plugins', 'api-playground')
-    const hidden = await runWithAccount(bob.id, () => db.list('/plugins'))
-    assert.deepEqual(hidden.items.map((item) => item.id), [])
+    const stillListed = await runWithAccount(bob.id, () => db.list('/plugins'))
+    assert.deepEqual(stillListed.items.map((item) => item.id), ['api-playground'])
     const bin = await runWithAccount(bob.id, () => db.listTrash())
-    assert.deepEqual(bin.items.map((item) => item.id), ['api-playground'])
+    assert.deepEqual(bin.items.map((item) => item.id), [])
   } finally {
     if (previous === undefined) delete process.env.BIU_ONLINE
     else process.env.BIU_ONLINE = previous

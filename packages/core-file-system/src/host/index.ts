@@ -748,7 +748,10 @@ export class DatabaseService extends Service implements Database {
     const rows = await spec.list(query)
     const listed = !query.ids?.length ? rows : rows.filter((row) => query.ids!.includes(row.id))
     const hidden = this.facets.deletedIds(spec.path)
-    const scoped = query.trash ? listed.filter((row) => hidden.has(row.id)) : listed.filter((row) => !hidden.has(row.id))
+    const builtinPlugin = (row: { builtin?: unknown }) => spec.path === '/plugins' && row.builtin === true
+    const scoped = query.trash
+      ? listed.filter((row) => hidden.has(row.id) && !builtinPlugin(row))
+      : listed.filter((row) => !hidden.has(row.id) || builtinPlugin(row))
     try {
       return scoped.map((row) => this.decorateRecord(spec, row))
     } finally {
@@ -850,7 +853,9 @@ export class DatabaseService extends Service implements Database {
     const actor = authorization?.currentActor()
     if (authorization && actor) {
       return rows.filter((row) => {
-        if (collection === '/plugins' && (row as { builtin?: unknown }).builtin === true) return true
+        if (collection === '/plugins' && (row as { builtin?: unknown }).builtin === true) {
+          return action === 'resource:read' || action === 'resource:list'
+        }
         const target = this.scopeTarget(collection, String(row.id ?? ''), row)
         const resource = {
           type: 'record' as const,
@@ -872,6 +877,9 @@ export class DatabaseService extends Service implements Database {
     const workspaceId = store?.activeWorkspaceId() ?? ''
     const grants = new Map<string, Map<string, Set<string>>>()
     return rows.filter((row) => {
+      if (collection === '/plugins' && (row as { builtin?: unknown }).builtin === true) {
+        return action === 'resource:read' || action === 'resource:list'
+      }
       const target = this.scopeTarget(collection, String(row.id ?? ''), row)
       if (!this.inWorkspace(membership, target.collection, target.id)) return false
       if (!membership.strict || !store?.grantMap || !workspaceId) return true
@@ -1777,6 +1785,7 @@ export class DatabaseService extends Service implements Database {
       if (!spec) continue
       const record = await spec.get(row.record_id)
       if (!record) continue
+      if (row.collection === '/plugins' && (record as { builtin?: unknown }).builtin === true) continue
       const authorization = this.authorization()
       const actor = authorization?.currentActor()
       if (authorization && actor) {

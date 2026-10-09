@@ -260,7 +260,7 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
         label: '卸载',
         tone: 'danger',
         confirm: '确定卸载这个插件？已安装的代码会被删掉。',
-        when: { installed: true },
+        when: { installed: true, builtin: false },
         description: '删除 .plugin/<id>/。沙箱 .plugin-dev/<id>/ 还在的话行不会消失，只是 installed 变 false。',
         run: async (id) => {
           await store.uninstall(id)

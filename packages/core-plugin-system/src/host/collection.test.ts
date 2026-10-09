@@ -130,7 +130,7 @@ test('pluginsCollection lists installed plugins and sandboxes in one table', asy
   assert.equal(spec.actions?.find((item) => item.id === 'stop')?.requiredAction, 'resource:read')
   assert.equal(spec.actions?.find((item) => item.id === 'pack')?.requiredAction, 'resource:read')
   assert.equal(spec.actions?.find((item) => item.id === 'sandbox')?.requiredAction, 'resource:create')
-  assert.deepEqual(spec.actions?.find((item) => item.id === 'uninstall')?.when, { installed: true })
+  assert.deepEqual(spec.actions?.find((item) => item.id === 'uninstall')?.when, { installed: true, builtin: false })
   assert.equal(spec.actions?.find((item) => item.id === 'sandbox')?.for, 'agent')
   assert.equal(spec.actions?.find((item) => item.id === 'start')?.for, undefined)
 })

@@ -3388,14 +3388,17 @@ export function CollectionBrowser({
                     >
                       {pickedIds.length} 已选
                     </span>
-                    {canDelete ? (
+                    {canDelete && pickedIds.some((id) => !(collectionPath === '/plugins' && items.find((row) => row.id === id)?.builtin === true)) ? (
                       <button
                         type="button"
                         className="tasks-icon-btn is-danger"
                         data-testid="fsdb-bulk-delete"
                         aria-label="删除选中"
                         title={`删除选中的 ${pickedIds.length} 条`}
-                        onClick={() => setDlg({ kind: 'delete-records', ids: pickedIds })}
+                        onClick={() => setDlg({
+                          kind: 'delete-records',
+                          ids: pickedIds.filter((id) => !(collectionPath === '/plugins' && items.find((row) => row.id === id)?.builtin === true)),
+                        })}
                       >
                         <TrashGlyph aria-hidden className="size-[14px]" />
                       </button>
@@ -3639,7 +3642,7 @@ export function CollectionBrowser({
               />
             ) : undefined
           }
-          onDelete={canDelete ? () => setDlg({ kind: 'delete-record', row: selected }) : undefined}
+          onDelete={canDelete && !(collectionPath === '/plugins' && selected.builtin === true) ? () => setDlg({ kind: 'delete-record', row: selected }) : undefined}
           onOpenRecord={(recordId, collection) => onOpenRecord?.(recordId, activeViewId, collection)}
           onPrev={total > 1 ? () => void stepViewRecord(-1) : undefined}
           onNext={total > 1 ? () => void stepViewRecord(1) : undefined}
