@@ -23,7 +23,7 @@ test('embedded record details can share their explicit record target', () => {
   assert.match(style, /\.fsdb-detail-more-menu\.has-share/)
   assert.match(style, /\.fsdb-detail-more-caret/)
   assert.doesNotMatch(browser, /\{nested \? null : \(\s*<ShareButton/)
-  assert.match(browser, /isSystemCollection\(collectionPath\) \|\| isIndexCollection\(collectionPath\) \? null : \(\s*<ShareButton/)
+  assert.match(browser, /isSystemCollection\(collectionPath\) \|\| isIndexCollection\(collectionPath\) \|\| \(collectionPath === '\/plugins' && detailRow\?\.builtin === true\) \? null : \(\s*<ShareButton/)
   assert.doesNotMatch(browser, /buttonClassName="fsdb-detail-float-btn"/)
 })
 
@@ -868,8 +868,9 @@ test('row actions hover the registered action label', () => {
   assert.match(browser, /data-dock-tip=\{action\.label\}/)
   const cells = readFileSync(resolve(import.meta.dirname, './fsdb-cells.tsx'), 'utf8')
   assert.match(cells, /data-dock-tip=\{label\}/)
-  const plugin = readFileSync(resolve(import.meta.dirname, '../../../core-plugin-system/src/web/chrome.tsx'), 'utf8')
-  assert.match(plugin, /data-dock-tip=\{action\.label\}/)
+  const detail = readFileSync(resolve(import.meta.dirname, './record-detail.tsx'), 'utf8')
+  assert.match(detail, /field=\{\{ type: 'action', label: '动作' \}\}/)
+  assert.match(detail, /actionProperty/)
 })
 
 test('inspector no longer listens for add/copy view actions', () => {

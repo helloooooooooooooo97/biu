@@ -256,6 +256,7 @@ export function RecordDetail({
   canNext,
   headingOutline = true,
   toolbar,
+  actionProperty,
   share,
   collectionPath,
   recordKind = 'record',
@@ -280,6 +281,7 @@ export function RecordDetail({
   canNext?: boolean
   headingOutline?: boolean
   toolbar?: ReactNode
+  actionProperty?: ReactNode
   share?: ReactNode
   collectionPath?: string
   recordKind?: string
@@ -430,6 +432,11 @@ export function RecordDetail({
                       </PropertyRow>
                     )
                   })}
+                  {actionProperty ? (
+                    <PropertyRow field={{ type: 'action', label: '动作' }} fieldKey="actions">
+                      <div className="fsdb-prop-val is-actions">{actionProperty}</div>
+                    </PropertyRow>
+                  ) : null}
                 </div>
                 {renderDetailPanes(chrome?.panes?.filter((pane) => pane.place === 'properties'), selected, onOpenRecord, 'fsdb-detail-prop-panes')}
                 {contentFieldKey(schema) && schema.fields[contentFieldKey(schema)!] ? (() => {

@@ -2450,6 +2450,7 @@ export function CollectionBrowser({
             type="button"
             className={`fsdb-action-tag${action.tone === 'danger' ? ' is-danger' : ''}`}
             title={action.label}
+            data-dock-tip={action.label}
             aria-label={`${action.label} ${labelOf(row)}`}
             disabled={busy}
             onClick={run}
@@ -3532,7 +3533,7 @@ export function CollectionBrowser({
                 {showActionColumn ? (
                   <th className="fsdb-action-col">
                     <span className="tasks-th">
-                      <BoltIcon aria-hidden className="size-[14px]" />
+                      <FieldGlyph kind="action" />
                       动作
                     </span>
                   </th>
@@ -3646,6 +3647,7 @@ export function CollectionBrowser({
           writePatch={writePatch}
           tableIcon={currentTable?.view?.icon}
           toolbar={<RecordActions row={selected} place="detail" />}
+          actionProperty={showActionColumn ? <RecordActions row={selected} place="row" /> : null}
           share={
             nested && detailId ? (
               <SharePanel
