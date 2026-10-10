@@ -6,6 +6,14 @@ import { join } from 'node:path'
 import { ensureBiuAssetSchema } from './biu-schema.ts'
 import { SQLITE_BUSY_TIMEOUT_MS, openSqlite } from './sqlite-open.ts'
 
+test('openSqlite creates a missing parent directory', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'biu-sqlite-open-'))
+  const db = openSqlite(join(dir, 'nested', 'biu.sqlite'))
+  const row = db.prepare('SELECT 1 AS ok').get() as { ok?: number }
+  db.close()
+  assert.equal(row.ok, 1)
+})
+
 test('openSqlite sets WAL and busy_timeout', () => {
   const dir = mkdtempSync(join(tmpdir(), 'biu-sqlite-open-'))
   const db = openSqlite(join(dir, 'biu.sqlite'))
