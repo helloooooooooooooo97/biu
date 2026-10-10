@@ -59,7 +59,7 @@ import { readSharePluginWebJs, zipSharePluginSource } from './share-plugin-pack.
 import { collectShareResources } from '../share-resources.ts'
 import { FacetStore } from './facets-store.ts'
 import { SharesStore, dropSharesForRemovedViews } from './shares-store.ts'
-import { builtinAllView, builtinMemberViews, displayNameForView, isReadOnlyViewId, stubBuiltinAllView, stubBuiltinMemberView } from '../catalog-views.ts'
+import { builtinAllView, builtinAllViewId, builtinMemberViews, displayNameForView, isReadOnlyViewId, stubBuiltinAllView, stubBuiltinMemberView } from '../catalog-views.ts'
 import { isIndexCollection, isSystemCollection } from '../web/database-path.ts'
 import { effectiveDataScope, highestViewRole, recordMatchesGrantedView, type DataScopeName, type ViewGrantRole } from '../view-access.ts'
 import { buildShareSnapshot } from './share-payload.ts'
@@ -994,6 +994,28 @@ export class DatabaseService extends Service implements Database {
     this.ownershipCache = null
   }
 
+  /** 分享里的「按成员视图批量授权」：全部成员可编辑。 */
+  private grantAllMembersEditable(collection: string, recordId: string) {
+    const store = this.collabStore() as {
+      grantMemberView?: (
+        actorId: string,
+        collection: string,
+        recordId: string,
+        viewId: string,
+        role: 'editor',
+      ) => void
+    } | undefined
+    const actorId = currentAccountId()
+    if (!store?.grantMemberView || !actorId) return
+    try {
+      store.grantMemberView(actorId, collection, recordId, builtinAllViewId('/workspace-members'), 'editor')
+      this.ownerCache = null
+      this.ownershipCache = null
+    } catch {
+      /* 还没挂上工作区时，记录仍按空间归属保留 */
+    }
+  }
+
   rememberScope(collection: string, recordId: string, scope: 'personal' | 'workspace' | 'shared') {
     if (scope === 'shared') {
       this.markPublicView(collection, recordId)
@@ -1004,6 +1026,7 @@ export class DatabaseService extends Service implements Database {
       accessMode: scope === 'workspace' ? 'members' : 'private',
       ...(scope === 'workspace' ? { memberDefaultRole: 'editor' as const } : {}),
     })
+    if (scope === 'workspace') this.grantAllMembersEditable(collection, recordId)
   }
 
   /** 公开链接：无密码，所有人只读查看。 */
@@ -1790,6 +1813,7 @@ export class DatabaseService extends Service implements Database {
           ...(parentRecordId ? { parentCollection: spec.path, parentRecordId } : {}),
         })
         if (shared) this.markPublicView(spec.path, record.id)
+        if (workspaceOwned && !parentRecordId) this.grantAllMembersEditable(spec.path, record.id)
         if (local) {
           try {
             const account = this.ctx.get('account') as { markLocal?: (collection: string, id: string) => void } | undefined
