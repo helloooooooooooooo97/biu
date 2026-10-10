@@ -1339,6 +1339,9 @@ export class CollabStore {
     const now = input.now ?? Date.now()
     this.requireMember(input.actorId, input.workspaceId)
     const key = this.recordKey(input.collection, input.recordId)
+    if (!this.head(input.workspaceId, key.collection, key.recordId)) {
+      this.claim(input.actorId, input.workspaceId, key.collection, key.recordId, now)
+    }
     const decision = this.authorization.authorize(
       { type: 'account', accountId: input.actorId, workspaceId: input.workspaceId },
       'resource:update',
@@ -1431,7 +1434,59 @@ export class CollabStore {
       author_id: string
       created_at: number
     }>
-    return rows.map((row) => ({
+    return rows.map((row) => this.mapOp(row))
+  }
+
+  /** 只返回这个账号有权阅读的变更。桌面端拉取用这个，避免把同空间其他人的私有记录带下去。 */
+  visibleOpsSince(actorId: string, workspaceId: string, after = 0): SyncOp[] {
+    return this.opsSince(actorId, workspaceId, after).filter((op) =>
+      this.authorization.authorize(
+        { type: 'account', accountId: actorId, workspaceId },
+        'resource:read',
+        { type: 'record', workspaceId, collection: op.collection, recordId: op.recordId },
+      ).allowed,
+    )
+  }
+
+  fieldValue(
+    actorId: string,
+    workspaceId: string,
+    collection: string,
+    recordId: string,
+    field: string,
+  ): { version: number; value: unknown } | null {
+    this.requireMember(actorId, workspaceId)
+    const key = this.recordKey(collection, recordId)
+    const allowed = this.authorization.authorize(
+      { type: 'account', accountId: actorId, workspaceId },
+      'resource:read',
+      { type: 'record', workspaceId, collection: key.collection, recordId: key.recordId },
+    ).allowed
+    if (!allowed) return null
+    const current = this.head(workspaceId, key.collection, key.recordId)
+    if (!current) return null
+    const row = this.db
+      .prepare(
+        `SELECT value_json FROM sync_ops
+         WHERE workspace_id = ? AND collection = ? AND record_id = ? AND field = ?
+         ORDER BY id DESC LIMIT 1`,
+      )
+      .get(workspaceId, key.collection, key.recordId, field) as { value_json: string } | undefined
+    return { version: current.version, value: row ? (JSON.parse(row.value_json) as unknown) : null }
+  }
+
+  private mapOp(row: {
+    id: number
+    workspace_id: string
+    collection: string
+    record_id: string
+    field: string
+    value_json: string
+    version: number
+    author_id: string
+    created_at: number
+  }): SyncOp {
+    return {
       id: row.id,
       workspaceId: row.workspace_id,
       collection: row.collection,
@@ -1441,7 +1496,7 @@ export class CollabStore {
       version: row.version,
       authorId: row.author_id,
       createdAt: row.created_at,
-    }))
+    }
   }
 
   acquireLock(

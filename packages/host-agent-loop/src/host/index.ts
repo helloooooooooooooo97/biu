@@ -285,6 +285,7 @@ export class AgentLoop implements AgentRunner {
         await this.writeAutoCompact(usage?.inputTokens, [])
         await session.append(this.sessionId, { type: 'step/end', turn, step })
         await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'complete' })
+        this.ctx.emit('session/finished', { sessionId: this.sessionId, text: final })
         this.ctx.emit('agent/status', { sessionId: this.sessionId, status: 'idle', step })
         return { text: final, steps }
       }
