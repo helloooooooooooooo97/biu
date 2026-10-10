@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, watch, writeFileSync, type FSWatcher } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, watch, writeFileSync, type FSWatcher } from 'node:fs'
 import { readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { dirname, join, resolve, sep } from 'node:path'
@@ -407,24 +407,29 @@ export class PluginStoreService extends Service {
     )
     this.invalidateList()
     const dest = this.pluginPath(manifest.id)
-    mkdirSync(dest, { recursive: true })
-    await writeFile(join(dest, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
-    if (hostEntry) await writeFile(join(dest, 'host.js'), await bundleStoreEntry(hostEntry, 'host'))
-    else if (existsSync(join(dest, 'host.js'))) await rm(join(dest, 'host.js'))
-    if (webEntry) await writeFile(join(dest, 'web.js'), await bundleStoreEntry(webEntry, 'web'))
-    else if (existsSync(join(dest, 'web.js'))) await rm(join(dest, 'web.js'))
-    copyPluginRuntimeDependencies(sandbox, dest)
-    // Pack the source tree's README. The shared editor_content cache may still
-    // contain text from an older installation with the same plugin id.
-    let readme = await this.readDiskReadme(id)
-    if (!readme.trim()) readme = `# ${manifest.name}\n\n${manifest.blurb.trim()}\n`
-    const packed = copyReferencedEditorAssets({
-      body: readme,
-      assetsDir: assetsRootPath(),
-      destDir: dest,
-    })
-    await writeFile(join(dest, README_FILE), packed)
-    await copyPackedMedia(sandbox, dest)
+    const staging = join(this.pluginDir, `.packing-${manifest.id}`)
+    await rm(staging, { recursive: true, force: true })
+    mkdirSync(staging, { recursive: true })
+    try {
+      await writeFile(join(staging, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+      if (hostEntry) await writeFile(join(staging, 'host.js'), await bundleStoreEntry(hostEntry, 'host'))
+      if (webEntry) await writeFile(join(staging, 'web.js'), await bundleStoreEntry(webEntry, 'web'))
+      copyPluginRuntimeDependencies(sandbox, staging)
+      let readme = await this.readDiskReadme(id)
+      if (!readme.trim()) readme = `# ${manifest.name}\n\n${manifest.blurb.trim()}\n`
+      const packed = copyReferencedEditorAssets({
+        body: readme,
+        assetsDir: assetsRootPath(),
+        destDir: staging,
+      })
+      await writeFile(join(staging, README_FILE), packed)
+      await copyPackedMedia(sandbox, staging)
+      await rm(dest, { recursive: true, force: true })
+      renameSync(staging, dest)
+    } catch (error) {
+      await rm(staging, { recursive: true, force: true })
+      throw error
+    }
     const codeVersion = (await hashInstalledPluginCode(dest)) ?? 'empty'
     this.accountStore()?.recordPluginPackage?.(currentAccountId(), {
       id: manifest.id,
@@ -547,6 +552,24 @@ export class PluginStoreService extends Service {
     return items.map((item) => ({ ...item, enabled: loaded.has(item.id), running: loaded.has(item.id) }))
   }
 
+  private hasBundle(dir: string | null) {
+    if (!dir) return false
+    const host = join(dir, 'host.js')
+    if (existsSync(host) && readFileSync(host, 'utf8').trim()) return true
+    return existsSync(join(dir, 'web.js'))
+  }
+
+  /** 安装目录没有 host.js/web.js 时，用沙箱再打一次。半成品目录不能直接挂。 */
+  private async ensurePacked(id: string) {
+    const hit = await this.findPluginDir(id)
+    if (this.hasBundle(hit)) return hit
+    const sandbox = this.sandboxPath(id)
+    const canPack = existsSync(join(sandbox, 'manifest.json')) && (findEntry(sandbox, HOST_ENTRIES) || findEntry(sandbox, WEB_ENTRIES))
+    if (!canPack) return hit
+    await this.pack(id)
+    return this.findPluginDir(id)
+  }
+
   private async mountInstalled(id: string) {
     const hit = await this.findPluginDir(id)
     if (!hit) throw new Error(`unknown store plugin: ${id}`)
@@ -563,6 +586,7 @@ export class PluginStoreService extends Service {
       const workspaceId = currentRequestWorkspaceId()
       const account = this.accountStore()
       if (!accountId || !workspaceId || !account?.isMember?.(accountId, workspaceId)) throw new Error('需要登录')
+      await this.ensurePacked(id)
       try {
         await this.mountInstalled(id)
       } catch (error) {
@@ -575,7 +599,7 @@ export class PluginStoreService extends Service {
       this.invalidateList()
       return (await this.list()).find((item) => item.id === id)
     }
-    const hit = await this.findPluginDir(id)
+    const hit = await this.ensurePacked(id)
     if (!hit) throw new Error(`unknown store plugin: ${id}`)
     const manifest = await readManifest(hit)
     try {
@@ -784,7 +808,7 @@ export class PluginStoreService extends Service {
     const hostCode = existsSync(hostFile) ? (await readFile(hostFile, 'utf8')).trim() : ''
     const hasWeb = existsSync(webFile)
     const codeVersion = await hashInstalledPluginCode(dir)
-    if (!hostCode && !hasWeb) throw new Error(`plugin ${manifest.id} has neither host nor web`)
+    if (!hostCode && !hasWeb) throw new Error(`plugin ${manifest.id} is not packed`)
     const mod = (hostCode
       ? await importHostFile(hostFile)
       : { name: manifest.id, apply() {} }) as Plugin & { inject?: string[]; setInstallDir?: (dir: string) => void }

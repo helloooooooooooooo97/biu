@@ -212,6 +212,30 @@ test('a failed open does not leave the plugin running', async () => {
   }
 })
 
+test('open rebuilds an install that is missing host.js and web.js', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'plugin-root-'))
+  const pluginDir = join(dir, '.plugin')
+  try {
+    const ctx = new Context()
+    stubHub(ctx)
+    const store = new PluginStoreService(ctx, pluginDir, join(dir, 'store.json'), join(dir, '.plugin-dev')).open()
+    await store.initSandbox({
+      id: 'store-repack',
+      name: 'Repack',
+      hostJs: `export const name = 'store-repack'\nexport function apply() {}\n`,
+    })
+    await store.pack('store-repack')
+    await rm(join(pluginDir, 'store-repack', 'host.js'))
+    await store.openPlugin('store-repack')
+    const packed = await readFile(join(pluginDir, 'store-repack', 'host.js'), 'utf8')
+    assert.match(packed, /store-repack/)
+    const row = (await store.list()).find((item) => item.id === 'store-repack')
+    assert.equal(row?.running, true)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('missing .plugin lists no plugins', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'plugin-root-'))
   try {

@@ -563,6 +563,7 @@ export function CollectionBrowser({
   const [detailRow, setDetailRow] = useState<DbRecord | null>(null)
   const [detailBody, setDetailBody] = useState<unknown>(null)
   const [draft, setDraft] = useState<Record<string, string>>({})
+  const [acting, setActing] = useState(false)
   const actingRef = useRef(false)
   const initialView = viewForPath(collectionPath, routeViewId)
   const dbUi = getDatabaseUi()
@@ -1778,6 +1779,7 @@ export function CollectionBrowser({
     if (actingRef.current) return
     const preview = previewActionRecord(row, action)
     actingRef.current = true
+    setActing(true)
     if (preview !== row) {
       setItems((prev) => prev.map((item) => (item.id === row.id ? overlayListed(item, preview, listColumns) : item)))
       setDetailRow((prev) => (prev?.id === row.id ? overlayListed(prev, preview, listColumns) : prev))
@@ -1801,6 +1803,7 @@ export function CollectionBrowser({
       await reload()
     } finally {
       actingRef.current = false
+      setActing(false)
     }
   }
 
@@ -2415,7 +2418,7 @@ export function CollectionBrowser({
   function RecordActions({ row }: { row: DbRecord }) {
     const Actions = chrome?.Actions
     const Action = chrome?.Action
-    const busy = actingRef.current
+    const busy = acting
     const placed = placedActions(schema, 'row').filter(
       (action) => !nested || (action.id !== 'open-split' && action.id !== 'open-page'),
     )
