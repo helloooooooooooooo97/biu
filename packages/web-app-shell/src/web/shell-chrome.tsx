@@ -24,20 +24,7 @@ import { persistWorkspaceProfile, useWorkspaceProfile } from '@biu/public-ui'
 import { LayoutPrefsMenu } from '@biu/core-file-system/layout-prefs-menu'
 import { getPagePrefs, hydratePagePrefs, subscribePageWidth } from '@biu/core-file-system/page-width'
 
-import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './tenant-fetch.ts'
-
-if (typeof window !== 'undefined') {
-  const originalFetch = window.fetch.bind(window)
-  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-    const token = localStorage.getItem('biu.account.token') ?? ''
-    const workspaceId = readWorkspaceId()
-    if (!token && !workspaceId) return originalFetch(input, init)
-    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
-    if (token && !headers.has('authorization')) headers.set('authorization', `Bearer ${token}`)
-    if (workspaceId && !headers.has('x-biu-workspace-id')) headers.set('x-biu-workspace-id', workspaceId)
-    return originalFetch(input, { ...init, headers })
-  }
-}
+import { clearWorkspaceId, writeWorkspaceId } from './tenant-fetch.ts'
 
 async function readAvatarFile(file: File) {
   const url = URL.createObjectURL(file)
@@ -509,9 +496,7 @@ export function ShellWorkspaceSwitcher({ onWorkspaceSettings }: { onWorkspaceSet
         ])
         if (cancelled) return
         setWorkspaces(listed.workspaces ?? [])
-        const workspaceId = String(current.workspaceId ?? '')
-        setActive(workspaceId)
-        if (workspaceId) writeWorkspaceId(workspaceId)
+        setActive(String(current.workspaceId ?? ''))
       } catch {
         if (!cancelled) setWorkspaces([])
       }
@@ -524,8 +509,12 @@ export function ShellWorkspaceSwitcher({ onWorkspaceSettings }: { onWorkspaceSet
     }
   }, [])
 
-  if (!workspaces.length) return null
-  const current = workspaces.find((workspace) => workspace.id === active) ?? workspaces[0]!
+  const current = workspaces.find((workspace) => workspace.id === active) ?? workspaces[0]
+  useEffect(() => {
+    if (current?.id) writeWorkspaceId(current.id)
+  }, [current?.id])
+
+  if (!current) return null
   const switchTo = (workspaceId: string) => {
     const token = readAccountToken()
     setOpen(false)
@@ -552,6 +541,7 @@ export function ShellWorkspaceSwitcher({ onWorkspaceSettings }: { onWorkspaceSet
           method: 'POST',
           body: JSON.stringify({ workspaceId: created.id }),
         })
+        writeWorkspaceId(created.id)
         window.location.reload()
       })
       .catch((error) => setCreateError(error instanceof Error ? error.message : '创建失败'))
