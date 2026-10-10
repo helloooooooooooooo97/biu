@@ -56,6 +56,37 @@ test('loop appends multiple assistant/chunk deltas from onDelta', async () => {
   assert.equal(message?.type === 'assistant/message' && message.usage?.inputTokens, 1)
 })
 
+test('streamed tool deltas stay behind the assistant message', async () => {
+  const { ctx, sessionId } = await spine()
+  ctx.tools.register({
+    name: 'echo',
+    description: 'echo',
+    parameters: { type: 'object', properties: { text: { type: 'string' } } },
+    execute: (args) => String(args.text ?? ''),
+  })
+  let chats = 0
+  const llm: LlmClient = {
+    async chat(_messages, _tools, _signal, options) {
+      chats += 1
+      if (chats > 1) return { content: 'done', toolCalls: [] }
+      options?.onToolDelta?.({ id: '1', name: 'echo', arguments: '{"text":' })
+      options?.onToolDelta?.({ id: '1', name: 'echo', arguments: '{"text":"pong"}' })
+      await new Promise((resolve) => setTimeout(resolve, 80))
+      return {
+        content: 'calling',
+        toolCalls: [{ id: '1', name: 'echo', arguments: '{"text":"pong"}' }],
+      }
+    },
+  }
+  const loop = new AgentLoop(ctx, llm, sessionId, new AbortController().signal)
+  await loop.run([{ kind: 'wake', text: 'echo' }])
+  const types = (await ctx.sessions.require(sessionId)).events.map((event) => event.type)
+  const message = types.indexOf('assistant/message')
+  const call = types.indexOf('tool/call')
+  const result = types.indexOf('tool/result')
+  assert.ok(message >= 0 && call > message && result > call)
+})
+
 test('loop invokes multiple tools concurrently', async () => {
   const { ctx, sessionId } = await spine()
   let inflight = 0
