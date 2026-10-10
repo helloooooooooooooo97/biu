@@ -1,8 +1,6 @@
 .PHONY: dev host web test install stop restart build rebuild pack
 
-# 默认：装依赖并同时起 host(:3141) + Vite(:5173)
-
-# 默认：装依赖并同时起 host(:3141) + Vite(:5173)
+# 默认：装依赖并同时起集中部署 host(:3141)+Vite(:5173) 与本机 host(:3151)+Vite(:5174)
 dev: install
 	npm run dev
 
@@ -18,7 +16,7 @@ install:
 # 释放本项目常用端口（旧 make dev / vite / host 残留）
 # SIGTERM 经常不够：tsx/vite/concurrently 会忽略或晚退，端口仍被占着。
 stop:
-	@for p in 3141 3142 5173; do \
+	@for p in 3141 3142 3151 3152 5173 5174; do \
 	  pids=$$(lsof -nP -tiTCP:$$p -sTCP:LISTEN 2>/dev/null); \
 	  if [ -n "$$pids" ]; then \
 	    echo "kill :$$p -> $$pids"; \
@@ -28,7 +26,7 @@ stop:
 	    if [ -n "$$pids" ]; then echo "kill -9 :$$p -> $$pids"; kill -9 $$pids 2>/dev/null || true; fi; \
 	  else echo ":$$p free"; fi; \
 	done
-	@for p in 3141 3142 5173; do \
+	@for p in 3141 3142 3151 3152 5173 5174; do \
 	  i=0; \
 	  while lsof -nP -tiTCP:$$p -sTCP:LISTEN >/dev/null 2>&1; do \
 	    i=$$((i+1)); \
