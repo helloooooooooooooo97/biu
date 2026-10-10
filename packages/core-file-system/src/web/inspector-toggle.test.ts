@@ -873,10 +873,13 @@ test('row actions reload even when updatedAt is unchanged', () => {
   assert.match(browser, /quietUntil\.current = 0\s*\n\s*await reload\(\)/)
 })
 
-test('row actions hover the registered action label', () => {
-  assert.match(browser, /data-dock-tip=\{action\.label\}/)
+test('action column buttons do not repeat their label as a hover tip', () => {
+  const actions = browser.slice(browser.indexOf('function RecordActions'), browser.indexOf('function GroupHead'))
+  assert.doesNotMatch(actions, /data-dock-tip=\{action\.label\}/)
+  assert.doesNotMatch(actions, /title=\{action\.label\}/)
   const cells = readFileSync(resolve(import.meta.dirname, './fsdb-cells.tsx'), 'utf8')
-  assert.match(cells, /data-dock-tip=\{label\}/)
+  assert.doesNotMatch(cells, /data-dock-tip=\{label\}/)
+  assert.doesNotMatch(cells, /title=\{label\}/)
   const detail = readFileSync(resolve(import.meta.dirname, './record-detail.tsx'), 'utf8')
   assert.match(detail, /field=\{\{ type: 'action', label: '动作' \}\}/)
   assert.match(detail, /actionProperty/)

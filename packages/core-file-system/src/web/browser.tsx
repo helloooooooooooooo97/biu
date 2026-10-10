@@ -2443,8 +2443,6 @@ export function CollectionBrowser({
             key={action.id}
             type="button"
             className={`fsdb-action-tag${action.tone === 'danger' ? ' is-danger' : ''}`}
-            title={action.label}
-            data-dock-tip={action.label}
             aria-label={`${action.label} ${labelOf(row)}`}
             disabled={busy}
             onClick={run}
