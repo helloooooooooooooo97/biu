@@ -128,13 +128,16 @@ export class SnapshotService extends Service {
   private connect() {
     try {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-      const ws = new WebSocket(`${proto}://${location.host}/ws`)
+      const workspaceId = sessionStorage.getItem('biu.workspaceId') || localStorage.getItem('biu.workspaceId') || ''
+      const query = workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''
+      const ws = new WebSocket(`${proto}://${location.host}/ws${query}`)
       ws.onopen = () => {
         void this.pull()
       }
       ws.onmessage = (message) => {
         const parsed = JSON.parse(message.data) as { type: string; payload: unknown }
         if (parsed.type === 'snapshot') this.replace(parsed.payload as Snapshot)
+        if (parsed.type === 'plugins/changed') void this.pull()
         if (parsed.type === 'event') {
           this.replace({
             events: [parsed.payload as Snapshot['events'][number], ...this.value.events].slice(0, 80),

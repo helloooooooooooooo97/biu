@@ -16,7 +16,7 @@ import {
   StopIcon,
   TableCellsIcon,
 } from '@heroicons/react/16/solid'
-import { TagChip, TagChips } from '@biu/public-ui'
+import { ConfirmDialog, TagChip, TagChips } from '@biu/public-ui'
 import { SidebarMascot, resolveSessionMascot } from '@biu/public-mascot'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import { actionVisibleToUser } from '@biu/type-file-system'
@@ -294,8 +294,8 @@ async function listKind(path: string, query: string, signal: AbortSignal) {
 
 function actionGlyph(id: string) {
   const cls = 'size-4'
-  if (id === 'start' || id === 'play' || id === 'run' || id === 'open') return <PlayIcon aria-hidden className={cls} />
-  if (id === 'stop' || id === 'close' || id === 'pause') return <StopIcon aria-hidden className={cls} />
+  if (id === 'start' || id === 'play' || id === 'run' || id === 'open' || id === 'enable') return <PlayIcon aria-hidden className={cls} />
+  if (id === 'stop' || id === 'close' || id === 'pause' || id === 'disable') return <StopIcon aria-hidden className={cls} />
   if (id === 'pack') return <ArchiveBoxArrowDownIcon aria-hidden className={cls} />
   if (id === 'uninstall' || id === 'delete' || id === 'remove') return <TrashGlyph aria-hidden className={cls} />
   if (id === 'edit' || id === 'rename') return <PencilSquareIcon aria-hidden className={cls} />
@@ -321,6 +321,7 @@ function HitRecordTags({ tags }: { tags?: string[] }) {
 
 function HitActions({ hit }: { hit: SearchHit }) {
   const [record, setRecord] = useState(hit.record ?? { id: hit.id })
+  const [pendingAction, setPendingAction] = useState<SearchAction | null>(null)
   const acting = useRef(false)
   const Actions = getDatabaseUi()?.chrome(searchCollection(hit.kind)).Actions
   const placed = placedRowActions(hit.actions)
@@ -328,9 +329,8 @@ function HitActions({ hit }: { hit: SearchHit }) {
   useEffect(() => {
     setRecord(hit.record ?? { id: hit.id })
   }, [hit.id, hit.record])
-  const run = async (action: SearchAction) => {
+  const execute = async (action: SearchAction) => {
     if (acting.current) return
-    if (action.confirm && !window.confirm(action.confirm)) return
     acting.current = true
     const next = previewHitRecord(record, action)
     if (next !== record) setRecord(next)
@@ -348,41 +348,68 @@ function HitActions({ hit }: { hit: SearchHit }) {
       acting.current = false
     }
   }
+  const run = (action: SearchAction) => {
+    if (action.confirm) {
+      setPendingAction(action)
+      return
+    }
+    void execute(action)
+  }
+  let controls = null
   if (Actions) {
-    if (!placed.length) return null
-    return (
+    if (placed.length) controls = (
       <span className="shell-search-hit-actions" data-biu-ignore onClick={(event) => event.stopPropagation()}>
         <Actions
           actions={placed as CollectionActionInfo[]}
           record={record as DbRecord}
           busy={false}
           place="row"
-          run={(action) => void run(action)}
+          run={(action) => run(action)}
         />
       </span>
     )
+  } else if (actions.length) {
+    controls = (
+      <span className="shell-search-hit-actions" data-biu-ignore>
+        {actions.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            className={`shell-search-hit-action${action.tone === 'danger' ? ' is-danger' : ''}`}
+            title={action.label}
+            data-dock-tip={action.label}
+            aria-label={action.label}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              run(action)
+            }}
+          >
+            {actionGlyph(action.id)}
+          </button>
+        ))}
+      </span>
+    )
   }
-  if (!actions.length) return null
   return (
-    <span className="shell-search-hit-actions" data-biu-ignore>
-      {actions.map((action) => (
-        <button
-          key={action.id}
-          type="button"
-          className={`shell-search-hit-action${action.tone === 'danger' ? ' is-danger' : ''}`}
-          title={action.label}
-          data-dock-tip={action.label}
-          aria-label={action.label}
-          onClick={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            void run(action)
+    <>
+      {controls}
+      {pendingAction ? (
+        <ConfirmDialog
+          title={pendingAction.label}
+          message={pendingAction.confirm}
+          confirmLabel={pendingAction.label}
+          danger={pendingAction.tone === 'danger'}
+          testId="shell-search-action-dialog"
+          onCancel={() => setPendingAction(null)}
+          onConfirm={() => {
+            const action = pendingAction
+            setPendingAction(null)
+            void execute(action)
           }}
-        >
-          {actionGlyph(action.id)}
-        </button>
-      ))}
-    </span>
+        />
+      ) : null}
+    </>
   )
 }
 

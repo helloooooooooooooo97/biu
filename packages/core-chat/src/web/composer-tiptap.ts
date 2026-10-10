@@ -97,10 +97,6 @@ export function insertPickChips(editor: Editor, refs: PickRef[]) {
     .run()
 }
 
-export function insertPickChip(editor: Editor, ref: PickRef) {
-  insertPickChips(editor, [ref])
-}
-
 export function editorCaretPlain(editor: Editor | null): { value: string; cursor: number } {
   if (!editor) return { value: '', cursor: 0 }
   const doc = editor.state.doc

@@ -189,7 +189,7 @@ export function cordisPluginsVite(root = process.cwd()): VitePlugin {
     load(id) {
       if (id === RESOLVED_UI) {
         const lines: string[] = []
-        for (const item of readCordisPlugins(root)) {
+        for (const item of allConfiguredEntries(root)) {
           const web = pluginWebSpecifier(item)
           if (!web) continue
           const dir = findWorkspacePackageDir(root, web)

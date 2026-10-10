@@ -13,6 +13,8 @@ export type NoticeRow = {
   read: boolean
   href: string
   sourceKey: string
+  /** 详情正文。资产通知是附件卡片数组，不放进摘要 body。 */
+  content?: unknown
   createdAt: number
   updatedAt: number
 }
@@ -23,6 +25,7 @@ export type NoticeInput = {
   kind: NoticeKind
   href?: string
   sourceKey: string
+  content?: unknown
 }
 
 const MAX_NOTICES = 80
@@ -40,6 +43,7 @@ export function noticeToRecord(row: NoticeRow): DbRecord {
     read: row.read,
     href: row.href,
     sourceKey: row.sourceKey,
+    content: row.content ?? '',
     ...recordBuiltinValues({ createdAt: row.createdAt, updatedAt: row.updatedAt }),
   }
 }
@@ -60,6 +64,7 @@ function parseRow(raw: unknown): NoticeRow | null {
     read: rec.read === true,
     href: String(rec.href ?? ''),
     sourceKey,
+    ...(Array.isArray(rec.content) ? { content: rec.content } : {}),
     createdAt,
     updatedAt: Number(rec.updatedAt) || createdAt,
   }
@@ -102,6 +107,7 @@ export class NoticesStore {
       unread.title = title
       unread.body = input.body?.trim() || unread.body
       unread.href = input.href?.trim() || unread.href
+      if (input.content !== undefined) unread.content = input.content
       unread.updatedAt = Date.now()
       this.flush()
       return unread
@@ -115,6 +121,7 @@ export class NoticesStore {
       read: false,
       href: input.href?.trim() || '',
       sourceKey,
+      ...(input.content !== undefined ? { content: input.content } : {}),
       createdAt: now,
       updatedAt: now,
     }

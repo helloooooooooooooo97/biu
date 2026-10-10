@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { Service, type Context } from 'cordis'
 import { toolNameForApi, stripToolApiName } from './tool-name.ts'
+import { currentAccountId, currentPluginId, currentRequestWorkspaceId } from '@biu/host-plugin-loader/data-dir'
 
 export { toolNameForApi, stripToolApiName, TOOL_API_NAME } from './tool-name.ts'
 
@@ -105,6 +106,7 @@ export function runWithToolPolicy<T>(
 export class ToolsService extends Service {
   private tools = new Map<string, ToolSpec>()
   private origins = new Map<string, ToolOrigin>()
+  private pluginIds = new Map<string, string>()
   private aliases = new Map<string, string>()
   private guards: ToolGuard[] = []
   private mode: AgentToolMode = 'standard'
@@ -152,6 +154,15 @@ export class ToolsService extends Service {
   }
 
   private visible(name: string) {
+    const pluginId = this.pluginIds.get(this.resolveName(name))
+    if (process.env.BIU_ONLINE === '1' && pluginId) {
+      const store = (
+        this.ctx.get('account') as {
+          store?: { canAccessPlugin?(accountId: string, workspaceId: string, pluginId: string): boolean }
+        } | undefined
+      )?.store
+      if (!store?.canAccessPlugin?.(currentAccountId(), currentRequestWorkspaceId(), pluginId)) return false
+    }
     const policy = toolPolicyStorage.getStore()
     const mode = policy?.mode ?? this.mode
     if (mode === 'standard') return true
@@ -179,17 +190,20 @@ export class ToolsService extends Service {
   register(spec: ToolSpec) {
     const original = String(spec.name ?? '').trim()
     const name = toolNameForApi(original, new Set(this.tools.keys()))
+    const pluginId = currentPluginId()
     const next = { ...spec, name }
     return this.ctx.effect(() => {
       if (this.tools.has(name)) throw new Error(`tool already registered: ${name}`)
       this.tools.set(name, next)
       this.origins.set(name, toolOriginStorage.getStore() ?? 'core')
+      if (pluginId) this.pluginIds.set(name, pluginId)
       this.aliases.set(name, name)
       if (original && original !== name) this.aliases.set(original, name)
       this.ctx.emit('hub/change')
       return () => {
         this.tools.delete(name)
         this.origins.delete(name)
+        this.pluginIds.delete(name)
         this.aliases.delete(name)
         if (original && original !== name) this.aliases.delete(original)
         this.ctx.emit('hub/change')

@@ -41,6 +41,7 @@ import { UsageInline } from './usage-inline.tsx'
 import {
   bumpRevealStart,
   captureChatScroll,
+  didRevealOlderTurns,
   firstPaintStartIndex,
   groupNodesIntoTurns,
   distanceFromChatBottom,
@@ -761,40 +762,51 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
   const navigate = useNavigate()
   const nodes = useSessionView((state) => state.nodes)
   const sessionId = useSessionView((state) => state.sessionId)
+  const switchingSession = useSessionView((state) => state.switchingSession)
   const turns = useMemo(() => groupNodesIntoTurns(nodes), [nodes])
   const totalTurns = turns.length
   const [revealStart, setRevealStart] = useState(() => firstPaintStartIndex(totalTurns))
   const sessionKeyRef = useRef(sessionId)
   const prevTotalRef = useRef(totalTurns)
+  const revealPendingRef = useRef(false)
   if (sessionId !== sessionKeyRef.current) {
     sessionKeyRef.current = sessionId
+    // 切会话时先留着上一段画面，回合数还是旧的，这时重算会把新会话切成空白。
+    revealPendingRef.current = true
+  }
+  const revealStale = totalTurns > 0 && revealStart >= totalTurns
+  if (
+    !switchingSession &&
+    (revealPendingRef.current || (prevTotalRef.current === 0 && totalTurns > 0) || revealStale)
+  ) {
+    revealPendingRef.current = false
     prevTotalRef.current = totalTurns
     const next = revealStartForMemory(nodes, recalledChatScroll(sessionId), totalTurns)
     if (next !== revealStart) setRevealStart(next)
-  } else if (prevTotalRef.current === 0 && totalTurns > 0) {
-    prevTotalRef.current = totalTurns
-    const next = revealStartForMemory(nodes, recalledChatScroll(sessionId), totalTurns)
-    if (next !== revealStart) setRevealStart(next)
-  } else {
+  } else if (!switchingSession) {
     prevTotalRef.current = totalTurns
   }
   const mountedNodes = useMemo(() => sliceTurnsFrom(nodes, revealStart), [nodes, revealStart])
   const pending = useSessionView((state) => state.pending)
   const sessions = useSessionView((state) => state.sessions)
   const error = useSessionView((state) => state.error)
-  const switchingSession = useSessionView((state) => state.switchingSession)
   const hasMoreOlder = useSessionView((state) => state.hasMoreOlder)
   const loadingOlder = useSessionView((state) => state.loadingOlder)
   const dispatchedTasksByTurn = useSessionView((state) => state.dispatchedTasksByTurn)
   const rootRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLElement | null>(null)
   const stickToBottomRef = useRef(true)
+  const followedUserRef = useRef('')
+  const ignoreNextScrollRef = useRef(false)
+  const skipNextLayoutPinRef = useRef(false)
+  const skipNextResizePinRef = useRef(false)
   const sessionIdRef = useRef(sessionId)
   sessionIdRef.current = sessionId
   const restoredForRef = useRef<string | null>(null)
   const holdOlderRef = useRef(false)
   const maxScrollRef = useRef(0)
   const prependHeightRef = useRef(0)
+  const previousRevealStartRef = useRef(revealStart)
   const prefetchingRef = useRef(false)
   const [scrollEpoch, setScrollEpoch] = useState(0)
 
@@ -858,8 +870,13 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
     stickToBottomRef.current = !mem || mem.kind === 'bottom'
     restoredForRef.current = null
     prependHeightRef.current = 0
+    previousRevealStartRef.current = revealStart
     holdOlderRef.current = mem?.kind === 'pin'
     maxScrollRef.current = 0
+    followedUserRef.current = ''
+    ignoreNextScrollRef.current = false
+    skipNextLayoutPinRef.current = false
+    skipNextResizePinRef.current = false
   }, [sessionId])
 
   useEffect(() => {
@@ -870,9 +887,20 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
     }
   }, [])
 
+  const latestUserId = [...mountedNodes].reverse().find((node) => node.kind === 'user')?.id ?? ''
+
   useLayoutEffect(() => {
-    if (pending) stickToBottomRef.current = true
-  }, [pending])
+    if (!pending || !latestUserId || followedUserRef.current === latestUserId) return
+    const parent = scrollRef.current
+    stickToBottomRef.current = true
+    followedUserRef.current = latestUserId
+    if (parent) {
+      ignoreNextScrollRef.current = true
+      skipNextLayoutPinRef.current = true
+      skipNextResizePinRef.current = true
+      restoreChatScroll(parent, { kind: 'pin', nodeId: latestUserId })
+    }
+  }, [pending, latestUserId, scrollEpoch])
 
   useEffect(() => {
     const parent = scrollRef.current
@@ -908,6 +936,12 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
       })
     }
     const onScroll = () => {
+      if (ignoreNextScrollRef.current) {
+        ignoreNextScrollRef.current = false
+        lastTop = parent.scrollTop
+        maybePrefetchOlder()
+        return
+      }
       applyStick(parent.scrollTop < lastTop - 0.5)
       lastTop = parent.scrollTop
       maybePrefetchOlder()
@@ -915,6 +949,15 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
     const onWheel = (event: WheelEvent) => {
       // 滚轮先于 scroll；必须立刻松钉，否则 ResizeObserver / 贴底 layout 会把位移拽回去。
       if (event.deltaY < 0) stickToBottomRef.current = false
+    }
+    let lastTouchY = 0
+    const onTouchStart = (event: TouchEvent) => {
+      lastTouchY = event.touches[0]?.clientY ?? 0
+    }
+    const onTouchMove = (event: TouchEvent) => {
+      const nextY = event.touches[0]?.clientY ?? lastTouchY
+      if (nextY > lastTouchY + 0.5) stickToBottomRef.current = false
+      lastTouchY = nextY
     }
     const onUserScroll = () => {
       onScroll()
@@ -928,9 +971,13 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
     onScroll()
     parent.addEventListener('scroll', onUserScroll, { passive: true })
     parent.addEventListener('wheel', onWheel, { passive: true })
+    parent.addEventListener('touchstart', onTouchStart, { passive: true })
+    parent.addEventListener('touchmove', onTouchMove, { passive: true })
     return () => {
       parent.removeEventListener('scroll', onUserScroll)
       parent.removeEventListener('wheel', onWheel)
+      parent.removeEventListener('touchstart', onTouchStart)
+      parent.removeEventListener('touchmove', onTouchMove)
     }
   }, [sessionId, scrollEpoch, hasMoreOlder, loadingOlder, sessionView])
 
@@ -940,6 +987,10 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
     if (!root || !parent) return
     const pin = () => {
       if (!stickToBottomRef.current) return
+      if (skipNextResizePinRef.current) {
+        skipNextResizePinRef.current = false
+        return
+      }
       pinChatToLatest(parent)
     }
     const ro = new ResizeObserver(pin)
@@ -986,19 +1037,27 @@ export const ChatThread = memo(function ChatThread(props: SlotProps) {
         restoredForRef.current = sessionId
         stickToBottomRef.current = false
         prependHeightRef.current = parent.scrollHeight
+        previousRevealStartRef.current = revealStart
         return
       }
+      previousRevealStartRef.current = revealStart
       return
     }
     if (sessionId) restoredForRef.current = sessionId
+    const revealedOlder = didRevealOlderTurns(previousRevealStartRef.current, revealStart)
     if (stickToBottomRef.current) {
-      if (mountedNodes.length > 0) pinChatToLatest(parent)
-    } else if (prependHeightRef.current) {
+      if (skipNextLayoutPinRef.current) {
+        skipNextLayoutPinRef.current = false
+      } else if (mountedNodes.length > 0) {
+        pinChatToLatest(parent)
+      }
+    } else if (revealedOlder && prependHeightRef.current) {
       const delta = parent.scrollHeight - prependHeightRef.current
       // 钉在顶上看更早内容时不要把 scrollTop 往下拽，否则会和上滑抢位置、抖死。
       if (delta && parent.scrollTop > PIN_TOP_SLACK_PX) parent.scrollTop += delta
     }
     prependHeightRef.current = parent.scrollHeight
+    previousRevealStartRef.current = revealStart
   }, [stickKey, mountedNodes.length, revealStart, sessionId])
 
   if (nodes.length === 0 && !pending && !error && !switchingSession) {

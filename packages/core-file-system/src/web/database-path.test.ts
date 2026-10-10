@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { parseAppPath } from '@biu/web-session-view'
-import { DATA_MODULE, databaseAllViewPath, databaseRecordPath, databaseViewPath, isRecordTreeCollection, isSystemCollection, sortDataCollections, viewsCatalogSource } from './database-path.ts'
+import { DATA_MODULE, databaseAllViewPath, databaseRecordPath, databaseViewPath, isIndexCollection, isRecordTreeCollection, isSystemCollection, sortDataCollections, viewsCatalogSource } from './database-path.ts'
 
 const plugins = [DATA_MODULE]
 
@@ -66,15 +66,19 @@ test('views catalog source is a query filter', () => {
   assert.equal(viewsCatalogSource(''), '')
 })
 
-test('views and events are system collections; tags sort with user tables', () => {
+test('members and views are system collections; blocks and facets are index data', () => {
+  assert.equal(isSystemCollection('/workspace-members'), true)
   assert.equal(isSystemCollection('/views'), true)
   assert.equal(isSystemCollection('/facets'), false)
-  assert.equal(isSystemCollection('/events'), true)
+  assert.equal(isIndexCollection('/facets'), true)
+  assert.equal(isIndexCollection('/page-blocks'), true)
+  assert.equal(isIndexCollection('/pages'), false)
+  assert.equal(isSystemCollection('/events'), false)
   assert.equal(isSystemCollection('/notices'), true)
-  assert.equal(isSystemCollection('/trash'), false)
+  assert.equal(isSystemCollection('/trash'), true)
   assert.equal(isSystemCollection('/sessions'), false)
-  const { user, system } = sortDataCollections([
-    { path: '/events' },
+  const { user, index, system } = sortDataCollections([
+    { path: '/workspace-members' },
     { path: '/plugins' },
     { path: '/views' },
     { path: '/notices' },
@@ -87,10 +91,14 @@ test('views and events are system collections; tags sort with user tables', () =
   ])
   assert.deepEqual(
     user.map((item) => item.path),
-    ['/sessions', '/tasks', '/pages', '/page-blocks', '/plugins', '/facets', '/trash'],
+    ['/sessions', '/tasks', '/pages', '/plugins'],
+  )
+  assert.deepEqual(
+    index.map((item) => item.path),
+    ['/page-blocks', '/facets'],
   )
   assert.deepEqual(
     system.map((item) => item.path),
-    ['/views', '/events', '/notices'],
+    ['/workspace-members', '/views', '/notices', '/trash'],
   )
 })

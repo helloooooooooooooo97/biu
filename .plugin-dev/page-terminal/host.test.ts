@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { buildMysqlArgs, isUnsafeMysqlSql } from './host.ts'
+import { buildMysqlArgs, isUnsafeMysqlSql } from './host/index.ts'
 
 test('mysql batch arguments keep credentials out of argv', () => {
   const args = buildMysqlArgs('select 1', {

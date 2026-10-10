@@ -12,6 +12,7 @@ export function PropertyRow({
   expanded,
   onToggle,
   children,
+  pick,
 }: {
   field: FieldSpec
   fieldKey?: string
@@ -20,11 +21,15 @@ export function PropertyRow({
   expanded?: boolean
   onToggle?: () => void
   children: ReactNode
+  pick?: Record<string, string>
 }) {
   const kind = resolveFieldType(field)
   const label = field.label ?? fieldKey ?? ''
   return (
-    <div className={`fsdb-proprow${stacked ? ' is-stack' : ''}${collapsible ? ' is-facet-fold' : ''}${expanded ? ' is-open' : ''}`}>
+    <div
+      className={`fsdb-proprow${stacked ? ' is-stack' : ''}${collapsible ? ' is-facet-fold' : ''}${expanded ? ' is-open' : ''}`}
+      {...pick}
+    >
       <span className="fsdb-proprow-k" title={label}>
         {collapsible ? (
           <button

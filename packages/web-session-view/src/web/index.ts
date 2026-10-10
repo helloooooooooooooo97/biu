@@ -91,12 +91,16 @@ export interface SessionListItem {
   title: string
   eventCount: number
   updatedAt: number
+  /** 最近一次用户发消息的时间；没有消息时缺省，排序回退到 updatedAt */
+  lastMessageAt?: number
   /** host 列表快照：该 session 的 agent 是否在跑 */
   busy?: boolean
   project?: { name: string; path?: string; boundAt: number }
   mascot?: { shape: string; color: string; eye?: number }
   tags?: string[]
   pinned?: boolean
+  /** 云端记录。本机只留缓存，改动走云端接口。 */
+  remote?: boolean
   inspector?: SessionInspectorBind
   goal?: SessionGoal
 }
@@ -254,6 +258,7 @@ function sessionsEqual(a: SessionListItem[], b: SessionListItem[]): boolean {
       left.title !== right.title ||
       left.eventCount !== right.eventCount ||
       left.updatedAt !== right.updatedAt ||
+      (left.lastMessageAt ?? 0) !== (right.lastMessageAt ?? 0) ||
       left.project?.path !== right.project?.path ||
       left.project?.name !== right.project?.name ||
       left.mascot?.shape !== right.mascot?.shape ||
@@ -296,12 +301,20 @@ export class SessionViewService extends Service {
   private trajFetchSessionId: string | null = null
   private dispatchedPoll: ReturnType<typeof setInterval> | null = null
   private busyHoldUntil = 0
+  /** 切会话时画面还是上一段：ingest 不能往旧 events 上叠新 session */
+  private holdPreviousThread = false
+  private sessionsRefreshTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(ctx: Context) {
     super(ctx, 'sessionView')
     void this.refreshSessions()
     void this.refreshApprovals()
     this.ctx.effect(() => () => this.stopDispatchedPoll())
+    if (typeof window !== 'undefined') {
+      const onLibrary = () => this.scheduleRefreshSessions()
+      window.addEventListener('fsdb:change', onLibrary)
+      this.ctx.effect(() => () => window.removeEventListener('fsdb:change', onLibrary))
+    }
   }
 
   private buildNodes(events: SessionEvent[], byTurn = this.value.dispatchedUsageByTurn) {
@@ -463,17 +476,26 @@ export class SessionViewService extends Service {
       void this.refreshSessions()
       return
     }
-    // 切会话过渡期仍挂着上一段 nodes，勿把新 session 的流式事件混进去
+    // 切会话过渡期仍挂着上一段 nodes，勿把新 session 的流式事件混进去。
+    // 空壳（还没套上旧画面）可以立刻吃本 session 的事件，否则发送后要等 revalidate 才出现用户气泡。
     if (this.value.switchingSession) {
       void this.refreshSessions()
-      return
+      if (this.value.sessionId !== sessionId) return
+      if (this.holdPreviousThread) return
     }
     if (event.type === 'assistant/chunk') {
       this.ingestChunk(sessionId, event)
       return
     }
     this.flushChunkFrame()
-    const events = upsertEvent(this.value.sessionId === sessionId ? this.value.events : [], event)
+    const base = this.value.sessionId === sessionId ? this.value.events : []
+    const withoutOptimistic =
+      event.type === 'user/message'
+        ? base.filter(
+            (item) => !(item.type === 'user/message' && item.seq < 0 && item.text === event.text),
+          )
+        : base
+    const events = upsertEvent(withoutOptimistic, event)
     this.replace({
       sessionId,
       events,
@@ -483,7 +505,7 @@ export class SessionViewService extends Service {
     this.stashCurrent()
     // 检查器打开后 trajectoryLive=true：即使 URL 仍是 chat 也要刷新右侧轨迹
     if (this.wantsTrajectory()) void this.refreshTrajectoryIndex()
-    void this.refreshSessions()
+    this.scheduleRefreshSessions()
   }
 
   private ingestChunk(sessionId: string, event: Extract<SessionEvent, { type: 'assistant/chunk' }>) {
@@ -652,6 +674,14 @@ export class SessionViewService extends Service {
     this.replace({ approvals: this.value.approvals.filter((row) => row.id !== id) })
   }
 
+  private scheduleRefreshSessions() {
+    if (this.sessionsRefreshTimer != null) return
+    this.sessionsRefreshTimer = setTimeout(() => {
+      this.sessionsRefreshTimer = null
+      void this.refreshSessions()
+    }, 200)
+  }
+
   async refreshSessions() {
     try {
       const res = await fetch('/api/sessions')
@@ -662,10 +692,10 @@ export class SessionViewService extends Service {
       const sessionsChanged = !sessionsEqual(this.value.sessions, next)
       if (!sessionsChanged && !busySessions) return
       const patch: Partial<SessionViewState> = {}
+      const currentId = this.value.sessionId
       if (sessionsChanged) patch.sessions = next
       if (busySessions) {
         patch.busySessions = busySessions
-        const currentId = this.value.sessionId
         if (currentId) {
           const running = Boolean(busySessions[currentId])
           patch.agentStatus = running ? 'running' : 'idle'
@@ -673,6 +703,9 @@ export class SessionViewService extends Service {
         }
       }
       this.replace(patch)
+      if (sessionsChanged && currentId && !next.some((item) => item.id === currentId)) {
+        await this.leaveMissingSession(currentId)
+      }
     } catch {
       /* host 未就绪时忽略 */
     }
@@ -786,6 +819,7 @@ export class SessionViewService extends Service {
         this.trajGen += 1
         // 有上一段内容时先保留画面，只换 sessionId；无缓存清空会闪 EmptyHero
         if (this.value.sessionId && (this.value.nodes.length > 0 || this.value.events.length > 0)) {
+          this.holdPreviousThread = true
           this.replace({
             sessionId,
             trajectory: [],
@@ -801,6 +835,7 @@ export class SessionViewService extends Service {
             ...this.pendingInspector(),
           })
         } else {
+          this.holdPreviousThread = false
           this.replace({
             sessionId,
             events: [],
@@ -834,6 +869,7 @@ export class SessionViewService extends Service {
         this.touchCache(sessionId)
         this.applyCached(sessionId, cached, view)
       } else if (this.value.sessionId && (this.value.nodes.length > 0 || this.value.events.length > 0)) {
+        this.holdPreviousThread = true
         this.replace({
           sessionId,
           trajectory: [],
@@ -849,6 +885,7 @@ export class SessionViewService extends Service {
           ...this.pendingInspector(),
         })
       } else {
+        this.holdPreviousThread = false
         this.replace({
           sessionId,
           events: [],
@@ -939,6 +976,7 @@ export class SessionViewService extends Service {
         error: undefined,
         ...this.rememberSessionInspector(sessionId, this.inspectorFromPayload(body), body.config?.goal),
       })
+      this.holdPreviousThread = false
       this.syncDispatchedPoll()
       if (this.wantsTrajectory(view)) void this.ensureTrajectory()
       void this.refreshInbox(sessionId)
@@ -948,6 +986,7 @@ export class SessionViewService extends Service {
   }
 
   private applyCached(sessionId: string, cached: SessionCacheEntry, view: ConversationView) {
+    this.holdPreviousThread = false
     this.replace({
       sessionId,
       events: cached.events,
@@ -1390,6 +1429,8 @@ export class SessionViewService extends Service {
             ...imagePayload,
           }
 
+    if (busy) this.enqueueLocalInbox(effectiveKind, content || '（图片）')
+
     if (effectiveKind === 'inject') {
       const res = await fetch(`/api/sessions/${sessionId}/messages`, {
         method: 'POST',
@@ -1408,6 +1449,7 @@ export class SessionViewService extends Service {
     this.markBusyHold()
     this.setAgentStatus('running', undefined, sessionId)
     this.replace({ error: undefined })
+    if (!busy) this.paintOutgoingUser(sessionId, content || '（图片）', pics)
     try {
       const res = await fetch(`/api/sessions/${sessionId}/messages`, {
         method: 'POST',
@@ -1440,10 +1482,51 @@ export class SessionViewService extends Service {
     // 成功后不要在 finally 里强行 idle：agent 仍在跑，状态交给 WS agent/status
   }
 
+  private enqueueLocalInbox(kind: 'wake' | 'inject', text: string) {
+    const item = {
+      id: `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      kind,
+      text,
+    }
+    this.replace({ inbox: [...this.value.inbox, item] })
+  }
+
+  private paintOutgoingUser(
+    sessionId: string,
+    text: string,
+    images: Array<{ name: string; mime: string; url: string }>,
+  ) {
+    if (this.value.sessionId !== sessionId) return
+    if (this.holdPreviousThread) return
+    const exists = this.value.events.some(
+      (item) => item.type === 'user/message' && item.text === text && item.ts > Date.now() - 8000,
+    )
+    if (exists) return
+    this.ingest(sessionId, {
+      type: 'user/message',
+      text,
+      kind: 'wake',
+      seq: -Date.now(),
+      ts: Date.now(),
+      ...(images.length ? { images } : {}),
+    })
+  }
+
   setInbox(inbox: InboxQueueItem[], sessionId?: string) {
     const id = sessionId ?? this.value.sessionId
     if (id && this.value.sessionId && id !== this.value.sessionId) return
-    const next = Array.isArray(inbox) ? inbox : []
+    const server = Array.isArray(inbox) ? inbox : []
+    const used = new Set<string>()
+    const locals = this.value.inbox.filter((item) => item.id.startsWith('local-'))
+    const keep = locals.filter((local) => {
+      const hit = server.find((item) => item.kind === local.kind && item.text === local.text && !used.has(item.id))
+      if (hit) {
+        used.add(hit.id)
+        return false
+      }
+      return true
+    })
+    const next = keep.length ? [...server, ...keep] : server
     if (JSON.stringify(next) === JSON.stringify(this.value.inbox)) return
     this.replace({ inbox: next })
   }
@@ -1511,11 +1594,9 @@ export class SessionViewService extends Service {
     const sessionId = this.value.sessionId
     if (!sessionId) return
     const goal = this.value.sessions.find((item) => item.id === sessionId)?.goal
-    if (goal?.status === 'pursuing') {
-      await this.controlGoal('pause')
-      return
-    }
-    await fetch(`/api/sessions/${sessionId}/cancel`, { method: 'POST' })
+    const aborting = fetch(`/api/sessions/${sessionId}/cancel`, { method: 'POST' }).catch(() => undefined)
+    if (goal?.status === 'pursuing') void this.controlGoal('pause')
+    await aborting
     this.setAgentStatus('idle', undefined, sessionId)
   }
 
@@ -1537,8 +1618,10 @@ export class SessionViewService extends Service {
     this.replace({
       sessions,
       ...(action === 'pause' || action === 'clear' ? { pending: false, agentStatus: 'idle' as const } : {}),
+      ...(action === 'resume' ? { pending: true, agentStatus: 'running' as const } : {}),
       error: undefined,
     })
+    if (action === 'resume') this.markBusyHold()
   }
 
   /** 空回车：abort 当前回合并立刻 claim 队列（需队列里有 wake） */

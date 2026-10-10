@@ -10,6 +10,22 @@ import type { PluginStoreService, StoreListing } from './store.ts'
 
 type SandboxListing = Awaited<ReturnType<PluginStoreService['listSandboxes']>>[number]
 
+export const BIU_OFFICIAL_NAME = 'BIU官方'
+export const BIU_GITHUB = 'https://github.com/helloooooooooooooo97/biu'
+
+const BIU_OFFICIAL = { kind: 'user' as const, name: BIU_OFFICIAL_NAME, url: BIU_GITHUB }
+
+function withOfficial<T extends { builtin?: boolean; author: string; authorUrl: string }>(row: T) {
+  if (!row.builtin) return row
+  return {
+    ...row,
+    author: BIU_OFFICIAL_NAME,
+    authorUrl: BIU_GITHUB,
+    createdBy: BIU_OFFICIAL,
+    updatedBy: [BIU_OFFICIAL],
+  }
+}
+
 function omitEmpty(row: DbRecord): DbRecord {
   const next: DbRecord = { id: row.id }
   for (const [key, value] of Object.entries(row)) {
@@ -29,8 +45,7 @@ function asInstalledRecord(row: StoreListing, store: PluginStoreService): DbReco
     title: row.name,
     blurb: row.blurb,
     tags: row.tags,
-    author: row.author,
-    authorUrl: row.authorUrl,
+    ...withOfficial(row),
     installed: true,
     pluginPath: store.pluginPath(row.id),
     enabled: row.enabled,
@@ -62,8 +77,7 @@ function asSandboxRecord(row: SandboxListing, store: PluginStoreService): DbReco
     title: row.name,
     blurb: row.blurb,
     tags: row.tags,
-    author: row.author,
-    authorUrl: row.authorUrl,
+    ...withOfficial(row),
     sandbox: true,
     sandboxPath: store.sandboxPath(row.id),
     hasHost: row.hasHost,
@@ -79,16 +93,21 @@ function mergeLifecycle(
   sandbox: SandboxListing | undefined,
   store: PluginStoreService,
 ): DbRecord {
+  const builtin = Boolean(installed?.builtin || sandbox?.builtin)
+  const official = builtin
+    ? { builtin: true, author: BIU_OFFICIAL_NAME, authorUrl: BIU_GITHUB, createdBy: BIU_OFFICIAL, updatedBy: [BIU_OFFICIAL] }
+    : {}
   if (installed && sandbox) {
     return omitEmpty({
       ...asInstalledRecord(installed, store),
       sandbox: true,
       sandboxPath: store.sandboxPath(sandbox.id),
       updatedAt: Math.max(installed.updatedAt, sandbox.updatedAt),
+      ...official,
     })
   }
-  if (installed) return asInstalledRecord(installed, store)
-  if (sandbox) return asSandboxRecord(sandbox, store)
+  if (installed) return { ...asInstalledRecord(installed, store), ...official }
+  if (sandbox) return { ...asSandboxRecord(sandbox, store), ...official }
   throw new Error('empty plugin row')
 }
 
@@ -135,7 +154,8 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
         'running',
         'enabled',
         'tags',
-        'author',
+        'createdBy',
+        'updatedBy',
         'bytes',
         'shellWidth',
         'shellHeight',
@@ -163,8 +183,6 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
         hasWeb: { type: 'boolean', label: 'Web' },
         codeVersion: { type: 'string', label: '代码版本' },
         headless: { type: 'boolean', label: '无头' },
-        author: { type: 'string', label: '作者' },
-        authorUrl: { type: 'url', label: '作者链接' },
         shellWidth: { type: 'number', label: '窗口宽' },
         shellHeight: { type: 'number', label: '窗口高' },
         shellMinWidth: { type: 'number', label: '最小宽' },
@@ -185,7 +203,7 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
     },
     remove: async (query) => {
       const ids = query.ids ?? []
-      for (const id of ids) await store.uninstall(id)
+      for (const id of ids) await store.destroy(id)
       return ids
     },
     actions: [
@@ -195,6 +213,7 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
         for: 'agent',
         placement: [],
         allowMissing: true,
+        requiredAction: 'resource:read',
         description: PLUGIN_SANDBOX_DESCRIPTION,
         parameters: {
           type: 'object',
@@ -208,7 +227,8 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
         id: 'start',
         label: '运行',
         when: { installed: true, running: false },
-        description: '打开已安装插件窗口（无头则只挂 host）。when：installed 且未 running。不要对纯沙箱、未 pack 的行调用。',
+        description: '为当前账号在这个空间加载已安装插件（无头则只挂 host）。别人的加载状态互不影响。when：installed 且未 running。不要对纯沙箱、未 pack 的行调用。',
+        requiredAction: 'resource:read',
         run: async (id) => {
           await store.openPlugin(id)
         },
@@ -217,16 +237,18 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
         id: 'stop',
         label: '停止',
         when: { installed: true, running: true },
-        description: '关掉运行中的插件窗口/host。when：installed 且 running。',
+        description: '停止当前账号在这个空间加载的插件。别人如果还在用，他们的加载不受影响。when：installed 且 running。',
+        requiredAction: 'resource:read',
         run: async (id) => {
           await store.close(id)
         },
       },
       {
         id: 'pack',
-        label: '打包安装',
+        label: '安装',
         when: { sandbox: true },
         description: PLUGIN_PACK_DESCRIPTION,
+        requiredAction: 'resource:read',
         parameters: { type: 'object', description: PLUGIN_PACK_DESCRIPTION, properties: {} },
         run: async (id) => store.pack(id),
       },
@@ -235,8 +257,9 @@ export function pluginsCollection(store: PluginStoreService): CollectionSpec {
         label: '卸载',
         tone: 'danger',
         confirm: '确定卸载这个插件？已安装的代码会被删掉。',
-        when: { installed: true },
+        when: { installed: true, builtin: false },
         description: '删除 .plugin/<id>/。沙箱 .plugin-dev/<id>/ 还在的话行不会消失，只是 installed 变 false。',
+        requiredAction: 'resource:delete',
         run: async (id) => {
           await store.uninstall(id)
         },

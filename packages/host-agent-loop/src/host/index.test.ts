@@ -56,6 +56,37 @@ test('loop appends multiple assistant/chunk deltas from onDelta', async () => {
   assert.equal(message?.type === 'assistant/message' && message.usage?.inputTokens, 1)
 })
 
+test('streamed tool deltas stay behind the assistant message', async () => {
+  const { ctx, sessionId } = await spine()
+  ctx.tools.register({
+    name: 'echo',
+    description: 'echo',
+    parameters: { type: 'object', properties: { text: { type: 'string' } } },
+    execute: (args) => String(args.text ?? ''),
+  })
+  let chats = 0
+  const llm: LlmClient = {
+    async chat(_messages, _tools, _signal, options) {
+      chats += 1
+      if (chats > 1) return { content: 'done', toolCalls: [] }
+      options?.onToolDelta?.({ id: '1', name: 'echo', arguments: '{"text":' })
+      options?.onToolDelta?.({ id: '1', name: 'echo', arguments: '{"text":"pong"}' })
+      await new Promise((resolve) => setTimeout(resolve, 80))
+      return {
+        content: 'calling',
+        toolCalls: [{ id: '1', name: 'echo', arguments: '{"text":"pong"}' }],
+      }
+    },
+  }
+  const loop = new AgentLoop(ctx, llm, sessionId, new AbortController().signal)
+  await loop.run([{ kind: 'wake', text: 'echo' }])
+  const types = (await ctx.sessions.require(sessionId)).events.map((event) => event.type)
+  const message = types.indexOf('assistant/message')
+  const call = types.indexOf('tool/call')
+  const result = types.indexOf('tool/result')
+  assert.ok(message >= 0 && call > message && result > call)
+})
+
 test('loop invokes multiple tools concurrently', async () => {
   const { ctx, sessionId } = await spine()
   let inflight = 0
@@ -108,6 +139,10 @@ test('loop invokes tools then asks the model again', async () => {
     parameters: { type: 'object', properties: { text: { type: 'string' } } },
     execute: (args) => String(args.text ?? ''),
   })
+  const finished: Array<{ sessionId?: string; text?: string }> = []
+  ctx.on('session/finished', (event) => {
+    finished.push(event as { sessionId?: string; text?: string })
+  })
   const loop = new AgentLoop(
     ctx,
     new ScriptedLlm([
@@ -119,6 +154,7 @@ test('loop invokes tools then asks the model again', async () => {
   )
   const turn = await loop.run([{ kind: 'wake', text: 'echo' }])
   assert.equal(turn.text, '收到 pong')
+  assert.deepEqual(finished, [{ sessionId, text: '收到 pong' }])
   assert.deepEqual(turn.steps, [{ name: 'echo', ok: true, detail: 'pong' }])
   const messages = ctx.sessions.deriveMessages(sessionId)
   assert.equal(messages.some((item) => item.role === 'tool' && item.content === 'pong'), true)
@@ -249,6 +285,22 @@ test('missing tool is a step failure, not a crash', async () => {
   assert.equal(turn.steps[0]?.ok, false)
   assert.match(turn.steps[0]?.detail ?? '', /unknown tool: gone/)
   assert.equal(turn.text, '没有这个工具')
+})
+
+test('pre-aborted signal never calls the model', async () => {
+  const { ctx, sessionId } = await spine()
+  const abort = new AbortController()
+  abort.abort()
+  let called = 0
+  const llm: LlmClient = {
+    chat: async () => {
+      called += 1
+      return { content: 'nope', toolCalls: [] }
+    },
+  }
+  const loop = new AgentLoop(ctx, llm, sessionId, abort.signal)
+  await assert.rejects(() => loop.run([{ kind: 'wake', text: 'x' }]), /cancelled/)
+  assert.equal(called, 0)
 })
 
 test('cancelled signal stops the turn', async () => {

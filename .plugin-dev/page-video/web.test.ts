@@ -10,10 +10,10 @@ test('page-video owns its headless block, studio, and timeline UI contracts', as
     id: string
     headless?: boolean
   }
-  const src = await readFile(resolve(dir, 'web.tsx'), 'utf8')
-  const host = await readFile(resolve(dir, 'host.ts'), 'utf8')
+  const src = await readFile(resolve(dir, 'web/index.tsx'), 'utf8')
+  const host = await readFile(resolve(dir, 'host/index.ts'), 'utf8')
   const readme = await readFile(resolve(dir, 'README.md'), 'utf8')
-  const runtime = await readFile(resolve(dir, 'runtime.ts'), 'utf8')
+  const runtime = await readFile(resolve(dir, 'web/runtime.ts'), 'utf8')
   assert.equal(manifest.id, 'page-video')
   assert.equal(manifest.headless, true)
   assert.match(src, /kind: 'video'/)

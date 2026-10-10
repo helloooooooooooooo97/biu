@@ -15,8 +15,8 @@ export function sharePluginModuleUrls(token: string, id: string, password = '') 
   const q = password ? `?password=${encodeURIComponent(password)}` : ''
   return [
     `/api/share/${encodeURIComponent(token)}/plugin/${encodeURIComponent(id)}/web.js${q}`,
-    `/.plugin-dev/${encodeURIComponent(id)}/web.tsx`,
-    `/.plugin-dev/${encodeURIComponent(id)}/web.ts`,
+    `/.plugin-dev/${encodeURIComponent(id)}/web/index.tsx`,
+    `/.plugin-dev/${encodeURIComponent(id)}/web/index.ts`,
     `/.plugin/${encodeURIComponent(id)}/web.js`,
   ]
 }

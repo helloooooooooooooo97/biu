@@ -28,6 +28,8 @@ export type FieldSpec = {
   format?: 'datetime' | 'url' | 'image' | 'attachment' | 'file'
   /** select / multi-select 的选项 */
   enum?: string[]
+  /** enum 存储值对应的展示文案；未配置时直接显示存储值。 */
+  enumLabels?: Record<string, string>
   /** 给 Agent / db_stat：这个字段怎么写。不进单元格 UI。 */
   description?: string
   /** action 字段绑定的动作 id，缺省为字段 key */
@@ -47,7 +49,9 @@ export type PersonKind = 'user' | 'agent' | 'system'
 export type PersonValue = {
   kind: PersonKind
   name: string
+  accountId?: string
   sessionId?: string
+  url?: string
   mascot?: { shape: string; color: string; eye?: number }
 }
 
@@ -73,6 +77,7 @@ export function asPerson(value: unknown): PersonValue | null {
   }
   if (typeof value !== 'object' || Array.isArray(value)) return null
   const rec = value as Record<string, unknown>
+  const accountId = String(rec.accountId ?? '').trim()
   const sessionId = String(rec.sessionId ?? rec.id ?? '').trim()
   const kind: PersonKind =
     rec.kind === 'system' || rec.kind === 'agent' || rec.kind === 'user'
@@ -85,12 +90,20 @@ export function asPerson(value: unknown): PersonValue | null {
     (kind === 'system' ? '系统' : kind === 'user' ? '用户' : sessionId.slice(0, 8) || '')
   if (!name && !sessionId) return null
   const mascot = personMascot(rec.mascot)
-  return { kind, name: name || 'Agent', ...(sessionId ? { sessionId } : {}), ...(mascot ? { mascot } : {}) }
+  const url = typeof rec.url === 'string' && /^https?:\/\//.test(rec.url.trim()) ? rec.url.trim() : ''
+  return {
+    kind,
+    name: name || 'Agent',
+    ...(accountId ? { accountId } : {}),
+    ...(sessionId ? { sessionId } : {}),
+    ...(url ? { url } : {}),
+    ...(mascot ? { mascot } : {}),
+  }
 }
 
 export function personKey(person: PersonValue | null | undefined): string {
   if (!person) return ''
-  if (person.kind === 'user') return 'user'
+  if (person.kind === 'user') return person.accountId ? `user:${person.accountId}` : 'user'
   if (person.kind === 'system') return 'system'
   return person.sessionId || person.name
 }
@@ -386,6 +399,13 @@ export function normalizeSchemaPack(raw: unknown): CollectionSchemaPack | null {
       writable: row.writable !== false,
     }
     if (Array.isArray(row.enum)) field.enum = row.enum.map((option) => String(option)).filter(Boolean)
+    if (row.enumLabels && typeof row.enumLabels === 'object' && !Array.isArray(row.enumLabels)) {
+      field.enumLabels = Object.fromEntries(
+        Object.entries(row.enumLabels as Record<string, unknown>)
+          .map(([value, text]) => [value, String(text ?? '').trim()])
+          .filter(([value, text]) => Boolean(value && text && field.enum?.includes(value))),
+      )
+    }
     fields.push(field)
   }
   return { id, label, fields }
@@ -547,6 +567,13 @@ export function withBuiltinFields(
 
 /** 登记方可序列化的动作声明。图标与按钮长什么样由前端 decorate，不进这份契约。 */
 export type CollectionActionAudience = 'both' | 'agent' | 'user'
+export type CollectionPermissionAction =
+  | 'resource:read'
+  | 'resource:create'
+  | 'resource:update'
+  | 'resource:delete'
+  | 'resource:share'
+  | 'resource:manage-permissions'
 
 export type CollectionActionInfo = {
   id: string
@@ -564,6 +591,8 @@ export type CollectionActionInfo = {
   parameters?: Record<string, unknown>
   /** 记录还不存在时也能跑（例如新建插件）。 */
   allowMissing?: boolean
+  /** 此动作要求的统一授权能力。缺省按修改记录处理。 */
+  requiredAction?: CollectionPermissionAction
 }
 
 export function actionVisibleToUser(action: { for?: CollectionActionAudience }) {

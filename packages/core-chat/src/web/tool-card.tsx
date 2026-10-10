@@ -446,11 +446,22 @@ export function ToolCard({
           <span className="tool-call-title">{title}</span>
           {open ? null : <span className="tool-call-summary">{summary}</span>}
         </button>
-        {parsed.kind === 'bash' || node.result?.streaming ? (
+        {parsed.kind === 'bash' ||
+        parsed.kind === 'create' ||
+        parsed.kind === 'insert' ||
+        parsed.kind === 'str_replace' ||
+        node.result?.streaming ? (
           <span className="tool-call-chars" title="输出字数" data-testid="tool-call-chars">
-            {toolOutputChars(node.result?.detail, parsed.kind)}
+            {parsed.kind === 'create'
+              ? parsed.fileText.length
+              : parsed.kind === 'insert'
+                ? parsed.newStr.length
+                : parsed.kind === 'str_replace'
+                  ? parsed.newStr.length
+                  : toolOutputChars(node.result?.detail, parsed.kind)}
           </span>
         ) : null}
+        <div className="tool-call-tools">
         <button
           type="button"
           className="tool-call-inspect"
@@ -473,6 +484,7 @@ export function ToolCard({
         {copyTextValue ? (
           <CopyIconButton className="tool-call-copy" text={copyTextValue} label="复制工具输出" />
         ) : null}
+        </div>
       </div>
       {!open && previewLines && previewLines.length > 0 ? (
         <div className="tool-call-body">

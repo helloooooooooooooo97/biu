@@ -9,7 +9,9 @@
     "pty",
     "mysql"
   ],
-  "author": "Biu",
+  "author": "BIU官方",
   "headless": true,
-  "createdAt": 1789292495394
+  "createdAt": 1789292495394,
+  "builtin": true,
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu"
 }

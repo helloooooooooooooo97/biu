@@ -14,7 +14,7 @@ test('web entry boots without top-level await', () => {
 })
 
 
-test('boots into #app', async () => {
+test('boots the authentication boundary into #app', async () => {
   document.body.innerHTML = '<div id="app"></div>'
   globalThis.fetch = (async () => new Response(JSON.stringify({
     plugins: [],
@@ -27,7 +27,6 @@ test('boots into #app', async () => {
     const { webBoot } = await import('./main.tsx')
     await webBoot
   })
-  assert.match(document.body.innerHTML, /data-testid="shell-side-places"/)
-  assert.match(document.body.innerHTML, /会话/)
-  assert.match(document.body.innerHTML, /设置/)
+  assert.match(document.body.innerHTML, /data-testid="auth-gate"/)
+  assert.match(document.body.innerHTML, /登录/)
 })

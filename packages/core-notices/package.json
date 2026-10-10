@@ -7,10 +7,12 @@
   "description": "通知收件箱：JSON 持久化与 Cordis 服务，不走 biu.sqlite；注入 database 后登记 /notices",
   "exports": {
     ".": "./src/host/index.ts",
-    "./host": "./src/host/index.ts"
+    "./host": "./src/host/index.ts",
+    "./web": "./src/web/index.tsx"
   },
   "peerDependencies": {
-    "cordis": "4.0.0-rc.8"
+    "cordis": "4.0.0-rc.8",
+    "react": "^19.1.1"
   },
   "dependencies": {
     "@biu/host-plugin-loader": "0.1.0",

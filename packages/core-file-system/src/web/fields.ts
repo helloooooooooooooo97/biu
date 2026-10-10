@@ -25,6 +25,16 @@ export function resolveFieldType(field: FieldSpec): FieldType {
   return field.type
 }
 
+export function enumDisplayLabel(field: FieldSpec | undefined, value: unknown) {
+  const key = String(value ?? '')
+  return field?.enumLabels?.[key] || key
+}
+
+export function fieldValueOptions(rows: DbRecord[], key: string, field: FieldSpec) {
+  const values = field.enum?.length ? field.enum : uniqueValues(rows, key, field)
+  return values.map((value) => ({ value, label: enumDisplayLabel(field, value) }))
+}
+
 export function fieldEntries(schema: CollectionSchema | undefined) {
   if (!schema) return []
   return Object.entries(schema.fields).map(([key, field]) => ({ key, field, kind: resolveFieldType(field) }))
@@ -131,6 +141,16 @@ export function pinLabelColumn(schema: CollectionSchema | undefined, keys: strin
   const label = schema?.labelField
   if (!label) return keys
   return [label, ...keys.filter((key) => key !== label)]
+}
+
+/** 有动作列时固定在标题右侧，且始终展示。 */
+export function pinActionColumn(schema: CollectionSchema | undefined, keys: string[], enabled: boolean): string[] {
+  const without = keys.filter((key) => key !== 'actions')
+  const pinned = pinLabelColumn(schema, without)
+  if (!enabled) return pinned
+  const label = schema?.labelField
+  if (label && pinned[0] === label) return [label, 'actions', ...pinned.slice(1)]
+  return ['actions', ...pinned]
 }
 
 export function defaultColumnKeys(schema: CollectionSchema | undefined, allKeys: string[]): string[] {
@@ -332,8 +352,9 @@ export function formatField(field: FieldSpec | undefined, value: unknown): strin
   }
   if (kind === 'multi-select') {
     const tags = asStringList(value)
-    return tags.length ? tags.join(', ') : ''
+    return tags.length ? tags.map((tag) => enumDisplayLabel(field, tag)).join(', ') : ''
   }
+  if (kind === 'select') return enumDisplayLabel(field, value)
   if (kind === 'action') return field.label || '动作'
   if (kind === 'facet') {
     const parsed = normalizeSchemaValue(value)
@@ -442,8 +463,9 @@ export function groupField(schema: CollectionSchema | undefined, preferred?: str
   return match ? { key: match.key, field: match.field } : null
 }
 
-function groupBucketLabel(kind: FieldType, key: string) {
+function groupBucketLabel(kind: FieldType, key: string, field?: FieldSpec) {
   if (kind === 'boolean') return key === 'true' ? '是' : '否'
+  if (kind === 'select' || kind === 'multi-select') return enumDisplayLabel(field, key)
   return key
 }
 
@@ -480,7 +502,7 @@ export function groupRecords(rows: DbRecord[], schema: CollectionSchema | undefi
   }
   const listed = [...buckets.entries()].map(([key, grouped]) => ({
     key,
-    label: groupBucketLabel(kind, key),
+      label: groupBucketLabel(kind, key, group.field),
     rows: grouped,
   }))
   if (unset.length) listed.push({ key: '', label: '未填', rows: unset })

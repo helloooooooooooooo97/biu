@@ -13,20 +13,45 @@ export function hasEditorContent(db: DatabaseSync) {
   return tableNames(db).includes('editor_content')
 }
 
-export function readEditorContent(db: DatabaseSync, collection: string, recordId: string) {
+export type EditorContentRecord = {
+  body: string
+  version: number
+}
+
+export class EditorContentConflictError extends Error {
+  code = 'EDITOR_CONTENT_CONFLICT' as const
+
+  constructor(
+    public expectedVersion: number,
+    public actualVersion: number,
+  ) {
+    super(`正文版本冲突：期望 v${expectedVersion}，当前为 v${actualVersion}`)
+    this.name = 'EditorContentConflictError'
+  }
+}
+
+export function readEditorContentRecord(
+  db: DatabaseSync,
+  collection: string,
+  recordId: string,
+): EditorContentRecord {
   if (hasEditorContent(db)) {
     const row = db
-      .prepare('SELECT body FROM editor_content WHERE collection = ? AND record_id = ?')
-      .get(collection, recordId) as { body?: string } | undefined
-    if (row) return String(row.body ?? '')
+      .prepare('SELECT body, version FROM editor_content WHERE collection = ? AND record_id = ?')
+      .get(collection, recordId) as { body?: string; version?: number } | undefined
+    if (row) return { body: String(row.body ?? ''), version: Math.max(1, Number(row.version) || 1) }
   }
   const legacy = LEGACY_BODY[collection]
-  if (!legacy || !tableNames(db).includes(legacy.table)) return ''
-  if (!tableColumnNames(db, legacy.table).includes(legacy.column)) return ''
+  if (!legacy || !tableNames(db).includes(legacy.table)) return { body: '', version: 0 }
+  if (!tableColumnNames(db, legacy.table).includes(legacy.column)) return { body: '', version: 0 }
   const row = db
     .prepare(`SELECT ${legacy.column} AS body FROM ${legacy.table} WHERE ${legacy.id} = ?`)
     .get(recordId) as { body?: string } | undefined
-  return String(row?.body ?? '')
+  return { body: String(row?.body ?? ''), version: 0 }
+}
+
+export function readEditorContent(db: DatabaseSync, collection: string, recordId: string) {
+  return readEditorContentRecord(db, collection, recordId).body
 }
 
 function bannerHtml(db: DatabaseSync, collection: string, recordId: string) {
@@ -67,27 +92,44 @@ export function writeEditorContent(
   collection: string,
   recordId: string,
   body: string,
-  opts?: { transaction?: boolean },
+  opts?: { transaction?: boolean; expectedVersion?: number },
 ) {
   const text = String(body ?? '')
   const names = assetNamesFromMarkdown(text)
   const run = () => {
     if (!hasEditorContent(db)) throw new Error('editor_content missing')
-    db.prepare(
-      `INSERT INTO editor_content (collection, record_id, body, updated_at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(collection, record_id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at`,
-    ).run(collection, recordId, text, Date.now())
+    const current = readEditorContentRecord(db, collection, recordId)
+    if (opts?.expectedVersion != null && current.version !== opts.expectedVersion) {
+      throw new EditorContentConflictError(opts.expectedVersion, current.version)
+    }
+    const now = Date.now()
+    if (current.version === 0) {
+      db.prepare(
+        `INSERT INTO editor_content (collection, record_id, body, updated_at, version)
+         VALUES (?, ?, ?, ?, 1)`,
+      ).run(collection, recordId, text, now)
+    } else if (current.body === text) {
+      db.prepare(
+        'UPDATE editor_content SET updated_at = ? WHERE collection = ? AND record_id = ?',
+      ).run(now, collection, recordId)
+    } else {
+      db.prepare(
+        `UPDATE editor_content
+         SET body = ?, updated_at = ?, version = version + 1
+         WHERE collection = ? AND record_id = ?`,
+      ).run(text, now, collection, recordId)
+    }
     replaceContentRefs(db, collection, recordId, names, assetNamesFromHtml(bannerHtml(db, collection, recordId)))
+    return readEditorContentRecord(db, collection, recordId)
   }
   if (opts?.transaction === false) {
-    run()
-    return
+    return run()
   }
   db.exec('BEGIN IMMEDIATE')
   try {
-    run()
+    const written = run()
     db.exec('COMMIT')
+    return written
   } catch (error) {
     try {
       db.exec('ROLLBACK')

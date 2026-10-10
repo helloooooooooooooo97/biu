@@ -1,5 +1,4 @@
 import {
-  DATA_DIR_NAME,
   openAndMigrateBiu,
   upsertAttachmentRow,
   writeEditorContent,
@@ -22,8 +21,6 @@ import { parsePageBanner, type PageBanner, type PageBannerKind } from '../page-b
 import { bannerGalleryId, isBannerPreset } from '../banner-presets.ts'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
-
-export const FILE_SYSTEM_SQLITE = `${DATA_DIR_NAME}/biu.sqlite`
 
 export type FacetStamp = {
   collection: string
@@ -583,6 +580,16 @@ export class FacetStore {
       names.add(row.name)
     }
     return [...names].sort()
+  }
+
+  recordsReferencingAsset(name: string) {
+    return this.ensure()
+      .prepare(
+        `SELECT collection, record_id FROM content_refs WHERE name = ?
+         UNION
+         SELECT collection, record_id FROM block_refs WHERE name = ?`,
+      )
+      .all(name, name) as Array<{ collection: string; record_id: string }>
   }
 
   stampedIds(collection: string, tagIdOrLabel: string): Set<string> {

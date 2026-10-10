@@ -2,7 +2,7 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import type { CollectionSchema } from '@biu/type-file-system'
 import { REQUIRED_RECORD_FIELDS, normalizeSchemaValue } from '@biu/type-file-system'
-import { defaultColumnKeys, facetFlatColumnKey, flattenFacetColumns, facetColumnTitle, inferPackFieldType, listProjectionKeys, parseFacetFlatColumnKey, patchFacetFlatValue, pinLabelColumn, contentFieldKey, flattenTree, formatField, fieldHasValue, groupField, groupRecords, hasTreeLinks, treeChildren, isViewModeId, matchActionWhen, overlayListed, previewActionRecord, parentFieldKey, readFacetFlatValue, recordLinkIds, resolveFieldType, uniqueValues } from './fields'
+import { defaultColumnKeys, facetFlatColumnKey, flattenFacetColumns, facetColumnTitle, inferPackFieldType, listProjectionKeys, parseFacetFlatColumnKey, patchFacetFlatValue, pinActionColumn, pinLabelColumn, contentFieldKey, flattenTree, formatField, fieldHasValue, fieldValueOptions, groupField, groupRecords, hasTreeLinks, treeChildren, isViewModeId, matchActionWhen, overlayListed, previewActionRecord, parentFieldKey, readFacetFlatValue, recordLinkIds, resolveFieldType, uniqueValues } from './fields'
 import { placedActions, visibleActions } from './fsdb-cells.tsx'
 
 test('isViewModeId accepts builtin and custom slugs', () => {
@@ -37,6 +37,19 @@ test('resolveFieldType maps legacy aliases', () => {
   assert.equal(resolveFieldType({ type: 'action' }), 'action')
   assert.equal(resolveFieldType({ type: 'ref' }), 'ref')
   assert.equal(resolveFieldType({ type: 'multi-ref' }), 'multi-ref')
+})
+
+test('closed enums keep stable values and expose translated labels', () => {
+  const role = {
+    type: 'select' as const,
+    enum: ['owner', 'viewer'],
+    enumLabels: { owner: '所有者', viewer: '查看者' },
+  }
+  assert.equal(formatField(role, 'owner'), '所有者')
+  assert.deepEqual(fieldValueOptions([{ id: 'a', role: 'other' }], 'role', role), [
+    { value: 'owner', label: '所有者' },
+    { value: 'viewer', label: '查看者' },
+  ])
 })
 
 test('fieldHasValue hides missing list/card/board chips', () => {
@@ -137,6 +150,9 @@ test('default columns skip id and timestamps unless schema.columns lists them; t
   assert.deepEqual(defaultColumnKeys(schema, keys), ['title', 'status'])
   assert.deepEqual(defaultColumnKeys({ ...schema, columns: ['status', 'createdAt'] }, keys), ['title', 'status', 'createdAt'])
   assert.deepEqual(pinLabelColumn(schema, ['status', 'title']), ['title', 'status'])
+  assert.deepEqual(pinActionColumn(schema, ['status', 'title', 'actions'], true), ['title', 'actions', 'status'])
+  assert.deepEqual(pinActionColumn(schema, ['status', 'title'], true), ['title', 'actions', 'status'])
+  assert.deepEqual(pinActionColumn(schema, ['title', 'actions', 'status'], false), ['title', 'status'])
 })
 
 test('default columns omit flattened type properties', () => {

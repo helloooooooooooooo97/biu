@@ -12,7 +12,7 @@
     { "id": "subprocess", "package": "@biu/host-subprocess", "togglable": false, "enabled": true },
     { "id": "shell", "package": "@biu/host-shell", "togglable": false, "enabled": true },
     { "id": "jobs", "package": "@biu/host-jobs", "togglable": false, "enabled": true },
-    { "id": "mcp", "package": "@biu/host-mcp", "togglable": false, "enabled": true },
+    { "id": "mcp", "package": "@biu/host-mcp", "web": "@biu/host-mcp/web", "togglable": false, "enabled": true },
     { "id": "terminal", "package": "@biu/host-terminal", "togglable": false, "enabled": true },
     { "id": "lsp", "package": "@biu/host-lsp", "togglable": false, "enabled": true },
     { "id": "web", "package": "@biu/host-web", "togglable": false, "enabled": true },
@@ -22,6 +22,7 @@
     { "id": "agents", "package": "@biu/host-agents", "togglable": false, "enabled": true },
     { "id": "subagents", "package": "@biu/host-subagents", "togglable": false, "enabled": true },
     { "id": "live-sessions", "package": "@biu/host-live-sessions", "togglable": false, "enabled": true },
+    { "id": "account", "package": "@biu/host-account", "togglable": false, "enabled": true },
     { "id": "hub", "package": "@biu/host-hub", "togglable": false, "enabled": true }
   ],
   "web": [
@@ -92,6 +93,7 @@
       "layer": "core",
       "blurb": "通知表 /notices。给人看的收件箱，JSON 持久化。列表 db_list /notices。未读 read=false。不要 db_create。",
       "package": "@biu/core-notices/host",
+      "web": "@biu/core-notices/web",
       "togglable": false,
       "enabled": true
     },

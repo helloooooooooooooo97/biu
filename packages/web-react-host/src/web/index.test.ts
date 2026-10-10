@@ -10,7 +10,7 @@ import * as projectView from '@biu/web-project-view'
 import * as reactHost from './index.ts'
 import * as shell from '@biu/web-app-shell'
 
-test('paints shell into el', async () => {
+test('paints the authentication boundary into el', async () => {
   const el = document.createElement('div')
   const ctx = new Context()
   await ctx.plugin(slots)
@@ -22,7 +22,6 @@ test('paints shell into el', async () => {
     await ctx.plugin(reactHost, { el })
     await ctx.plugin(shell)
   })
-  assert.match(el.innerHTML, /data-testid="shell-side-places"/)
-  assert.match(el.innerHTML, /会话/)
-  assert.match(el.innerHTML, /设置/)
+  assert.match(el.innerHTML, /data-testid="auth-gate"/)
+  assert.match(el.innerHTML, /登录/)
 })

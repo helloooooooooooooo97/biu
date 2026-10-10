@@ -18,6 +18,7 @@ import {
   ArrowsUpDownIcon,
   AdjustmentsHorizontalIcon,
   Bars3BottomLeftIcon,
+  BoltIcon,
   CheckCircleIcon,
   CheckIcon,
   ChevronDoubleLeftIcon,
@@ -38,6 +39,10 @@ import {
   Squares2X2Icon,
   StarIcon,
   TableCellsIcon,
+  ComputerDesktopIcon,
+  GlobeAltIcon,
+  UserIcon,
+  UsersIcon,
   ViewColumnsIcon,
 } from '@heroicons/react/16/solid'
 import type { CollectionActionInfo, CollectionInfo, CollectionSchema, CollectionSchemaPack, DbRecord, FieldSpec, FieldType } from '@biu/type-file-system'
@@ -57,6 +62,7 @@ import {
   fieldEntries,
   flattenTree,
   formatField,
+  fieldValueOptions,
   groupField,
   groupRecords,
   groupableFields,
@@ -68,7 +74,7 @@ import {
   parentFieldKey,
   parseFacetFlatColumnKey,
   patchFacetFlatValue,
-  pinLabelColumn,
+  pinActionColumn,
   readFacetFlatValue,
   resolveFieldType,
   uniqueValues,
@@ -77,9 +83,10 @@ import {
 import { DbMenu, DbSearchOption } from '@biu/database-ui'
 import { AppDialog, CellSelect, CheckRow, LocalText } from './controls.tsx'
 import { DataSidebar } from './data-sidebar.tsx'
+import { ScopeOverview } from './scope-overview.tsx'
 import { buildCrumbs, type CrumbTarget } from './sidebar-nav.ts'
 import { CrumbTrail } from './crumb-trail.tsx'
-import { pickDomAttrs, recordPickKind } from './pick-dom.ts'
+import { fieldPickAttrs, pickDomAttrs, recordPickKind, recordSourcePath } from './pick-dom.ts'
 import { normalizeRecordEmoji, recordPreviewEmoji, crumbRecordLabel } from './sidebar-preview.ts'
 import { recordPreviewMascot, RecordMark } from './record-mark.tsx'
 import { COL_WIDTH_MAX, COL_WIDTH_MIN, colWidthStyle, normalizeColumnWidths, normalizeSavedView, normalizePageSize, tableWidthStyle, viewStateKey, type SavedView } from './saved-view.ts'
@@ -99,11 +106,12 @@ import {
   visibleActions,
   placedActions,
 } from './fsdb-cells.tsx'
-import { ShareButton } from './share-popover.tsx'
+import { ShareButton, SharePanel, ShareRoleDetail, ShareScopeDetail } from './share-popover.tsx'
 import { ensureFsdbStyle } from './fsdb-style.ts'
 import { RecordDetail } from './record-detail.tsx'
 import { PageBanner } from './page-banner.tsx'
 import { TableGlyph, ViewModeGlyph } from './nav-glyphs.tsx'
+import { isIndexCollection, isSystemCollection } from './database-path.ts'
 import { countFittingViewTabs, splitVisibleViews } from './view-tabs.ts'
 import { getPick } from '@biu/core-pick/web'
 import { getDatabaseUi } from './database-ui.ts'
@@ -134,11 +142,11 @@ import {
   subscribePageWidth,
 } from './page-width.ts'
 import { LayoutPrefsMenu } from './layout-prefs-menu.tsx'
-import { listCollection, readJson } from './db-client.ts'
+import { HttpError, listCollection, readJson } from './db-client.ts'
 import { savedViewRecordPath } from '../paths.ts'
 import { findViewNeighbor, indexOnPage } from './view-adjacent.ts'
 import { rememberPreviewTotal, viewTotalKey } from './sidebar-preview.ts'
-import { catalogLockFilters, isReadOnlyViewId, mergeTableViews, stubBuiltinBlockKindView } from '../catalog-views.ts'
+import { catalogLockFilters, isReadOnlyViewId, mergeTableViews, parseBuiltinScopeViewId, stubBuiltinBlockKindView, viewsForScope, type DataScope } from '../catalog-views.ts'
 import { SAVED_VIEW_EVENT, showRecordInInspector } from './inspector-db-route.ts'
 import { SchemaChips, SchemaFieldEditor, schemaTagTone } from './schema-field.tsx'
 import { CellPop, cellUsesPop } from './cell-pop.tsx'
@@ -372,7 +380,8 @@ function ColumnOrderMenu({
     ...columns.filter((item) => item.key !== labelField),
     ...hidden,
   ]
-  const sortableIds = menuCols.filter((item) => item.key !== labelField).map((item) => item.key)
+  const locked = new Set([labelField, 'actions'].filter(Boolean))
+  const sortableIds = menuCols.filter((item) => !locked.has(item.key)).map((item) => item.key)
   const active = menuCols.find((item) => item.key === activeId)
 
   return (
@@ -391,11 +400,13 @@ function ColumnOrderMenu({
           const to = sortableIds.indexOf(String(overId))
           if (from < 0 || to < 0) return
           const next = moveList(sortableIds, from, to)
-          onReorder(labelField ? [labelField, ...next.filter((key) => visibleKeys.has(key) && key !== labelField)] : next.filter((key) => visibleKeys.has(key)))
+          const visible = next.filter((key) => visibleKeys.has(key) && key !== labelField && key !== 'actions')
+          const head = [labelField, visibleKeys.has('actions') ? 'actions' : ''].filter(Boolean) as string[]
+          onReorder([...head, ...visible])
         }}
       >
         {menuCols
-          .filter((item) => item.key === labelField)
+          .filter((item) => item.key === labelField || item.key === 'actions')
           .map((item) => (
             <ColumnRowShell
               key={item.key}
@@ -410,7 +421,7 @@ function ColumnOrderMenu({
           ))}
         <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
           {menuCols
-            .filter((item) => item.key !== labelField)
+            .filter((item) => item.key !== labelField && item.key !== 'actions')
             .map((item) => (
               <ColumnDragRow
                 key={item.key}
@@ -473,7 +484,7 @@ const EMPTY_FILTERS: Record<string, string> = {}
 /** 与选区拖选同一阈值：位移超过这个距离只当拖，不当点击。 */
 const CELL_POP_DRAG_PX = 6
 const CELL_POP_IGNORE =
-  '.fsdb-row-check, .fsdb-col-resizer, .tasks-row-tools, .tasks-title-open, .fsdb-action-btn, .fsdb-boolbtn, .fsdb-thumb-btn, .fsdb-thumb, .ant-image, .fsdb-file-tools, .fsdb-ref-chip, .db-datetime, .ant-picker'
+  '.fsdb-row-check, .fsdb-col-resizer, .tasks-row-tools, .tasks-title-open, .fsdb-action-btn, .fsdb-action-tag, .fsdb-boolbtn, .fsdb-thumb-btn, .fsdb-thumb, .ant-image, .fsdb-file-tools, .fsdb-ref-chip, .db-datetime, .ant-picker, .fsdb-scope-detail'
 
 export function CollectionBrowser({
   moduleId,
@@ -492,6 +503,8 @@ export function CollectionBrowser({
   onOpenRecord,
   onCloseRecord,
   onCrumbTarget,
+  scopeHome,
+  onOpenScopeHome,
   embed = false,
   sheet = false,
   onOpenRow,
@@ -513,6 +526,8 @@ export function CollectionBrowser({
   onOpenRecord?: (recordId: string, viewId?: string | null, collection?: string) => void
   onCloseRecord?: () => void
   onCrumbTarget?: (target: CrumbTarget) => void
+  scopeHome?: boolean
+  onOpenScopeHome?: () => void
   /** 检查器内页：只有中间舞台，不写侧栏开关/视图存储。 */
   embed?: boolean
   /** 嵌在详情里的收集表：用同一套表组件，但不写视图、不出现视图切换。 */
@@ -523,13 +538,24 @@ export function CollectionBrowser({
 }) {
   ensureFsdbStyle()
   const nested = embed || sheet
+  const routeScope: DataScope | null = (() => {
+    const builtin = routeViewId ? parseBuiltinScopeViewId(routeViewId) : null
+    if (builtin) return builtin.scope
+    const stored = routeViewId ? loadViews(collectionPath).find((view) => view.id === routeViewId && !view.builtin) : null
+    const scope = stored?.filters?.$scope
+    return scope === 'workspace' ? 'workspace' : stored ? 'personal' : null
+  })()
   const listedViews = (path: string, user: SavedView[]) => {
-    if (resolveViews) return resolveViews(path, user)
-    const table = tables.find((item) => item.path === path) ?? {
-      path,
-      label: path === collectionPath ? title : path.replace(/^\//, ''),
-    }
-    return mergeTableViews(table, user)
+    const listed = resolveViews
+      ? resolveViews(path, user)
+      : mergeTableViews(
+          tables.find((item) => item.path === path) ?? {
+            path,
+            label: path === collectionPath ? title : path.replace(/^\//, ''),
+          },
+          user,
+        )
+    return listed
   }
   const dataPath = collectionPath
   const [stat, setStat] = useState<StatResult | null>(null)
@@ -539,6 +565,7 @@ export function CollectionBrowser({
   const [detailRow, setDetailRow] = useState<DbRecord | null>(null)
   const [detailBody, setDetailBody] = useState<unknown>(null)
   const [draft, setDraft] = useState<Record<string, string>>({})
+  const [acting, setActing] = useState(false)
   const actingRef = useRef(false)
   const initialView = viewForPath(collectionPath, routeViewId)
   const dbUi = getDatabaseUi()
@@ -554,6 +581,25 @@ export function CollectionBrowser({
   )
   const [query, setQuery] = useState(initialView?.query ?? '')
   const [page, setPage] = useState(0)
+  const [localData, setLocalData] = useState(false)
+  const [createScope, setCreateScope] = useState<'personal' | 'workspace' | 'shared' | 'local'>(
+    routeScope === 'workspace' ? 'workspace' : routeScope === 'shared' ? 'shared' : 'personal',
+  )
+  const [createScopeOpen, setCreateScopeOpen] = useState(false)
+  useEffect(() => {
+    let live = true
+    void fetch('/api/profile')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: { localData?: boolean } | null) => {
+        if (!live || !body?.localData) return
+        setLocalData(true)
+        setCreateScope((current) => (current === 'personal' ? 'local' : current))
+      })
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [])
   const [pageSize, setPageSize] = useState(() => normalizePageSize(initialView?.pageSize))
   const [total, setTotal] = useState(0)
   const [fetchQuery, setFetchQuery] = useState(initialView?.query ?? '')
@@ -655,6 +701,7 @@ export function CollectionBrowser({
   const [showTree, setShowTree] = useState(initialView?.tree !== false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+  const [groupPages, setGroupPages] = useState<Record<string, number>>({})
   const listColumns = useMemo(() => {
     if (customView) return undefined
     if (chrome?.cells) return undefined
@@ -840,8 +887,8 @@ export function CollectionBrowser({
         readJson<StatResult>(`/api/db/stat?path=${encodeURIComponent(dataPath)}`),
         listCollection({
           path: dataPath,
-          limit: pageSize,
-          offset: page * pageSize,
+          limit: groupBy ? 200 : pageSize,
+          offset: groupBy ? 0 : page * pageSize,
           query: fetchQuery,
           sortField,
           sortDir,
@@ -882,13 +929,17 @@ export function CollectionBrowser({
       setError(String(err))
       return false
     }
-  }, [activeViewId, collectionPath, dataPath, fetchQuery, listColumns, queryFilters, page, pageSize, sortDir, sortField, sorts])
+  }, [activeViewId, collectionPath, dataPath, fetchQuery, groupBy, listColumns, queryFilters, page, pageSize, sortDir, sortField, sorts])
   const reloadRef = useRef(reload)
   reloadRef.current = reload
-  const reloadKey = `${dataPath}\0${page}\0${pageSize}\0${fetchQuery}\0${sortField}\0${sortDir}\0${JSON.stringify(sorts)}\0${JSON.stringify(queryFilters)}\0${activeViewId ?? ''}\0${listColumnsKey}`
+  const reloadKey = `${dataPath}\0${groupBy ? 0 : page}\0${groupBy ? 'grouped' : pageSize}\0${fetchQuery}\0${sortField}\0${sortDir}\0${JSON.stringify(sorts)}\0${JSON.stringify(queryFilters)}\0${activeViewId ?? ''}\0${listColumnsKey}\0${groupBy}`
   const detailIdRef = useRef<string | null>(null)
   detailIdRef.current = detailId
   const contentGen = useRef(0)
+  const contentVersions = useRef(new Map<string, number>())
+  const contentWriteGens = useRef(new Map<string, number>())
+  const contentWriteQueues = useRef(new Map<string, Promise<void>>())
+  const contentWritePending = useRef(new Map<string, number>())
   const recordGen = useRef(0)
   const pullDetailBody = useCallback(() => {
     const id = detailIdRef.current
@@ -896,10 +947,13 @@ export function CollectionBrowser({
       setDetailBody(null)
       return
     }
+    const path = `${dataPath}/${id}`
     const gen = ++contentGen.current
-    void readJson<{ value?: unknown }>(`/api/db/content?path=${encodeURIComponent(`${dataPath}/${id}`)}`)
+    void readJson<{ value?: unknown; version?: number }>(`/api/db/content?path=${encodeURIComponent(path)}`)
       .then((data) => {
-        if (gen !== contentGen.current) return
+        if (gen !== contentGen.current || (contentWritePending.current.get(path) ?? 0) > 0) return
+        if (Number.isInteger(data.version)) contentVersions.current.set(path, data.version!)
+        else contentVersions.current.delete(path)
         setDetailBody(data.value ?? null)
       })
       .catch(() => {
@@ -1010,6 +1064,7 @@ export function CollectionBrowser({
       }, 120)
     }
     window.addEventListener('fsdb:change', onChange)
+    window.addEventListener('fsdb:shares-change', onChange)
     const timer = nested
       ? 0
       : window.setInterval(() => {
@@ -1020,6 +1075,7 @@ export function CollectionBrowser({
       window.clearTimeout(debounce)
       window.clearInterval(timer)
       window.removeEventListener('fsdb:change', onChange)
+      window.removeEventListener('fsdb:shares-change', onChange)
     }
   }, [collectionPath, dataPath, nested, pullDetailBody, pullDetailRecord])
 
@@ -1050,7 +1106,12 @@ export function CollectionBrowser({
         if (cancelled || !row?.id) return
         setDetailRow(row)
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        if (cancelled || !(error instanceof HttpError) || error.status !== 404) return
+        setOpenDetailId(null)
+        setDetailRow(null)
+        queueMicrotask(() => onCloseRecord?.())
+      })
     return () => {
       cancelled = true
     }
@@ -1078,27 +1139,35 @@ export function CollectionBrowser({
   }, [collectionPath])
   const bodyKey = contentFieldKey(schema)
   const entries = useMemo(() => fieldEntries(schema), [schema])
+  const rowActionColumn = placedActions(schema, 'row').length > 0
   const allColumns = useMemo(
     () => [
       ...entries.filter((item) => isListColumn(item.key) && item.key !== bodyKey && resolveFieldType(item.field) !== 'file'),
+      ...(rowActionColumn
+        ? [{ key: 'actions', kind: 'action' as const, field: { type: 'action' as const, label: '动作' } }]
+        : []),
       ...flattenFacetColumns(facetCatalog),
     ],
-    [bodyKey, entries, facetCatalog],
+    [bodyKey, entries, facetCatalog, rowActionColumn],
   )
   const allColumnKeys = useMemo(() => allColumns.map((item) => item.key), [allColumns])
-  const schemaDefaultKeys = useMemo(() => defaultColumnKeys(schema, allColumnKeys), [schema, allColumnKeys])
+  const schemaDefaultKeys = useMemo(
+    () => pinActionColumn(schema, defaultColumnKeys(schema, allColumnKeys.filter((key) => key !== 'actions')), rowActionColumn),
+    [allColumnKeys, rowActionColumn, schema],
+  )
   const schemaDefaultSig = schemaDefaultKeys.join('\0')
   const prevSchemaDefaultSig = useRef('')
   const columns = useMemo(() => {
     const requested = columnKeys.length ? columnKeys : schemaDefaultKeys
-    const order = pinLabelColumn(
+    const order = pinActionColumn(
       schema,
-      requested.filter((key) => allColumns.some((item) => item.key === key)),
+      requested.filter((key) => key === 'actions' || allColumns.some((item) => item.key === key)),
+      rowActionColumn,
     )
     return order
       .map((key) => allColumns.find((item) => item.key === key))
       .filter(Boolean) as typeof allColumns
-  }, [allColumns, columnKeys, schema, schemaDefaultKeys])
+  }, [allColumns, columnKeys, rowActionColumn, schema, schemaDefaultKeys])
   const hasColWidths = Object.keys(columnWidths).length > 0
 
   function startColResize(event: ReactPointerEvent<HTMLSpanElement>, colKey: string) {
@@ -1143,6 +1212,7 @@ export function CollectionBrowser({
         (item) =>
           item.key !== bodyKey &&
           resolveFieldType(item.field) !== 'file' &&
+          item.key !== 'shareScope' &&
           !lockedFilterKeys.includes(item.key),
       ),
     [bodyKey, entries, lockedFilterKeys],
@@ -1159,15 +1229,16 @@ export function CollectionBrowser({
     setColumnKeys((prev) => {
       const allowed = new Set(allColumnKeys)
       const grown = prevDefaults.length ? schemaDefaultKeys.filter((key) => !prevDefaults.includes(key)) : []
-      const kept = pinLabelColumn(
+      const kept = pinActionColumn(
         schema,
         [...prev.filter((key) => allowed.has(key)), ...grown.filter((key) => allowed.has(key) && !prev.includes(key))],
+        rowActionColumn,
       )
       if (!prev.length || !kept.length) return schemaDefaultKeys
       if (kept.length === prev.length && kept.every((key, index) => key === prev[index])) return prev
       return kept
     })
-  }, [allColumnKeys, schema, schemaDefaultKeys, schemaDefaultSig])
+  }, [allColumnKeys, rowActionColumn, schema, schemaDefaultKeys, schemaDefaultSig])
 
   useEffect(() => {
     if (!schema || sortFields.some((item) => item.key === sortField)) return
@@ -1388,13 +1459,13 @@ export function CollectionBrowser({
   }, [bodyKey, detailBody, detailId, schema])
 
   useEffect(() => {
-    if (!detailId) {
+    if (!detailId || detailRow?.id !== detailId) {
       contentGen.current += 1
       setDetailBody(null)
       return
     }
     pullDetailBody()
-  }, [collectionPath, dataPath, detailId, pullDetailBody])
+  }, [collectionPath, dataPath, detailId, detailRow, pullDetailBody])
 
   useEffect(() => {
     if (dlg?.kind !== 'rename') return
@@ -1437,9 +1508,10 @@ export function CollectionBrowser({
       ...view,
       filters: { ...catalogLockFilters(view.id, [view]), ...view.filters },
     })
-    const nextColumns = pinLabelColumn(
+    const nextColumns = pinActionColumn(
       schema,
       next.columns.length ? next.columns.filter((key) => allColumnKeys.includes(key)) : schemaDefaultKeys,
+      rowActionColumn,
     )
     const nextQuery = next.query ?? ''
     const nextPageSize = normalizePageSize(next.pageSize)
@@ -1500,7 +1572,7 @@ export function CollectionBrowser({
   }
   syncViewsRef.current = async () => {
     if (sheet) return
-    await pullSavedViews()
+    await pullSavedViews([collectionPath])
     const listed = listedViews(collectionPath, loadViews(collectionPath)).map((view) =>
       withViewDisplay(collectionPath, view),
     )
@@ -1553,16 +1625,23 @@ export function CollectionBrowser({
     return `${base} ${n}`
   }
 
-  function addEmptyView(path = collectionPath) {
+  function addEmptyView(path = collectionPath, scope?: DataScope) {
     const target = path || collectionPath
-    const listed = target === collectionPath ? views : loadViews(target)
+    const effectiveScope = scope ?? (target === collectionPath ? routeScope ?? undefined : undefined)
+    const stored = loadViews(target)
+    const allListed = listedViews(target, stored)
+    const listed = target === collectionPath
+      ? views
+      : effectiveScope
+        ? viewsForScope(allListed, effectiveScope)
+        : allListed
     const view: SavedView = {
       id: `${Date.now()}`,
       name: uniqueViewName('新视图', listed),
       mode: 'table',
       sortField: 'title',
       sortDir: 'asc',
-      filters: { ...catalogLocks },
+      filters: { ...catalogLocks, ...(effectiveScope ? { $scope: effectiveScope } : {}) },
       columns: target === collectionPath ? [...schemaDefaultKeys] : [],
       groupBy: '',
       tree: true,
@@ -1570,7 +1649,7 @@ export function CollectionBrowser({
       truncate: true,
       query: '',
     }
-    persistViewsFor(target, [...listed.filter((item) => !item.builtin), view])
+    persistViewsFor(target, [...stored.filter((item) => !item.builtin), view])
     if (target === collectionPath) {
       selectView(view)
       return
@@ -1665,7 +1744,7 @@ export function CollectionBrowser({
   }
 
   function setVisibleColumns(next: string[]) {
-    const pinned = pinLabelColumn(schema, next)
+    const pinned = pinActionColumn(schema, next, rowActionColumn)
     if (!pinned.length) return
     setColumnKeys(pinned)
     if (!activeViewId) return
@@ -1680,7 +1759,7 @@ export function CollectionBrowser({
   }
 
   function toggleColumn(key: string) {
-    if (key === schema?.labelField) return
+    if (key === schema?.labelField || key === 'actions') return
     const current = columnKeys.length ? columnKeys : columns.map((col) => col.key)
     const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
     if (!next.length) return
@@ -1708,6 +1787,18 @@ export function CollectionBrowser({
   }
 
   async function runAction(row: DbRecord, action: CollectionActionInfo) {
+    if (action.id === 'pack' && (row.installed === true || row.installed === 'true')) {
+      setDlg({
+        kind: 'action',
+        row,
+        action: {
+          ...action,
+          label: '再次安装',
+          confirm: '已经存在已安装的插件，要再安装一次吗？',
+        },
+      })
+      return
+    }
     if (action.confirm) {
       setDlg({ kind: 'action', row, action })
       return
@@ -1719,6 +1810,7 @@ export function CollectionBrowser({
     if (actingRef.current) return
     const preview = previewActionRecord(row, action)
     actingRef.current = true
+    setActing(true)
     if (preview !== row) {
       setItems((prev) => prev.map((item) => (item.id === row.id ? overlayListed(item, preview, listColumns) : item)))
       setDetailRow((prev) => (prev?.id === row.id ? overlayListed(prev, preview, listColumns) : prev))
@@ -1735,11 +1827,14 @@ export function CollectionBrowser({
         void reloadRef.current()
       }, 800)
     } catch (err) {
+      setItems((prev) => prev.map((item) => (item.id === row.id ? row : item)))
+      setDetailRow((prev) => (prev?.id === row.id ? row : prev))
       setDlg({ kind: 'alert', title: `${action.label}失败`, body: String(err) })
       quietUntil.current = 0
       await reload()
     } finally {
       actingRef.current = false
+      setActing(false)
     }
   }
 
@@ -1748,13 +1843,42 @@ export function CollectionBrowser({
       const keys = Object.keys(content)
       quietUntil.current = Date.now() + 800
       if (bodyKey && keys.length === 1 && keys[0] === bodyKey && schema?.fields[bodyKey]?.type === 'file') {
-        const data = await readJson<{ value?: unknown }>('/api/db/content', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ path: `${dataPath}/${row.id}`, value: content[bodyKey] }),
-        })
-        const value = data.value ?? content[bodyKey]
+        const path = `${dataPath}/${row.id}`
+        const value = content[bodyKey]
+        const gen = (contentWriteGens.current.get(path) ?? 0) + 1
+        contentWriteGens.current.set(path, gen)
+        contentGen.current += 1
+        contentWritePending.current.set(path, (contentWritePending.current.get(path) ?? 0) + 1)
         setDetailBody(value)
+        const previous = contentWriteQueues.current.get(path) ?? Promise.resolve()
+        const run = previous.catch(() => undefined).then(async () => {
+          const data = await readJson<{ value?: unknown; version?: number }>('/api/db/content', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              path,
+              value,
+              version: contentVersions.current.get(path),
+            }),
+          })
+          if (Number.isInteger(data.version)) contentVersions.current.set(path, data.version!)
+          if (detailIdRef.current === row.id && gen === contentWriteGens.current.get(path)) {
+            setDetailBody(data.value ?? value)
+          }
+          window.dispatchEvent(new Event('fsdb:change'))
+        }).catch(async (error) => {
+          if (!(error instanceof HttpError) || error.status !== 409) throw error
+          const latest = await readJson<{ value?: unknown; version?: number }>(`/api/db/content?path=${encodeURIComponent(path)}`)
+          if (Number.isInteger(latest.version)) contentVersions.current.set(path, latest.version!)
+          if (detailIdRef.current === row.id) setDetailBody(latest.value ?? null)
+        }).finally(() => {
+          const pending = Math.max(0, (contentWritePending.current.get(path) ?? 1) - 1)
+          if (pending) contentWritePending.current.set(path, pending)
+          else contentWritePending.current.delete(path)
+          if (contentWriteQueues.current.get(path) === run) contentWriteQueues.current.delete(path)
+        })
+        contentWriteQueues.current.set(path, run)
+        await run
         const field = schema?.fields[bodyKey]
         if (field && field.type !== 'file') {
           const stored = value && typeof value === 'object' ? JSON.stringify(value) : value
@@ -1762,7 +1886,6 @@ export function CollectionBrowser({
           setItems((prev) => prev.map(merge))
           setDetailRow((prev) => (prev?.id === row.id ? merge(prev) : prev))
         }
-        window.dispatchEvent(new Event('fsdb:change'))
         return
       }
       const data = await readJson<{ value?: DbRecord }>('/api/db/update', {
@@ -1792,7 +1915,7 @@ export function CollectionBrowser({
       const data = await readJson<{ items?: Array<{ value?: DbRecord }> }>('/api/db/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ path: dataPath, records: [{}] }),
+        body: JSON.stringify({ path: dataPath, records: [{}], scope: createScope }),
       })
       quietUntil.current = 0
       await reload()
@@ -1950,9 +2073,43 @@ export function CollectionBrowser({
   )
   const currentTable = tables.find((item) => item.path === collectionPath)
   const recordKind = recordPickKind(currentTable?.view?.moduleId || currentTable?.id)
-  const recordPick = (row: DbRecord) => pickDomAttrs(recordKind, row.id, labelOf(row))
+  const recordPathOf = (row: DbRecord) => recordSourcePath(collectionPath, row.id)
+  const recordPick = (row: DbRecord) =>
+    pickDomAttrs(recordKind, row.id, labelOf(row), { path: recordPathOf(row), title: labelOf(row) })
+  const cellValueText = (row: DbRecord, key: string, field: FieldSpec) => {
+    const raw = parseFacetFlatColumnKey(key) ? readFacetFlatValue(row, key, facetSourceKey(schema)) : row[key]
+    return formatField(field, raw)
+  }
+  const cellPickOf = (row: DbRecord, key: string, field: FieldSpec) =>
+    fieldPickAttrs(recordKind, row.id, key, {
+      label: field.label ?? key,
+      title: labelOf(row),
+      path: recordPathOf(row),
+      text: cellValueText(row, key, field),
+    })
 
   function renderCell(row: DbRecord, key: string, field: FieldSpec, surface: 'table' | 'detail' = 'detail') {
+    if (key === 'shareScope') {
+      return (
+        <ShareScopeDetail
+          collection={collectionPath}
+          recordId={row.id}
+          label={String(row[key] ?? '')}
+          tableLabel={currentTable?.label}
+        />
+      )
+    }
+    if (key === 'shareRole') {
+      return (
+        <ShareRoleDetail
+          collection={collectionPath}
+          recordId={row.id}
+          label={String(row[key] ?? '')}
+          tableLabel={currentTable?.label}
+          builtin={collectionPath === '/plugins' && row.builtin === true}
+        />
+      )
+    }
     const kind = resolveFieldType(field)
     const flat = parseFacetFlatColumnKey(key)
     if (surface === 'table') {
@@ -2183,13 +2340,18 @@ export function CollectionBrowser({
           />
         )}
         <span className="fsdb-title-text">{body}</span>
+        {row.remote === true ? (
+          <svg width="14" height="14" viewBox="0 0 16 16" className="shrink-0 text-sky-600" aria-label="云端" role="img">
+            <title>云端</title>
+            <path fill="currentColor" d="M5 12.5h6.1a2.6 2.6 0 0 0 .35-5.18 3.4 3.4 0 0 0-6.55.95A2.15 2.15 0 0 0 5 12.5Z" />
+          </svg>
+        ) : null}
       </span>
     )
     return (
       <>
         {host}
         <span className="tasks-row-tools-slot">
-          <RecordRowTools row={row} />
           <RecordOpenControls row={row} kidCount={tree ? kidCount : 0} />
         </span>
       </>
@@ -2274,6 +2436,7 @@ export function CollectionBrowser({
             type="button"
             className="tasks-icon-btn tasks-title-open"
             data-testid="record-title-open"
+            {...recordPick(row)}
             data-biu-action="open"
             aria-label="查看详情"
             title="查看详情"
@@ -2289,83 +2452,45 @@ export function CollectionBrowser({
     )
   }
 
-  function RecordRowTools({ row }: { row: DbRecord }) {
-    return (
-      <span className="tasks-row-tools">
-        <RecordActions row={row} place="row" />
-      </span>
-    )
-  }
-
-  function RecordActions({ row, place, onDone }: { row: DbRecord; place: 'row' | 'detail'; onDone?: () => void }) {
+  function RecordActions({ row }: { row: DbRecord }) {
     const Actions = chrome?.Actions
     const Action = chrome?.Action
-    const busy = actingRef.current
-    const placed = placedActions(schema, place).filter((action) => {
-      if (place !== 'detail' || !nested) return true
-      return action.id !== 'open-split' && action.id !== 'open-page'
-    })
-    const wrap = (body: ReactNode) =>
-      place === 'row' ? (
-        <div className="tasks-row-actions" data-biu-ignore onClick={(event) => event.stopPropagation()}>
-          {body}
-        </div>
-      ) : (
-        <>{body}</>
-      )
+    const busy = acting
+    const placed = placedActions(schema, 'row').filter(
+      (action) => !nested || (action.id !== 'open-split' && action.id !== 'open-page'),
+    )
     const finish = (action: CollectionActionInfo) => {
       void runAction(row, action)
-      onDone?.()
     }
+    const wrap = (body: ReactNode) => (
+      <div className="tasks-row-actions" data-biu-ignore onClick={(event) => event.stopPropagation()}>
+        {body}
+      </div>
+    )
     if (Actions) {
       if (!placed.length) return null
-      return wrap(<Actions actions={placed} record={row} busy={busy} place={place} run={finish} />)
+      return wrap(<Actions actions={placed} record={row} busy={busy} place="row" run={finish} />)
     }
-    const actions = visibleActions(schema, row, place).filter((action) => {
-      if (place !== 'detail' || !nested) return true
-      return action.id !== 'open-split' && action.id !== 'open-page'
-    })
-    const rowShown =
-      place === 'detail'
-        ? actions
-        : actions.filter(
-            (action) => Action || actionIcon(action.id) || action.id === 'open-split' || action.id === 'open-page',
-          )
+    const rowShown = visibleActions(schema, row, 'row')
+      .filter((action) => !nested || (action.id !== 'open-split' && action.id !== 'open-page'))
+      .filter((action) => Action || actionIcon(action.id) || action.id === 'open-split' || action.id === 'open-page')
     if (!rowShown.length) return null
     return wrap(
       rowShown.map((action) => {
         const run = () => finish(action)
         if (Action) return <Action key={action.id} action={action} record={row} busy={busy} run={run} />
         const glyph = actionIcon(action.id)
-        if (place === 'detail') {
-          return (
-            <button
-              key={action.id}
-              type="button"
-              role="menuitem"
-              className={`fsdb-detail-more-item${action.tone === 'danger' ? ' is-danger' : ''}`}
-              title={action.label}
-              aria-label={`${action.label} ${labelOf(row)}`}
-              disabled={busy}
-              onClick={run}
-            >
-              {glyph}
-              {action.label}
-            </button>
-          )
-        }
         return (
           <button
             key={action.id}
             type="button"
-            className={`tasks-icon-btn${action.tone === 'danger' ? ' is-danger' : ''}`}
-            title={action.label}
-            data-dock-tip={action.label}
+            className={`fsdb-action-tag${action.tone === 'danger' ? ' is-danger' : ''}`}
             aria-label={`${action.label} ${labelOf(row)}`}
             disabled={busy}
             onClick={run}
           >
-            {glyph ?? action.label}
+            {glyph}
+            <span>{action.label}</span>
           </button>
         )
       }),
@@ -2386,13 +2511,13 @@ export function CollectionBrowser({
         >
           <span className="sidebar-rail-icon sidebar-group-fold" aria-hidden>
             <span className="sidebar-group-fold-face">
-              {activeGroup ? <FieldGlyph kind={resolveFieldType(activeGroup.field)} /> : <Squares2X2Icon aria-hidden className="size-[14px]" />}
+              <RectangleStackIcon aria-hidden className="size-[14px]" />
             </span>
             <span className="sidebar-group-fold-chevron">
               {folded ? (
-                <ChevronRightIcon className="size-4 shrink-0 opacity-80" />
+                <ChevronRightIcon className="size-[14px] shrink-0 opacity-80" />
               ) : (
-                <ChevronDownIcon className="size-4 shrink-0 opacity-80" />
+                <ChevronDownIcon className="size-[14px] shrink-0 opacity-80" />
               )}
             </span>
           </span>
@@ -2464,14 +2589,16 @@ export function CollectionBrowser({
             {columns.map((col) => (
               <td
                 key={col.key}
+                {...cellPickOf(row, col.key, col.field)}
                 style={colWidthStyle(columnWidths[col.key])}
-                className={
+                className={[
+                  col.key === schema?.labelField ? 'is-pin-col' : '',
                   cellPick?.id === row.id && cellPick.key === col.key
                     ? cellFieldWritable(col.field)
                       ? 'is-cell-on'
                       : 'is-cell-on is-cell-ro'
-                    : undefined
-                }
+                    : '',
+                ].filter(Boolean).join(' ') || undefined}
                 onPointerDown={(event) => {
                   if (event.button !== 0) return
                   const hit = event.target as HTMLElement | null
@@ -2502,6 +2629,8 @@ export function CollectionBrowser({
               >
                 {col.key === schema?.labelField ? (
                   <RecordTitle row={row} depth={depth} hasKids={hasKids} kidCount={kidCount} />
+                ) : col.key === 'actions' ? (
+                  <RecordActions row={row} />
                 ) : (
                   <span className="fsdb-cell">{renderCell(row, col.key, col.field, 'table')}</span>
                 )}
@@ -2557,7 +2686,7 @@ export function CollectionBrowser({
         sorts,
         filters: current.builtin ? current.filters : filters,
         filterTree: current.builtin ? undefined : filterTree,
-        columns: pinLabelColumn(schema, columnKeys),
+        columns: pinActionColumn(schema, columnKeys, rowActionColumn),
         groupBy,
         tree: showTree,
         wrap: wrapCells,
@@ -2617,6 +2746,7 @@ export function CollectionBrowser({
           onRenameView={renameView}
           onDeleteView={deleteView}
           onAddView={addEmptyView}
+          onOpenScopeHome={onOpenScopeHome}
           onOpenRecord={(path, view, recordId, row) => {
             if (path === collectionPath) {
               applyView(view)
@@ -2630,6 +2760,13 @@ export function CollectionBrowser({
           onCollapse={toggleViewsOpen}
         />
       ) : null}
+      {scopeHome && !nested ? (
+        <ScopeOverview
+          tables={tables}
+          onOpenTable={(path, viewId) => onOpenTable?.(path, viewId)}
+          onOpenRecord={(path, viewId, recordId) => onOpenRecord?.(recordId, viewId, path)}
+        />
+      ) : (
       <div className="fsdb-right">
         {nested ? null : (
         <header className="chat-view-header" data-biu-ignore>
@@ -2678,6 +2815,7 @@ export function CollectionBrowser({
                 <StarIcon aria-hidden className={`size-4${viewStarred ? ' text-[#f5b700]' : ''}`} />
               </button>
             ) : null}
+            {isSystemCollection(collectionPath) || isIndexCollection(collectionPath) || (collectionPath === '/plugins' && detailRow?.builtin === true) ? null : (
             <ShareButton
               target={
                 detailId
@@ -2698,6 +2836,7 @@ export function CollectionBrowser({
                     : null
               }
             />
+            )}
             <div className="fsdb-layout-wrap" ref={layoutRef}>
               <button
                 type="button"
@@ -3046,7 +3185,7 @@ export function CollectionBrowser({
                             value: option,
                             label: loadFacets().find((tag) => tag.id === option)?.label ?? option,
                           }))
-                        : uniqueValues(items, item.key, item.field).map((option) => ({ value: option, label: option }))
+                        : fieldValueOptions(items, item.key, item.field)
                   }
                   onChange={setFilterTree}
                 />
@@ -3193,16 +3332,102 @@ export function CollectionBrowser({
               ) : null}
             </div>
             {canCreate ? (
-              <button
-                type="button"
-                className="fsdb-create-btn"
-                aria-label="新建记录"
-                title="新建"
-                onClick={() => void createRecord()}
-              >
-                <PlusIcon aria-hidden className="size-[14px]" />
-                新建
-              </button>
+              <div className="fsdb-create-group">
+                <button
+                  type="button"
+                  className="fsdb-create-btn"
+                  aria-label="新建记录"
+                  title="新建"
+                  onClick={() => void createRecord()}
+                >
+                  新建
+                </button>
+                <HeadlessDismiss enabled={createScopeOpen} onDismiss={() => setCreateScopeOpen(false)}>
+                  <div className="fsdb-create-scope-wrap">
+                  <button
+                    type="button"
+                    className="fsdb-create-scope"
+                    aria-label="新建归属"
+                    aria-expanded={createScopeOpen}
+                    title={
+                      createScope === 'local'
+                        ? '存在这台机器上，仍属于当前账号和空间'
+                        : createScope === 'workspace'
+                          ? '空间内容，全部成员可编辑'
+                          : createScope === 'shared'
+                            ? '公开链接，所有人可查看'
+                            : '私人内容，仅自己可处理'
+                    }
+                    onClick={() => setCreateScopeOpen((open) => !open)}
+                  >
+                    {createScope === 'local' ? (
+                      <ComputerDesktopIcon aria-hidden className="size-[14px]" />
+                    ) : createScope === 'workspace' ? (
+                      <UsersIcon aria-hidden className="size-[14px]" />
+                    ) : createScope === 'shared' ? (
+                      <GlobeAltIcon aria-hidden className="size-[14px]" />
+                    ) : (
+                      <UserIcon aria-hidden className="size-[14px]" />
+                    )}
+                    <ChevronDownIcon aria-hidden className="size-[12px]" />
+                  </button>
+                  {createScopeOpen ? (
+                    <div className="fsdb-create-scope-menu" role="menu">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={createScope === 'personal' ? 'is-on' : ''}
+                        onClick={() => {
+                          setCreateScope('personal')
+                          setCreateScopeOpen(false)
+                        }}
+                      >
+                        <UserIcon aria-hidden className="size-[14px]" />
+                        私人
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={createScope === 'workspace' ? 'is-on' : ''}
+                        onClick={() => {
+                          setCreateScope('workspace')
+                          setCreateScopeOpen(false)
+                        }}
+                      >
+                        <UsersIcon aria-hidden className="size-[14px]" />
+                        空间
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={createScope === 'shared' ? 'is-on' : ''}
+                        onClick={() => {
+                          setCreateScope('shared')
+                          setCreateScopeOpen(false)
+                        }}
+                      >
+                        <GlobeAltIcon aria-hidden className="size-[14px]" />
+                        共享
+                      </button>
+                      {localData ? (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={createScope === 'local' ? 'is-on' : ''}
+                          onClick={() => {
+                            setCreateScope('local')
+                            setCreateScopeOpen(false)
+                          }}
+                        >
+                          <ComputerDesktopIcon aria-hidden className="size-[14px]" />
+                          本地
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  </div>
+                </HeadlessDismiss>
+              </div>
             ) : null}
           </div>
         </div>
@@ -3246,14 +3471,17 @@ export function CollectionBrowser({
                     >
                       {pickedIds.length} 已选
                     </span>
-                    {canDelete ? (
+                    {canDelete && pickedIds.some((id) => !(collectionPath === '/plugins' && items.find((row) => row.id === id)?.builtin === true)) ? (
                       <button
                         type="button"
                         className="tasks-icon-btn is-danger"
                         data-testid="fsdb-bulk-delete"
                         aria-label="删除选中"
                         title={`删除选中的 ${pickedIds.length} 条`}
-                        onClick={() => setDlg({ kind: 'delete-records', ids: pickedIds })}
+                        onClick={() => setDlg({
+                          kind: 'delete-records',
+                          ids: pickedIds.filter((id) => !(collectionPath === '/plugins' && items.find((row) => row.id === id)?.builtin === true)),
+                        })}
                       >
                         <TrashGlyph aria-hidden className="size-[14px]" />
                       </button>
@@ -3356,7 +3584,7 @@ export function CollectionBrowser({
                   return (
                   <th
                     key={col.key}
-                    className={tone ? 'is-facet-col' : undefined}
+                    className={[col.key === schema?.labelField ? 'is-pin-col' : '', tone ? 'is-facet-col' : ''].filter(Boolean).join(' ') || undefined}
                     style={{
                       ...(width ?? {}),
                       ...(tone ? { ['--biu-tag' as string]: tone } : {}),
@@ -3386,7 +3614,44 @@ export function CollectionBrowser({
                                 <GroupHead groupKey={group.key || 'unset'} label={group.label} count={group.rows.length} />
                               </td>
                             </tr>
-                            {collapsedGroups[group.key || 'unset'] ? null : tableBodyRows(group.rows, `${group.key}:`)}
+                            {collapsedGroups[group.key || 'unset'] ? null : (() => {
+                              const key = group.key || 'unset'
+                              const pages = Math.max(1, Math.ceil(group.rows.length / pageSize))
+                              const pageIndex = Math.min(groupPages[key] ?? 0, pages - 1)
+                              return (
+                              <>
+                                {tableBodyRows(group.rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize), `${group.key}:`)}
+                                <tr className="fsdb-group-pager">
+                                  <td colSpan={tableColSpan}>
+                                    <div className="fsdb-pager">
+                                      <span className="fsdb-pager-meta">{group.rows.length}</span>
+                                      <div className="fsdb-pager-nav">
+                                        <PagerSizeControl pageSize={pageSize} onChange={setPageSize} />
+                                        <button
+                                          type="button"
+                                          className="tasks-icon-btn"
+                                          aria-label="上一页"
+                                          disabled={pageIndex <= 0}
+                                          onClick={() => setGroupPages((prev) => ({ ...prev, [key]: Math.max(0, pageIndex - 1) }))}
+                                        >
+                                          <ChevronLeftIcon aria-hidden className="size-[14px]" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="tasks-icon-btn"
+                                          aria-label="下一页"
+                                          disabled={(pageIndex + 1) * pageSize >= group.rows.length}
+                                          onClick={() => setGroupPages((prev) => ({ ...prev, [key]: pageIndex + 1 }))}
+                                        >
+                                          <ChevronRightIcon aria-hidden className="size-[14px]" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              </>
+                              )
+                            })()}
                           </Fragment>
                         ))
                       ) : (
@@ -3401,6 +3666,7 @@ export function CollectionBrowser({
         </div>
             ) : null}
           </div>
+          {grouping ? null : (
           <div className="fsdb-pager" data-biu-ignore>
             <span className="fsdb-pager-meta" title={total ? `共 ${total} 条` : '暂无记录'}>
               <HashtagIcon aria-hidden className="size-[14px]" />
@@ -3428,6 +3694,7 @@ export function CollectionBrowser({
               </button>
             </div>
           </div>
+          )}
         </div>
       </div>
         ) : selected && schema ? (
@@ -3443,11 +3710,12 @@ export function CollectionBrowser({
           writeOne={writeOne}
           writePatch={writePatch}
           tableIcon={currentTable?.view?.icon}
-          toolbar={<RecordActions row={selected} place="detail" />}
+          readOnly={selected.shareRole === '阅读'}
+          actionProperty={rowActionColumn ? <RecordActions row={selected} /> : null}
           share={
             nested && detailId ? (
-              <ShareButton
-                buttonClassName="fsdb-detail-float-btn"
+              <SharePanel
+                embedded
                 target={{
                   kind: 'record',
                   collection: collectionPath,
@@ -3458,18 +3726,20 @@ export function CollectionBrowser({
               />
             ) : undefined
           }
-          onDelete={canDelete ? () => setDlg({ kind: 'delete-record', row: selected }) : undefined}
+          onDelete={canDelete && !(collectionPath === '/plugins' && selected.builtin === true) ? () => setDlg({ kind: 'delete-record', row: selected }) : undefined}
           onOpenRecord={(recordId, collection) => onOpenRecord?.(recordId, activeViewId, collection)}
           onPrev={total > 1 ? () => void stepViewRecord(-1) : undefined}
           onNext={total > 1 ? () => void stepViewRecord(1) : undefined}
           canPrev={viewIndex == null ? total > 1 : viewIndex > 0}
           canNext={viewIndex == null ? total > 1 : viewIndex < total - 1}
           collectionPath={collectionPath}
+          recordKind={recordKind}
         />
       ) : null}
         </div>
         </div>
       </div>
+      )}
       {dlg?.kind === 'rename' ? (
         <AppDialog
           key={dlg.view.id}

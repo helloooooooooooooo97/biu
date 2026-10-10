@@ -22,7 +22,7 @@ test('kernel rows cover host and web tables without overlapping catalog forks', 
   assert.equal(webRows.length, raw.web.length)
   assert.ok(hostRows.every((row) => row.layer === 'host' && row.togglable === false && row.enabled === true))
   assert.ok(webRows.every((row) => row.layer === 'web' && row.togglable === false && row.enabled === true))
-  assert.ok(hostRows.some((row) => row.id === 'shell'))
+  assert.ok(hostRows.some((row) => row.id === 'mcp' && row.web === '@biu/host-mcp/web'))
   assert.ok(webRows.some((row) => row.id === 'shell'))
   assert.equal(catalog.length, raw.plugins.length)
   const cores = catalog.filter((row) => row.id.startsWith('core-'))

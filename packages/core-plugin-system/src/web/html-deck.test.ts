@@ -10,7 +10,7 @@ import {
   htmlLooksFillLayout,
   HTML_FILL_HOST_PX,
   stepHtmlDeck,
-} from '../../../../.plugin-dev/page-html-blocks/html-deck.ts'
+} from '../../../../.plugin-dev/page-html-blocks/web/html-deck.ts'
 
 test('cssBoxSize turns numbers into px and keeps css units', () => {
   assert.equal(cssBoxSize(320), '320px')
@@ -61,7 +61,7 @@ test('stepHtmlDeck stays on the last slide', () => {
 test('fullscreen deck fills the viewport', async () => {
   const { readFile } = await import('node:fs/promises')
   const { resolve } = await import('node:path')
-  const src = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-html-blocks/web.tsx'), 'utf8')
+  const src = await readFile(resolve(import.meta.dirname, '../../../../.plugin-dev/page-html-blocks/web/index.tsx'), 'utf8')
   assert.match(src, /data-testid="html-deck-stage"/)
   assert.match(src, /data-testid="html-deck-slide"/)
   assert.match(src, /index >= total - 1 \? \{ opacity: 0\.35/)

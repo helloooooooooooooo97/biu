@@ -197,6 +197,10 @@ test('updatedBy is a person list that appends unique editors', () => {
   assert.deepEqual(asPersonList(user), [user])
   assert.deepEqual(appendPerson(user, agent), [user, agent])
   assert.equal(appendPerson([user, agent], agent).length, 2)
+  const ada = { kind: 'user' as const, name: 'Ada', accountId: 'acc-ada' }
+  const bob = { kind: 'user' as const, name: 'Bob', accountId: 'acc-bob' }
+  assert.deepEqual(appendPerson(ada, bob), [ada, bob])
+  assert.equal(personKey(asPerson(ada)), 'user:acc-ada')
 })
 
 test('hasCollectionDeleteQuery requires ids, q, or a non-empty filter', () => {

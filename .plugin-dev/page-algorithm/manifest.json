@@ -2,9 +2,14 @@
   "id": "page-algorithm",
   "name": "算法题卡片",
   "blurb": "在页面里用 / 插入 LeetCode 风算法块：左边题目描述，右边代码。",
-  "tags": ["page", "editor", "leetcode"],
-  "author": "Biu",
-  "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",
+  "tags": [
+    "page",
+    "editor",
+    "leetcode"
+  ],
+  "author": "BIU官方",
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu",
   "createdAt": 1788270674739,
-  "headless": true
+  "headless": true,
+  "builtin": true
 }

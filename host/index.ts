@@ -5,6 +5,8 @@ import { adoptPackedUserData } from '@biu/host-plugin-loader/data-dir'
 import { lanIPv4, printReadyBanner } from './banner.ts'
 import './types.ts'
 
+process.env.BIU_ONLINE = process.env.BIU_ONLINE || '1'
+
 const rootDir = findRepoRoot()
 const dataRoot = process.env.BIU_HOME || rootDir
 adoptPackedUserData(rootDir, dataRoot, process.env.CORDIS_WORKSPACE || join(dataRoot, 'workspace'))
@@ -28,7 +30,7 @@ ctx.on('http/share-ready', ({ port }) => {
 })
 ctx.on('http/ready', ({ port: ready }) => {
   resolveHostReady(ready)
-  const ui = process.env.SHARE_PROXY_UI ? 'http://127.0.0.1:5173/' : `http://127.0.0.1:${ready}/`
+  const ui = process.env.SHARE_PROXY_UI || `http://127.0.0.1:${ready}/`
   const api = `http://127.0.0.1:${ready}/`
   if (process.env.SHARE_PROXY_UI) {
     ctx.logger('boot').info(`api ${api}  ·  ui ${ui}`)

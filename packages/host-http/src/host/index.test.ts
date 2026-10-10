@@ -5,9 +5,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { Context } from 'cordis'
+import { Context, Service } from 'cordis'
 import { WebSocket } from 'ws'
 import * as http from './index.ts'
+import { deliverTenantEvent } from './index.ts'
+import { currentAccountId } from '@biu/host-plugin-loader/data-dir'
 
 async function freePort() {
   return await new Promise<number>((resolve, reject) => {
@@ -179,6 +181,137 @@ test('share listener serves /api/share but not the workstation APIs', async () =
   }
 })
 
+test('workspace sockets only receive their own tenant events', () => {
+  const ada = { workspaceId: 'ws_a', accountId: 'ada' }
+  assert.equal(deliverTenantEvent(ada, 'database', { workspaceId: 'ws_a' }), true)
+  assert.equal(deliverTenantEvent(ada, 'database', { workspaceId: 'ws_a', accountId: 'bob' }), true)
+  assert.equal(deliverTenantEvent(ada, 'database', { workspaceId: 'ws_b' }), false)
+  assert.equal(deliverTenantEvent(ada, 'session', { workspaceId: 'ws_a', accountId: 'bob' }), false)
+  assert.equal(deliverTenantEvent(ada, 'session', { workspaceId: 'ws_a', accountId: 'ada' }), true)
+  assert.equal(deliverTenantEvent(ada, 'session'), false)
+  assert.equal(deliverTenantEvent({}, 'database', { workspaceId: 'ws_b' }), true)
+  assert.equal(deliverTenantEvent(ada, 'clock', { workspaceId: 'ws_b' }), true)
+})
+
+test('online HTTP and WebSocket enforce account and workspace boundaries', async () => {
+  const previous = process.env.BIU_ONLINE
+  process.env.BIU_ONLINE = '1'
+  const base = await mkdtemp(join(tmpdir(), 'cordis-http-tenant-'))
+  const publicDir = join(base, 'public')
+  await mkdir(publicDir, { recursive: true })
+  await writeFile(join(publicDir, 'index.html'), '<html></html>')
+  const memberships = new Set(['ada:ws-a', 'bob:ws-b'])
+  const validTokens = new Set(['ada-token', 'bob-token'])
+  const ctx = new Context()
+  class FakeAccount extends Service {
+    store = {
+      accountByToken: (token: string) =>
+        validTokens.has(token) ? token === 'ada-token' ? { id: 'ada' } : { id: 'bob' } : null,
+      isMember: (accountId: string, workspaceId: string) => memberships.has(`${accountId}:${workspaceId}`),
+      activeWorkspaceId: () => (currentAccountId() === 'ada' ? 'ws-a' : null),
+      tenantForRecord: (_collection: string, recordId: string) =>
+        recordId === 'session-a' ? { workspaceId: 'ws-a', accountId: 'ada' } : null,
+    }
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  const ready = new Promise<number>((resolve) => ctx.on('http/ready', ({ port }) => resolve(port)))
+  await ctx.plugin(FakeAccount)
+  const fiber = await ctx.plugin(http, { port: 0, host: '127.0.0.1', publicDir, sharePort: 0 })
+  const port = await ready
+  ctx.http.route('GET', '/api/db/list', (route) => route.send(200, { ok: true }))
+  ctx.http.ws('/ws/plugin-extra', (socket) => socket.send('secured'))
+  try {
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/db/list`)).status, 401)
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/db/list`, { headers: { Authorization: 'Bearer ada-token' } })).status, 200)
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/db/list`, { headers: { Authorization: 'Bearer bob-token' } })).status, 400)
+    assert.equal(
+      (
+        await fetch(`http://127.0.0.1:${port}/api/db/list`, {
+          headers: { Authorization: 'Bearer ada-token', 'X-Biu-Workspace-Id': 'ws-b' },
+        })
+      ).status,
+      403,
+    )
+    assert.equal(
+      (
+        await fetch(`http://127.0.0.1:${port}/api/db/list`, {
+          headers: { Authorization: 'Bearer ada-token', 'X-Biu-Workspace-Id': 'ws-a' },
+        })
+      ).status,
+      200,
+    )
+    const unauthenticatedWs = await new Promise<number>((resolve) => {
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/ws/plugin-extra`)
+      socket.once('close', (code) => resolve(code))
+    })
+    assert.equal(unauthenticatedWs, 4401)
+    const securedWs = await new Promise<string>((resolve, reject) => {
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/ws/plugin-extra?workspaceId=ws-a`, {
+        headers: { Cookie: 'biu_account=ada-token' },
+      })
+      socket.once('message', (raw) => {
+        resolve(String(raw))
+        socket.close()
+      })
+      socket.once('error', reject)
+    })
+    assert.equal(securedWs, 'secured')
+    const legacyWs = await new Promise<WebSocket>((resolve, reject) => {
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/ws?workspaceId=ws-a`, {
+        headers: { Cookie: 'biu_legacy_account=ada-token' },
+      })
+      socket.once('message', () => resolve(socket))
+      socket.once('error', reject)
+    })
+    legacyWs.close()
+
+    const connect = (token: string, workspaceId: string) =>
+      new Promise<WebSocket>((resolve, reject) => {
+        const socket = new WebSocket(`ws://127.0.0.1:${port}/ws?workspaceId=${workspaceId}`, {
+          headers: { Cookie: `biu_account=${token}` },
+        })
+        socket.once('message', () => resolve(socket))
+        socket.once('error', reject)
+      })
+    const [ada, bob] = await Promise.all([connect('ada-token', 'ws-a'), connect('bob-token', 'ws-b')])
+    const inferredSessionMessage = new Promise<string>((resolve) => ada.once('message', (raw) => resolve(String(raw))))
+    ctx.http.broadcast('session', { sessionId: 'session-a', event: { type: 'done' } })
+    assert.match(await inferredSessionMessage, /"session-a"/)
+    const inferredAgentMessage = new Promise<string>((resolve) => ada.once('message', (raw) => resolve(String(raw))))
+    ctx.http.broadcast('agent', { sessionId: 'session-a', status: 'running' })
+    assert.match(await inferredAgentMessage, /"running"/)
+    const inferredInboxMessage = new Promise<string>((resolve) => ada.once('message', (raw) => resolve(String(raw))))
+    ctx.http.broadcast('inbox', { sessionId: 'session-a', inbox: [] })
+    assert.match(await inferredInboxMessage, /"inbox"/)
+    const adaMessage = new Promise<string>((resolve) => ada.once('message', (raw) => resolve(String(raw))))
+    let bobReceived = false
+    bob.once('message', () => {
+      bobReceived = true
+    })
+    ctx.http.broadcast('database', { changed: true }, 'ws-a')
+    assert.match(await adaMessage, /"changed":true/)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.equal(bobReceived, false)
+    const bobAccountMessage = new Promise<string>((resolve) => bob.once('message', (raw) => resolve(String(raw))))
+    ctx.http.broadcastAccount('bob', 'inbox', { accountOnly: true })
+    assert.match(await bobAccountMessage, /"accountOnly":true/)
+    const bobClosed = new Promise<number>((resolve) => bob.once('close', (code) => resolve(code)))
+    validTokens.delete('bob-token')
+    ctx.http.disconnectRevokedSessions('bob')
+    assert.equal(await bobClosed, 4401)
+    const closed = new Promise<number>((resolve) => ada.once('close', (code) => resolve(code)))
+    memberships.delete('ada:ws-a')
+    ctx.http.disconnectTenant('ada', 'ws-a')
+    assert.equal(await closed, 4403)
+  } finally {
+    await fiber.dispose()
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
+  }
+})
+
 test('host prefers dist after vite build unless BIU_PUBLIC_DIR is set', () => {
   const src = readFileSync(join(import.meta.dirname, 'index.ts'), 'utf8')
   assert.match(src, /BIU_PUBLIC_DIR/)
@@ -188,5 +321,6 @@ test('host prefers dist after vite build unless BIU_PUBLIC_DIR is set', () => {
 test('index html is painted with the profile theme', () => {
   const src = readFileSync(join(import.meta.dirname, 'index.ts'), 'utf8')
   assert.match(src, /paintDocumentTheme/)
-  assert.match(src, /profile\.json/)
+  assert.match(src, /profilePath\(\)/)
+  assert.match(http.paintDocumentTheme('<html class="light" data-theme-source="static"><meta name="color-scheme" content="light">', 'dark'), /class="dark" data-theme-source="server"/)
 })

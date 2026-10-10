@@ -33,6 +33,7 @@ interface SessionConfigFields {
   extraTools?: string[]
   tags?: string[]
   pinned?: boolean
+  autoCompactInputTokens?: number
 }
 
 interface InspectorPayload {
@@ -45,6 +46,8 @@ interface InspectorPayload {
   effective?: SessionConfigFields & { agentMode: AgentMode; extraTools: string[]; provider: ChatProvider; model: string; systemPrompt: string }
   sources: InspectorSource[]
   tools: InspectorTool[]
+  contextWindow?: '200k' | '1m'
+  contextWindowTokens?: number
 }
 
 const fieldClass =
@@ -70,8 +73,10 @@ export const SessionConfigDialog = memo(function SessionConfigDialog({
   const [titleDraft, setTitleDraft] = useState('')
   const [promptDraft, setPromptDraft] = useState('')
   const [tagInput, setTagInput] = useState('')
+  const [compactDraft, setCompactDraft] = useState('')
   const titleFocusedRef = useRef(false)
   const promptFocusedRef = useRef(false)
+  const compactFocusedRef = useRef(false)
 
   const refresh = useCallback(async () => {
     if (!sessionId || !open) return
@@ -87,6 +92,11 @@ export const SessionConfigDialog = memo(function SessionConfigDialog({
             ? body.config.systemPrompt
             : (body.defaults?.systemPrompt ?? ''),
         )
+      }
+      if (!compactFocusedRef.current) {
+        const cap = body.contextWindowTokens && body.contextWindowTokens > 0 ? body.contextWindowTokens : 200_000
+        const tokens = body.config?.autoCompactInputTokens
+        setCompactDraft(String(tokens && tokens > 0 ? Math.min(tokens, cap) : cap))
       }
       setError('')
     } catch (err) {
@@ -265,6 +275,34 @@ export const SessionConfigDialog = memo(function SessionConfigDialog({
                     void patchSessionConfig({ systemPrompt: promptDraft })
                   }}
                 />
+              </label>
+
+              <label className="flex flex-col gap-1 text-[11px] text-(--dsw-label-3)">
+                <span>自动压缩上限（输入 token）</span>
+                <input
+                  className={fieldClass}
+                  inputMode="numeric"
+                  value={compactDraft}
+                  disabled={busy}
+                  data-testid="config-auto-compact"
+                  onChange={(event) => setCompactDraft(event.target.value.replace(/[^\d]/g, ''))}
+                  onFocus={() => {
+                    compactFocusedRef.current = true
+                  }}
+                  onBlur={() => {
+                    compactFocusedRef.current = false
+                    const cap = data?.contextWindowTokens && data.contextWindowTokens > 0 ? data.contextWindowTokens : 200_000
+                    const raw = compactDraft.trim() ? Number(compactDraft) : cap
+                    const next = Number.isFinite(raw) ? Math.min(Math.max(1, Math.floor(raw)), cap) : cap
+                    setCompactDraft(String(next))
+                    const prev = data?.config?.autoCompactInputTokens
+                    if (prev === next) return
+                    void patchSessionConfig({ autoCompactInputTokens: next })
+                  }}
+                />
+                <span>
+                  关不掉，只能改上限。当前模型上下文 {data?.contextWindowTokens ?? 200000} token，上限不能超过它。
+                </span>
               </label>
 
               <div className="flex flex-col gap-px">

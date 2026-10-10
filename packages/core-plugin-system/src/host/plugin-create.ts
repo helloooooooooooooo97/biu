@@ -1,6 +1,7 @@
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
-import { execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { dirname, extname, join, resolve } from 'node:path'
 import type { Plugin as EsbuildPlugin } from 'esbuild'
 import { declaredStoreShell, parseStoreShell, requireDeclaredShell, type StoreShell } from '../shell.ts'
@@ -12,6 +13,7 @@ export type PluginCreateInput = {
   tags?: string[]
   author?: string
   authorUrl?: string
+  builtin?: boolean
   headless?: boolean
   shell?: StoreShell | Record<string, unknown>
   hostJs?: string
@@ -25,6 +27,7 @@ export type StoreManifestFields = {
   tags: string[]
   author: string
   authorUrl: string
+  builtin?: boolean
   createdAt: number
   headless?: boolean
   shell?: StoreShell
@@ -45,7 +48,7 @@ export function parseTags(value: unknown): string[] {
 }
 
 export function buildStoreManifest(
-  input: Pick<PluginCreateInput, 'id' | 'name' | 'blurb' | 'tags' | 'author' | 'authorUrl' | 'shell' | 'headless'>,
+  input: Pick<PluginCreateInput, 'id' | 'name' | 'blurb' | 'tags' | 'author' | 'authorUrl' | 'shell' | 'headless' | 'builtin'>,
   existing?: Partial<StoreManifestFields>,
   now = Date.now(),
 ): StoreManifestFields {
@@ -59,6 +62,7 @@ export function buildStoreManifest(
     author: String(input.author ?? existing?.author ?? '').trim(),
     authorUrl: String(input.authorUrl ?? existing?.authorUrl ?? '').trim(),
     createdAt: Number.isFinite(createdAt) && createdAt > 0 ? createdAt : now,
+    ...(input.builtin === true || existing?.builtin === true ? { builtin: true as const } : {}),
     ...(headless ? { headless: true } : {}),
     ...(!headless && declaredStoreShell(input.shell ?? existing?.shell)
       ? { shell: parseStoreShell(input.shell ?? existing?.shell) }
@@ -80,6 +84,7 @@ export function parseStoreManifest(raw: unknown): StoreManifestFields {
       tags: parseTags(data.tags),
       author: data.author != null ? String(data.author) : undefined,
       authorUrl: data.authorUrl != null ? String(data.authorUrl) : data.author_url != null ? String(data.author_url) : undefined,
+      builtin: data.builtin === true,
       headless: data.headless === true,
       shell: data.shell,
     },
@@ -102,30 +107,22 @@ export async function persistStoreManifestCreatedAt(dir: string, now = Date.now(
   return manifest
 }
 
-const HOST_ENTRIES = ['host.ts', 'host.tsx', 'host.js']
-const WEB_ENTRIES = ['web.tsx', 'web.ts', 'web.js']
+const HOST_ENTRIES = ['host/index.ts', 'host/index.tsx', 'host/index.js']
+const WEB_ENTRIES = ['web/index.tsx', 'web/index.ts', 'web/index.js']
 const NATIVE_PLUGIN_DEPENDENCIES = new Set(['node-pty'])
 
 export function findEntry(dir: string, names: string[]) {
   return names.map((name) => join(dir, name)).find((path) => existsSync(path)) ?? null
 }
 
-/** 单文件 TS/TSX → ESM（无 bundle）。 */
-export async function compileStoreModule(source: string, kind: 'host' | 'web') {
-  const trimmed = source.trim()
-  if (!trimmed) throw new Error(`${kind} source is empty`)
-  const { transform } = await import('esbuild')
-  const result = await transform(trimmed, {
-    loader: kind === 'web' ? 'tsx' : 'ts',
-    format: 'esm',
-    target: 'es2022',
-    jsx: 'transform',
-    jsxFactory: 'React.createElement',
-    jsxFragment: 'React.Fragment',
-    tsconfigRaw: '{"compilerOptions":{"jsx":"react"}}',
-    sourcemap: false,
-  })
-  return finishBundle(result.code, kind)
+/** 入口可以在 host/ 或 web/ 里，包根目录仍是带 manifest.json 的那一层。 */
+export function pluginRoot(dir: string) {
+  let current = dir
+  while (current && current !== dirname(current)) {
+    if (existsSync(join(current, 'manifest.json'))) return current
+    current = dirname(current)
+  }
+  return dir
 }
 
 function mimeForAsset(file: string) {
@@ -282,8 +279,26 @@ export async function ensureSandboxPackageJson(dest: string, id: string) {
   await writeFile(pkgFile, sandboxPackageJson(id))
 }
 
+const execFileAsync = promisify(execFile)
+
+/**
+ * 插件 pack 共用一个 esbuild 服务，IPC 必须靠事件循环收。
+ * 多个 pack 同时跑时，同步 npm 会堵住循环，esbuild 管道写满后两边互相等。
+ * 整段 bundle（含 npm install）排成一条队列。
+ */
+let packTail: Promise<void> = Promise.resolve()
+
+export function withPluginPackLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = packTail.then(fn, fn)
+  packTail = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  return run
+}
+
 /** 沙箱自己的 npm 依赖：pack 时装进 .plugin-dev/<id>/node_modules，再打进 bundle。不走宿主 package.json。 */
-export function ensureSandboxNpm(sandbox: string) {
+export async function ensureSandboxNpm(sandbox: string) {
   const pkgFile = join(sandbox, 'package.json')
   if (!existsSync(pkgFile)) return
   let pkg: { dependencies?: Record<string, string> }
@@ -302,19 +317,20 @@ export function ensureSandboxNpm(sandbox: string) {
   const options = {
     cwd: sandbox,
     encoding: 'utf8' as const,
-    timeout: 180_000,
     stdio: ['ignore', 'pipe', 'pipe'] as const,
     env: { ...process.env, npm_config_update_notifier: 'false' },
     shell: process.platform === 'win32',
   }
+  const runNpm = (args: string[], timeout: number) =>
+    execFileAsync('npm', args, { ...options, timeout })
   try {
-    execFileSync('npm', ['install', '--omit=dev', '--no-audit', '--no-fund', '--ignore-scripts'], {
-      ...options,
-      timeout: 120_000,
-    })
+    await runNpm(
+      ['install', '--omit=dev', '--no-audit', '--no-fund', '--ignore-scripts', '--no-package-lock'],
+      120_000,
+    )
     for (const name of pluginExternalDependencies(sandbox)) {
       if (!nativeModuleReady(sandbox, name)) {
-        execFileSync('npm', ['rebuild', name, '--no-audit', '--no-fund'], options)
+        await runNpm(['rebuild', name, '--no-audit', '--no-fund'], 180_000)
       }
       if (!nativeModuleReady(sandbox, name)) {
         throw new Error(`native plugin dependency is not runnable: ${name}`)
@@ -413,11 +429,15 @@ export function copyPluginRuntimeDependencies(sandbox: string, dest: string) {
 
 /** 沙箱入口打包：相对 import + 沙箱 npm（react / @biu/* 除外）。 */
 export async function bundleStoreEntry(entryFile: string, kind: 'host' | 'web') {
-  const sandbox = dirname(entryFile)
-  ensureSandboxNpm(sandbox)
+  return withPluginPackLock(() => bundleStoreEntryUnlocked(entryFile, kind))
+}
+
+async function bundleStoreEntryUnlocked(entryFile: string, kind: 'host' | 'web') {
+  const sandbox = pluginRoot(dirname(entryFile))
+  await ensureSandboxNpm(sandbox)
   const { build } = await import('esbuild')
   const result = await build({
-    absWorkingDir: dirname(entryFile),
+    absWorkingDir: sandbox,
     entryPoints: [entryFile],
     bundle: true,
     minify: true,
@@ -453,10 +473,6 @@ function finishBundle(code: string, kind: 'host' | 'web') {
   return out.endsWith('\n') ? out : `${out}\n`
 }
 
-export async function readSandboxManifest(dir: string) {
-  return persistStoreManifestCreatedAt(dir)
-}
-
 const CONTRACT = [
   '契约：id 与 export const name 相同。每个沙箱都有自己的 package.json（没有第三方依赖也写一份，dependencies 可以为空）。可以 import npm；依赖写在这份 package.json，pack 会在沙箱 npm install 再打进 host.js/web.js，不要写进宿主 package.json。不要 import react / react-dom / @biu/*：Web 用宿主 globalThis.React、ReactDOM 与 ReactJSXRuntime；宿主服务用 inject。安装路径只有 sandbox + pack：db_action /plugins/<id> action=sandbox 建 .plugin-dev/<id>/，写完再用 action=pack。不要直写 .plugin。不要改 packages/ 或 cordis.plugins.json。',
   '有窗口的 Web：ctx.slots.place("plugin-store-extras", Comp, { key, props: () => ({ Icon }) })。Icon 可选。运行窗口会给 extras 套操纵栏（关/缩；resizable 才有全屏），key 尽量用插件 id。',
@@ -467,7 +483,7 @@ const CONTRACT = [
 
 export const PLUGIN_SANDBOX_DESCRIPTION = [
   '这是安装插件的第一步，不是新建代理。用户说「再开一个 agent」请 db_create /sessions。',
-  '开沙箱：只建/更新 .plugin-dev/<id>/（manifest.json、package.json，可选起点 host.ts / web.tsx），不进已安装目录。',
+  '开沙箱：只建/更新 .plugin-dev/<id>/（manifest.json、package.json，可选起点 host/index.ts / web/index.tsx），不进已安装目录。',
   '然后用 bash / 文件工具在沙箱里写代码、相对 import。调完必须 db_action action=pack 才会打进 .plugin/<id>/。',
   '卸载删 .plugin/<id>/，沙箱还在。',
   CONTRACT,
@@ -475,7 +491,7 @@ export const PLUGIN_SANDBOX_DESCRIPTION = [
 
 export const PLUGIN_PACK_DESCRIPTION = [
   '把 .plugin-dev/<id>/ 沙箱打包进 .plugin/<id>/（manifest.json + bundle 后的 host.js / web.js）。',
-  '入口：host.ts|tsx|js 与 web.tsx|ts|js，至少要有一个。有窗口的 web 必须已写 shell.width/height；无头插件写 headless: true 即可。已打开的插件会重新挂上。',
+  '入口：host/index.ts|tsx|js 与 web/index.tsx|ts|js，至少要有一个。宿主只在 Node 跑，页面只在浏览器跑，两边分开放。有窗口的 web 必须已写 shell.width/height；无头插件写 headless: true 即可。已打开的插件会重新挂上。',
   '每个沙箱都有 package.json。npm 依赖写在里面，pack 会在该目录 install，打进 bundle；没有第三方包时 dependencies 为空对象。不要把插件依赖加到宿主 package.json。',
 ].join(' ')
 
@@ -534,11 +550,11 @@ export const PLUGIN_SANDBOX_PROPERTIES = {
   ...ID_NAME_BLURB,
   hostJs: {
     type: 'string',
-    description: '可选。写入沙箱 host.ts 的起点，大逻辑请在沙箱目录里改。',
+    description: '可选。写入沙箱 host/index.ts 的起点，大逻辑请在 host 目录里改。',
   },
   webJs: {
     type: 'string',
-    description: '可选。写入沙箱 web.tsx 的起点。',
+    description: '可选。写入沙箱 web/index.tsx 的起点。',
   },
 }
 

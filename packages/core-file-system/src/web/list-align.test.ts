@@ -35,7 +35,7 @@ test('list and detail share the chat column max width with side padding', () => 
   assert.doesNotMatch(css, /\.fsdb-page\.is-full-width[^{]*\{[^}]*padding:[^}]*24px/)
   assert.doesNotMatch(css, /flex:0 0 36%/)
   assert.match(css, /\.fsdb-page\{[^}]*--fsdb-check-gutter:26px/)
-  assert.match(css, /\.fsdb-page \.tasks-table td:has\(\.fsdb-title-host\)\{[^}]*position:relative/)
+  assert.match(css, /\.fsdb-page \.tasks-table th\.is-pin-col,\.fsdb-page \.tasks-table td\.is-pin-col\{[^}]*position:sticky/)
   assert.doesNotMatch(css, /\.fsdb-page \.tasks-table td:has\(\.fsdb-title-host\)\{[^}]*padding-right:var\(--fsdb-row-tools-w\)/)
   assert.match(css, /\.fsdb-page \.tasks-title-aside\{[^}]*display:inline-flex/)
   assert.match(css, /\.fsdb-page \.tasks-row-tools-slot\{[^}]*display:inline-flex/)
@@ -62,8 +62,15 @@ test('list and detail share the chat column max width with side padding', () => 
   assert.match(css, /\.fsdb-page \.tasks-table\.is-wrap\.is-truncate \.fsdb-cell\{[^}]*max-height:2\.8em/)
   assert.doesNotMatch(css, /\.tasks-table\.is-wrap\.is-truncate \.fsdb-cell\{[^}]*display:-webkit-box/)
   assert.doesNotMatch(css, /max-width:min\(42%,22rem\)/)
-  assert.match(css, /\.fsdb-page \.tasks-group-fold \.sidebar-group-fold-chevron[\s\S]*display:grid/)
-  assert.match(css, /\.fsdb-page \.tasks-group-fold:hover \.sidebar-group-fold-face[\s\S]*display:grid/)
+  assert.doesNotMatch(css, /\.fsdb-page \.tasks-group-fold:hover \.sidebar-group-fold-face[\s\S]*display:grid/)
+  assert.match(css, /\.fsdb-page \.tasks-queue-ghead\{[^}]*width:100%/)
+  assert.match(css, /\.fsdb-page \.tasks-queue-count\{[^}]*margin-left:6px/)
+  assert.doesNotMatch(css, /\.fsdb-page \.tasks-queue-count\{[^}]*margin-left:auto/)
+  assert.match(css, /\.fsdb-page \.tasks-table tr\.fsdb-group-row td\{[^}]*padding:6px 6px 4px/)
+  assert.match(css, /\.fsdb-page \.tasks-table tr\.fsdb-group-row \.tasks-queue-ghead\{[^}]*padding:0/)
+  assert.match(css, /\.fsdb-page \.tasks-table tr\.fsdb-group-row \.tasks-queue-ghead\{[^}]*gap:5px/)
+  assert.match(css, /\.fsdb-page \.tasks-group-fold\{[^}]*width:14px/)
+  assert.match(css, /\.fsdb-page \.tasks-table tr\.fsdb-group-pager \.fsdb-pager\{[^}]*padding-left:0/)
   assert.match(css, /\.fsdb-page \.tasks-row-tools-slot\{[^}]*width:auto/)
   assert.match(css, /\.fsdb-page \.fsdb-title-host\{[^}]*overflow:hidden/)
   assert.match(css, /\.fsdb-page \.fsdb-proplist \.fsdb-proprow\{[^}]*display:inline-flex/)
@@ -207,6 +214,8 @@ test('table columns resize with a Super Tag blue highlight on the divider', () =
 
 test('selected table cells use Super Tag blue when writable and gray when locked', () => {
   assert.match(css, /\.fsdb-page \.tasks-table td\.is-cell-on\{[^}]*box-shadow:inset 0 0 0 2px var\(--dsw-pick/)
+  assert.match(css, /\.fsdb-page \.tasks-table td\.is-cell-on:not\(\.is-pin-col\)\{[^}]*position:relative/)
+  assert.doesNotMatch(css, /\.fsdb-page \.tasks-table td\.is-cell-on\{[^}]*position:relative/)
   assert.match(css, /\.fsdb-page \.tasks-table td\.is-cell-on\.is-cell-ro\{[^}]*box-shadow:inset 0 0 0 2px var\(--dsw-label-3\)/)
   assert.match(css, /\.fsdb-page \.tasks-table td \.db-cell-select-trigger,.fsdb-page \.tasks-table td \.fsdb-cellselect-trigger\{[^}]*width:100%/)
   assert.match(css, /\.fsdb-page \.tasks-table td \.db-cell-select-trigger,.fsdb-page \.tasks-table td \.fsdb-cellselect-trigger\{[^}]*max-width:none/)
@@ -253,6 +262,15 @@ test('selected table cells use Super Tag blue when writable and gray when locked
   assert.doesNotMatch(css, /\.fsdb-ref-picked\{[^}]*flex-direction:column/)
   assert.match(css, /\.fsdb-ref-picked\{[^}]*flex-wrap:wrap/)
   assert.match(css, /\.fsdb-ref-picked-row\{[^}]*width:auto/)
+})
+
+test('title column stays pinned when the table scrolls sideways', () => {
+  assert.match(css, /\.fsdb-page \.tasks-table th\.is-pin-col,\.fsdb-page \.tasks-table td\.is-pin-col\{[^}]*position:sticky/)
+  assert.match(css, /\.fsdb-page \.tasks-table th\.is-pin-col,\.fsdb-page \.tasks-table td\.is-pin-col\{[^}]*left:var\(--fsdb-check-gutter\)/)
+  const browser = readFileSync(resolve(import.meta.dirname, './browser.tsx'), 'utf8')
+  assert.match(browser, /col\.key === schema\?\.labelField \? 'is-pin-col'/)
+  assert.match(css, /\.fsdb-page \.tasks-table tr:hover td\{[^}]*background:color-mix\(in srgb,var\(--dsw-hover\) 55%,var\(--dsw-surface\)\)/)
+  assert.doesNotMatch(css, /\.fsdb-page \.tasks-table tr:hover td\{[^}]*transparent/)
 })
 
 test('share page portals sit above the share overlay', () => {

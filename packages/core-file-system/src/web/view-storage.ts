@@ -1,4 +1,5 @@
-import { builtinAllViewId, stubBuiltinAllView, stubBuiltinBlockKindView, stubBuiltinCatalogView, stubBuiltinTagView, isReadOnlyViewId, isBuiltinAllViewForCollection } from '../catalog-views.ts'
+import { builtinAllViewId, stubBuiltinAllView, stubBuiltinBlockKindView, stubBuiltinCatalogView, stubBuiltinTagView, stubBuiltinScopeView, stubBuiltinMemberView, isReadOnlyViewId, isBuiltinAllViewForCollection, isBuiltinAllViewId } from '../catalog-views.ts'
+import { isIndexCollection } from './database-path.ts'
 import { listCollection } from './db-client.ts'
 import { looksLikeFilterTree, normalizeFilterGroup, parseSortsInput } from '../query-logic.ts'
 import { normalizeSavedView, type SavedView } from './saved-view.ts'
@@ -19,7 +20,7 @@ export function rememberViews(collectionPath: string, views: SavedView[]) {
 
 export function loadViews(collectionPath: string): SavedView[] {
   const remembered = memoryViews.get(collectionPath)
-  if (remembered?.length) return remembered
+  if (remembered) return remembered
   try {
     const raw = localStorage.getItem(viewsKey(collectionPath))
     const parsed = raw ? (JSON.parse(raw) as SavedView[]) : []
@@ -91,6 +92,8 @@ export function viewForPath(collectionPath: string, routeViewId?: string): Saved
   const preferred =
     (routeViewId
       ? listed.find((item) => item.id === routeViewId) ??
+        stubBuiltinScopeView(routeViewId, listed) ??
+        stubBuiltinMemberView(routeViewId) ??
         stubBuiltinCatalogView(routeViewId) ??
         stubBuiltinTagView(routeViewId) ??
         stubBuiltinBlockKindView(routeViewId) ??
@@ -229,7 +232,7 @@ export function savedViewFromRecord(row: { viewId?: unknown; title?: unknown; mo
   })
 }
 
-export async function pullSavedViews() {
+export async function pullSavedViews(collectionPaths: readonly string[] = []) {
   try {
     const page = await listCollection({
       path: '/views',
@@ -264,10 +267,13 @@ export async function pullSavedViews() {
       list.push(view)
       byPath.set(tablePath, list)
     }
-    for (const [path, views] of byPath) {
+    const paths = new Set([...collectionPaths, ...byPath.keys()])
+    for (const path of paths) {
+      const views = byPath.get(path) ?? []
       rememberViews(path, views)
       try {
-        localStorage.setItem(viewsKey(path), JSON.stringify(views))
+        if (views.length) localStorage.setItem(viewsKey(path), JSON.stringify(views))
+        else localStorage.removeItem(viewsKey(path))
       } catch {
         /* ignore */
       }
@@ -284,20 +290,6 @@ export function upsertSavedView(collectionPath: string, view: SavedView) {
   rememberViews(collectionPath, stored)
   try {
     localStorage.setItem(viewsKey(collectionPath), JSON.stringify(stored))
-  } catch {
-    /* ignore */
-  }
-}
-
-export function pushAllSavedViews() {
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (!key?.startsWith('fsdb.views:')) continue
-      const path = key.slice('fsdb.views:'.length)
-      const views = loadViews(path)
-      if (views.length) pushSavedViews(path, views)
-    }
   } catch {
     /* ignore */
   }
@@ -439,17 +431,22 @@ export function persistViewDisplay(collectionPath: string, viewId: string, patch
   }
 }
 
-/** 内置「全部 xx」不能当用户视图存整份，显示项（换行等）单独记。 */
+/** 内置「全部 xx」不能当用户视图存整份，显示项（换行等）单独记。索引表没有分享，全部视图不按分享分组。 */
 export function withViewDisplay(collectionPath: string, view: SavedView): SavedView {
   const overlay = loadViewDisplay(collectionPath, view.id)
-  if (!Object.keys(overlay).length) return normalizeSavedView(view)
+  const painted = Object.keys(overlay).length
+    ? {
+        ...view,
+        ...overlay,
+        id: view.id,
+        name: view.name,
+        builtin: view.builtin,
+        filters: view.filters,
+        filterTree: view.builtin ? overlay.filterTree ?? view.filterTree : view.filterTree,
+      }
+    : view
   return normalizeSavedView({
-    ...view,
-    ...overlay,
-    id: view.id,
-    name: view.name,
-    builtin: view.builtin,
-    filters: view.filters,
-    filterTree: view.builtin ? overlay.filterTree ?? view.filterTree : view.filterTree,
+    ...painted,
+    ...(isIndexCollection(collectionPath) && isBuiltinAllViewId(view.id) ? { groupBy: '' } : {}),
   })
 }

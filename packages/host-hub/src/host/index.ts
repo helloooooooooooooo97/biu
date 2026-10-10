@@ -6,6 +6,7 @@ import { resolveCatalog } from './resolve-catalog.ts'
 import type { PageSpec } from '@biu/type-http'
 import { HUB_CHANGE, HUB_CHANNEL_EVENT, HUB_CHANNEL_SNAPSHOT } from '@biu/type-http'
 import { runWithToolOrigin } from '@biu/host-tools'
+import { currentAccountId, currentRequestWorkspaceId, runWithPlugin } from '@biu/host-plugin-loader/data-dir'
 
 export { HUB_CHANGE, HUB_CHANNEL_EVENT, HUB_CHANNEL_SNAPSHOT }
 
@@ -43,7 +44,13 @@ export class HubService extends Service {
       if (snapTimer) return
       snapTimer = setTimeout(() => {
         snapTimer = null
-        ctx.http.broadcast(HUB_CHANNEL_SNAPSHOT, this.snapshot())
+        if (process.env.BIU_ONLINE === '1') {
+          // Snapshot contains an account-specific plugin manifest. Push only an
+          // invalidation signal; every browser pulls its own filtered snapshot.
+          ctx.http.broadcast('plugins/changed', { ts: Date.now() })
+        } else {
+          ctx.http.broadcast(HUB_CHANNEL_SNAPSHOT, this.snapshot())
+        }
       }, 40)
     }
     ctx.on('internal/status', pushSnapshot)
@@ -110,6 +117,40 @@ export class HubService extends Service {
     }
   }
 
+  snapshotFor(accountId: string, workspaceId: string) {
+    const snapshot = this.snapshot()
+    if (process.env.BIU_ONLINE !== '1') return snapshot
+    const store = (
+      this.ctx.get('account') as {
+        store?: { canAccessPlugin?(accountId: string, workspaceId: string, pluginId: string): boolean }
+      } | undefined
+    )?.store
+    const allowed = new Set(
+      snapshot.plugins
+        .filter(
+          (plugin) =>
+            !isStorePackage(plugin.packageName) ||
+            Boolean(store?.canAccessPlugin?.(accountId, workspaceId, plugin.id)),
+        )
+        .map((plugin) => plugin.id),
+    )
+    const plugins = snapshot.plugins
+      .filter((plugin) => allowed.has(plugin.id))
+      .map((plugin) => {
+        if (!isStorePackage(plugin.packageName) || !plugin.web) return plugin
+        const separator = plugin.web.includes('?') ? '&' : '?'
+        return {
+          ...plugin,
+          web: `${plugin.web}${separator}workspaceId=${encodeURIComponent(workspaceId)}`,
+        }
+      })
+    return {
+      ...snapshot,
+      plugins,
+      pages: snapshot.pages.filter((page) => allowed.has(page.plugin)),
+    }
+  }
+
   async setEnabled(id: string, enabled: boolean) {
     const record = this.forks.get(id)
     if (!record) throw new Error(`unknown plugin: ${id}`)
@@ -152,7 +193,9 @@ export class HubService extends Service {
     const mount = () => {
       record.fiber = this.ctx.plugin(record.entry.plugin as Plugin, record.entry.config)
     }
-    if (isStorePackage(record.entry.packageName)) runWithToolOrigin('store', mount)
+    if (isStorePackage(record.entry.packageName)) {
+      runWithPlugin(id, () => runWithToolOrigin('store', mount))
+    }
     else mount()
     await record.fiber
   }
@@ -212,9 +255,11 @@ export async function apply(ctx: Context) {
   const hub = new HubService(ctx, catalog)
   await hub.mountEnabled()
   ctx.http.route('GET', '/api/snapshot', (route) => {
-    route.send(200, ctx.hub.snapshot())
+    route.res.setHeader('cache-control', 'private, no-store')
+    route.res.setHeader('vary', 'Authorization, Cookie, X-Biu-Workspace-Id')
+    route.send(200, ctx.hub.snapshotFor(currentAccountId(), currentRequestWorkspaceId()))
   })
-  ctx.http.broadcast(HUB_CHANNEL_SNAPSHOT, ctx.hub.snapshot())
+  if (process.env.BIU_ONLINE !== '1') ctx.http.broadcast(HUB_CHANNEL_SNAPSHOT, ctx.hub.snapshot())
   ctx.http.route('POST', '/api/plugins/:id', async (route) => {
     const payload = (await route.json()) as { enabled?: boolean }
     try {

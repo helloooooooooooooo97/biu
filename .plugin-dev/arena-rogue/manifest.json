@@ -2,9 +2,13 @@
   "id": "arena-rogue",
   "name": "枪火",
   "blurb": "2D 枪战：十多种武器、冲刺、清屏爆炸。窗口可全屏。WASD 移动，鼠标瞄准开火。",
-  "tags": ["game", "shooter", "arena"],
-  "author": "Biu",
-  "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",
+  "tags": [
+    "game",
+    "shooter",
+    "arena"
+  ],
+  "author": "BIU官方",
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu",
   "createdAt": 1788768000000,
   "shell": {
     "width": 1080,
@@ -12,5 +16,6 @@
     "minWidth": 720,
     "minHeight": 480,
     "resizable": true
-  }
+  },
+  "builtin": true
 }

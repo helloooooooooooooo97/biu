@@ -28,6 +28,7 @@ test('empty database fast path matches upgraded v1 fixture', () => {
   assert.equal(tableColumnNames(fast, 'pages').includes('notes'), false)
   assert.equal(tableColumnNames(fast, 'tasks').includes('description'), false)
   assert.equal(tableColumnNames(fast, 'facets').includes('notes'), false)
+  assert.equal(tableColumnNames(fast, 'editor_content').includes('version'), true)
   assert.equal(tableColumnNames(fast, 'page_block_index').includes('collection'), true)
   assert.equal(tableColumnNames(fast, 'gc_candidates').includes('name'), true)
   assert.deepEqual(tableColumnNames(fast, 'page_block_index').sort(), tableColumnNames(staged, 'page_block_index').sort())
@@ -43,9 +44,41 @@ test('empty database fast path matches upgraded v1 fixture', () => {
 test('BIU_MIGRATIONS versions are unique and increasing', () => {
   assertBiuMigrationLog()
   assert.equal(BIU_MIGRATIONS.at(-1)?.version, LATEST_BIU_SCHEMA)
-  assert.equal(BIU_MIGRATIONS.at(-1)?.name, 'record.meta.deleted_at')
+  assert.equal(BIU_MIGRATIONS.at(-1)?.name, 'drop.instance.roles')
   assert.throws(() => assertBiuMigrationLog([{ version: 2 }, { version: 2 }]), /重复/)
   assert.throws(() => assertBiuMigrationLog([{ version: 3 }, { version: 1 }]), /单调递增/)
+})
+
+test('member role migration preserves owner, admin and member', () => {
+  const db = openSqlite(':memory:')
+  migrateBiu(db, {}, 25)
+  db.exec(`
+    INSERT INTO accounts (id, name, token, password_hash, created_at, email)
+    VALUES ('a1', 'A', 't1', 'p1', 1, 'a@example.com');
+    INSERT INTO workspaces (id, name, owner_id, created_at) VALUES ('w1', 'W', 'a1', 1);
+    INSERT INTO workspace_members (workspace_id, account_id, role, created_at)
+    VALUES ('w1', 'a1', 'admin', 1);
+  `)
+  migrateBiu(db)
+  const row = db.prepare(`SELECT role FROM workspace_members WHERE workspace_id = 'w1'`).get() as { role: string }
+  assert.equal(row.role, 'admin')
+  db.close()
+})
+
+test('viewer role migration preserves workspace viewers', () => {
+  const db = openSqlite(':memory:')
+  migrateBiu(db, {}, 27)
+  db.exec(`
+    INSERT INTO accounts (id, name, token, password_hash, created_at, email)
+    VALUES ('viewer-a1', 'Viewer', 'viewer-t1', 'p1', 1, 'viewer@example.com');
+    INSERT INTO workspaces (id, name, owner_id, created_at) VALUES ('viewer-w1', 'W', 'viewer-a1', 1);
+    INSERT INTO workspace_members (workspace_id, account_id, role, created_at)
+    VALUES ('viewer-w1', 'viewer-a1', 'viewer', 1);
+  `)
+  migrateBiu(db)
+  const row = db.prepare(`SELECT role FROM workspace_members WHERE workspace_id = 'viewer-w1'`).get() as { role: string }
+  assert.equal(row.role, 'viewer')
+  db.close()
 })
 
 test('snapshotBefore writes a pre-migration copy', () => {

@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import type { DbRecord } from '@biu/type-file-system'
-import { pluginsCollection } from './collection.ts'
+import { BIU_GITHUB, BIU_OFFICIAL_NAME, pluginsCollection } from './collection.ts'
 import type { PluginStoreService } from './store.ts'
 import { defaultStoreShell } from '../shell.ts'
 
@@ -11,10 +11,10 @@ function stubStore(partial: Partial<PluginStoreService>): PluginStoreService {
     listSandboxes: () => Promise.resolve([]),
     readReadme: async () => '',
     writeReadme: async () => {},
-    openPlugin() {},
-    close() {},
-    pack() {},
-    uninstall() {},
+    openPlugin: async () => undefined,
+    close: async () => {},
+    pack: async (id: string) => ({ id, sandboxPath: '', pluginPath: '' }),
+    uninstall: async () => {},
     pluginPath: (id: string) => `/workspace/.plugin/${id}`,
     sandboxPath: (id: string) => `/workspace/.plugin-dev/${id}`,
     ...partial,
@@ -61,18 +61,20 @@ test('pluginsCollection lists installed plugins and sandboxes in one table', asy
           updatedAt: 2,
         },
       ]),
-    openPlugin(id: string) {
+    async openPlugin(id: string) {
       calls.push(`open:${id}`)
       items[0]!.enabled = true
+      return undefined
     },
-    close(id: string) {
+    async close(id: string) {
       calls.push(`close:${id}`)
       items[0]!.enabled = false
     },
-    pack(id: string) {
+    async pack(id: string) {
       calls.push(`pack:${id}`)
+      return { id, sandboxPath: '', pluginPath: '' }
     },
-    uninstall(id: string) {
+    async uninstall(id: string) {
       calls.push(`uninstall:${id}`)
     },
   }))
@@ -123,7 +125,12 @@ test('pluginsCollection lists installed plugins and sandboxes in one table', asy
   assert.equal(spec.schema.fields.emoji?.writable, true)
   assert.deepEqual(spec.actions?.find((item) => item.id === 'start')?.when, { installed: true, running: false })
   assert.deepEqual(spec.actions?.find((item) => item.id === 'pack')?.when, { sandbox: true })
-  assert.deepEqual(spec.actions?.find((item) => item.id === 'uninstall')?.when, { installed: true })
+  assert.equal(spec.actions?.find((item) => item.id === 'start')?.requiredAction, 'resource:read')
+  assert.equal(spec.actions?.find((item) => item.id === 'stop')?.requiredAction, 'resource:read')
+  assert.equal(spec.actions?.find((item) => item.id === 'pack')?.requiredAction, 'resource:read')
+  assert.equal(spec.actions?.find((item) => item.id === 'sandbox')?.requiredAction, 'resource:read')
+  assert.deepEqual(spec.actions?.find((item) => item.id === 'uninstall')?.when, { installed: true, builtin: false })
+  assert.equal(spec.actions?.find((item) => item.id === 'uninstall')?.requiredAction, 'resource:delete')
   assert.equal(spec.actions?.find((item) => item.id === 'sandbox')?.for, 'agent')
   assert.equal(spec.actions?.find((item) => item.id === 'start')?.for, undefined)
 })
@@ -151,10 +158,10 @@ test('headless plugins omit shell columns', async () => {
         },
       ]),
     listSandboxes: () => Promise.resolve([]),
-    openPlugin() {},
-    close() {},
-    pack() {},
-    uninstall() {},
+    openPlugin: async () => undefined,
+    close: async () => {},
+    pack: async (id: string) => ({ id, sandboxPath: '', pluginPath: '' }),
+    uninstall: async () => {},
   }))
   const listed = await spec.list()
   assert.equal(listed[0]?.headless, true)
@@ -199,10 +206,10 @@ test('same id with sandbox and install merges into one row', async () => {
           updatedAt: 9,
         },
       ]),
-    openPlugin() {},
-    close() {},
-    pack() {},
-    uninstall() {},
+    openPlugin: async () => undefined,
+    close: async () => {},
+    pack: async (id: string) => ({ id, sandboxPath: '', pluginPath: '' }),
+    uninstall: async () => {},
   }))
   const listed = await spec.list()
   assert.equal(listed.length, 1)
@@ -248,4 +255,35 @@ test('plugin intro is README.md via contentField readme', async () => {
   assert.equal(written.readme, '# Demo\n\n介绍\n')
   assert.equal(files.get('demo'), '# Demo\n\n介绍\n')
   await assert.rejects(() => spec.update!('demo', { name: '改名' }), /not writable/)
+})
+
+test('builtin plugins list BIU官方 and the GitHub link', async () => {
+  const spec = pluginsCollection(stubStore({
+    list: () => Promise.resolve([]),
+    listSandboxes: () => Promise.resolve([
+      {
+        id: 'api-playground',
+        name: 'API 调试块',
+        blurb: '调试',
+        tags: [],
+        author: 'Biu',
+        authorUrl: '',
+        builtin: true,
+        hasHost: true,
+        hasWeb: true,
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ]),
+  }))
+  const row = (await spec.list()).find((item) => item.id === 'api-playground')
+  assert.equal(row?.author, BIU_OFFICIAL_NAME)
+  assert.equal(row?.authorUrl, BIU_GITHUB)
+  assert.deepEqual(row?.createdBy, { kind: 'user', name: BIU_OFFICIAL_NAME, url: BIU_GITHUB })
+  assert.deepEqual(row?.updatedBy, [{ kind: 'user', name: BIU_OFFICIAL_NAME, url: BIU_GITHUB }])
+  assert.equal(spec.schema.columns?.includes('createdBy'), true)
+  assert.equal(spec.schema.columns?.includes('updatedBy'), true)
+  assert.equal(spec.schema.fields.author, undefined)
+  assert.equal(spec.schema.fields.authorUrl, undefined)
+  assert.equal(spec.schema.columns?.includes('author'), false)
 })

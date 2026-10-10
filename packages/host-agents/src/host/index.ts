@@ -45,6 +45,8 @@ interface LiveAgent {
   inbox: ClaimedInput[]
   running?: Promise<void>
   abort: AbortController
+  /** 上一回合还在收尾时又 resume / 入队：结束后立刻再 kick，避免 wake 停在 inbox 没人领 */
+  restartWhenIdle?: boolean
 }
 
 let inboxSeq = 0
@@ -135,16 +137,32 @@ export class AgentsService extends Service {
         const claimed = claim(live.inbox)
         this.emitInbox(id)
         if (!claimed) {
+          if (live.abort.signal.aborted) break
           const queued = await this.queueGoalContinuation(id, live)
           if (!queued) break
           continue
         }
-        last = await this.ctx.agentLoop.create(this.resolveLlm(id), id, live.abort.signal).run(claimed)
+        try {
+          last = await this.ctx.agentLoop.create(this.resolveLlm(id), id, live.abort.signal).run(claimed)
+        } catch (error) {
+          if (/cancelled|AbortError|aborted/i.test(String(error))) break
+          throw error
+        }
+        if (live.abort.signal.aborted) break
       }
       return last
     }
 
     const startKick = (wait: boolean): Promise<AgentTurn> => {
+      if (live.running) {
+        if (!wait) return Promise.resolve({ text: '', steps: [] })
+        return live.running.then(() => ({ text: '', steps: [] })).catch((error) => {
+          if (/cancelled|AbortError|aborted/i.test(String(error))) {
+            return { text: '', steps: [] }
+          }
+          throw error
+        })
+      }
       live.abort = new AbortController()
       let result: AgentTurn = { text: '', steps: [] }
       const running = kick()
@@ -155,6 +173,10 @@ export class AgentsService extends Service {
           if (live.running === running) {
             live.running = undefined
             this.ctx.emit('agent/status', { sessionId: id, status: 'idle' })
+            if (live.restartWhenIdle) {
+              live.restartWhenIdle = false
+              if (live.inbox.some((item) => item.kind === 'wake')) startKick(false)
+            }
           }
         })
       live.running = running
@@ -208,7 +230,10 @@ export class AgentsService extends Service {
         this.emitInbox(id)
 
         if (live.running) {
-          if (!wait) return { text: '', steps: [] }
+          if (!wait) {
+            live.restartWhenIdle = true
+            return { text: '', steps: [] }
+          }
           await live.running.catch(() => undefined)
         }
         return startKick(wait)
@@ -242,7 +267,10 @@ export class AgentsService extends Service {
         await startKick(wait)
         return { flushed: true }
       },
-      cancel: () => live.abort.abort(),
+      cancel: () => {
+        live.restartWhenIdle = false
+        live.abort.abort()
+      },
       dispose: () => {
         live.abort.abort()
         this.lives.delete(id)
@@ -261,10 +289,18 @@ export class AgentsService extends Service {
   async controlGoal(sessionId: string, action: 'pause' | 'resume' | 'clear') {
     if (!(await this.ctx.sessions.get(sessionId))) throw new Error(`unknown session: ${sessionId}`)
     await this.create(sessionId)
-    const text = await this.applyGoalSlash(sessionId, { kind: action })
     if (action === 'pause' || action === 'clear') {
+      const live = this.lives.get(sessionId)
+      if (live) live.restartWhenIdle = false
       this.get(sessionId)?.cancel()
-    } else if (text === 'run') {
+    }
+    const text = await this.applyGoalSlash(sessionId, { kind: action })
+    if (text === 'run' && action === 'resume') {
+      const live = this.lives.get(sessionId)
+      if (live?.running) {
+        live.abort.abort()
+        live.restartWhenIdle = true
+      }
       const goal = this.peekGoal(sessionId)
       if (goal) void this.get(sessionId)?.send(continuationPrompt(goal), { wait: false })
     }

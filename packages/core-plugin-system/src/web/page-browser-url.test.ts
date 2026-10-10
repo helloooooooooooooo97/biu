@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { normalizeUrl, searchUrl } from '../../../../.plugin-dev/page-browser/url.ts'
+import { normalizeUrl, searchUrl } from '../../../../.plugin-dev/page-browser/web/url.ts'
 
 test('normalizeUrl keeps http(s) and turns other text into a search', () => {
   assert.equal(normalizeUrl('https://example.com/a'), 'https://example.com/a')

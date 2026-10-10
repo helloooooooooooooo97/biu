@@ -4,7 +4,14 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openAndMigrateBiu } from './biu-migrate.ts'
-import { readEditorContent, rebuildContentRefs, replaceContentRefs, writeEditorContent } from './editor-content.ts'
+import {
+  EditorContentConflictError,
+  readEditorContent,
+  readEditorContentRecord,
+  rebuildContentRefs,
+  replaceContentRefs,
+  writeEditorContent,
+} from './editor-content.ts'
 import { assetNamesFromHtml, assetNamesFromMarkdown } from '../../../type-file-system/src/asset-ref.ts'
 
 test('writeEditorContent rewrites content refs without dropping banner refs', () => {
@@ -22,6 +29,23 @@ test('writeEditorContent rewrites content refs without dropping banner refs', ()
     rows.map((row) => `${row.source}:${row.name}`).sort(),
     ['banner:cover.png', 'content:next.png'],
   )
+  db.close()
+})
+
+test('writeEditorContent versions changed bodies and rejects stale writers', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'editor-version-'))
+  const db = openAndMigrateBiu(join(dir, 'biu.sqlite'))
+  const first = writeEditorContent(db, '/pages', 'p1', 'one')
+  assert.equal(first.version, 1)
+  const second = writeEditorContent(db, '/pages', 'p1', 'two', { expectedVersion: first.version })
+  assert.equal(second.version, 2)
+  assert.throws(
+    () => writeEditorContent(db, '/pages', 'p1', 'stale', { expectedVersion: first.version }),
+    EditorContentConflictError,
+  )
+  assert.deepEqual(readEditorContentRecord(db, '/pages', 'p1'), { body: 'two', version: 2 })
+  const same = writeEditorContent(db, '/pages', 'p1', 'two', { expectedVersion: second.version })
+  assert.equal(same.version, 2)
   db.close()
 })
 

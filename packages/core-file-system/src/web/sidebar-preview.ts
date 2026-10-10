@@ -11,8 +11,8 @@ export type PreviewPage = {
   schema?: CollectionSchema
 }
 
-export function previewCacheKey(path: string, view: Pick<SavedView, 'id' | 'sortField' | 'sortDir' | 'filters' | 'query'>) {
-  return `${path}\0${view.id}\0${view.sortField}\0${view.sortDir}\0${JSON.stringify(view.filters ?? {})}\0${view.query ?? ''}`
+export function previewCacheKey(path: string, view: Pick<SavedView, 'id' | 'sortField' | 'sortDir' | 'filters' | 'query' | 'groupBy'>) {
+  return `${path}\0${view.id}\0${view.sortField}\0${view.sortDir}\0${view.groupBy ?? ''}\0${JSON.stringify(view.filters ?? {})}\0${view.query ?? ''}`
 }
 
 export function normalizeRecordEmoji(value: unknown) {
@@ -99,9 +99,16 @@ export async function writeRecordEmoji(path: string, recordId: string, emoji: st
   return normalizeRecordEmoji(body.value?.emoji ?? next)
 }
 
+export function previewColumns(view: Pick<SavedView, 'groupBy'>) {
+  const columns = ['title', 'emoji', 'mascot', 'parentId']
+  const groupBy = String(view.groupBy ?? '').trim()
+  if (groupBy && !columns.includes(groupBy)) columns.push(groupBy)
+  return columns
+}
+
 export async function fetchViewPreview(
   path: string,
-  view: Pick<SavedView, 'sortField' | 'sortDir' | 'filters' | 'query'>,
+  view: Pick<SavedView, 'sortField' | 'sortDir' | 'filters' | 'query' | 'groupBy'>,
   offset: number,
   limit = SIDEBAR_PREVIEW_PAGE,
 ): Promise<PreviewPage> {
@@ -113,6 +120,6 @@ export async function fetchViewPreview(
     sortField: view.sortField,
     sortDir: view.sortDir,
     filters: view.filters,
-    columns: ['title', 'emoji', 'mascot', 'parentId'],
+    columns: previewColumns(view),
   })
 }

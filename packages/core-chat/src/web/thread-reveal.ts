@@ -135,11 +135,16 @@ export function nextStickToLatest(opts: {
   if (opts.scrollingUp) return false
   if (opts.scrollTop <= PIN_TOP_SLACK_PX) return false
   if (opts.distanceFromBottom <= CHAT_PIN_BOTTOM_PX) return true
-  return opts.stuck
+  return false
 }
 
 export function pinChatToLatest(parent: HTMLElement) {
   parent.scrollTop = parent.scrollHeight
+}
+
+/** 只有向上揭示了更早回合时才补偿高度；尾部流式增长绝不能推动阅读位置。 */
+export function didRevealOlderTurns(previousStart: number, nextStart: number): boolean {
+  return nextStart < previousStart
 }
 
 export function restoreChatScroll(parent: HTMLElement, memory: ChatScrollMemory): boolean {
@@ -167,7 +172,8 @@ export function shouldRevealFast(opts: {
 
 export function sliceTurnsFrom(nodes: ChatNode[], startTurnIndex: number): ChatNode[] {
   const turns = groupNodesIntoTurns(nodes)
-  if (startTurnIndex <= 0) return nodes
-  if (startTurnIndex >= turns.length) return []
-  return turns.slice(startTurnIndex).flat()
+  if (turns.length === 0) return []
+  const start = startTurnIndex >= turns.length ? firstPaintStartIndex(turns.length) : startTurnIndex
+  if (start <= 0) return nodes
+  return turns.slice(start).flat()
 }

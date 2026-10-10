@@ -1,4 +1,6 @@
+import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { dirname } from 'node:path'
 
 type DatabaseSync = import('node:sqlite').DatabaseSync
 
@@ -19,9 +21,21 @@ export function configureSqlite(db: DatabaseSync, opts?: { foreignKeys?: boolean
   if (opts?.foreignKeys !== false) db.exec('PRAGMA foreign_keys = ON')
 }
 
+function ensureSqliteDir(path: string) {
+  if (!path || path === ':memory:' || path.includes('mode=memory')) return
+  mkdirSync(dirname(path), { recursive: true })
+}
+
 export function openSqlite(path: string, opts?: { foreignKeys?: boolean; checkpointOnOpen?: boolean }) {
   const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
-  const db = new DatabaseSync(path)
+  ensureSqliteDir(path)
+  let db: DatabaseSync
+  try {
+    db = new DatabaseSync(path)
+  } catch (error) {
+    if (error instanceof Error && path && !error.message.includes(path)) error.message = `${error.message}: ${path}`
+    throw error
+  }
   configureSqlite(db, opts)
   if (opts?.checkpointOnOpen) {
     try {

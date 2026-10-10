@@ -138,7 +138,7 @@ export const PageBlockView = memo(function PageBlockView({ node, updateAttribute
       ) : View ? (
         // 文档里的插件块崩了只烂这一块，不该让整个应用白屏。
         <RenderBoundary label={plugin || kind}>
-          <View data={data} update={update} writable={editor.isEditable} />
+          <View data={data} update={update} writable />
         </RenderBoundary>
       ) : (
         <PageBlockMissing kind={kind} plugin={plugin} data={data} />

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Context } from 'cordis'
+import { Context, Service } from 'cordis'
 import * as tools from '@biu/host-tools'
 import * as http from '@biu/host-http'
 import * as mcp from './index.ts'
@@ -127,6 +127,82 @@ test('host MCP requires a bearer token and only exposes file-mode db tools', asy
 
   } finally {
     await ctx.fiber.dispose()
+  }
+}, 20000)
+
+test('online MCP enforces workspace credentials, tool allowlists, viewer writes, and audit', async () => {
+  const previous = process.env.BIU_ONLINE
+  process.env.BIU_ONLINE = '1'
+  const ctx = new Context()
+  const audits: Array<{ toolName: string; success: boolean }> = []
+  class FakeAccount extends Service {
+    store = {
+      accountByToken: (token: string) => token === 'web-token' ? { id: 'bob' } : null,
+      isMember: (accountId: string, workspaceId: string) => accountId === 'bob' && workspaceId === 'ws-a',
+      resolveMcpCredential: (token: string) =>
+        token === 'viewer-token' || token === 'limited-token'
+          ? {
+              credentialId: token === 'viewer-token' ? 'mcp-1' : 'mcp-2',
+              accountId: 'bob',
+              workspaceId: 'ws-a',
+              role: token === 'viewer-token' ? 'viewer' : 'owner',
+              allowedTools: token === 'viewer-token' ? ['db_list', 'db_update'] : ['db_list'],
+            }
+          : null,
+      auditMcp: (_tenant: unknown, toolName: string, success: boolean) => audits.push({ toolName, success }),
+    }
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  const ready = new Promise<number>((resolve) => ctx.on('http/ready', ({ port }) => resolve(port)))
+  await ctx.plugin(FakeAccount)
+  await ctx.plugin(http, { port: 0, host: '127.0.0.1', sharePort: 0 })
+  await ctx.plugin(tools)
+  ctx.tools.register({
+    name: 'db_list',
+    description: 'list',
+    parameters: { type: 'object', properties: {} },
+    execute: () => ({ ok: true }),
+  })
+  ctx.tools.register({
+    name: 'db_update',
+    description: 'update',
+    parameters: { type: 'object', properties: {} },
+    execute: () => ({ changed: true }),
+  })
+  await ctx.plugin(mcp)
+  const port = await ready
+  try {
+    const safeInfo = await fetch(`http://127.0.0.1:${port}/api/mcp/info`, {
+      headers: { Authorization: 'Bearer web-token', 'X-Biu-Workspace-Id': 'ws-a' },
+    })
+    assert.equal(safeInfo.status, 200)
+    assert.equal(((await safeInfo.json()) as { token?: string }).token, '')
+    const denied = await fetch(`http://127.0.0.1:${port}/api/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Authorization: 'Bearer wrong' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
+    })
+    assert.equal(denied.status, 401)
+    const client = await mcpClient(`http://127.0.0.1:${port}/api/mcp`, 'viewer-token')
+    assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name).sort(), ['db_list', 'db_update'])
+    assert.equal((await client.callTool({ name: 'db_list', arguments: {} })).isError, undefined)
+    assert.equal((await client.callTool({ name: 'db_update', arguments: {} })).isError, true)
+    await client.close()
+    const limited = await mcpClient(`http://127.0.0.1:${port}/api/mcp`, 'limited-token')
+    assert.deepEqual((await limited.listTools()).tools.map((tool) => tool.name), ['db_list'])
+    assert.equal((await limited.callTool({ name: 'db_update', arguments: {} })).isError, true)
+    await limited.close()
+    assert.deepEqual(audits, [
+      { toolName: 'db_list', success: true },
+      { toolName: 'db_update', success: false },
+      { toolName: 'db_update', success: false },
+    ])
+  } finally {
+    await ctx.fiber.dispose()
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
   }
 }, 20000)
 

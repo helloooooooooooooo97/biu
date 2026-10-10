@@ -71,6 +71,18 @@ function SessionTagBadges({ tags }: { tags?: string[] }) {
   )
 }
 
+function CloudMark() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" className="shrink-0 text-sky-600" aria-label="云端" role="img">
+      <title>云端</title>
+      <path
+        fill="currentColor"
+        d="M5 12.5h6.1a2.6 2.6 0 0 0 .35-5.18 3.4 3.4 0 0 0-6.55.95A2.15 2.15 0 0 0 5 12.5Z"
+      />
+    </svg>
+  )
+}
+
 const sessionRowMainClass =
   'flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-[14px] leading-5'
 
@@ -107,6 +119,7 @@ const SessionRow = memo(function SessionRow({
       <span className="sidebar-label min-w-0 flex-1 truncate font-medium">
         {item.title}
       </span>
+      {item.remote ? <CloudMark /> : null}
       <SessionTagBadges tags={item.tags} />
     </>
   )

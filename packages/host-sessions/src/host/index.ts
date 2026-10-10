@@ -29,7 +29,7 @@ import {
 } from './session-mascot.ts'
 import { rebuildHealedEvents } from './session-heal.ts'
 import { sessionsCollection } from './sessions-collection.ts'
-import { eventsCollection } from './events-collection.ts'
+import type { AuthorizationService } from '@biu/host-account/authorization'
 
 export type { SessionEvent, SessionEventBody, SessionProject, SessionRecord, SessionMascot, SessionConfig }
 export { SESSION_FORMAT_VERSION, normalizeSessionConfig, mergeSessionConfig }
@@ -315,6 +315,8 @@ export function applyContextBudget(messages: LlmMessage[], budgetTokens: number,
 export class SessionsService extends Service {
   private cache = new Map<string, SessionRecord>()
   private defaultSessionPromise: Promise<string> | null = null
+  /** 视图授权能不能看见这条会话。由数据库在启动时接上。 */
+  viewAccess: (id: string, record?: { id?: unknown }) => boolean = () => false
 
   constructor(ctx: Context) {
     super(ctx, 'sessions')
@@ -344,12 +346,6 @@ export class SessionsService extends Service {
           },
         }),
       )
-      inner.database.register(
-        eventsCollection({
-          listSummaries: () => this.listSummaries(),
-          require: (id) => this.require(id),
-        }),
-      )
     })
   }
 
@@ -374,6 +370,9 @@ export class SessionsService extends Service {
       ...(seeded ? { config: seeded } : {}),
     }
     await this.persist(record)
+    this.attachSession(record.id)
+    const database = this.ctx.get('database') as { touchActor?: (collection: string, recordId: string) => Promise<void> } | undefined
+    await database?.touchActor?.('/sessions', record.id)
     return record
   }
 
@@ -401,11 +400,15 @@ export class SessionsService extends Service {
 
   async get(id: string) {
     const hit = this.cache.get(id)
-    if (hit) return hit
+    if (hit) {
+      this.attachSession(id)
+      return hit
+    }
     const loaded = await this.ctx.sessionStore.load(id)
     if (!loaded) return loaded
     const healed = await this.healOpenTurnsOnLoad(loaded)
     this.cache.set(id, healed)
+    this.attachSession(id)
     return healed
   }
 
@@ -558,8 +561,10 @@ export class SessionsService extends Service {
       this.ctx.emit('session/event', { sessionId: id, event })
       return event
     } else {
+      this.ctx.emit('session/event', { sessionId: id, event })
       this.clearPersistTimer(id)
       await this.persist(record)
+      return event
     }
     this.ctx.emit('session/event', { sessionId: id, event })
     return event
@@ -597,6 +602,7 @@ export class SessionsService extends Service {
       }),
     }
     await this.persist(record)
+    this.attachSession(record.id)
     return record
   }
 
@@ -616,8 +622,40 @@ export class SessionsService extends Service {
     return this.ctx.sessionStore.list()
   }
 
+  /** 没有协同账号时全部可见；有当前工作区时只留下本区会话，未认领的旧会话只在「本机」出现。 */
+  inWorkspace(id: string, record?: { id?: unknown }) {
+    const authorization = this.authorization()
+    const actor = authorization?.currentActor()
+    if (authorization && actor) {
+      const allowed = authorization.authorize(actor, 'resource:read', {
+        type: 'record',
+        workspaceId: actor.workspaceId,
+        collection: '/sessions',
+        recordId: id,
+      }).allowed
+      if (allowed) return true
+      return this.viewAccess(id, record)
+    }
+    const store = this.collabStore()
+    if (!store?.activeWorkspaceId()) return true
+    if (this.viewAccess(id, record)) return true
+    const membership = store.membership()
+    const key = `/sessions\t${id}`
+    if (membership.mine.has(key)) return this.recordReadable(id)
+    if (membership.any.has(key)) return false
+    if (membership.strict) return false
+    if (membership.active !== membership.home) return false
+    return this.recordReadable(id)
+  }
+
+  private recordReadable(id: string) {
+    const store = this.collabStore()
+    if (!store || typeof store.canReadRecord !== 'function') return true
+    return store.canReadRecord('/sessions', id)
+  }
+
   async listSummaries() {
-    const items = await this.ctx.sessionStore.listSummaries()
+    const items = (await this.ctx.sessionStore.listSummaries()).filter((item) => this.inWorkspace(item.id, item))
     const out = []
     for (const item of items) {
       let next = item
@@ -665,6 +703,40 @@ export class SessionsService extends Service {
     this.clearPersistTimer(id)
     this.cache.delete(id)
     return this.ctx.sessionStore.delete(id)
+  }
+
+  private collabStore() {
+    try {
+      return (
+        this.ctx.get('account') as
+          | {
+              store?: {
+                activeWorkspaceId(): string | null
+                membership(): { active: string | null; home: string | null; mine: Set<string>; any: Set<string>; strict?: boolean }
+                attach(workspaceId: string, collection: string, recordId: string): void
+                canReadRecord?(collection: string, recordId: string): boolean
+              }
+            }
+          | undefined
+      )?.store
+    } catch {
+      return undefined
+    }
+  }
+
+  private authorization() {
+    try {
+      return (this.ctx.get('account') as { authorization?: AuthorizationService } | undefined)?.authorization
+    } catch {
+      return undefined
+    }
+  }
+
+  private attachSession(id: string) {
+    const store = this.collabStore()
+    const workspaceId = store?.activeWorkspaceId()
+    if (!store || !workspaceId) return
+    store.attach(workspaceId, '/sessions', id)
   }
 
   private persistTimers = new Map<string, ReturnType<typeof setTimeout>>()

@@ -1,5 +1,4 @@
 import type { CollectionSchema, DbRecord } from '@biu/type-file-system'
-import { collectAssetNames } from './asset-refs.ts'
 import type { SavedView } from './web/saved-view.ts'
 
 export type ShareKind = 'view' | 'record'
@@ -62,12 +61,4 @@ export function parseSharePath(pathname: string): { token: string; recordId: str
     token: decodeURIComponent(match[1]),
     recordId: match[2] ? decodeURIComponent(match[2]) : '',
   }
-}
-
-export function pickShareAssets(records: DbRecord[], contents: Record<string, unknown>) {
-  return [...collectAssetNames(...records, ...Object.values(contents))]
-}
-
-export function shareTargetKey(share: Pick<ShareRecord, 'kind' | 'collection' | 'viewId' | 'recordId'>) {
-  return `${share.kind}:${share.collection}:${share.viewId}:${share.recordId}`
 }

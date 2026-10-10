@@ -314,7 +314,10 @@ export function matchFilterNode(
   schema?: CollectionSchema,
   packs: CollectionSchemaPack[] = [],
 ): boolean {
-  if (node.kind === 'rule') return matchFilterRule(record, node, schema, packs)
+  if (node.kind === 'rule') {
+    if (node.field === 'shareScope' || node.field === '$scope') return true
+    return matchFilterRule(record, node, schema, packs)
+  }
   const kids = node.children.filter((child) => {
     if (child.kind === 'group') return child.children.length > 0
     return child.op === 'is_empty' || child.op === 'not_empty' || String(child.value).trim() !== ''
@@ -333,7 +336,7 @@ export function matchListFilterRecord(
   if (!filter) return true
   const tree = filter.$tree
   for (const [key, expected] of Object.entries(filter)) {
-    if (key === '$tree' || expected == null || expected === '') continue
+    if (key === '$tree' || key === '$scope' || key === 'shareScope' || expected == null || expected === '') continue
     const pass = matchFilterRule(record, { kind: 'rule', id: key, field: key, op: 'eq', value: String(expected) }, schema, packs)
     if (!pass) return false
   }

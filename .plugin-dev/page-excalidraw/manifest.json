@@ -2,9 +2,14 @@
   "id": "page-excalidraw",
   "name": "Excalidraw 画板",
   "blurb": "画板源数据在 .biu/assets/page，页面里只留 file 引用；放大后才能编辑。",
-  "tags": ["page", "editor", "excalidraw"],
-  "author": "Biu",
-  "authorUrl": "https://github.com/helloooooooooooooo97/biu-harness",
+  "tags": [
+    "page",
+    "editor",
+    "excalidraw"
+  ],
+  "author": "BIU官方",
+  "authorUrl": "https://github.com/helloooooooooooooo97/biu",
   "createdAt": 1788272826621,
-  "headless": true
+  "headless": true,
+  "builtin": true
 }

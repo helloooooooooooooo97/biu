@@ -1,12 +1,12 @@
-import { cloneElement, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode, type Dispatch, type SetStateAction } from 'react'
-import type { CollectionChrome } from '@biu/type-file-system/ui'
+import { useEffect, useRef, useState, type ReactNode, type Dispatch, type SetStateAction } from 'react'
+import type { CollectionChrome, FsDetailPane } from '@biu/type-file-system/ui'
 import type { CollectionSchema, DbRecord, FieldSpec } from '@biu/type-file-system'
-import { ChevronDownIcon, ChevronUpIcon, EllipsisHorizontalIcon, HashtagIcon } from '@heroicons/react/16/solid'
+import { ChevronDownIcon, ChevronLeftIcon, ChevronUpIcon, EllipsisHorizontalIcon, HashtagIcon, ShareIcon } from '@heroicons/react/16/solid'
 import { AnchorMenu, RecordEmojiBoard } from '@biu/public-ui'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
 import { contentFieldKey, fieldHasValue, formatField, resolveFieldType } from './fields.ts'
 import { LocalText } from './controls.tsx'
-import { FilePreview, placedActions } from './fsdb-cells.tsx'
+import { FilePreview } from './fsdb-cells.tsx'
 import { PropertyRow } from './property-row.tsx'
 import { FacetPackEditor } from './schema-field.tsx'
 import { TableGlyph } from './nav-glyphs.tsx'
@@ -15,6 +15,33 @@ import { normalizeRecordEmoji, recordPreviewEmoji } from './sidebar-preview.ts'
 import { FOCUS_RECORD_CONTENT, FOCUS_RECORD_TITLE, shouldLeaveContentForTitle, shouldLeaveTitleForContent, focusRecordTitleNear } from './title-content-nav.ts'
 import { HeadingOutline } from './heading-outline.tsx'
 import { PageBanner } from './page-banner.tsx'
+import { fieldPickAttrs, recordSourcePath } from './pick-dom.ts'
+
+function renderDetailPanes(
+  panes: FsDetailPane[] | undefined,
+  record: DbRecord,
+  openRecord: ((recordId: string, collection?: string) => void) | undefined,
+  className: string,
+) {
+  if (!panes?.length) return null
+  return (
+    <div className={className}>
+      {panes.map((pane) => {
+        const Pane = pane.Pane
+        const count = pane.badge?.(record)
+        return (
+          <section key={pane.id} className="fsdb-detail-extra" data-testid={`fsdb-pane-${pane.id}`}>
+            <h3 className="fsdb-detail-extra-title">
+              {pane.label}
+              {count ? <span className="fsdb-detail-extra-count">{count}</span> : null}
+            </h3>
+            <Pane record={record} openRecord={openRecord} />
+          </section>
+        )
+      })}
+    </div>
+  )
+}
 
 function DetailTitleIcon({
   emoji,
@@ -107,22 +134,24 @@ function DetailTitleIcon({
 function DetailMore({
   record,
   Tools,
-  actions,
   onDelete,
   deleteLabel,
+  share,
+  shareLabel,
 }: {
   record: DbRecord
   Tools?: CollectionChrome['DetailTools']
-  actions?: ReactNode
   onDelete?: () => void
   deleteLabel: string
+  share?: ReactNode
+  shareLabel?: string
 }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
-  const close = () => setAnchor(null)
-  const actionMenu =
-    actions && isValidElement(actions)
-      ? cloneElement(actions as ReactElement<{ onDone?: () => void }>, { onDone: close })
-      : actions
+  const [shareItem, setShareItem] = useState<HTMLElement | null>(null)
+  const close = () => {
+    setAnchor(null)
+    setShareItem(null)
+  }
   return (
     <>
       <button
@@ -144,10 +173,28 @@ function DetailMore({
           className="fsdb-detail-more-menu"
           role="menu"
           minWidth={168}
-          placement="right"
+          placement="left"
+          inside={(node) => node instanceof Element && Boolean(node.closest('.fsdb-detail-more-menu.has-share'))}
         >
           {Tools ? <Tools record={record} onDone={close} /> : null}
-          {actionMenu}
+          {share ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="fsdb-detail-more-item"
+              aria-haspopup="dialog"
+              aria-expanded={Boolean(shareItem)}
+              data-testid="fsdb-detail-share"
+              onClick={(event) => {
+                const btn = event.currentTarget
+                setShareItem((prev) => (prev ? null : btn))
+              }}
+            >
+              <ShareIcon aria-hidden />
+              {shareLabel || '分享'}
+              <ChevronLeftIcon aria-hidden className="fsdb-detail-more-caret" />
+            </button>
+          ) : null}
           {onDelete ? (
             <button
               type="button"
@@ -163,6 +210,20 @@ function DetailMore({
               {deleteLabel}
             </button>
           ) : null}
+        </AnchorMenu>
+      ) : null}
+      {anchor && share && shareItem ? (
+        <AnchorMenu
+          anchor={shareItem}
+          onClose={() => setShareItem(null)}
+          className="fsdb-detail-more-menu has-share"
+          role="dialog"
+          minWidth={360}
+          placement="left"
+          zIndex={210}
+          inside={(node) => Boolean(anchor.contains(node))}
+        >
+          {share}
         </AnchorMenu>
       ) : null}
     </>
@@ -187,9 +248,10 @@ export function RecordDetail({
   canPrev,
   canNext,
   headingOutline = true,
-  toolbar,
+  actionProperty,
   share,
   collectionPath,
+  recordKind = 'record',
   onDelete,
   readOnly = false,
 }: {
@@ -210,12 +272,22 @@ export function RecordDetail({
   canPrev?: boolean
   canNext?: boolean
   headingOutline?: boolean
-  toolbar?: ReactNode
+  actionProperty?: ReactNode
   share?: ReactNode
   collectionPath?: string
+  recordKind?: string
   onDelete?: () => void
   readOnly?: boolean
 }) {
+  const title = labelOf(selected)
+  const recordPath = recordSourcePath(collectionPath, selected.id)
+  const propPick = (key: string, field?: FieldSpec, text?: string) =>
+    fieldPickAttrs(recordKind, selected.id, key, {
+      label: field?.label ?? key,
+      title,
+      path: recordPath,
+      text,
+    })
   const mainRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const onTitle = () => {
@@ -281,7 +353,12 @@ export function RecordDetail({
                 />
                 </div>
                 <div className="fsdb-detail-title-row">
-                <div className="fsdb-detail-title-block">
+                <div
+                  className="fsdb-detail-title-block"
+                  {...(schema.labelField
+                    ? propPick(schema.labelField, schema.fields[schema.labelField], title)
+                    : {})}
+                >
                 {schema.labelField && schema.fields[schema.labelField]?.writable && !readOnly ? (
                   <h1 className="fsdb-detail-title">
                     <LocalText
@@ -312,7 +389,7 @@ export function RecordDetail({
                 </div>
                 </div>
                 <div className="fsdb-detail-aside">
-                  <div className="fsdb-prop">
+                  <div className="fsdb-prop" {...propPick('id', { type: 'string', label: 'ID' }, selected.id)}>
                     <span>
                       <HashtagIcon aria-hidden className="size-[14px]" />
                       ID
@@ -334,6 +411,7 @@ export function RecordDetail({
                         collapsible={fold}
                         expanded={fold ? facetOpen : undefined}
                         onToggle={fold ? () => setFacetOpen((open) => !open) : undefined}
+                        pick={propPick(key, field, packFields ? undefined : formatField(field, selected[key]))}
                       >
                         <div className={fold ? 'fsdb-prop-val is-schema' : 'fsdb-prop-val'} title={packFields ? undefined : formatField(field, selected[key])}>
                           {packFields ? (
@@ -345,7 +423,13 @@ export function RecordDetail({
                       </PropertyRow>
                     )
                   })}
+                  {actionProperty ? (
+                    <PropertyRow field={{ type: 'action', label: '动作' }} fieldKey="actions">
+                      <div className="fsdb-prop-val is-actions">{actionProperty}</div>
+                    </PropertyRow>
+                  ) : null}
                 </div>
+                {renderDetailPanes(chrome?.panes?.filter((pane) => pane.place === 'properties'), selected, onOpenRecord, 'fsdb-detail-prop-panes')}
                 {contentFieldKey(schema) && schema.fields[contentFieldKey(schema)!] ? (() => {
                   const key = contentFieldKey(schema)!
                   const spec = schema.fields[key]!
@@ -414,33 +498,15 @@ export function RecordDetail({
                     </div>
                   )
                 })() : null}
-                {chrome?.panes?.length ? (
-                  <div className="fsdb-detail-extras">
-                    {chrome.panes.map((pane) => {
-                      const Pane = pane.Pane
-                      const count = pane.badge?.(selected)
-                      return (
-                        <section key={pane.id} className="fsdb-detail-extra" data-testid={`fsdb-pane-${pane.id}`}>
-                          <h3 className="fsdb-detail-extra-title">
-                            {pane.label}
-                            {count ? <span className="fsdb-detail-extra-count">{count}</span> : null}
-                          </h3>
-                          <Pane record={selected} openRecord={onOpenRecord} />
-                        </section>
-                      )
-                    })}
-                  </div>
-                ) : null}
+                {renderDetailPanes(chrome?.panes?.filter((pane) => pane.place !== 'properties'), selected, onOpenRecord, 'fsdb-detail-extras')}
                 {chrome?.Board ? <chrome.Board record={selected} openRecord={onOpenRecord} /> : null}
               </div>
             </div>
           </div>
           <HeadingOutline enabled={headingOutline} />
           {(() => {
-            const showMore = !readOnly && Boolean(
-              chrome?.DetailTools || onDelete || chrome?.Actions || placedActions(schema, 'detail').length,
-            )
-            if (!onPrev && !onNext && !showMore && !share) return null
+            const showMore = Boolean(share) || (!readOnly && Boolean(chrome?.DetailTools || onDelete))
+            if (!onPrev && !onNext && !showMore) return null
             return (
             <nav className={`fsdb-detail-float-nav${share ? ' has-share' : ''}`} aria-label="按视图顺序切换记录">
               {onPrev || onNext ? (
@@ -459,12 +525,12 @@ export function RecordDetail({
                 <DetailMore
                   record={selected}
                   Tools={chrome?.DetailTools}
-                  actions={toolbar}
                   onDelete={onDelete}
                   deleteLabel={collectionPath === '/pages' ? '删除页面' : '删除记录'}
+                  share={share}
+                  shareLabel={collectionPath === '/pages' ? '分享页面' : '分享记录'}
                 />
               ) : null}
-              {share}
               {onPrev || onNext ? (
                 <button
                   type="button"

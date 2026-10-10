@@ -2,7 +2,7 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { ArenaGame } from '../../../../.plugin-dev/arena-rogue/game.ts'
+import { ArenaGame } from '../../../../.plugin-dev/arena-rogue/web/game.ts'
 
 test('arena-rogue is a resizable window plugin with 12 weapons and extras slot', async () => {
   const dir = resolve(import.meta.dirname, '../../../../.plugin-dev/arena-rogue')
@@ -12,9 +12,9 @@ test('arena-rogue is a resizable window plugin with 12 weapons and extras slot',
     headless?: boolean
     shell?: { width: number; height: number; resizable?: boolean }
   }
-  const web = await readFile(resolve(dir, 'web.tsx'), 'utf8')
-  const game = await readFile(resolve(dir, 'game.ts'), 'utf8')
-  const weapons = await readFile(resolve(dir, 'weapons.ts'), 'utf8')
+  const web = await readFile(resolve(dir, 'web/index.tsx'), 'utf8')
+  const game = await readFile(resolve(dir, 'web/game.ts'), 'utf8')
+  const weapons = await readFile(resolve(dir, 'web/weapons.ts'), 'utf8')
   assert.equal(manifest.id, 'arena-rogue')
   assert.equal(manifest.name, '枪火')
   assert.equal(manifest.headless, undefined)

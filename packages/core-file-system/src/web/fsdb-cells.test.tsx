@@ -14,6 +14,19 @@ test('Skill sync actions use distinct directional icons', () => {
   assert.notEqual(push.container.innerHTML, fallback.container.innerHTML)
 })
 
+test('enable and disable actions use play and stop glyphs', () => {
+  const on = render(actionIcon('enable'))
+  const off = render(actionIcon('disable'))
+  const play = render(actionIcon('play'))
+  const stop = render(actionIcon('stop'))
+  const bolt = render(actionIcon('unknown-action'))
+  assert.equal(on.container.innerHTML, play.container.innerHTML)
+  assert.equal(off.container.innerHTML, stop.container.innerHTML)
+  assert.notEqual(on.container.innerHTML, off.container.innerHTML)
+  assert.notEqual(on.container.innerHTML, bolt.container.innerHTML)
+  assert.notEqual(off.container.innerHTML, bolt.container.innerHTML)
+})
+
 test('attachment cells render a file link, not a broken image', () => {
   const { container } = render(
     <DefaultCell field={{ type: 'attachment' }} value={{ name: 'notes.pdf', href: 'https://cdn.example/notes.pdf' }} />,

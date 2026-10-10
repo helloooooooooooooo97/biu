@@ -1,0 +1,25 @@
+{
+  "name": "@biu/host-account",
+  "license": "Apache-2.0",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "账号、工作区成员、按版本同步记录和单记录编辑锁",
+  "exports": {
+    ".": "./src/host/index.ts",
+    "./store": "./src/host/store.ts",
+    "./replica": "./src/host/replica.ts",
+    "./mirror": "./src/host/mirror.ts",
+    "./authorization": "./src/host/authorization.ts",
+    "./workspace-members-collection": "./src/host/workspace-members-collection.ts"
+  },
+  "peerDependencies": {
+    "cordis": "4.0.0-rc.8"
+  },
+  "dependencies": {
+    "@biu/host-plugin-loader": "0.1.0",
+    "@biu/host-workspace": "0.1.0",
+    "@biu/type-file-system": "0.1.0",
+    "@biu/type-http": "0.1.0"
+  }
+}

@@ -5,6 +5,7 @@ import {
   nextPreviewLimit,
   normalizeRecordEmoji,
   previewCacheKey,
+  previewColumns,
   recordPreviewLabel,
   crumbRecordLabel,
   rememberPreviewTotal,
@@ -39,6 +40,11 @@ test('preview total key is cached per view', () => {
   const view = { id: 'v1', sortField: 'id', sortDir: 'asc' as const, filters: {}, query: '' }
   rememberPreviewTotal(viewTotalKey('/tasks', view), 12)
   assert.equal(getPreviewTotal(viewTotalKey('/tasks', view)), 12)
+})
+
+test('sidebar preview asks for the view group field so 全部 does not collapse into 未填', () => {
+  assert.deepEqual(previewColumns({ groupBy: 'shareScope' }), ['title', 'emoji', 'mascot', 'parentId', 'shareScope'])
+  assert.deepEqual(previewColumns({ groupBy: '' }), ['title', 'emoji', 'mascot', 'parentId'])
 })
 
 test('preview pages stay small and stop at max', () => {
