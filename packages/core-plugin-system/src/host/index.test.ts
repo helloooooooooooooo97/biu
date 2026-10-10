@@ -185,6 +185,33 @@ test('restore skips a broken enabled plugin and continues', async () => {
   }
 })
 
+test('a failed open does not leave the plugin running', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'plugin-root-'))
+  const pluginDir = join(dir, '.plugin')
+  try {
+    const ctx = new Context()
+    const { dropped } = stubHub(ctx)
+    const hub = (ctx as unknown as { hub: { adopt: (entry: CatalogEntry) => Promise<void> } }).hub
+    hub.adopt = async () => {
+      throw new Error('boom')
+    }
+    const store = new PluginStoreService(ctx, pluginDir, join(dir, 'store.json'), join(dir, '.plugin-dev')).open()
+    await store.initSandbox({
+      id: 'store-fail',
+      name: 'Fail',
+      hostJs: `export const name = 'store-fail'\nexport function apply() {}\n`,
+    })
+    await store.pack('store-fail')
+    await assert.rejects(() => store.openPlugin('store-fail'), /boom/)
+    const row = (await store.list()).find((item) => item.id === 'store-fail')
+    assert.equal(row?.enabled, false)
+    assert.equal(row?.running, false)
+    assert.ok(dropped.includes('store-fail'))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('missing .plugin lists no plugins', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'plugin-root-'))
   try {
