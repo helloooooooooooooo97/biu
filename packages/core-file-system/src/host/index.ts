@@ -1773,6 +1773,7 @@ export class DatabaseService extends Service implements Database {
         this.attachWorkspaceRecord(spec.path, record.id, {
           ownership: parentRecordId || workspaceOwned ? 'workspace' : shared ? 'shared' : 'personal',
           accessMode: parentRecordId ? 'inherit' : workspaceOwned || shared ? 'members' : 'private',
+          ...(workspaceOwned ? { memberDefaultRole: 'editor' as const } : {}),
           ...(shared ? { memberDefaultRole: 'viewer' as const } : {}),
           ...(parentRecordId ? { parentCollection: spec.path, parentRecordId } : {}),
         })
