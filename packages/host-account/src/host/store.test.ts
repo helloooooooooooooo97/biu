@@ -279,6 +279,22 @@ test('bootstrap claims live records once and skips trash', () => {
   assert.deepEqual(pages.map((row) => row.record_id), ['p1'])
 })
 
+test('a pulled workspace is stored for the signed-in account', () => {
+  const collab = store()
+  const local = collab.bootstrapLocal({ accountName: '我', workspaceName: '本机' })
+  assert.ok(local.workspace)
+  collab.upsertPulledWorkspace({
+    accountId: local.account.id,
+    id: 'ws_remote',
+    name: '远程空间',
+    ownerId: 'acc_remote',
+    role: 'owner',
+  })
+  const listed = collab.listWorkspaces(local.account.id)
+  assert.deepEqual(listed.map((item) => item.name), ['本机', '远程空间'])
+  assert.equal(listed.find((item) => item.id === 'ws_remote')?.role, 'owner')
+})
+
 test('an existing workspace is not filled with local records', () => {
   const collab = store()
   const ada = collab.register('Ada')

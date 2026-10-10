@@ -994,6 +994,18 @@ export class DatabaseService extends Service implements Database {
     this.ownershipCache = null
   }
 
+  rememberScope(collection: string, recordId: string, scope: 'personal' | 'workspace' | 'shared') {
+    if (scope === 'shared') {
+      this.markPublicView(collection, recordId)
+      return
+    }
+    this.attachWorkspaceRecord(collection, recordId, {
+      ownership: scope === 'workspace' ? 'workspace' : 'personal',
+      accessMode: scope === 'workspace' ? 'members' : 'private',
+      ...(scope === 'workspace' ? { memberDefaultRole: 'editor' as const } : {}),
+    })
+  }
+
   /** 公开链接：无密码，所有人只读查看。 */
   markPublicView(collection: string, recordId: string) {
     this.attachWorkspaceRecord(collection, recordId, {
@@ -3008,30 +3020,47 @@ export function apply(ctx: Context) {
       }
       const scope =
         body?.scope === 'workspace' ? 'workspace' : body?.scope === 'shared' ? 'shared' : body?.scope === 'local' ? 'local' : 'personal'
-      const created = await db.create(String(body?.path ?? ''), body?.records ?? body?.content, { scope })
-      if (scope === 'shared' && process.env.BIU_ONLINE === '0' && process.env.BIU_REMOTE_ORIGIN) {
-        const collection = String(body?.path ?? '')
-        const ids = (created.items ?? []).map((item) => String(item.value?.id ?? '')).filter(Boolean)
-        const copies = await publishToCloud(ctx, collection, ids)
-        const origin = process.env.BIU_REMOTE_ORIGIN.replace(/\/$/, '')
-        let token = ''
+      const origin = process.env.BIU_ONLINE === '0' ? process.env.BIU_REMOTE_ORIGIN?.replace(/\/$/, '') || '' : ''
+      if (origin && scope !== 'local') {
+        const headers: Record<string, string> = { 'content-type': 'application/json' }
+        const authorization = route.req.headers.authorization
+        const cookie = route.req.headers.cookie
+        if (authorization) headers.authorization = String(authorization)
+        else if (cookie) headers.cookie = String(cookie)
+        let remote: Response
         try {
-          const account = ctx.get('account') as { replica?: { active?: () => { token?: string } | null } }
-          token = account.replica?.active?.()?.token || ''
-        } catch {
-          token = ''
-        }
-        for (const id of ids) {
-          const cloudId = copies[id]
-          if (!cloudId || !token) continue
-          await fetch(`${origin}/api/db/shares`, {
+          remote = await fetch(`${origin}/api/db/create`, {
             method: 'POST',
-            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-            body: JSON.stringify({ kind: 'record', collection, recordId: cloudId, allowCopy: false, password: null }),
-          }).catch(() => undefined)
-          db.markPublicView(collection, cloudId)
+            headers,
+            body: JSON.stringify({ path: body?.path, records: body?.records ?? body?.content, scope }),
+          })
+        } catch {
+          route.send(503, { error: '云端暂时连不上' })
+          return
         }
+        const payload = (await remote.json().catch(() => ({}))) as {
+          items?: Array<{ value?: { id?: string } }>
+          error?: string
+        }
+        if (remote.ok) {
+          const collection = String(body?.path ?? '')
+          const values = (payload.items ?? []).map((item) => item.value).filter((value): value is { id: string } => Boolean(value?.id))
+          await db.applySynced(collection, values as DbRecord[])
+          for (const value of values) {
+            try {
+              const account = ctx.get('account') as { markRemote?: (collection: string, id: string) => void }
+              account.markRemote?.(collection, value.id)
+            } catch {
+              /* 没有账号库时仍返回云端结果 */
+            }
+            if (scope === 'shared') db.markPublicView(collection, value.id)
+            else db.rememberScope(collection, value.id, scope)
+          }
+        }
+        route.send(remote.status, payload)
+        return
       }
+      const created = await db.create(String(body?.path ?? ''), body?.records ?? body?.content, { scope })
       route.send(200, created)
     } catch (error) {
       route.send(400, { error: String(error) })
