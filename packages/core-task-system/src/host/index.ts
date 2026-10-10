@@ -148,6 +148,8 @@ export type TaskRow = {
 }
 
 export type TaskCreateInput = {
+  id?: string
+  updatedAt?: number
   title: string
   status?: TaskStatus
   priority?: TaskPriority
@@ -170,6 +172,7 @@ export type TaskCreateInput = {
 }
 
 export type TaskUpdateInput = Partial<{
+  updatedAt: number
   title: string
   status: TaskStatus
   priority: TaskPriority
@@ -1110,8 +1113,9 @@ export class TasksService extends Service {
   create(input: TaskCreateInput & { creator: TaskActor; assignee?: TaskActor | null; assignedAt?: number | null }): TaskRow {
     const title = String(input.title ?? '').trim()
     if (!title) throw new Error('title required')
-    const id = nextId()
-    const ts = now()
+    const requested = typeof input.id === 'string' ? input.id.trim() : ''
+    const id = /^task_[A-Za-z0-9_-]+$/.test(requested) ? requested : nextId()
+    const ts = typeof input.updatedAt === 'number' && input.updatedAt > 0 ? input.updatedAt : now()
     const status = asStatus(input.status)
     const priority = asPriority(input.priority)
     const difficulty = asDifficulty(input.difficulty)
@@ -1285,7 +1289,7 @@ export class TasksService extends Service {
     const emoji = patch.emoji !== undefined ? String(patch.emoji ?? '') : current.emoji
     const facet = patch.facet !== undefined ? normalizeSchemaValue(patch.facet) : current.facet
 
-    const ts = now()
+    const ts = typeof patch.updatedAt === 'number' && patch.updatedAt > 0 ? patch.updatedAt : now()
     this.db
       .prepare(
         `UPDATE tasks SET

@@ -160,7 +160,8 @@ export class SqliteSessionStore implements SessionStore {
       throw new Error(`unsupported session version ${record.version}`)
     }
     const title = sessionDisplayTitle(record)
-    const updatedAt = Date.now()
+    const stamped = Number((record as { updatedAt?: number }).updatedAt)
+    const updatedAt = Number.isFinite(stamped) && stamped > 0 ? stamped : Date.now()
     const projectJson = record.project ? JSON.stringify(record.project) : null
     const mascotJson = record.mascot ? JSON.stringify(record.mascot) : null
     const configJson = record.config ? JSON.stringify(record.config) : null
