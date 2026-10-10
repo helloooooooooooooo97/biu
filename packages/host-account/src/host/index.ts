@@ -75,6 +75,22 @@ export class AccountService extends Service {
     return row?.place === 'remote'
   }
 
+  isLocal(collection: string, id: string) {
+    const row = this.db.prepare('SELECT place FROM record_place WHERE collection = ? AND record_id = ?').get(collection, id) as
+      | { place?: string }
+      | undefined
+    return row?.place === 'local'
+  }
+
+  markLocal(collection: string, id: string) {
+    this.db
+      .prepare(
+        `INSERT INTO record_place (collection, record_id, place) VALUES (?, ?, 'local')
+         ON CONFLICT(collection, record_id) DO UPDATE SET place = 'local'`,
+      )
+      .run(collection, id)
+  }
+
   markRemote(collection: string, id: string) {
     this.db
       .prepare(

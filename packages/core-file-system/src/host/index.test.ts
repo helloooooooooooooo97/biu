@@ -1898,11 +1898,18 @@ test('desktop records keep personal and workspace ownership', async () => {
     })
     const dir = mkdtempSync(join(tmpdir(), 'biu-db-local-owner-'))
     const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+    const localIds = new Set<string>()
     class AccountBridge extends Service {
       store = collab
       authorization = collab.authorization
       constructor(inner: Context) {
         super(inner, 'account')
+      }
+      isLocal(_collection: string, id: string) {
+        return localIds.has(id)
+      }
+      markLocal(_collection: string, id: string) {
+        localIds.add(id)
       }
     }
     await ctx.plugin(AccountBridge)
@@ -1911,8 +1918,12 @@ test('desktop records keep personal and workspace ownership', async () => {
     collab.setActive(ada.id, workspace.id)
     const personal = await runWithAccount(ada.id, () => db.create('/docs', [{ title: '私人' }], { scope: 'personal' }))
     const space = await runWithAccount(ada.id, () => db.create('/docs', [{ title: '空间' }], { scope: 'workspace' }))
+    const local = await runWithAccount(ada.id, () => db.create('/docs', [{ title: '本机' }], { scope: 'local' }))
     assert.equal(personal.kind === 'created' && personal.items[0]?.value.shareScope, '私人')
     assert.equal(space.kind === 'created' && space.items[0]?.value.shareScope, '空间')
+    assert.equal(local.kind === 'created' && local.items[0]?.value.shareScope, '本地')
+    const owner = collab.collectionRecordOwners?.(workspace.id, '/docs')
+    if (local.kind === 'created') assert.equal(owner?.get(String(local.items[0]?.value.id)), ada.id)
   } finally {
     if (previous === undefined) delete process.env.BIU_ONLINE
     else process.env.BIU_ONLINE = previous
