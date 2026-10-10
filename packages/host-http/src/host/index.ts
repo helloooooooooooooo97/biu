@@ -561,6 +561,7 @@ export class HttpService extends Service {
           context.send(400, { error: '需要空间' })
           return
         }
+        if (accountId && token) this.ctx.emit('account/request', { accountId, token })
         if (accountId && requestedWorkspace && accountStore?.isMember && !accountStore.isMember(accountId, requestedWorkspace)) {
           context.send(403, { error: '不在这个空间' })
           return

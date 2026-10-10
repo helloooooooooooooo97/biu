@@ -141,7 +141,7 @@ function applyPatch(current: PageRow, patch: Record<string, unknown>): PageRow {
     facet: current.facet,
     emoji: 'emoji' in patch ? String(patch.emoji ?? '') : current.emoji,
     createdAt: current.createdAt,
-    updatedAt: Date.now(),
+    updatedAt: typeof patch.updatedAt === 'number' && patch.updatedAt > 0 ? patch.updatedAt : Date.now(),
   }
 }
 
@@ -267,8 +267,8 @@ export class PagesStore {
     const ts = Date.now()
     const row = applyPatch(emptyRow(id, ts), { ...fields })
     row.id = id
-    row.createdAt = ts
-    row.updatedAt = ts
+    row.createdAt = typeof fields.createdAt === 'number' && fields.createdAt > 0 ? fields.createdAt : ts
+    row.updatedAt = typeof fields.updatedAt === 'number' && fields.updatedAt > 0 ? fields.updatedAt : ts
     if (typeof fields.title === 'string' && fields.title.trim()) row.title = fields.title.trim()
     await this.write(row)
     return (await this.get(id))!

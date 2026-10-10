@@ -1177,6 +1177,47 @@ export class DatabaseService extends Service implements Database {
     throw new Error(`path too deep: ${normalizeCollectionPath(path)}`)
   }
 
+  /** 当前账号能读到的记录，带上正文，给本机和集中部署对拷。 */
+  async syncedRecords() {
+    const out: Array<{ path: string; records: DbRecord[] }> = []
+    for (const spec of this.collections.values()) {
+      if (!spec.list || !spec.get) continue
+      try {
+        const listed = await this.list(spec.path)
+        if (listed.kind !== 'collection') continue
+        const records: DbRecord[] = []
+        for (const item of listed.items) {
+          const full = await spec.get(String(item.id))
+          records.push((full as DbRecord | null) ?? item)
+        }
+        out.push({ path: spec.path, records })
+      } catch {
+        /* 这张表读不了就跳过，不挡住别的表 */
+      }
+    }
+    return out
+  }
+
+  /** 按 id 写入。对方更新时间不比本地新就跳过。 */
+  async applySynced(path: string, records: DbRecord[]) {
+    const spec = this.collection(path)
+    if (!spec?.get || !spec.create || !spec.update) return
+    for (const record of records) {
+      const id = String(record?.id ?? '')
+      if (!id) continue
+      try {
+        const existing = await spec.get(id)
+        const incomingAt = Number(record.updatedAt) || 0
+        const existingAt = Number((existing as DbRecord | null)?.updatedAt) || 0
+        if (existing && existingAt >= incomingAt) continue
+        if (!existing) await spec.create([{ ...record, id }])
+        else await spec.update(id, record)
+      } catch (error) {
+        console.warn('[replica] skip', path, id, error)
+      }
+    }
+  }
+
   async list(path: string, filter?: Record<string, unknown>, page?: ListPage) {
     const parts = splitPath(path)
     if (parts.length === 0) {

@@ -287,6 +287,52 @@ export class CollabStore {
     return { id: sessionId, token, expiresAt: expiration }
   }
 
+  /** 本机登录集中部署后，用对方发的令牌在本地也能认出这个账号。 */
+  bindKnownSession(accountId: string, token: string, deviceName = '本机', now = Date.now()) {
+    const hash = this.digestToken(token)
+    const existing = this.db.prepare('SELECT id FROM auth_sessions WHERE token_hash = ?').get(hash) as { id: string } | undefined
+    if (existing) return
+    this.db
+      .prepare(
+        `INSERT INTO auth_sessions (id, account_id, token_hash, device_name, expires_at, revoked_at, created_at, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
+      )
+      .run(id('ses'), accountId, hash, deviceName, now + DEFAULT_SESSION_MS, now, now)
+  }
+
+  ensureRemoteAccount(input: { id: string; name: string; email: string; token: string; workspaceId: string; workspaceName?: string }) {
+    const email = input.email.trim().toLowerCase()
+    const byId = this.db.prepare('SELECT id FROM accounts WHERE id = ?').get(input.id) as { id: string } | undefined
+    const byEmail = email
+      ? (this.db.prepare('SELECT id FROM accounts WHERE email = ?').get(email) as { id: string } | undefined)
+      : undefined
+    const accountId = byId?.id ?? byEmail?.id ?? input.id
+    if (!byId && !byEmail) {
+      this.db
+        .prepare('INSERT INTO accounts (id, name, token, password_hash, created_at, email) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(accountId, input.name || email || '我', input.token, '', Date.now(), email || null)
+    }
+    this.bindKnownSession(accountId, input.token)
+    if (input.workspaceId) {
+      const workspace = this.db.prepare('SELECT id FROM workspaces WHERE id = ?').get(input.workspaceId) as { id: string } | undefined
+      if (!workspace) {
+        this.db
+          .prepare('INSERT INTO workspaces (id, name, owner_id, created_at) VALUES (?, ?, ?, ?)')
+          .run(input.workspaceId, input.workspaceName || '在线', accountId, Date.now())
+      }
+      const member = this.db
+        .prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND account_id = ?')
+        .get(input.workspaceId, accountId)
+      if (!member) {
+        this.db
+          .prepare('INSERT INTO workspace_members (workspace_id, account_id, role, created_at) VALUES (?, ?, ?, ?)')
+          .run(input.workspaceId, accountId, 'owner', Date.now())
+      }
+      this.rememberActive(accountId, input.workspaceId)
+    }
+    return { id: accountId, token: input.token, workspaceId: input.workspaceId }
+  }
+
   revokeSession(token: string, now = Date.now()) {
     if (!token) return
     this.db.prepare('UPDATE auth_sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL').run(now, this.digestToken(token))

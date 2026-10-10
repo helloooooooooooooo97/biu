@@ -4,6 +4,7 @@ import { readWorkspaceProfile } from '@biu/host-workspace'
 import type { RouteContext } from '@biu/type-http'
 import { CollabError, CollabStore } from './store.ts'
 import { httpRemote, RecordReplica } from './replica.ts'
+import { applySnapshot, exchangeSnapshot, takeSnapshot, type MirrorSnapshot } from './mirror.ts'
 import type { AuthorizationService, ResourceRole } from './authorization.ts'
 import { workspaceMembersCollection } from './workspace-members-collection.ts'
 
@@ -30,9 +31,18 @@ export class AccountService extends Service {
     if (process.env.BIU_ONLINE !== '1' && origin) {
       this.replica = new RecordReplica(db, httpRemote(origin))
       const timer = setInterval(() => {
-        void this.replica?.pull().then(() => this.replica?.flush())
-      }, 5000)
+        const device = this.replica?.active()
+        if (!device?.token) return
+        void exchangeSnapshot(ctx, origin, device.token, device.accountId).catch((error) => {
+          console.warn('[replica] sync failed', error)
+        })
+      }, 3000)
       ctx.on('dispose', () => clearInterval(timer))
+      ctx.on('account/request', (event) => {
+        const payload = event as { accountId?: string; token?: string }
+        if (!payload.accountId || !payload.token || !this.replica) return
+        this.replica.remember({ accountId: payload.accountId, workspaceId: '', token: payload.token })
+      })
       ctx.on('session/finished', (event) => {
         const payload = event as { sessionId?: string; text?: string }
         const device = this.replica?.active()
@@ -128,6 +138,36 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
   ctx.http.route('POST', '/api/account/login', async (route) => {
     try {
       const body = (await route.json()) as { email?: string; password?: string }
+      const origin = process.env.BIU_REMOTE_ORIGIN
+      if (process.env.BIU_ONLINE !== '1' && origin) {
+        try {
+          const remote = await fetch(`${origin.replace(/\/$/, '')}/api/account/login`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email: body.email ?? '', password: body.password ?? '' }),
+          })
+          if (remote.ok) {
+            const payload = (await remote.json()) as { id: string; name?: string; token: string; workspaceId?: string }
+            const adopted = account.store.ensureRemoteAccount({
+              id: payload.id,
+              name: payload.name || String(body.email ?? ''),
+              email: String(body.email ?? ''),
+              token: payload.token,
+              workspaceId: String(payload.workspaceId ?? ''),
+            })
+            account.replica?.remember({
+              accountId: adopted.id,
+              workspaceId: adopted.workspaceId,
+              token: adopted.token,
+            })
+            rememberLogin(route, adopted.token)
+            route.send(200, { id: adopted.id, name: payload.name, token: adopted.token, workspaceId: adopted.workspaceId })
+            return
+          }
+        } catch {
+          /* 集中部署不在时仍用本机账号 */
+        }
+      }
       const found = account.store.login(
         String(body.email ?? ''),
         String(body.password ?? ''),
@@ -135,6 +175,11 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       )
       const workspaceId = account.store.enter(found.id)
       rememberLogin(route, found.token)
+      account.replica?.remember({
+        accountId: found.id,
+        workspaceId: String(workspaceId),
+        token: found.token,
+      })
       ctx.http.broadcast('database', { ts: Date.now() })
       route.send(200, {
         id: found.id,
@@ -603,6 +648,26 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
         expectedVersion: Number(body.expectedVersion ?? 0),
       })
       route.send(200, op)
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('GET', '/api/replica/snapshot', async (route) => {
+    try {
+      actor(route)
+      route.send(200, await takeSnapshot(ctx))
+    } catch (error) {
+      fail(route, error)
+    }
+  })
+
+  ctx.http.route('POST', '/api/replica/snapshot', async (route) => {
+    try {
+      actor(route)
+      const body = (await route.json()) as MirrorSnapshot
+      await applySnapshot(ctx, body)
+      route.send(200, { ok: true })
     } catch (error) {
       fail(route, error)
     }
