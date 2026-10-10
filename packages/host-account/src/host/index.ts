@@ -172,6 +172,44 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       const email = String(body.email ?? '')
       if (!password.trim()) throw new CollabError('密码不能为空', 400)
       if (!email.trim()) throw new CollabError('邮箱不能为空', 400)
+      const origin = process.env.BIU_REMOTE_ORIGIN
+      if (process.env.BIU_ONLINE !== '1' && origin) {
+        try {
+          const remote = await fetch(`${origin.replace(/\/$/, '')}/api/account/register`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+          })
+          const payload = (await remote.json().catch(() => ({}))) as {
+            id?: string
+            name?: string
+            token?: string
+            workspaceId?: string
+            error?: string
+          }
+          if (!remote.ok || !payload.token || !payload.id) {
+            route.send(remote.status, payload.error ? payload : { error: '注册失败' })
+            return
+          }
+          const adopted = account.store.ensureRemoteAccount({
+            id: payload.id,
+            name: payload.name || email,
+            email,
+            token: payload.token,
+            workspaceId: String(payload.workspaceId ?? ''),
+          })
+          account.replica?.remember({
+            accountId: adopted.id,
+            workspaceId: adopted.workspaceId,
+            token: adopted.token,
+          })
+          rememberLogin(route, adopted.token)
+          route.send(201, { id: adopted.id, name: payload.name, token: adopted.token, workspaceId: adopted.workspaceId })
+          return
+        } catch {
+          /* 集中部署不在时仍在本机注册 */
+        }
+      }
       const created = account.store.register('', Date.now(), password, email)
       const workspaceId = account.store.enter(created.id)
       const session = account.store.openSession(created.id, String(route.req.headers['user-agent'] ?? '浏览器').slice(0, 120))
@@ -194,24 +232,32 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ email: body.email ?? '', password: body.password ?? '' }),
           })
-          if (remote.ok) {
-            const payload = (await remote.json()) as { id: string; name?: string; token: string; workspaceId?: string }
-            const adopted = account.store.ensureRemoteAccount({
-              id: payload.id,
-              name: payload.name || String(body.email ?? ''),
-              email: String(body.email ?? ''),
-              token: payload.token,
-              workspaceId: String(payload.workspaceId ?? ''),
-            })
-            account.replica?.remember({
-              accountId: adopted.id,
-              workspaceId: adopted.workspaceId,
-              token: adopted.token,
-            })
-            rememberLogin(route, adopted.token)
-            route.send(200, { id: adopted.id, name: payload.name, token: adopted.token, workspaceId: adopted.workspaceId })
+          const payload = (await remote.json().catch(() => ({}))) as {
+            id?: string
+            name?: string
+            token?: string
+            workspaceId?: string
+            error?: string
+          }
+          if (!remote.ok || !payload.token || !payload.id) {
+            route.send(remote.status, payload.error ? payload : { error: '登录失败' })
             return
           }
+          const adopted = account.store.ensureRemoteAccount({
+            id: payload.id,
+            name: payload.name || String(body.email ?? ''),
+            email: String(body.email ?? ''),
+            token: payload.token,
+            workspaceId: String(payload.workspaceId ?? ''),
+          })
+          account.replica?.remember({
+            accountId: adopted.id,
+            workspaceId: adopted.workspaceId,
+            token: adopted.token,
+          })
+          rememberLogin(route, adopted.token)
+          route.send(200, { id: adopted.id, name: payload.name, token: adopted.token, workspaceId: adopted.workspaceId })
+          return
         } catch {
           /* 集中部署不在时仍用本机账号 */
         }
