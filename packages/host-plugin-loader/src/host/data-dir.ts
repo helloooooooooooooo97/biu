@@ -118,12 +118,15 @@ export function migrateDataDir(parent: string): string {
   migrateLegacyPageDir(parent)
   adoptTwoSqlite(dest)
   adoptCasAssets(dest)
+  mkdirSync(dest, { recursive: true })
+  let db: ReturnType<typeof openAndMigrateBiu> | undefined
   try {
-    const db = openAndMigrateBiu(join(dest, 'biu.sqlite'), { dataDir: dest, workspace: parent })
+    db = openAndMigrateBiu(join(dest, 'biu.sqlite'), { dataDir: dest, workspace: parent })
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
-    db.close()
   } catch {
     /* dummy sqlite from tests */
+  } finally {
+    db?.close()
   }
   return dest
 }
