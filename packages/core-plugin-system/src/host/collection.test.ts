@@ -257,7 +257,7 @@ test('plugin intro is README.md via contentField readme', async () => {
   await assert.rejects(() => spec.update!('demo', { name: '改名' }), /not writable/)
 })
 
-test('builtin plugins list BIU官方 and the GitHub link', async () => {
+test('builtin plugins list BIU and the GitHub link', async () => {
   const spec = pluginsCollection(stubStore({
     list: () => Promise.resolve([]),
     listSandboxes: () => Promise.resolve([

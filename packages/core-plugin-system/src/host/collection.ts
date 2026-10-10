@@ -10,7 +10,7 @@ import type { PluginStoreService, StoreListing } from './store.ts'
 
 type SandboxListing = Awaited<ReturnType<PluginStoreService['listSandboxes']>>[number]
 
-export const BIU_OFFICIAL_NAME = 'BIU官方'
+export const BIU_OFFICIAL_NAME = 'BIU'
 export const BIU_GITHUB = 'https://github.com/helloooooooooooooo97/biu'
 
 const BIU_OFFICIAL = { kind: 'user' as const, name: BIU_OFFICIAL_NAME, url: BIU_GITHUB }
