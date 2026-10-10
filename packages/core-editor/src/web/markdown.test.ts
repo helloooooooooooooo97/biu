@@ -142,6 +142,7 @@ test('slash suggestion uses a fixed high stacking context', async () => {
   assert.match(css, /\.page-editor \.page-block\[data-page-block=excalidraw\] img\{[^}]*margin:0/)
   assert.match(css, /\.page-editor \.page-block\[data-page-block=excalidraw\] \.welcome-screen-center\{display:none\}/)
   assert.match(css, /\.page-editor \.page-block\[data-page-block=terminal\] \.pt-scroll-rail\{/)
+  assert.match(css, /\.ProseMirror\[contenteditable=false\] \.page-block iframe\{[^}]*pointer-events:auto/)
   assert.match(css, /\.page-editor \.tiptap ul\{list-style-type:disc\}/)
   assert.match(css, /\.page-editor \.tiptap ol\{list-style-type:decimal\}/)
   assert.match(css, /div\[data-type=block-math\]\.tiptap-mathematics-render\{[^}]*margin:8px 0/)

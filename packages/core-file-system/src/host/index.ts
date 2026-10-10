@@ -15,6 +15,7 @@ import {
 } from '@biu/host-plugin-loader/data-dir'
 import { asPublicProfile, readWorkspaceProfile, writeWorkspaceProfile } from '@biu/host-workspace'
 import { roleCoversAction, type Action as PermissionAction, type AuthorizationService } from '@biu/host-account/authorization'
+import { isRegisteredBuiltinPlugin } from '@biu/host-account/store'
 import { Service, type Context } from 'cordis'
 import {
   DATABASE_CHANNEL,
@@ -992,17 +993,22 @@ export class DatabaseService extends Service implements Database {
     this.ownershipCache = null
   }
 
+  private builtinPlugin(spec: CollectionSpec, id: string, record?: { builtin?: unknown }) {
+    if (spec.path !== '/plugins') return false
+    return record?.builtin === true || isRegisteredBuiltinPlugin(id)
+  }
+
   private assertLiveRecord(
     spec: CollectionSpec,
     id: string,
     action: PermissionAction = 'resource:read',
     record?: { id?: unknown },
   ) {
-    if (this.facets.isDeleted(spec.path, id)) throw new Error(`unknown record: ${spec.path}/${id}`)
-    if (spec.path === '/plugins' && record && (record as { builtin?: unknown }).builtin === true) {
-      if (action === 'resource:read') return
+    if (this.builtinPlugin(spec, id, record)) {
+      if (action === 'resource:read' || action === 'resource:list') return
       throw new Error('permission denied: INSUFFICIENT_PERMISSION')
     }
+    if (this.facets.isDeleted(spec.path, id)) throw new Error(`unknown record: ${spec.path}/${id}`)
     const authorization = this.authorization()
     const actor = authorization?.currentActor()
     if (authorization && actor) {
