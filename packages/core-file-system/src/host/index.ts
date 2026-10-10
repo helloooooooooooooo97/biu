@@ -181,8 +181,8 @@ function schemaFor(spec: CollectionSpec): CollectionSchema {
       computed: true,
       writable: false,
       sortable: true,
-      enum: process.env.BIU_ONLINE === '0' ? ['本地', '私人', '空间', '共享'] : ['私人', '空间', '共享'],
-      description: '计算属性。桌面端未上传的记录是本地。私人表示只有创建者能看到；空间表示空间成员能看到且没有外部协作者；共享表示有外部协作者。',
+      enum: ['私人', '空间', '共享'],
+      description: '计算属性。私人表示只有创建者能看到；空间表示空间成员能看到且没有外部协作者；共享是公开链接，所有人可查看。桌面端未上传的记录仍按这个归属分组，只是存在本机。',
     }
     fields.shareRole = {
       type: 'select',
@@ -1340,7 +1340,6 @@ export class DatabaseService extends Service implements Database {
 
   private shareScopeLabel(collection: string, id: string, record: DbRecord, stored: 'personal' | 'workspace' | 'shared') {
     if (this.hasPublicShare(collection, id) || stored === 'shared') return '共享'
-    if (process.env.BIU_ONLINE === '0' && !this.cloudMarked(collection, id)) return '本地'
     return SHARE_SCOPE_LABEL[this.effectiveScope(collection, record, stored)]
   }
 

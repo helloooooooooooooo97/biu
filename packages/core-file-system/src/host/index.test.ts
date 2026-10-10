@@ -1875,6 +1875,50 @@ test('shared create is a public view link', async () => {
   assert.deepEqual(listed.items.map((row) => row.title), ['公开'])
 })
 
+test('desktop records keep personal and workspace ownership', async () => {
+  const previous = process.env.BIU_ONLINE
+  process.env.BIU_ONLINE = '0'
+  try {
+    const ctx = new Context()
+    const db = new DatabaseService(ctx)
+    const rows = new Map<string, DbRecord>()
+    let seq = 0
+    db.register({
+      id: 'docs',
+      path: '/docs',
+      schema: { fields: { ...REQUIRED_RECORD_FIELDS, title: { type: 'string', writable: true } } },
+      records: { create: true },
+      list: () => [...rows.values()],
+      get: (id) => rows.get(id) ?? null,
+      create: (records) => records.map((record) => {
+        const row = { id: `d${++seq}`, title: String(record.title ?? 'Doc') }
+        rows.set(row.id, row)
+        return row
+      }),
+    })
+    const dir = mkdtempSync(join(tmpdir(), 'biu-db-local-owner-'))
+    const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+    class AccountBridge extends Service {
+      store = collab
+      authorization = collab.authorization
+      constructor(inner: Context) {
+        super(inner, 'account')
+      }
+    }
+    await ctx.plugin(AccountBridge)
+    const ada = collab.register('', Date.now(), 'secret1', 'local-ada@example.com')
+    const workspace = collab.createWorkspace(ada.id, 'Local')
+    collab.setActive(ada.id, workspace.id)
+    const personal = await runWithAccount(ada.id, () => db.create('/docs', [{ title: '私人' }], { scope: 'personal' }))
+    const space = await runWithAccount(ada.id, () => db.create('/docs', [{ title: '空间' }], { scope: 'workspace' }))
+    assert.equal(personal.kind === 'created' && personal.items[0]?.value.shareScope, '私人')
+    assert.equal(space.kind === 'created' && space.items[0]?.value.shareScope, '空间')
+  } finally {
+    if (previous === undefined) delete process.env.BIU_ONLINE
+    else process.env.BIU_ONLINE = previous
+  }
+})
+
 test('a builtin member view grant lets the other workspace member read personal records', async () => {
   const ctx = new Context()
   const db = new DatabaseService(ctx)
