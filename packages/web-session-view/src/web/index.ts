@@ -99,6 +99,8 @@ export interface SessionListItem {
   mascot?: { shape: string; color: string; eye?: number }
   tags?: string[]
   pinned?: boolean
+  /** 云端记录。本机只留缓存，改动走云端接口。 */
+  remote?: boolean
   inspector?: SessionInspectorBind
   goal?: SessionGoal
 }

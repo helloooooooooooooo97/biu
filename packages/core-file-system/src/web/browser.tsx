@@ -2321,6 +2321,12 @@ export function CollectionBrowser({
           />
         )}
         <span className="fsdb-title-text">{body}</span>
+        {row.remote === true ? (
+          <svg width="14" height="14" viewBox="0 0 16 16" className="shrink-0 text-sky-600" aria-label="云端" role="img">
+            <title>云端</title>
+            <path fill="currentColor" d="M5 12.5h6.1a2.6 2.6 0 0 0 .35-5.18 3.4 3.4 0 0 0-6.55.95A2.15 2.15 0 0 0 5 12.5Z" />
+          </svg>
+        ) : null}
       </span>
     )
     return (

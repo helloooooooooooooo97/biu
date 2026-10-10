@@ -19,7 +19,11 @@ export class AccountService extends Service {
   store: CollabStore
   authorization: AuthorizationService
   replica: RecordReplica | null = null
-  private db: { close(): void }
+  private db: {
+    close(): void
+    exec(sql: string): void
+    prepare(sql: string): { get(...args: unknown[]): unknown; all(...args: unknown[]): unknown[]; run(...args: unknown[]): unknown }
+  }
 
   constructor(ctx: Context, config: AccountConfig = {}) {
     super(ctx, 'account')
@@ -27,6 +31,12 @@ export class AccountService extends Service {
     this.db = db
     this.store = new CollabStore(db)
     this.authorization = this.store.authorization
+    db.exec(`CREATE TABLE IF NOT EXISTS record_place (
+      collection TEXT NOT NULL,
+      record_id TEXT NOT NULL,
+      place TEXT NOT NULL,
+      PRIMARY KEY (collection, record_id)
+    )`)
     const origin = process.env.BIU_REMOTE_ORIGIN
     if (process.env.BIU_ONLINE !== '1' && origin) {
       this.replica = new RecordReplica(db, httpRemote(origin))
@@ -43,17 +53,6 @@ export class AccountService extends Service {
         if (!payload.accountId || !payload.token || !this.replica) return
         this.replica.remember({ accountId: payload.accountId, workspaceId: '', token: payload.token })
       })
-      ctx.on('session/finished', (event) => {
-        const payload = event as { sessionId?: string; text?: string }
-        const device = this.replica?.active()
-        if (!this.replica || !device || !payload.sessionId) return
-        this.replica.enqueueFinishedSession({
-          accountId: device.accountId,
-          workspaceId: device.workspaceId,
-          sessionId: payload.sessionId,
-          text: String(payload.text ?? ''),
-        })
-      })
     }
     ctx.inject(['database'], (inner) => inner.database.register(workspaceMembersCollection(this.store)))
     if (process.env.BIU_ONLINE !== '1') {
@@ -61,6 +60,33 @@ export class AccountService extends Service {
       this.store.bootstrapLocal({ accountName: profile.name || '我', workspaceName: '本机' })
     }
     ctx.on('dispose', () => db.close())
+  }
+
+  isRemote(collection: string, id: string) {
+    const row = this.db.prepare('SELECT place FROM record_place WHERE collection = ? AND record_id = ?').get(collection, id) as
+      | { place?: string }
+      | undefined
+    return row?.place === 'remote'
+  }
+
+  markRemote(collection: string, id: string) {
+    this.db
+      .prepare(
+        `INSERT INTO record_place (collection, record_id, place) VALUES (?, ?, 'remote')
+         ON CONFLICT(collection, record_id) DO UPDATE SET place = 'remote'`,
+      )
+      .run(collection, id)
+  }
+
+  clearPlace(collection: string, id: string) {
+    this.db.prepare('DELETE FROM record_place WHERE collection = ? AND record_id = ?').run(collection, id)
+  }
+
+  remoteIds(collection: string) {
+    const rows = this.db.prepare(`SELECT record_id FROM record_place WHERE collection = ? AND place = 'remote'`).all(collection) as Array<{
+      record_id: string
+    }>
+    return rows.map((row) => row.record_id)
   }
 }
 
@@ -666,7 +692,7 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
     try {
       actor(route)
       const body = (await route.json()) as MirrorSnapshot
-      await applySnapshot(ctx, body)
+      await applySnapshot(ctx, body, 'adopt')
       route.send(200, { ok: true })
     } catch (error) {
       fail(route, error)
