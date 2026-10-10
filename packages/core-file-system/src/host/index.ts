@@ -632,7 +632,7 @@ type WorkspaceFiles = {
     recordId: string,
     now?: number,
     policy?: {
-      ownership?: 'personal' | 'workspace'
+      ownership?: 'personal' | 'workspace' | 'shared'
       accessMode?: 'inherit' | 'private' | 'members' | 'restricted'
       memberDefaultRole?: 'viewer' | 'editor'
       parentCollection?: string
@@ -979,7 +979,7 @@ export class DatabaseService extends Service implements Database {
     collection: string,
     recordId: string,
     policy?: {
-      ownership?: 'personal' | 'workspace'
+      ownership?: 'personal' | 'workspace' | 'shared'
       accessMode?: 'inherit' | 'private' | 'members' | 'restricted'
       memberDefaultRole?: 'viewer' | 'editor'
       parentCollection?: string
@@ -992,6 +992,20 @@ export class DatabaseService extends Service implements Database {
     store.attach(workspaceId, collection, recordId, Date.now(), policy)
     this.ownerCache = null
     this.ownershipCache = null
+  }
+
+  /** 公开链接：无密码，所有人只读查看。 */
+  markPublicView(collection: string, recordId: string) {
+    this.attachWorkspaceRecord(collection, recordId, {
+      ownership: 'shared',
+      accessMode: 'members',
+      memberDefaultRole: 'viewer',
+    })
+    try {
+      this.shares.upsert({ kind: 'record', collection, recordId, password: null, allowCopy: false })
+    } catch {
+      /* 分享库还没打开时，记录仍然按共享归属 */
+    }
   }
 
   private builtinPlugin(spec: CollectionSpec, id: string, record?: { builtin?: unknown }) {
@@ -1319,11 +1333,22 @@ export class DatabaseService extends Service implements Database {
     return {
       ...withMeta,
       ...(this.cloudMarked(spec.path, String(row.id ?? '')) ? { remote: true } : {}),
-      shareScope:
-        process.env.BIU_ONLINE === '0' && !this.cloudMarked(spec.path, String(row.id ?? ''))
-          ? '本地'
-          : SHARE_SCOPE_LABEL[this.effectiveScope(spec.path, withMeta, stored)],
+      shareScope: this.shareScopeLabel(spec.path, String(row.id ?? ''), withMeta, stored),
       shareRole: this.shareRoleLabel(spec, withMeta),
+    }
+  }
+
+  private shareScopeLabel(collection: string, id: string, record: DbRecord, stored: 'personal' | 'workspace' | 'shared') {
+    if (this.hasPublicShare(collection, id) || stored === 'shared') return '共享'
+    if (process.env.BIU_ONLINE === '0' && !this.cloudMarked(collection, id)) return '本地'
+    return SHARE_SCOPE_LABEL[this.effectiveScope(collection, record, stored)]
+  }
+
+  private hasPublicShare(collection: string, id: string) {
+    try {
+      return Boolean(this.shares.find('record', collection, '', id))
+    } catch {
+      return false
     }
   }
 
@@ -1683,7 +1708,7 @@ export class DatabaseService extends Service implements Database {
     return { kind: 'record' as const, path: `${spec.path}/${record.id}`, value: withoutContent(spec, this.withBanner(spec, this.decorateRecord(spec, record))) }
   }
 
-  async create(path: string, content?: unknown, options: { scope?: 'personal' | 'workspace' } = {}) {
+  async create(path: string, content?: unknown, options: { scope?: 'personal' | 'workspace' | 'shared' } = {}) {
     const parts = splitPath(path)
     if (parts.length !== 1) throw new Error(`cannot create: ${normalizeCollectionPath(path)}`)
     const spec = this.collection(`/${parts[0]}`)
@@ -1734,11 +1759,14 @@ export class DatabaseService extends Service implements Database {
       const parentRecordId = parentField ? String(record[parentField] ?? '').trim() : ''
       if (spec.path !== '/workspace-members') {
         const workspaceOwned = options.scope === 'workspace'
+        const shared = options.scope === 'shared' && !parentRecordId
         this.attachWorkspaceRecord(spec.path, record.id, {
-          ownership: parentRecordId || workspaceOwned ? 'workspace' : 'personal',
-          accessMode: parentRecordId ? 'inherit' : workspaceOwned ? 'members' : 'private',
+          ownership: parentRecordId || workspaceOwned ? 'workspace' : shared ? 'shared' : 'personal',
+          accessMode: parentRecordId ? 'inherit' : workspaceOwned || shared ? 'members' : 'private',
+          ...(shared ? { memberDefaultRole: 'viewer' as const } : {}),
           ...(parentRecordId ? { parentCollection: spec.path, parentRecordId } : {}),
         })
+        if (shared) this.markPublicView(spec.path, record.id)
       }
     }
     this.bump()
@@ -2619,8 +2647,8 @@ export function apply(ctx: Context) {
         },
         scope: {
           type: 'string',
-          enum: ['personal', 'workspace'],
-          description: '根记录归属：personal 私人（默认，仅自己可见）；workspace 空间共享（成员可查看）。子记录始终继承父记录。',
+          enum: ['personal', 'workspace', 'shared'],
+          description: '根记录归属：personal 私人（默认，仅自己可见）；workspace 空间（成员可编辑）；shared 公开链接，所有人可查看。子记录始终继承父记录。',
         },
       },
       required: ['path', 'records'],
@@ -2628,7 +2656,7 @@ export function apply(ctx: Context) {
     execute: (args) =>
       withInspectorReveal(ctx, String(args.path), () =>
         db.create(String(args.path), asCreateRecords(args), {
-          scope: args.scope === 'workspace' ? 'workspace' : 'personal',
+          scope: args.scope === 'workspace' ? 'workspace' : args.scope === 'shared' ? 'shared' : 'personal',
         }),
       ).then(
         (body) => agentDbCompact.write(body),
@@ -2956,13 +2984,34 @@ export function apply(ctx: Context) {
         path?: string
         records?: unknown
         content?: unknown
-        scope?: 'personal' | 'workspace'
+        scope?: 'personal' | 'workspace' | 'shared'
       }
-      route.send(200, await db.create(
-        String(body?.path ?? ''),
-        body?.records ?? body?.content,
-        { scope: body?.scope === 'workspace' ? 'workspace' : 'personal' },
-      ))
+      const scope = body?.scope === 'workspace' ? 'workspace' : body?.scope === 'shared' ? 'shared' : 'personal'
+      const created = await db.create(String(body?.path ?? ''), body?.records ?? body?.content, { scope })
+      if (scope === 'shared' && process.env.BIU_ONLINE === '0' && process.env.BIU_REMOTE_ORIGIN) {
+        const collection = String(body?.path ?? '')
+        const ids = (created.items ?? []).map((item) => String(item.value?.id ?? '')).filter(Boolean)
+        const copies = await publishToCloud(ctx, collection, ids)
+        const origin = process.env.BIU_REMOTE_ORIGIN.replace(/\/$/, '')
+        let token = ''
+        try {
+          const account = ctx.get('account') as { replica?: { active?: () => { token?: string } | null } }
+          token = account.replica?.active?.()?.token || ''
+        } catch {
+          token = ''
+        }
+        for (const id of ids) {
+          const cloudId = copies[id]
+          if (!cloudId || !token) continue
+          await fetch(`${origin}/api/db/shares`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({ kind: 'record', collection, recordId: cloudId, allowCopy: false, password: null }),
+          }).catch(() => undefined)
+          db.markPublicView(collection, cloudId)
+        }
+      }
+      route.send(200, created)
     } catch (error) {
       route.send(400, { error: String(error) })
     }
