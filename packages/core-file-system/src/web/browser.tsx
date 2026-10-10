@@ -3353,7 +3353,7 @@ export function CollectionBrowser({
                       createScope === 'local'
                         ? '存在这台机器上，仍属于当前账号和空间'
                         : createScope === 'workspace'
-                          ? '空间内容，按各自的空间角色处理'
+                          ? '空间内容，全部成员可编辑'
                           : createScope === 'shared'
                             ? '公开链接，所有人可查看'
                             : '私人内容，仅自己可处理'

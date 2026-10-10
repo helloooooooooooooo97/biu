@@ -1809,6 +1809,9 @@ test('create scope separates personal and workspace records and viewers stay rea
   assert.deepEqual(personal.items.map((row) => row.title), ['Private'])
   assert.deepEqual(shared.items.map((row) => row.title), ['Shared'])
   assert.deepEqual((await runWithAccount(bob.id, () => db.list('/docs'))).items.map((row) => row.title), ['Shared'])
+  assert.equal((await runWithAccount(ada.id, () => db.list('/docs'))).items.find((row) => row.title === 'Shared')?.shareScope, '空间')
+  const edited = await runWithAccount(bob.id, () => db.update('/docs/d2', { title: 'Shared edited' }))
+  assert.equal(edited.kind, 'record')
 
   collab.updateMemberRole(ada.id, workspace.id, bob.id, 'viewer')
   const viewerStat = await runWithAccount(bob.id, () => db.stat('/docs'))

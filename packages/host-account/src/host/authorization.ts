@@ -79,6 +79,13 @@ export function roleCoversAction(role: ResourceRole, action: Action) {
   return ROLE_RANK[role] >= ROLE_RANK[requiredRole(action)]
 }
 
+function memberAccessRole(policy: PolicyRow, membership: string): ResourceRole {
+  if (membership === 'owner' || membership === 'admin') return 'manager'
+  if (membership === 'viewer') return 'viewer'
+  if (policy.ownership === 'workspace' || policy.member_default_role === 'editor') return 'editor'
+  return 'viewer'
+}
+
 function requiredRole(action: Action): ResourceRole {
   switch (action) {
     case 'resource:list':
@@ -409,11 +416,7 @@ export class AuthorizationService {
     }
     if (policy.access_mode === 'members' && this.membershipKind(accountId, resource.workspaceId) === 'member') {
       const membership = this.membership(accountId, resource.workspaceId)
-      const role: ResourceRole = membership === 'owner' || membership === 'admin'
-        ? 'manager'
-        : membership === 'viewer'
-          ? 'viewer'
-          : 'editor'
+      const role = memberAccessRole(policy, membership)
       const detail = role === 'manager' ? '空间管理者默认可管理' : role === 'viewer' ? '查看者只能阅读' : '空间成员默认可编辑'
       return [{ id: key, title, detail, role }]
     }
@@ -470,10 +473,10 @@ export class AuthorizationService {
     if (policy.access_mode === 'private' || policy.access_mode === 'restricted') return null
     if (policy.access_mode === 'members') {
       if (this.membershipKind(accountId, resource.workspaceId) !== 'member') return null
-      const role = this.membership(accountId, resource.workspaceId)
-      const effectiveRole: ResourceRole =
-        role === 'owner' || role === 'admin' ? 'manager' : role === 'viewer' ? 'viewer' : 'editor'
-      return { effectiveRole, source: 'workspace-default' }
+      return {
+        effectiveRole: memberAccessRole(policy, this.membership(accountId, resource.workspaceId)),
+        source: 'workspace-default',
+      }
     }
     if (policy.access_mode === 'inherit' && policy.parent_record_id) {
       const inherited = this.effectiveRole(
