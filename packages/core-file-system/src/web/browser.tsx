@@ -1768,6 +1768,18 @@ export function CollectionBrowser({
   }
 
   async function runAction(row: DbRecord, action: CollectionActionInfo) {
+    if (action.id === 'pack' && (row.installed === true || row.installed === 'true')) {
+      setDlg({
+        kind: 'action',
+        row,
+        action: {
+          ...action,
+          label: '再次安装',
+          confirm: '已经存在已安装的插件，要再安装一次吗？',
+        },
+      })
+      return
+    }
     if (action.confirm) {
       setDlg({ kind: 'action', row, action })
       return
