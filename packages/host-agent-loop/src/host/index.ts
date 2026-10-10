@@ -2,7 +2,7 @@ import { Service, type Context } from 'cordis'
 import type { AssistantReply, ChatOptions, LlmClient, LlmConfig, LlmMessage, LlmUsage } from '@biu/host-llm'
 import { runWithSession } from '@biu/host-sessions/scope'
 import { applyContextBudget, liftToolImages } from '@biu/host-sessions'
-import { autoCompactPostStep, contextWindowTokens } from './auto-compact.ts'
+import { autoCompactPostStep, contextWindowTokens, mechanicalCompactText, shouldAutoCompact } from './auto-compact.ts'
 import { runWithToolPolicy, runWithToolProgress, type AgentToolMode } from '@biu/host-tools'
 
 /** 工具结果写入事件日志( tool/result )时统一上限字符数；超长裁剪，避免上下文被单次工具输出撑爆。 */
@@ -100,6 +100,35 @@ export class AgentLoop implements AgentRunner {
       ...(config ? { config } : {}),
     }
     return this.ctx.waterfall('agent/post-step', req, () => req).text
+  }
+
+  /** 超过上限时在本步工具结果之后写压缩点，不插进 tool/call 和 tool/result 中间。 */
+  private async writeAutoCompact(inputTokens: number | undefined, toolCalls: PostStepReq['toolCalls']) {
+    const session = this.ctx.sessions
+    const config = (await session.get(this.sessionId))?.config
+    const chat = this.ctx.get('chat') as { contextWindowFor?: (id: string) => string } | undefined
+    if (!shouldAutoCompact({
+      inputTokens,
+      toolCalls,
+      contextWindowTokens: contextWindowTokens(chat?.contextWindowFor?.(this.sessionId)),
+      ...(config ? { config } : {}),
+    })) return
+    const events = (await session.get(this.sessionId))?.events ?? []
+    const text = mechanicalCompactText(events)
+    const id = `auto-compact-${Date.now().toString(36)}`
+    await session.append(this.sessionId, {
+      type: 'tool/call',
+      id,
+      name: 'context_compact_submit',
+      arguments: JSON.stringify({ text }),
+    })
+    await session.append(this.sessionId, {
+      type: 'tool/result',
+      id,
+      name: 'context_compact_submit',
+      ok: true,
+      detail: '已自动压缩。旧内容可用检索找回。',
+    })
   }
 
   private async runInSession(claimed: ClaimedInput[]): Promise<AgentTurn> {
@@ -294,6 +323,7 @@ export class AgentLoop implements AgentRunner {
           text: final,
           ...(usage ? { usage } : {}),
         })
+        await this.writeAutoCompact(usage?.inputTokens, [])
         await session.append(this.sessionId, { type: 'step/end', turn, step })
         await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'complete' })
         this.ctx.emit('agent/status', { sessionId: this.sessionId, status: 'idle', step })
@@ -395,6 +425,7 @@ export class AgentLoop implements AgentRunner {
         await recordOutcomes([await executeCall(item.call, item.args)])
       }
       await flushParallel()
+      await this.writeAutoCompact(usage?.inputTokens, reply.toolCalls)
       await enqueueAppend({ type: 'step/end', turn, step })
       final = steps.at(-1)?.detail ?? final
     }

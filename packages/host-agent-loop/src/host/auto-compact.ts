@@ -18,26 +18,36 @@ export function resolveAutoCompactThreshold(configured: unknown, contextTokens?:
   return Math.min(Math.floor(n), cap)
 }
 
-/** 钩子只往 assistant 正文末尾追加，不另起一条消息。 */
-export function appendAssistantNote(text: string, note: string): string {
-  const extra = note.trim()
-  if (!extra || text.includes(extra)) return text
-  const body = text.trim()
-  return body ? `${body}\n\n${extra}` : extra
-}
-
-function compactNote(req: PostStepReq, threshold: number): string | null {
-  const tokens = req.inputTokens
-  if (tokens == null || !Number.isFinite(tokens) || tokens <= threshold) return null
-  if (req.toolCalls.some((call) => isSessionCompactPoint({ type: 'tool/call', ...call }))) return null
-  return `[自动压缩] 这一步输入约 ${Math.round(tokens)} token，已超过本会话上限 ${Math.round(threshold)}。请调用 db_action：path=/sessions/${req.sessionId} action=compact。第一次不要传 text，按返回的指南写摘要，然后再调用并把摘要放进 args.text。`
-}
-
-/** post-step：输入 token 超过（被模型上下文夹过的）上限时，把 compact 提示追加进 assistant/message。 */
-export function autoCompactPostStep(req: PostStepReq): PostStepReq {
+/** 这一步已经自己提交了压缩点时，不再自动补一刀。 */
+export function shouldAutoCompact(req: Pick<PostStepReq, 'inputTokens' | 'contextWindowTokens' | 'config' | 'toolCalls'>): boolean {
   const threshold = resolveAutoCompactThreshold(req.config?.autoCompactInputTokens, req.contextWindowTokens)
-  const note = compactNote(req, threshold)
-  if (!note) return req
-  const text = appendAssistantNote(req.text, note)
-  return text === req.text ? req : { ...req, text }
+  const tokens = req.inputTokens
+  if (tokens == null || !Number.isFinite(tokens) || tokens <= threshold) return false
+  return !req.toolCalls.some((call) => isSessionCompactPoint({ type: 'tool/call', ...call }))
+}
+
+/** 用压缩点之后的近期对话做一段短摘要，作为新前缀。不往助手正文里插提示。 */
+export function mechanicalCompactText(
+  events: Array<{ type?: string; text?: string; name?: string; detail?: string; arguments?: string }>,
+): string {
+  const lines: string[] = []
+  for (const event of events) {
+    if (isSessionCompactPoint(event)) {
+      lines.length = 0
+      continue
+    }
+    if (event.type === 'user/message' && event.text?.trim()) lines.push(`用户: ${event.text.trim().slice(0, 400)}`)
+    else if (event.type === 'assistant/message' && event.text?.trim() && !event.text.includes('[自动压缩]')) {
+      lines.push(`助手: ${event.text.trim().slice(0, 400)}`)
+    } else if (event.type === 'tool/result' && event.detail?.trim()) {
+      lines.push(`工具 ${event.name || ''}: ${event.detail.trim().slice(0, 200)}`)
+    }
+  }
+  const body = lines.slice(-12).join('\n').slice(0, 4000)
+  return body || '此前上下文已超过上限。旧内容可用检索找回。'
+}
+
+/** 不再改助手正文。压缩在工具结果落盘之后单独写压缩点。 */
+export function autoCompactPostStep(req: PostStepReq): PostStepReq {
+  return req
 }
