@@ -181,8 +181,8 @@ function schemaFor(spec: CollectionSpec): CollectionSchema {
       computed: true,
       writable: false,
       sortable: true,
-      enum: ['私人', '空间', '共享'],
-      description: '计算属性。私人表示只有创建者能看到；空间表示空间成员能看到且没有外部协作者；共享是公开链接，所有人可查看。桌面端未上传的记录仍按这个归属分组，只是存在本机。',
+      enum: process.env.BIU_ONLINE === '0' ? ['私人', '空间', '共享', '本地'] : ['私人', '空间', '共享'],
+      description: '计算属性。私人表示只有创建者能看到；空间表示空间成员能看到且没有外部协作者；共享是公开链接，所有人可查看。本地表示记录存在这台机器上，仍属于当前账号和空间。',
     }
     fields.shareRole = {
       type: 'select',
@@ -1340,12 +1340,22 @@ export class DatabaseService extends Service implements Database {
 
   private shareScopeLabel(collection: string, id: string, record: DbRecord, stored: 'personal' | 'workspace' | 'shared') {
     if (this.hasPublicShare(collection, id) || stored === 'shared') return '共享'
+    if (this.localMarked(collection, id)) return '本地'
     return SHARE_SCOPE_LABEL[this.effectiveScope(collection, record, stored)]
   }
 
   private hasPublicShare(collection: string, id: string) {
     try {
       return Boolean(this.shares.find('record', collection, '', id))
+    } catch {
+      return false
+    }
+  }
+
+  private localMarked(collection: string, id: string) {
+    try {
+      const account = this.ctx.get('account') as { isLocal?: (collection: string, id: string) => boolean } | undefined
+      return Boolean(account?.isLocal?.(collection, id))
     } catch {
       return false
     }
@@ -1707,7 +1717,7 @@ export class DatabaseService extends Service implements Database {
     return { kind: 'record' as const, path: `${spec.path}/${record.id}`, value: withoutContent(spec, this.withBanner(spec, this.decorateRecord(spec, record))) }
   }
 
-  async create(path: string, content?: unknown, options: { scope?: 'personal' | 'workspace' | 'shared' } = {}) {
+  async create(path: string, content?: unknown, options: { scope?: 'personal' | 'workspace' | 'shared' | 'local' } = {}) {
     const parts = splitPath(path)
     if (parts.length !== 1) throw new Error(`cannot create: ${normalizeCollectionPath(path)}`)
     const spec = this.collection(`/${parts[0]}`)
@@ -1759,6 +1769,7 @@ export class DatabaseService extends Service implements Database {
       if (spec.path !== '/workspace-members') {
         const workspaceOwned = options.scope === 'workspace'
         const shared = options.scope === 'shared' && !parentRecordId
+        const local = options.scope === 'local' && !parentRecordId
         this.attachWorkspaceRecord(spec.path, record.id, {
           ownership: parentRecordId || workspaceOwned ? 'workspace' : shared ? 'shared' : 'personal',
           accessMode: parentRecordId ? 'inherit' : workspaceOwned || shared ? 'members' : 'private',
@@ -1766,6 +1777,14 @@ export class DatabaseService extends Service implements Database {
           ...(parentRecordId ? { parentCollection: spec.path, parentRecordId } : {}),
         })
         if (shared) this.markPublicView(spec.path, record.id)
+        if (local) {
+          try {
+            const account = this.ctx.get('account') as { markLocal?: (collection: string, id: string) => void } | undefined
+            account?.markLocal?.(spec.path, record.id)
+          } catch {
+            /* 没有账号库时仍按私人挂到当前空间 */
+          }
+        }
       }
     }
     this.bump()
@@ -2646,8 +2665,8 @@ export function apply(ctx: Context) {
         },
         scope: {
           type: 'string',
-          enum: ['personal', 'workspace', 'shared'],
-          description: '根记录归属：personal 私人（默认，仅自己可见）；workspace 空间（成员可编辑）；shared 公开链接，所有人可查看。子记录始终继承父记录。',
+          enum: ['personal', 'workspace', 'shared', 'local'],
+          description: '根记录归属：personal 私人（默认，仅自己可见）；workspace 空间（成员可编辑）；shared 公开链接，所有人可查看；local 存在本机，仍属于当前账号和空间。子记录始终继承父记录。',
         },
       },
       required: ['path', 'records'],
@@ -2655,7 +2674,8 @@ export function apply(ctx: Context) {
     execute: (args) =>
       withInspectorReveal(ctx, String(args.path), () =>
         db.create(String(args.path), asCreateRecords(args), {
-          scope: args.scope === 'workspace' ? 'workspace' : args.scope === 'shared' ? 'shared' : 'personal',
+          scope:
+            args.scope === 'workspace' ? 'workspace' : args.scope === 'shared' ? 'shared' : args.scope === 'local' ? 'local' : 'personal',
         }),
       ).then(
         (body) => agentDbCompact.write(body),
@@ -2983,9 +3003,10 @@ export function apply(ctx: Context) {
         path?: string
         records?: unknown
         content?: unknown
-        scope?: 'personal' | 'workspace' | 'shared'
+        scope?: 'personal' | 'workspace' | 'shared' | 'local'
       }
-      const scope = body?.scope === 'workspace' ? 'workspace' : body?.scope === 'shared' ? 'shared' : 'personal'
+      const scope =
+        body?.scope === 'workspace' ? 'workspace' : body?.scope === 'shared' ? 'shared' : body?.scope === 'local' ? 'local' : 'personal'
       const created = await db.create(String(body?.path ?? ''), body?.records ?? body?.content, { scope })
       if (scope === 'shared' && process.env.BIU_ONLINE === '0' && process.env.BIU_REMOTE_ORIGIN) {
         const collection = String(body?.path ?? '')
