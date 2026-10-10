@@ -26,7 +26,6 @@ import { loadLiveDispatchTasks, registerChatInspectorRoutes } from './inspector.
 import { forwardCloud } from '@biu/host-account/mirror'
 
 function sessionIsCloud(ctx: Context, id: string) {
-  if (process.env.BIU_ONLINE === '1') return true
   try {
     const account = ctx.get('account') as { isRemote?: (collection: string, id: string) => boolean } | undefined
     return Boolean(account?.isRemote?.('/sessions', id))

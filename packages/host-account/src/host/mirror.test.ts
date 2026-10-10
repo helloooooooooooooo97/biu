@@ -3,7 +3,7 @@ import { test } from 'vitest'
 import { Context } from 'cordis'
 import { Service } from 'cordis'
 import type { SessionRecord } from '@biu/type-session'
-import { applySnapshot, takeSnapshot } from './mirror.ts'
+import { applySnapshot, cloudCopyId, takeSnapshot } from './mirror.ts'
 
 test('cache keeps local sessions and replaces cloud sessions', async () => {
   const ctx = new Context()
@@ -78,4 +78,12 @@ test('cache keeps local sessions and replaces cloud sessions', async () => {
   assert.equal(rows.has('gone'), false)
   const snapshot = await takeSnapshot(ctx)
   assert.equal(snapshot.sessions.find((item) => item.id === 'fresh')?.config?.title, 'new-cloud')
+})
+
+test('cloud copy ids are new and task ids keep the task prefix', () => {
+  const page = cloudCopyId('/pages')
+  const task = cloudCopyId('/tasks')
+  assert.notEqual(page, task)
+  assert.match(page, /^c[0-9a-f]+$/)
+  assert.match(task, /^task_[0-9a-f]+$/)
 })

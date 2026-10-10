@@ -1325,7 +1325,6 @@ export class DatabaseService extends Service implements Database {
   }
 
   private cloudMarked(collection: string, id: string) {
-    if (process.env.BIU_ONLINE === '1') return true
     try {
       const account = this.ctx.get('account') as { isRemote?: (collection: string, id: string) => boolean } | undefined
       return Boolean(account?.isRemote?.(collection, id))
@@ -3145,20 +3144,21 @@ export function apply(ctx: Context) {
       const recordId = String(body.recordId ?? '')
       await db.requirePath(kind === 'record' ? `${collection}/${recordId}` : collection, 'resource:share')
       if (body.enabled !== false && process.env.BIU_ONLINE !== '1' && process.env.BIU_REMOTE_ORIGIN) {
-        if (kind === 'record') await publishToCloud(ctx, collection, [recordId])
-        else {
-          const localIds = ((await db.syncedRecords()).find((item) => item.path === collection)?.records ?? [])
-            .map((record) => String(record.id))
-            .filter((id) => {
-              try {
-                const account = ctx.get('account') as { isRemote?: (collection: string, id: string) => boolean }
-                return !account?.isRemote?.(collection, id)
-              } catch {
-                return true
-              }
-            })
-          await publishToCloud(ctx, collection, localIds)
-        }
+        const localIds =
+          kind === 'record'
+            ? [recordId]
+            : ((await db.syncedRecords()).find((item) => item.path === collection)?.records ?? [])
+                .map((record) => String(record.id))
+                .filter((id) => {
+                  try {
+                    const account = ctx.get('account') as { isRemote?: (collection: string, id: string) => boolean }
+                    return !account?.isRemote?.(collection, id)
+                  } catch {
+                    return true
+                  }
+                })
+        const copies = await publishToCloud(ctx, collection, localIds)
+        if (kind === 'record' && copies[recordId]) body.recordId = copies[recordId]
         let token = ''
         try {
           const account = ctx.get('account') as { replica?: { active?: () => { token?: string } | null } }
