@@ -12,7 +12,8 @@
   "dependencies": {
     "@biu/core-editor": "0.1.0",
     "@biu/public-ui": "0.1.0",
-    "@biu/host-plugin-loader": "0.1.0"
+    "@biu/host-plugin-loader": "0.1.0",
+    "@biu/host-account": "0.1.0"
   },
   "peerDependencies": {
     "cordis": "4.0.0-rc.8",

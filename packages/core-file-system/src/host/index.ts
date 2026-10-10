@@ -16,6 +16,7 @@ import {
 import { asPublicProfile, readWorkspaceProfile, writeWorkspaceProfile } from '@biu/host-workspace'
 import { roleCoversAction, type Action as PermissionAction, type AuthorizationService } from '@biu/host-account/authorization'
 import { isRegisteredBuiltinPlugin } from '@biu/host-account/store'
+import { forwardCloud, publishToCloud } from '@biu/host-account/mirror'
 import { Service, type Context } from 'cordis'
 import {
   DATABASE_CHANNEL,
@@ -1317,8 +1318,19 @@ export class DatabaseService extends Service implements Database {
     const stored = this.ownershipOf(spec.path, String(row.id ?? ''))
     return {
       ...withMeta,
+      ...(this.cloudMarked(spec.path, String(row.id ?? '')) ? { remote: true } : {}),
       shareScope: SHARE_SCOPE_LABEL[this.effectiveScope(spec.path, withMeta, stored)],
       shareRole: this.shareRoleLabel(spec, withMeta),
+    }
+  }
+
+  private cloudMarked(collection: string, id: string) {
+    if (process.env.BIU_ONLINE === '1') return true
+    try {
+      const account = this.ctx.get('account') as { isRemote?: (collection: string, id: string) => boolean } | undefined
+      return Boolean(account?.isRemote?.(collection, id))
+    } catch {
+      return false
     }
   }
 
@@ -2893,8 +2905,17 @@ export function apply(ctx: Context) {
   ctx.http.route('POST', '/api/db/content', async (route) => {
     try {
       const body = (await route.json()) as { path?: string; value?: unknown; version?: unknown }
+      const path = String(body?.path ?? '')
+      const parts = path.split('/').filter(Boolean)
+      if (parts.length === 2) {
+        const forwarded = await forwardCloud(ctx, `/${parts[0]}`, parts[1]!, '/api/db/content', { body })
+        if (forwarded) {
+          route.send(forwarded.status, forwarded.body)
+          return
+        }
+      }
       const version = typeof body?.version === 'number' && Number.isInteger(body.version) ? body.version : undefined
-      route.send(200, await db.writeContent(String(body?.path ?? ''), body?.value, version))
+      route.send(200, await db.writeContent(path, body?.value, version))
     } catch (error) {
       if (error instanceof EditorContentConflictError) {
         route.send(409, {
@@ -2911,7 +2932,18 @@ export function apply(ctx: Context) {
   ctx.http.route('POST', '/api/db/update', async (route) => {
     try {
       const body = (await route.json()) as { path?: string; content?: unknown }
-      route.send(200, await db.update(String(body?.path ?? ''), body?.content))
+      const path = String(body?.path ?? '')
+      const parts = path.split('/').filter(Boolean)
+      if (parts.length === 2) {
+        const forwarded = await forwardCloud(ctx, `/${parts[0]}`, parts[1]!, '/api/db/update', { body })
+        if (forwarded) {
+          const value = (forwarded.body as { value?: { id?: string } } | null)?.value
+          if (forwarded.status < 300 && value?.id) await db.applySynced(`/${parts[0]}`, [value as { id: string }])
+          route.send(forwarded.status, forwarded.body)
+          return
+        }
+      }
+      route.send(200, await db.update(path, body?.content))
     } catch (error) {
       route.send(400, { error: String(error) })
     }
@@ -2936,7 +2968,18 @@ export function apply(ctx: Context) {
   ctx.http.route('POST', '/api/db/delete', async (route) => {
     try {
       const body = (await route.json()) as { path?: string; ids?: unknown; q?: unknown; filter?: unknown; purge?: unknown }
-      route.send(200, await db.remove(String(body?.path ?? ''), asDeleteQuery((body ?? {}) as Record<string, unknown>)))
+      const path = String(body?.path ?? '')
+      const ids = Array.isArray(body.ids) ? body.ids.map((id) => String(id)) : []
+      const collection = path.startsWith('/') ? path : `/${path}`
+      if (ids.length === 1) {
+        const forwarded = await forwardCloud(ctx, collection, ids[0]!, '/api/db/delete', { body })
+        if (forwarded) {
+          if (forwarded.status < 300) await db.remove(collection, { ids })
+          route.send(forwarded.status, forwarded.body)
+          return
+        }
+      }
+      route.send(200, await db.remove(path, asDeleteQuery((body ?? {}) as Record<string, unknown>)))
     } catch (error) {
       route.send(400, { error: String(error) })
     }
@@ -3101,6 +3144,41 @@ export function apply(ctx: Context) {
       const collection = String(body.collection ?? '')
       const recordId = String(body.recordId ?? '')
       await db.requirePath(kind === 'record' ? `${collection}/${recordId}` : collection, 'resource:share')
+      if (body.enabled !== false && process.env.BIU_ONLINE !== '1' && process.env.BIU_REMOTE_ORIGIN) {
+        if (kind === 'record') await publishToCloud(ctx, collection, [recordId])
+        else {
+          const localIds = ((await db.syncedRecords()).find((item) => item.path === collection)?.records ?? [])
+            .map((record) => String(record.id))
+            .filter((id) => {
+              try {
+                const account = ctx.get('account') as { isRemote?: (collection: string, id: string) => boolean }
+                return !account?.isRemote?.(collection, id)
+              } catch {
+                return true
+              }
+            })
+          await publishToCloud(ctx, collection, localIds)
+        }
+        let token = ''
+        try {
+          const account = ctx.get('account') as { replica?: { active?: () => { token?: string } | null } }
+          token = account.replica?.active?.()?.token || ''
+        } catch {
+          token = ''
+        }
+        const forwarded = await fetch(`${process.env.BIU_REMOTE_ORIGIN.replace(/\/$/, '')}/api/db/shares`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            ...(token
+              ? { authorization: `Bearer ${token}` }
+              : { cookie: String(route.req.headers.cookie ?? '') }),
+          },
+          body: JSON.stringify(body),
+        })
+        route.send(forwarded.status, await forwarded.json().catch(() => ({})))
+        return
+      }
       if (body.enabled === false) {
         shares.revokeTarget(kind, collection, body.viewId ?? '', body.recordId ?? '')
         route.send(200, { share: null })

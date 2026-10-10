@@ -23,6 +23,17 @@ import { estimateTokens, liftToolImages } from '@biu/host-sessions'
 import { readArtifactFile } from '@biu/host-sessions/artifacts'
 import { collectLiveDispatchedTasks } from '@biu/host-live-sessions/usage'
 import { loadLiveDispatchTasks, registerChatInspectorRoutes } from './inspector.ts'
+import { forwardCloud } from '@biu/host-account/mirror'
+
+function sessionIsCloud(ctx: Context, id: string) {
+  if (process.env.BIU_ONLINE === '1') return true
+  try {
+    const account = ctx.get('account') as { isRemote?: (collection: string, id: string) => boolean } | undefined
+    return Boolean(account?.isRemote?.('/sessions', id))
+  } catch {
+    return false
+  }
+}
 
 export type { ChatMessage }
 
@@ -1236,6 +1247,7 @@ export function apply(ctx: Context) {
         ...(item.mascot ? { mascot: item.mascot } : {}),
         tags: item.config?.tags ?? [],
         pinned: Boolean(item.config?.pinned),
+        ...(sessionIsCloud(ctx, item.id) ? { remote: true } : {}),
         ...(item.config?.inspector ? { inspector: item.config.inspector } : {}),
         ...(item.config?.goal ? { goal: item.config.goal } : {}),
       })),
@@ -1431,6 +1443,12 @@ export function apply(ctx: Context) {
   })
   ctx.http.route('DELETE', '/api/sessions/:id', async (route) => {
     const id = route.params.id
+    const forwarded = await forwardCloud(ctx, '/sessions', id, `/api/sessions/${id}`, { method: 'DELETE' })
+    if (forwarded) {
+      if (forwarded.status < 300) await ctx.sessions.delete(id)
+      route.send(forwarded.status, forwarded.body)
+      return
+    }
     const record = await visibleSession(id)
     if (!record) return route.send(404, { error: 'unknown session' })
     const db = databaseOf(ctx)
@@ -1453,6 +1471,13 @@ export function apply(ctx: Context) {
       extraTools?: string[]
       images?: Array<{ name?: string; mime?: string; url?: string }>
       liveContext?: unknown
+    }
+    const forwarded = await forwardCloud(ctx, '/sessions', route.params.id, `/api/sessions/${route.params.id}/messages`, {
+      body: payload,
+    })
+    if (forwarded) {
+      route.send(forwarded.status, forwarded.body)
+      return
     }
     if (!(await visibleSession(route.params.id))) return route.send(404, { error: 'unknown session' })
     const agent = await ctx.agents.create(route.params.id)

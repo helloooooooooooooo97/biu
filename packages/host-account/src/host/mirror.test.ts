@@ -5,12 +5,32 @@ import { Service } from 'cordis'
 import type { SessionRecord } from '@biu/type-session'
 import { applySnapshot, takeSnapshot } from './mirror.ts'
 
-test('snapshot copies a newer session and skips an older one', async () => {
+test('cache keeps local sessions and replaces cloud sessions', async () => {
   const ctx = new Context()
   const saved: SessionRecord[] = []
   const rows = new Map<string, { id: string; updatedAt: number; title: string }>([
-    ['old', { id: 'old', updatedAt: 50, title: 'keep' }],
+    ['local', { id: 'local', updatedAt: 50, title: 'keep' }],
+    ['cloud', { id: 'cloud', updatedAt: 10, title: 'old-cloud' }],
+    ['gone', { id: 'gone', updatedAt: 10, title: 'deleted-on-cloud' }],
   ])
+  const remote = new Set(['/sessions\tcloud', '/sessions\tgone'])
+  class Places extends Service {
+    constructor(ctx: Context) {
+      super(ctx, 'account')
+    }
+    isRemote(collection: string, id: string) {
+      return remote.has(`${collection}\t${id}`)
+    }
+    markRemote(collection: string, id: string) {
+      remote.add(`${collection}\t${id}`)
+    }
+    clearPlace(collection: string, id: string) {
+      remote.delete(`${collection}\t${id}`)
+    }
+    remoteIds(collection: string) {
+      return [...remote].filter((key) => key.startsWith(`${collection}\t`)).map((key) => key.split('\t')[1]!)
+    }
+  }
   class Store extends Service {
     constructor(ctx: Context) {
       super(ctx, 'sessionStore')
@@ -37,29 +57,25 @@ test('snapshot copies a newer session and skips an older one', async () => {
       })
       return Promise.resolve()
     }
+    delete(id: string) {
+      rows.delete(id)
+      return Promise.resolve()
+    }
   }
+  await ctx.plugin(Places)
   await ctx.plugin(Store)
   await applySnapshot(ctx, {
     sessions: [
-      {
-        id: 'old',
-        version: 1,
-        updatedAt: 10,
-        events: [],
-        config: { title: 'stale' },
-      },
-      {
-        id: 'new',
-        version: 1,
-        updatedAt: 20,
-        events: [],
-        config: { title: 'from-other' },
-      },
+      { id: 'local', version: 1, updatedAt: 80, events: [], config: { title: 'should-not-win' } },
+      { id: 'cloud', version: 1, updatedAt: 30, events: [], config: { title: 'from-cloud' } },
+      { id: 'fresh', version: 1, updatedAt: 20, events: [], config: { title: 'new-cloud' } },
     ],
     collections: [],
-  })
-  assert.deepEqual(saved.map((item) => item.id), ['new'])
+  }, 'cache')
+  assert.deepEqual(saved.map((item) => item.id), ['cloud', 'fresh'])
+  assert.equal(rows.get('local')?.title, 'keep')
+  assert.equal(rows.get('cloud')?.title, 'from-cloud')
+  assert.equal(rows.has('gone'), false)
   const snapshot = await takeSnapshot(ctx)
-  assert.equal(snapshot.sessions.find((item) => item.id === 'new')?.config?.title, 'from-other')
-  assert.equal(snapshot.sessions.find((item) => item.id === 'old')?.config?.title, 'keep')
+  assert.equal(snapshot.sessions.find((item) => item.id === 'fresh')?.config?.title, 'new-cloud')
 })
