@@ -181,8 +181,8 @@ function schemaFor(spec: CollectionSpec): CollectionSchema {
       computed: true,
       writable: false,
       sortable: true,
-      enum: ['私人', '空间', '共享'],
-      description: '计算属性。私人表示只有创建者能看到；空间表示空间成员能看到且没有外部协作者；共享表示有外部协作者。视图上的授权也会算进来。',
+      enum: process.env.BIU_ONLINE === '0' ? ['本地', '私人', '空间', '共享'] : ['私人', '空间', '共享'],
+      description: '计算属性。桌面端未上传的记录是本地。私人表示只有创建者能看到；空间表示空间成员能看到且没有外部协作者；共享表示有外部协作者。',
     }
     fields.shareRole = {
       type: 'select',
@@ -1319,7 +1319,10 @@ export class DatabaseService extends Service implements Database {
     return {
       ...withMeta,
       ...(this.cloudMarked(spec.path, String(row.id ?? '')) ? { remote: true } : {}),
-      shareScope: SHARE_SCOPE_LABEL[this.effectiveScope(spec.path, withMeta, stored)],
+      shareScope:
+        process.env.BIU_ONLINE === '0' && !this.cloudMarked(spec.path, String(row.id ?? ''))
+          ? '本地'
+          : SHARE_SCOPE_LABEL[this.effectiveScope(spec.path, withMeta, stored)],
       shareRole: this.shareRoleLabel(spec, withMeta),
     }
   }
@@ -2840,7 +2843,7 @@ export function apply(ctx: Context) {
     }
   }
   ctx.http.route('GET', '/api/profile', (route) => {
-    route.send(200, asPublicProfile())
+    route.send(200, { ...asPublicProfile(), localData: process.env.BIU_ONLINE === '0' })
   })
   ctx.http.route('POST', '/api/profile', async (route) => {
     try {
