@@ -139,6 +139,10 @@ test('loop invokes tools then asks the model again', async () => {
     parameters: { type: 'object', properties: { text: { type: 'string' } } },
     execute: (args) => String(args.text ?? ''),
   })
+  const finished: Array<{ sessionId?: string; text?: string }> = []
+  ctx.on('session/finished', (event) => {
+    finished.push(event as { sessionId?: string; text?: string })
+  })
   const loop = new AgentLoop(
     ctx,
     new ScriptedLlm([
@@ -150,6 +154,7 @@ test('loop invokes tools then asks the model again', async () => {
   )
   const turn = await loop.run([{ kind: 'wake', text: 'echo' }])
   assert.equal(turn.text, '收到 pong')
+  assert.deepEqual(finished, [{ sessionId, text: '收到 pong' }])
   assert.deepEqual(turn.steps, [{ name: 'echo', ok: true, detail: 'pong' }])
   const messages = ctx.sessions.deriveMessages(sessionId)
   assert.equal(messages.some((item) => item.role === 'tool' && item.content === 'pong'), true)

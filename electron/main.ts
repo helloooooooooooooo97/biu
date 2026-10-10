@@ -633,6 +633,7 @@ async function startHost() {
       ELECTRON_RUN_AS_NODE: '1',
       PORT: String(requestedPort),
       BIU_PORT_FALLBACK: '1',
+      BIU_ONLINE: '0',
       HTTP_HOST: process.env.HTTP_HOST || '127.0.0.1',
       SHARE_PORT: String(sharePort),
       // 分享链接使用局域网 IP；只监听 loopback 会让其他设备收到 ERR_CONNECTION_REFUSED。

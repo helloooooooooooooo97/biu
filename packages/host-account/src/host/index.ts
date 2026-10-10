@@ -3,6 +3,7 @@ import { biuSqlitePath, openAndMigrateBiu } from '@biu/host-plugin-loader/data-d
 import { readWorkspaceProfile } from '@biu/host-workspace'
 import type { RouteContext } from '@biu/type-http'
 import { CollabError, CollabStore } from './store.ts'
+import { httpRemote, RecordReplica } from './replica.ts'
 import type { AuthorizationService, ResourceRole } from './authorization.ts'
 import { workspaceMembersCollection } from './workspace-members-collection.ts'
 
@@ -16,6 +17,7 @@ type AccountConfig = { sqlitePath?: string }
 export class AccountService extends Service {
   store: CollabStore
   authorization: AuthorizationService
+  replica: RecordReplica | null = null
   private db: { close(): void }
 
   constructor(ctx: Context, config: AccountConfig = {}) {
@@ -24,6 +26,25 @@ export class AccountService extends Service {
     this.db = db
     this.store = new CollabStore(db)
     this.authorization = this.store.authorization
+    const origin = process.env.BIU_REMOTE_ORIGIN
+    if (process.env.BIU_ONLINE !== '1' && origin) {
+      this.replica = new RecordReplica(db, httpRemote(origin))
+      const timer = setInterval(() => {
+        void this.replica?.pull().then(() => this.replica?.flush())
+      }, 5000)
+      ctx.on('dispose', () => clearInterval(timer))
+      ctx.on('session/finished', (event) => {
+        const payload = event as { sessionId?: string; text?: string }
+        const device = this.replica?.active()
+        if (!this.replica || !device || !payload.sessionId) return
+        this.replica.enqueueFinishedSession({
+          accountId: device.accountId,
+          workspaceId: device.workspaceId,
+          sessionId: payload.sessionId,
+          text: String(payload.text ?? ''),
+        })
+      })
+    }
     ctx.inject(['database'], (inner) => inner.database.register(workspaceMembersCollection(this.store)))
     if (process.env.BIU_ONLINE !== '1') {
       const profile = readWorkspaceProfile()
@@ -592,7 +613,11 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
       const me = actor(route)
       const workspaceId = String(route.query.get('workspaceId') ?? '')
       const after = Number(route.query.get('after') ?? 0)
-      route.send(200, { ops: account.store.opsSince(me.id, workspaceId, after) })
+      const ops =
+        route.query.get('visible') === '1'
+          ? account.store.visibleOpsSince(me.id, workspaceId, after)
+          : account.store.opsSince(me.id, workspaceId, after)
+      route.send(200, { ops })
     } catch (error) {
       fail(route, error)
     }
