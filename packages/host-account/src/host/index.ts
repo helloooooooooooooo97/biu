@@ -141,6 +141,52 @@ function rememberLogin(route: RouteContext, token: string) {
   route.res.setHeader('set-cookie', `biu_account=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict`)
 }
 
+function remoteOrigin() {
+  if (process.env.BIU_ONLINE === '1') return ''
+  return process.env.BIU_REMOTE_ORIGIN?.replace(/\/$/, '') || ''
+}
+
+async function relayAccount(route: RouteContext, path: string) {
+  const origin = remoteOrigin()
+  if (!origin) return null
+  const token = bearer(route)
+  const method = route.req.method ?? 'GET'
+  const hasBody = method !== 'GET' && method !== 'HEAD'
+  const raw = hasBody ? await route.json().catch(() => ({})) : undefined
+  let res: Response
+  try {
+    res = await fetch(`${origin}${path}`, {
+      method,
+      headers: {
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(hasBody ? { 'content-type': 'application/json' } : {}),
+      },
+      body: hasBody ? JSON.stringify(raw ?? {}) : undefined,
+    })
+  } catch {
+    throw new CollabError('云端暂时连不上', 503)
+  }
+  const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>
+  return { status: res.status, payload }
+}
+
+function cacheWorkspaceList(account: AccountService, accountId: string, payload: Record<string, unknown>) {
+  const workspaces = Array.isArray(payload.workspaces) ? payload.workspaces : []
+  for (const item of workspaces) {
+    if (!item || typeof item !== 'object') continue
+    const row = item as { id?: string; name?: string; ownerId?: string; role?: string; createdAt?: number }
+    if (!row.id) continue
+    account.store.upsertPulledWorkspace({
+      accountId,
+      id: String(row.id),
+      name: String(row.name ?? ''),
+      ownerId: row.ownerId,
+      role: row.role,
+      createdAt: row.createdAt,
+    })
+  }
+}
+
 function fail(route: RouteContext, error: unknown) {
   if (error instanceof CollabError) {
     route.send(error.status, { error: error.message })
@@ -171,6 +217,16 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
 
   ctx.http.route('POST', '/api/account/active', async (route) => {
     try {
+      const relayed = await relayAccount(route, '/api/account/active')
+      if (relayed) {
+        if (relayed.status < 300) {
+          const me = actor(route)
+          const workspaceId = String(relayed.payload.workspaceId ?? '')
+          if (workspaceId && account.store.isMember(me.id, workspaceId)) account.store.setActive(me.id, workspaceId)
+        }
+        route.send(relayed.status, relayed.payload)
+        return
+      }
       const me = actor(route)
       const body = (await route.json()) as { workspaceId?: string }
       const workspaceId = account.store.setActive(me.id, String(body.workspaceId ?? ''))
@@ -450,6 +506,12 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
 
   ctx.http.route('GET', '/api/account/workspaces', async (route) => {
     try {
+      const relayed = await relayAccount(route, '/api/account/workspaces')
+      if (relayed) {
+        if (relayed.status < 300) cacheWorkspaceList(account, actor(route).id, relayed.payload)
+        route.send(relayed.status, relayed.payload)
+        return
+      }
       const me = actor(route)
       route.send(200, { workspaces: account.store.listWorkspaces(me.id) })
     } catch (error) {
@@ -459,6 +521,26 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
 
   ctx.http.route('POST', '/api/account/workspaces', async (route) => {
     try {
+      const relayed = await relayAccount(route, '/api/account/workspaces')
+      if (relayed) {
+        if (relayed.status < 300) {
+          const me = actor(route)
+          const row = relayed.payload as { id?: string; name?: string; ownerId?: string; role?: string; createdAt?: number }
+          if (row.id) {
+            account.store.upsertPulledWorkspace({
+              accountId: me.id,
+              id: String(row.id),
+              name: String(row.name ?? ''),
+              ownerId: row.ownerId,
+              role: row.role || 'owner',
+              createdAt: row.createdAt,
+            })
+            account.store.setActive(me.id, String(row.id))
+          }
+        }
+        route.send(relayed.status, relayed.payload)
+        return
+      }
       const me = actor(route)
       const body = (await route.json()) as { name?: string }
       route.send(201, account.store.createWorkspace(me.id, String(body.name ?? '')))
@@ -469,6 +551,25 @@ export function apply(ctx: Context, config: AccountConfig = {}) {
 
   ctx.http.route('PATCH', '/api/account/workspaces/:id', async (route) => {
     try {
+      const relayed = await relayAccount(route, `/api/account/workspaces/${route.params.id}`)
+      if (relayed) {
+        if (relayed.status < 300) {
+          const me = actor(route)
+          const row = relayed.payload as { id?: string; name?: string; ownerId?: string; role?: string; createdAt?: number }
+          if (row.id) {
+            account.store.upsertPulledWorkspace({
+              accountId: me.id,
+              id: String(row.id),
+              name: String(row.name ?? ''),
+              ownerId: row.ownerId,
+              role: row.role,
+              createdAt: row.createdAt,
+            })
+          }
+        }
+        route.send(relayed.status, relayed.payload)
+        return
+      }
       const me = actor(route)
       const body = (await route.json()) as { name?: string }
       route.send(200, account.store.renameWorkspace(me.id, route.params.id!, String(body.name ?? '')))

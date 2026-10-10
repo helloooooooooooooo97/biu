@@ -1055,6 +1055,30 @@ export class CollabStore {
     return { ...current, name: display, avatar }
   }
 
+  /** 远程工作区在本机留一份成员关系，方便文件权限查询。 */
+  upsertPulledWorkspace(input: { accountId: string; id: string; name: string; ownerId?: string; role?: string; createdAt?: number }) {
+    const id = input.id.trim()
+    if (!id || id === this.homeWorkspaceId()) return
+    const name = input.name.trim() || '在线'
+    const now = input.createdAt || Date.now()
+    const existing = this.db.prepare('SELECT id FROM workspaces WHERE id = ?').get(id) as { id: string } | undefined
+    if (!existing) {
+      this.db
+        .prepare('INSERT INTO workspaces (id, name, owner_id, created_at) VALUES (?, ?, ?, ?)')
+        .run(id, name, input.ownerId || input.accountId, now)
+    } else {
+      this.db.prepare('UPDATE workspaces SET name = ? WHERE id = ?').run(name, id)
+    }
+    const role = input.role === 'owner' || input.role === 'admin' || input.role === 'viewer' ? input.role : 'member'
+    this.db
+      .prepare(
+        `INSERT INTO workspace_members (workspace_id, account_id, role, created_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(workspace_id, account_id) DO UPDATE SET role = excluded.role`,
+      )
+      .run(id, input.accountId, role, now)
+  }
+
   listWorkspaces(accountId: string): Workspace[] {
     const rows = this.db
       .prepare(
