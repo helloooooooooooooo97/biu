@@ -40,6 +40,7 @@ import {
   StarIcon,
   TableCellsIcon,
   ComputerDesktopIcon,
+  GlobeAltIcon,
   UserIcon,
   UsersIcon,
   ViewColumnsIcon,
@@ -581,7 +582,9 @@ export function CollectionBrowser({
   const [query, setQuery] = useState(initialView?.query ?? '')
   const [page, setPage] = useState(0)
   const [localData, setLocalData] = useState(false)
-  const [createScope, setCreateScope] = useState<'local' | 'personal' | 'workspace'>(routeScope === 'workspace' ? 'workspace' : 'personal')
+  const [createScope, setCreateScope] = useState<'local' | 'personal' | 'workspace' | 'shared'>(
+    routeScope === 'workspace' ? 'workspace' : routeScope === 'shared' ? 'shared' : 'personal',
+  )
   const [createScopeOpen, setCreateScopeOpen] = useState(false)
   useEffect(() => {
     let live = true
@@ -3351,7 +3354,9 @@ export function CollectionBrowser({
                         ? '本地内容，只留在这台机器'
                         : createScope === 'workspace'
                           ? '空间内容，按各自的空间角色处理'
-                          : '私人内容，仅自己可处理'
+                          : createScope === 'shared'
+                            ? '公开链接，所有人可查看'
+                            : '私人内容，仅自己可处理'
                     }
                     onClick={() => setCreateScopeOpen((open) => !open)}
                   >
@@ -3359,6 +3364,8 @@ export function CollectionBrowser({
                       <ComputerDesktopIcon aria-hidden className="size-[14px]" />
                     ) : createScope === 'workspace' ? (
                       <UsersIcon aria-hidden className="size-[14px]" />
+                    ) : createScope === 'shared' ? (
+                      <GlobeAltIcon aria-hidden className="size-[14px]" />
                     ) : (
                       <UserIcon aria-hidden className="size-[14px]" />
                     )}
@@ -3403,6 +3410,18 @@ export function CollectionBrowser({
                       >
                         <UsersIcon aria-hidden className="size-[14px]" />
                         空间
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={createScope === 'shared' ? 'is-on' : ''}
+                        onClick={() => {
+                          setCreateScope('shared')
+                          setCreateScopeOpen(false)
+                        }}
+                      >
+                        <GlobeAltIcon aria-hidden className="size-[14px]" />
+                        共享
                       </button>
                     </div>
                   ) : null}

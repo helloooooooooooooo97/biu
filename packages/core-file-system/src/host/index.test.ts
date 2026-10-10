@@ -1827,6 +1827,54 @@ test('create scope separates personal and workspace records and viewers stay rea
   )
 })
 
+test('shared create is a public view link', async () => {
+  const ctx = new Context()
+  const db = new DatabaseService(ctx)
+  db.shares.open(':memory:')
+  const rows = new Map<string, DbRecord>()
+  db.register({
+    id: 'docs',
+    path: '/docs',
+    schema: {
+      fields: {
+        ...REQUIRED_RECORD_FIELDS,
+        title: { type: 'string', writable: true },
+      },
+    },
+    records: { create: true },
+    list: () => [...rows.values()],
+    get: (id) => rows.get(id) ?? null,
+    create: (records) => records.map((record) => {
+      const row = { id: 'pub', title: String(record.title ?? 'Doc') }
+      rows.set(row.id, row)
+      return row
+    }),
+  })
+  const dir = mkdtempSync(join(tmpdir(), 'biu-db-public-share-'))
+  const collab = new CollabStore(openAndMigrateBiu(join(dir, 'biu.sqlite')))
+  class AccountBridge extends Service {
+    store = collab
+    authorization = collab.authorization
+    constructor(inner: Context) {
+      super(inner, 'account')
+    }
+  }
+  await ctx.plugin(AccountBridge)
+  const ada = collab.register('', Date.now(), 'secret1', 'public-ada@example.com')
+  const workspace = collab.createWorkspace(ada.id, 'Public')
+  collab.setActive(ada.id, workspace.id)
+  const created = await runWithAccount(ada.id, () => db.create('/docs', [{ title: '公开' }], { scope: 'shared' }))
+  assert.equal(created.kind, 'created')
+  if (created.kind !== 'created') return
+  assert.equal(created.items[0]?.value.shareScope, '共享')
+  const link = db.shares.find('record', '/docs', '', 'pub')
+  assert.ok(link)
+  assert.equal(link?.hasPassword, false)
+  assert.equal(link?.allowCopy, false)
+  const listed = await runWithAccount(ada.id, () => db.list('/docs', { $scope: 'shared' }))
+  assert.deepEqual(listed.items.map((row) => row.title), ['公开'])
+})
+
 test('a builtin member view grant lets the other workspace member read personal records', async () => {
   const ctx = new Context()
   const db = new DatabaseService(ctx)
