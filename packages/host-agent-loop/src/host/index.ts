@@ -183,41 +183,6 @@ export class AgentLoop implements AgentRunner {
     let chunkChannel: 'text' | 'reasoning' = 'text'
     let chunkFlush: Promise<void> = Promise.resolve()
     let chunkTimer: ReturnType<typeof setTimeout> | null = null
-    let toolBuf = new Map<string, { id: string; name: string; arguments: string }>()
-    let toolFlush: Promise<void> = Promise.resolve()
-    let toolTimer: ReturnType<typeof setTimeout> | null = null
-
-    const flushTools = () => {
-      if (toolTimer != null) {
-        clearTimeout(toolTimer)
-        toolTimer = null
-      }
-      if (!toolBuf.size) return toolFlush
-      const pending = [...toolBuf.values()]
-      toolBuf = new Map()
-      toolFlush = toolFlush.then(async () => {
-        for (const call of pending) {
-          await session.append(this.sessionId, {
-            type: 'tool/call',
-            id: call.id,
-            name: call.name,
-            arguments: call.arguments,
-          })
-        }
-      })
-      return toolFlush
-    }
-
-    const queueTool = (call: { id: string; name: string; arguments: string }) => {
-      if (!call.id || !call.name) return
-      toolBuf.set(call.id, call)
-      if (toolTimer != null) return
-      toolTimer = setTimeout(() => {
-        toolTimer = null
-        void flushTools()
-      }, 48)
-    }
-
     const flushChunks = () => {
       if (chunkTimer != null) {
         clearTimeout(chunkTimer)
@@ -252,7 +217,6 @@ export class AgentLoop implements AgentRunner {
     for (let step = 0; ; step++) {
       if (this.signal.aborted) {
         await flushChunks()
-        await flushTools()
         await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
         throw new Error('cancelled')
       }
@@ -292,15 +256,10 @@ export class AgentLoop implements AgentRunner {
           onReasoningDelta: (text) => {
             queueChunk(text, 'reasoning')
           },
-          onToolDelta: (call) => {
-            queueTool(call)
-          },
         })
         await flushChunks()
-        await flushTools()
       } catch (error) {
         await flushChunks()
-        await flushTools()
         if (this.signal.aborted) {
           await session.append(this.sessionId, { type: 'turn/end', turn, reason: 'cancelled' })
           this.ctx.emit('agent/status', { sessionId: this.sessionId, status: 'idle' })
