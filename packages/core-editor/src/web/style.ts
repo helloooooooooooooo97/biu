@@ -28,7 +28,7 @@ export const PAGE_EDITOR_STYLE = `
 .page-editor .react-renderer.node-pageBlock{overflow:hidden;min-width:0}
 .page-editor .page-block[data-page-block]{margin:12px 0;position:relative;z-index:0;isolation:isolate;overflow:hidden}
 .page-editor .page-block iframe{pointer-events:none}
-.page-editor .page-block.ProseMirror-selectednode iframe{pointer-events:auto}
+.page-editor .page-block.ProseMirror-selectednode iframe,.page-editor .ProseMirror[contenteditable=false] .page-block iframe{pointer-events:auto}
 .page-editor .page-block.ProseMirror-selectednode{outline:none;box-shadow:none}
 .page-editor .ProseMirror[contenteditable=false] .ProseMirror-selectednode{outline:none;box-shadow:none;background:transparent}
 .page-editor .page-block[data-page-block=excalidraw]{outline:none;box-shadow:none;border:0;border-radius:8px}

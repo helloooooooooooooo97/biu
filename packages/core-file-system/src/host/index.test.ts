@@ -2240,6 +2240,8 @@ test('builtin plugins stay visible in the workspace plugin list', async () => {
     db.facets.markDeleted('/plugins', 'api-playground')
     const stillListed = await runWithAccount(bob.id, () => db.list('/plugins'))
     assert.deepEqual(stillListed.items.map((item) => item.id), ['api-playground'])
+    const stillRead = await runWithAccount(bob.id, () => db.read('/plugins/api-playground'))
+    assert.equal(stillRead.kind === 'record' && stillRead.value.id, 'api-playground')
     const bin = await runWithAccount(bob.id, () => db.listTrash())
     assert.deepEqual(bin.items.map((item) => item.id), [])
   } finally {
