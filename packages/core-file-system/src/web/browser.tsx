@@ -2466,7 +2466,7 @@ export function CollectionBrowser({
         >
           <span className="sidebar-rail-icon sidebar-group-fold" aria-hidden>
             <span className="sidebar-group-fold-face">
-              {activeGroup ? <FieldGlyph kind={resolveFieldType(activeGroup.field)} /> : <Squares2X2Icon aria-hidden className="size-[14px]" />}
+              <RectangleStackIcon aria-hidden className="size-[14px]" />
             </span>
             <span className="sidebar-group-fold-chevron">
               {folded ? (

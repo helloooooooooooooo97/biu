@@ -7,7 +7,7 @@ import {
   ChevronRightIcon,
   PencilSquareIcon,
   PlusIcon,
-  Squares2X2Icon,
+  RectangleStackIcon,
   StarIcon,
 } from '@heroicons/react/16/solid'
 import { TrashGlyph } from '@biu/web-session-view/trash-glyph'
@@ -395,7 +395,7 @@ function ViewRecordPreview({
                   >
                     <span className="sidebar-rail-icon sidebar-group-fold">
                       <span className="sidebar-group-fold-face">
-                        <Squares2X2Icon className="size-4 shrink-0" />
+                        <RectangleStackIcon aria-hidden className="size-[14px] shrink-0" />
                       </span>
                       <span className="sidebar-group-fold-chevron">
                         {expanded ? (
