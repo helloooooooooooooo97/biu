@@ -72,7 +72,7 @@ import {
   parentFieldKey,
   parseFacetFlatColumnKey,
   patchFacetFlatValue,
-  pinLabelColumn,
+  pinActionColumn,
   readFacetFlatValue,
   resolveFieldType,
   uniqueValues,
@@ -378,7 +378,8 @@ function ColumnOrderMenu({
     ...columns.filter((item) => item.key !== labelField),
     ...hidden,
   ]
-  const sortableIds = menuCols.filter((item) => item.key !== labelField).map((item) => item.key)
+  const locked = new Set([labelField, 'actions'].filter(Boolean))
+  const sortableIds = menuCols.filter((item) => !locked.has(item.key)).map((item) => item.key)
   const active = menuCols.find((item) => item.key === activeId)
 
   return (
@@ -397,11 +398,13 @@ function ColumnOrderMenu({
           const to = sortableIds.indexOf(String(overId))
           if (from < 0 || to < 0) return
           const next = moveList(sortableIds, from, to)
-          onReorder(labelField ? [labelField, ...next.filter((key) => visibleKeys.has(key) && key !== labelField)] : next.filter((key) => visibleKeys.has(key)))
+          const visible = next.filter((key) => visibleKeys.has(key) && key !== labelField && key !== 'actions')
+          const head = [labelField, visibleKeys.has('actions') ? 'actions' : ''].filter(Boolean) as string[]
+          onReorder([...head, ...visible])
         }}
       >
         {menuCols
-          .filter((item) => item.key === labelField)
+          .filter((item) => item.key === labelField || item.key === 'actions')
           .map((item) => (
             <ColumnRowShell
               key={item.key}
@@ -416,7 +419,7 @@ function ColumnOrderMenu({
           ))}
         <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
           {menuCols
-            .filter((item) => item.key !== labelField)
+            .filter((item) => item.key !== labelField && item.key !== 'actions')
             .map((item) => (
               <ColumnDragRow
                 key={item.key}
@@ -1128,23 +1131,23 @@ export function CollectionBrowser({
     [bodyKey, entries, facetCatalog, rowActionColumn],
   )
   const allColumnKeys = useMemo(() => allColumns.map((item) => item.key), [allColumns])
-  const schemaDefaultKeys = useMemo(() => {
-    const keys = defaultColumnKeys(schema, allColumnKeys.filter((key) => key !== 'actions'))
-    if (!rowActionColumn || keys.includes('actions')) return keys
-    return [...keys, 'actions']
-  }, [allColumnKeys, rowActionColumn, schema])
+  const schemaDefaultKeys = useMemo(
+    () => pinActionColumn(schema, defaultColumnKeys(schema, allColumnKeys.filter((key) => key !== 'actions')), rowActionColumn),
+    [allColumnKeys, rowActionColumn, schema],
+  )
   const schemaDefaultSig = schemaDefaultKeys.join('\0')
   const prevSchemaDefaultSig = useRef('')
   const columns = useMemo(() => {
     const requested = columnKeys.length ? columnKeys : schemaDefaultKeys
-    const order = pinLabelColumn(
+    const order = pinActionColumn(
       schema,
-      requested.filter((key) => allColumns.some((item) => item.key === key)),
+      requested.filter((key) => key === 'actions' || allColumns.some((item) => item.key === key)),
+      rowActionColumn,
     )
     return order
       .map((key) => allColumns.find((item) => item.key === key))
       .filter(Boolean) as typeof allColumns
-  }, [allColumns, columnKeys, schema, schemaDefaultKeys])
+  }, [allColumns, columnKeys, rowActionColumn, schema, schemaDefaultKeys])
   const hasColWidths = Object.keys(columnWidths).length > 0
 
   function startColResize(event: ReactPointerEvent<HTMLSpanElement>, colKey: string) {
@@ -1206,15 +1209,16 @@ export function CollectionBrowser({
     setColumnKeys((prev) => {
       const allowed = new Set(allColumnKeys)
       const grown = prevDefaults.length ? schemaDefaultKeys.filter((key) => !prevDefaults.includes(key)) : []
-      const kept = pinLabelColumn(
+      const kept = pinActionColumn(
         schema,
         [...prev.filter((key) => allowed.has(key)), ...grown.filter((key) => allowed.has(key) && !prev.includes(key))],
+        rowActionColumn,
       )
       if (!prev.length || !kept.length) return schemaDefaultKeys
       if (kept.length === prev.length && kept.every((key, index) => key === prev[index])) return prev
       return kept
     })
-  }, [allColumnKeys, schema, schemaDefaultKeys, schemaDefaultSig])
+  }, [allColumnKeys, rowActionColumn, schema, schemaDefaultKeys, schemaDefaultSig])
 
   useEffect(() => {
     if (!schema || sortFields.some((item) => item.key === sortField)) return
@@ -1484,9 +1488,10 @@ export function CollectionBrowser({
       ...view,
       filters: { ...catalogLockFilters(view.id, [view]), ...view.filters },
     })
-    const nextColumns = pinLabelColumn(
+    const nextColumns = pinActionColumn(
       schema,
       next.columns.length ? next.columns.filter((key) => allColumnKeys.includes(key)) : schemaDefaultKeys,
+      rowActionColumn,
     )
     const nextQuery = next.query ?? ''
     const nextPageSize = normalizePageSize(next.pageSize)
@@ -1719,7 +1724,7 @@ export function CollectionBrowser({
   }
 
   function setVisibleColumns(next: string[]) {
-    const pinned = pinLabelColumn(schema, next)
+    const pinned = pinActionColumn(schema, next, rowActionColumn)
     if (!pinned.length) return
     setColumnKeys(pinned)
     if (!activeViewId) return
@@ -1734,7 +1739,7 @@ export function CollectionBrowser({
   }
 
   function toggleColumn(key: string) {
-    if (key === schema?.labelField) return
+    if (key === schema?.labelField || key === 'actions') return
     const current = columnKeys.length ? columnKeys : columns.map((col) => col.key)
     const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
     if (!next.length) return
@@ -2641,7 +2646,7 @@ export function CollectionBrowser({
         sorts,
         filters: current.builtin ? current.filters : filters,
         filterTree: current.builtin ? undefined : filterTree,
-        columns: pinLabelColumn(schema, columnKeys),
+        columns: pinActionColumn(schema, columnKeys, rowActionColumn),
         groupBy,
         tree: showTree,
         wrap: wrapCells,

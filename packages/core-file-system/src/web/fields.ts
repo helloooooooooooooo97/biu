@@ -143,6 +143,16 @@ export function pinLabelColumn(schema: CollectionSchema | undefined, keys: strin
   return [label, ...keys.filter((key) => key !== label)]
 }
 
+/** 有动作列时固定在标题右侧，且始终展示。 */
+export function pinActionColumn(schema: CollectionSchema | undefined, keys: string[], enabled: boolean): string[] {
+  const without = keys.filter((key) => key !== 'actions')
+  const pinned = pinLabelColumn(schema, without)
+  if (!enabled) return pinned
+  const label = schema?.labelField
+  if (label && pinned[0] === label) return [label, 'actions', ...pinned.slice(1)]
+  return ['actions', ...pinned]
+}
+
 export function defaultColumnKeys(schema: CollectionSchema | undefined, allKeys: string[]): string[] {
   const listed = schema?.columns?.filter((key) => allKeys.includes(key)) ?? []
   const parent = declaredParentField(schema)
