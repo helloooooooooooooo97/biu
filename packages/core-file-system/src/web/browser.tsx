@@ -1794,6 +1794,8 @@ export function CollectionBrowser({
         void reloadRef.current()
       }, 800)
     } catch (err) {
+      setItems((prev) => prev.map((item) => (item.id === row.id ? row : item)))
+      setDetailRow((prev) => (prev?.id === row.id ? row : prev))
       setDlg({ kind: 'alert', title: `${action.label}失败`, body: String(err) })
       quietUntil.current = 0
       await reload()

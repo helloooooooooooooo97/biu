@@ -438,8 +438,16 @@ export class PluginStoreService extends Service {
       hasHost: Boolean(hostEntry),
       manifest,
     })
-    // 运行中才重新挂载；停着的下次 start 会从磁盘再挂。
-    if (this.isEnabled(manifest.id)) await this.mountFromDisk(manifest, dest)
+    // 运行中才重新挂载；挂载失败不能留在运行中。
+    if (this.isEnabled(manifest.id)) {
+      try {
+        await this.mountFromDisk(manifest, dest)
+      } catch (error) {
+        await this.hub().drop(manifest.id).catch(() => undefined)
+        this.invalidateList()
+        throw error
+      }
+    }
     return { id: manifest.id, sandboxPath: sandbox, pluginPath: dest }
   }
 
@@ -555,17 +563,31 @@ export class PluginStoreService extends Service {
       const workspaceId = currentRequestWorkspaceId()
       const account = this.accountStore()
       if (!accountId || !workspaceId || !account?.isMember?.(accountId, workspaceId)) throw new Error('需要登录')
+      try {
+        await this.mountInstalled(id)
+      } catch (error) {
+        account.setPluginLoad?.(accountId, workspaceId, id, false)
+        await this.hub().drop(id).catch(() => undefined)
+        this.invalidateList()
+        throw error
+      }
       account.setPluginLoad?.(accountId, workspaceId, id, true)
-      await this.mountInstalled(id)
       this.invalidateList()
       return (await this.list()).find((item) => item.id === id)
     }
     const hit = await this.findPluginDir(id)
     if (!hit) throw new Error(`unknown store plugin: ${id}`)
     const manifest = await readManifest(hit)
+    try {
+      await this.mountFromDisk(manifest, hit)
+    } catch (error) {
+      this.setEnabled(manifest.id, false)
+      await this.hub().drop(manifest.id).catch(() => undefined)
+      this.invalidateList()
+      throw error
+    }
     this.setEnabled(manifest.id, true)
     this.touchLastRun(manifest.id)
-    await this.mountFromDisk(manifest, hit)
     this.invalidateList()
     return (await this.list()).find((item) => item.id === manifest.id)
   }
