@@ -1801,6 +1801,9 @@ test('create scope separates personal and workspace records and viewers stay rea
   collab.addMemberByEmail(ada.id, workspace.id, bob.email)
   collab.setActive(ada.id, workspace.id)
   collab.setActive(bob.id, workspace.id)
+  collab.authorization.setMemberViewMatcher((workspaceId, viewId, accountId) => {
+    return viewId === builtinAllViewId('/workspace-members') && collab.isMember(accountId, workspaceId)
+  })
 
   await runWithAccount(ada.id, () => db.create('/docs', [{ title: 'Private' }], { scope: 'personal' }))
   await runWithAccount(ada.id, () => db.create('/docs', [{ title: 'Shared' }], { scope: 'workspace' }))
@@ -1809,6 +1812,8 @@ test('create scope separates personal and workspace records and viewers stay rea
   assert.deepEqual(personal.items.map((row) => row.title), ['Private'])
   assert.deepEqual(shared.items.map((row) => row.title), ['Shared'])
   assert.deepEqual((await runWithAccount(bob.id, () => db.list('/docs'))).items.map((row) => row.title), ['Shared'])
+  const granted = runWithAccount(ada.id, () => collab.recordAccess(ada.id, '/docs', 'd2'))
+  assert.equal(granted.memberViews.find((row) => row.id === builtinAllViewId('/workspace-members'))?.role, 'editor')
   assert.equal((await runWithAccount(ada.id, () => db.list('/docs'))).items.find((row) => row.title === 'Shared')?.shareScope, '空间')
   const edited = await runWithAccount(bob.id, () => db.update('/docs/d2', { title: 'Shared edited' }))
   assert.equal(edited.kind, 'record')
@@ -1978,7 +1983,7 @@ test('a builtin member view grant lets the other workspace member read personal 
   collab.setActive(bob.id, workspace.id)
   db.viewCatalog = { viewsFor: () => [] }
   collab.authorization.setMemberViewMatcher((workspaceId, viewId, accountId) => {
-    const view = stubBuiltinMemberView(viewId)
+    const view = stubBuiltinMemberView(viewId) ?? stubBuiltinAllView(viewId)
     if (!view) return false
     const member = collab.members(accountId, workspaceId).find((item) => item.id === accountId)
     if (!member) return false
@@ -2085,7 +2090,7 @@ test('granting the all-members view lets the other member read the owner private
   const spaceId = String(bobList.items.find((row) => row.title === 'A空间')?.id ?? '')
   const privateId = String(bobList.items.find((row) => row.title === 'A私人')?.id ?? '')
   const spaceChain = runWithAccount(bob.id, () => collab.recordAccess(bob.id, '/tasks', spaceId)).roleChain
-  assert.equal(spaceChain[0]?.detail, '空间成员默认可编辑')
+  assert.equal(spaceChain[0]?.detail, '通过成员视图授权')
   assert.equal(spaceChain[0]?.role, 'editor')
   const ownChain = runWithAccount(ada.id, () => collab.recordAccess(ada.id, '/tasks', privateId)).roleChain
   assert.equal(ownChain[0]?.detail, '你是创建者')
@@ -2138,7 +2143,7 @@ test('sharing one person all-tasks view does not reclassify the other person pri
   collab.setActive(bob.id, workspace.id)
   db.viewCatalog = { viewsFor: () => [] }
   collab.authorization.setMemberViewMatcher((workspaceId, viewId, accountId) => {
-    const view = stubBuiltinMemberView(viewId)
+    const view = stubBuiltinMemberView(viewId) ?? stubBuiltinAllView(viewId)
     if (!view) return false
     const member = collab.members(accountId, workspaceId).find((item) => item.id === accountId)
     if (!member) return false
@@ -2257,6 +2262,11 @@ test('index rows follow the user records each person can read and omit share', a
   collab.addMemberByEmail(ada.id, workspace.id, bob.email)
   collab.setActive(ada.id, workspace.id)
   collab.setActive(bob.id, workspace.id)
+  collab.authorization.setMemberViewMatcher((workspaceId, viewId, accountId) => {
+    const view = stubBuiltinAllView(viewId)
+    if (!view) return false
+    return collab.isMember(accountId, workspaceId)
+  })
 
   const personal = await runWithAccount(ada.id, () => db.create('/pages', [{ title: '私人' }], { scope: 'personal' }))
   const shared = await runWithAccount(ada.id, () => db.create('/pages', [{ title: '空间' }], { scope: 'workspace' }))
