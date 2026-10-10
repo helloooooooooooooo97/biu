@@ -1383,6 +1383,11 @@ export class DatabaseService extends Service implements Database {
     }
   }
 
+  /** 侧栏「添加聊天」走 sessions.create，不经过表格的 create，这里补同一套创建人/编辑人。 */
+  async touchActor(collection: string, recordId: string) {
+    await this.stampActor(collection, recordId)
+  }
+
   private async stampActor(collection: string, recordId: string) {
     const actor = await this.currentPerson()
     const existing = this.facets.recordMeta(collection, recordId)
