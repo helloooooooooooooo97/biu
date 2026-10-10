@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import type { Context } from 'cordis'
 import { runWithAccount } from '@biu/host-plugin-loader/data-dir'
 import type { SessionRecord } from '@biu/type-session'
@@ -28,6 +29,8 @@ type AccountLike = {
   markRemote?: (collection: string, id: string) => void
   clearPlace?: (collection: string, id: string) => void
   remoteIds?: (collection: string) => string[]
+  copiedCloud?: (collection: string, id: string) => string
+  rememberCopy?: (collection: string, localId: string, cloudId: string) => void
   replica?: { active?: () => { token?: string; accountId?: string } | null }
 }
 
@@ -83,8 +86,12 @@ function rememberCloud(ctx: Context, collection: string, id: string) {
 }
 
 export function isCloudRecord(ctx: Context, collection: string, id: string) {
-  if (process.env.BIU_ONLINE === '1') return true
   return Boolean(accountOf(ctx)?.isRemote?.(collection, id))
+}
+
+export function cloudCopyId(collection: string) {
+  const hex = randomBytes(8).toString('hex')
+  return collection === '/tasks' ? `task_${hex}` : `c${hex}`
 }
 
 export async function takeSnapshot(ctx: Context): Promise<MirrorSnapshot> {
@@ -181,26 +188,51 @@ function cloudLogin(ctx: Context) {
 }
 
 export async function publishToCloud(ctx: Context, collection: string, ids: string[]) {
+  const linked: Record<string, string> = {}
   const login = cloudLogin(ctx)
-  if (!login || !ids.length) return
+  if (!login || !ids.length) return linked
   const unique = [...new Set(ids.map((id) => String(id)).filter(Boolean))]
   const account = accountOf(ctx)
-  const pending = unique.filter((id) => !account?.isRemote?.(collection, id))
-  if (!pending.length) return
-  let snapshot: MirrorSnapshot = { sessions: [], collections: [] }
+  const pending: string[] = []
+  for (const id of unique) {
+    if (account?.isRemote?.(collection, id)) {
+      linked[id] = id
+      continue
+    }
+    const copied = account?.copiedCloud?.(collection, id)
+    if (copied) {
+      linked[id] = copied
+      continue
+    }
+    pending.push(id)
+  }
+  if (!pending.length) return linked
+  const sessions: MirrorSnapshot['sessions'] = []
+  const records: MirrorSnapshot['collections'][number]['records'] = []
   if (collection === '/sessions') {
     const store = sessionsOf(ctx)
-    const sessions: MirrorSnapshot['sessions'] = []
     for (const id of pending) {
       const full = await store?.load(id)
-      if (full) sessions.push(full)
+      if (!full) continue
+      const copy = { ...full, id: cloudCopyId(collection), updatedAt: Date.now() }
+      sessions.push(copy)
+      linked[id] = copy.id
     }
-    snapshot = { sessions, collections: [] }
   } else {
     const database = databaseOf(ctx)
     const found = (await database?.syncedRecords())?.find((item) => item.path === collection)
-    const records = (found?.records ?? []).filter((record) => pending.includes(String(record.id)))
-    snapshot = { sessions: [], collections: records.length ? [{ path: collection, records }] : [] }
+    for (const id of pending) {
+      const source = found?.records.find((record) => String(record.id) === id)
+      if (!source) continue
+      const copy = { ...source, id: cloudCopyId(collection), updatedAt: Date.now() }
+      delete (copy as { remote?: unknown }).remote
+      records.push(copy)
+      linked[id] = copy.id
+    }
+  }
+  const snapshot: MirrorSnapshot = {
+    sessions,
+    collections: records.length ? [{ path: collection, records }] : [],
   }
   const res = await fetch(`${login.origin}/api/replica/snapshot`, {
     method: 'POST',
@@ -211,7 +243,19 @@ export async function publishToCloud(ctx: Context, collection: string, ids: stri
     const body = (await res.json().catch(() => null)) as { error?: string } | null
     throw new Error(body?.error || '上传到云端失败')
   }
-  for (const id of pending) account?.markRemote?.(collection, id)
+  const store = sessionsOf(ctx)
+  for (const copy of sessions) {
+    await store?.save(copy)
+    account?.markRemote?.('/sessions', copy.id)
+  }
+  if (records.length) await databaseOf(ctx)?.applySynced(collection, records)
+  for (const [localId, cloudId] of Object.entries(linked)) {
+    if (pending.includes(localId)) {
+      account?.markRemote?.(collection, cloudId)
+      account?.rememberCopy?.(collection, localId, cloudId)
+    }
+  }
+  return linked
 }
 
 export async function forwardCloud(

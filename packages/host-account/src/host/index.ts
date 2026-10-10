@@ -37,6 +37,12 @@ export class AccountService extends Service {
       place TEXT NOT NULL,
       PRIMARY KEY (collection, record_id)
     )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS record_cloud_copy (
+      collection TEXT NOT NULL,
+      local_id TEXT NOT NULL,
+      cloud_id TEXT NOT NULL,
+      PRIMARY KEY (collection, local_id)
+    )`)
     const origin = process.env.BIU_REMOTE_ORIGIN
     if (process.env.BIU_ONLINE !== '1' && origin) {
       this.replica = new RecordReplica(db, httpRemote(origin))
@@ -87,6 +93,22 @@ export class AccountService extends Service {
       record_id: string
     }>
     return rows.map((row) => row.record_id)
+  }
+
+  copiedCloud(collection: string, id: string) {
+    const row = this.db.prepare('SELECT cloud_id FROM record_cloud_copy WHERE collection = ? AND local_id = ?').get(collection, id) as
+      | { cloud_id?: string }
+      | undefined
+    return row?.cloud_id || ''
+  }
+
+  rememberCopy(collection: string, localId: string, cloudId: string) {
+    this.db
+      .prepare(
+        `INSERT INTO record_cloud_copy (collection, local_id, cloud_id) VALUES (?, ?, ?)
+         ON CONFLICT(collection, local_id) DO UPDATE SET cloud_id = excluded.cloud_id`,
+      )
+      .run(collection, localId, cloudId)
   }
 }
 
