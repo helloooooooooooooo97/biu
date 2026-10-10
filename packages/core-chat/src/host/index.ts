@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dataDir, dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
+import { dirname } from 'node:path'
+import { currentAccountId, dataDir, dataHome, dataPath } from '@biu/host-plugin-loader/data-dir'
 import { Service, type Context } from 'cordis'
 import type { ChatMessage } from './chat-types.ts'
 import { isAgentToolMode, normalizeAgentMode, type AgentToolMode } from '@biu/host-tools'
@@ -74,6 +75,48 @@ function configPath() {
   return dataPath(dataHome(), 'chat-config.json')
 }
 
+/** 没有登录账号时，本机模式用 local；集中部署不回落到全局密钥。 */
+export function accountKeyOwner() {
+  const id = currentAccountId().trim().replace(/[^a-zA-Z0-9._-]+/g, '_')
+  if (id) return id
+  return process.env.BIU_ONLINE === '1' ? '' : 'local'
+}
+
+function accountKeysPath(accountId: string) {
+  return dataPath(dataHome(), 'chat-keys', `${accountId}.json`)
+}
+
+function envKeys(): Record<string, string> {
+  const keys = emptyKeys()
+  if (process.env.DEEPSEEK_API_KEY) keys.deepseek = process.env.DEEPSEEK_API_KEY
+  if (process.env.OPENAI_API_KEY) keys.openai = process.env.OPENAI_API_KEY
+  if (process.env.ANTHROPIC_API_KEY) keys.anthropic = process.env.ANTHROPIC_API_KEY
+  return keys
+}
+
+export function readAccountApiKeys(accountId = accountKeyOwner()): Record<string, string> {
+  const keys = emptyKeys()
+  if (!accountId) return keys
+  try {
+    const parsed = JSON.parse(readFileSync(accountKeysPath(accountId), 'utf8')) as { apiKeys?: Record<string, unknown> }
+    const saved = parsed.apiKeys
+    if (!saved || typeof saved !== 'object') return keys
+    for (const [id, value] of Object.entries(saved)) {
+      if (typeof value === 'string') keys[id] = value
+    }
+    return keys
+  } catch {
+    return accountId === 'local' ? envKeys() : keys
+  }
+}
+
+export function writeAccountApiKeys(keys: Record<string, string>, accountId = accountKeyOwner()) {
+  if (!accountId) return
+  const path = accountKeysPath(accountId)
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, `${JSON.stringify({ apiKeys: keys }, null, 2)}\n`, 'utf8')
+}
+
 function emptyKeys(): Record<string, string> {
   return { deepseek: '', openai: '', anthropic: '' }
 }
@@ -141,7 +184,6 @@ function writePersisted(config: ChatConfig) {
         contextWindow: config.contextWindow,
         speed: config.speed,
         modelPrefs: config.modelPrefs,
-        apiKeys: config.apiKeys,
         baseUrls: config.baseUrls,
         customEndpoints: config.customEndpoints,
         customModels: config.customModels,
@@ -228,31 +270,6 @@ function isLocalEndpoint(endpoint: LlmEndpointDef): boolean {
   return endpoint.group === 'local'
 }
 
-/** 取某个入口的持久化 key；环境变量始终优先（不会被磁盘文件覆盖 UI 清空）。 */
-function keyFor(endpointId: string, saved: Partial<ChatConfig> | null): string {
-  const envMap: Record<string, string | undefined> = {
-    deepseek: process.env.DEEPSEEK_API_KEY,
-    openai: process.env.OPENAI_API_KEY,
-    anthropic: process.env.ANTHROPIC_API_KEY,
-  }
-  if (envMap[endpointId]) return envMap[endpointId]!
-  const savedKeys = saved?.apiKeys
-  if (savedKeys && typeof savedKeys === 'object' && typeof savedKeys[endpointId] === 'string') {
-    const key = savedKeys[endpointId] || ''
-    if (key.trim()) return key.trim()
-  }
-  // 老格式：单一 apiKey 迁移到 deepseek（或默认 provider 所在）
-  const legacy = saved as unknown as { apiKey?: unknown; provider?: unknown } | null
-  if (legacy && typeof legacy.apiKey === 'string' && legacy.apiKey.trim()) {
-    const owner =
-      legacy.provider && CHAT_PROVIDERS.includes(legacy.provider as ChatProvider)
-        ? (legacy.provider as ChatProvider)
-        : DEFAULT_PROVIDER
-    if (endpointId === owner) return legacy.apiKey.trim()
-  }
-  return ''
-}
-
 function mergeCustomEndpoints(saved: Partial<ChatConfig> | null): LlmEndpointDef[] {
   if (!Array.isArray(saved?.customEndpoints)) return []
   const out: LlmEndpointDef[] = []
@@ -315,15 +332,8 @@ function mergePersisted(base: ChatConfig, saved: Partial<ChatConfig> | null): Ch
   if (!saved) return base
   const customEndpoints = mergeCustomEndpoints(saved)
   const customModels = mergeCustomModels(saved)
+  // 密钥按账号存在 chat-keys/，不从全局 chat-config.json 读进来。
   const apiKeys: Record<string, string> = { ...emptyKeys() }
-  // 合并所有已知入口的 key
-  const allEndpointIds = new Set<string>([
-    ...CHAT_PROVIDERS,
-    ...LLM_ENDPOINT_PRESETS.map((e) => e.id),
-    ...customEndpoints.map((e) => e.id),
-    ...(saved.apiKeys && typeof saved.apiKeys === 'object' ? Object.keys(saved.apiKeys) : []),
-  ])
-  for (const id of allEndpointIds) apiKeys[id] = keyFor(id, saved)
 
   const baseUrls: Record<string, string> = {}
   if (saved.baseUrls && typeof saved.baseUrls === 'object') {
@@ -438,17 +448,28 @@ export class ChatService extends Service {
     this.syncToolsMode()
   }
 
+  private accountConfig(): ChatConfig {
+    return { ...this.config, apiKeys: readAccountApiKeys() }
+  }
+
+  private updateAccountKeys(mutate: (keys: Record<string, string>) => void) {
+    const keys = readAccountApiKeys()
+    mutate(keys)
+    writeAccountApiKeys(keys)
+  }
+
   publicView() {
-    const endpoints = allEndpoints(this.config)
-    const models = allModels(this.config)
-    const current = resolveEndpoint(this.config, this.config.endpointId)
+    const config = this.accountConfig()
+    const endpoints = allEndpoints(config)
+    const models = allModels(config)
+    const current = resolveEndpoint(config, config.endpointId)
     const providers: Record<string, { label: string; configured: boolean; hint: string; baseUrl: string; group: string; protocol: string }> = {}
     for (const ep of endpoints) {
       providers[ep.id] = {
         label: ep.label,
-        configured: endpointConfigured(this.config, ep),
-        hint: hint(this.config.apiKeys[ep.id] ?? ''),
-        baseUrl: effectiveBaseUrl(this.config, ep),
+        configured: endpointConfigured(config, ep),
+        hint: hint(config.apiKeys[ep.id] ?? ''),
+        baseUrl: effectiveBaseUrl(config, ep),
         group: ep.group,
         protocol: ep.protocol,
       }
@@ -458,8 +479,8 @@ export class ChatService extends Service {
       if (!providers[p]) {
         providers[p] = {
           label: describeProvider(p),
-          configured: Boolean((this.config.apiKeys[p] ?? '').trim()),
-          hint: hint(this.config.apiKeys[p] ?? ''),
+          configured: Boolean((config.apiKeys[p] ?? '').trim()),
+          hint: hint(config.apiKeys[p] ?? ''),
           baseUrl: findEndpointPreset(p)?.baseUrl ?? '',
           group: 'official',
           protocol: p === 'anthropic' ? 'anthropic' : 'openai-compat',
@@ -467,20 +488,20 @@ export class ChatService extends Service {
       }
     }
     return {
-      endpointId: this.config.endpointId,
-      provider: this.config.provider,
-      model: this.config.model,
-      systemPrompt: this.config.systemPrompt,
-      agentMode: this.config.agentMode,
-      thinking: this.config.thinking,
-      reasoningEffort: this.config.reasoningEffort,
-      contextWindow: this.config.contextWindow,
-      speed: this.config.speed,
-      capabilities: inferModelCapabilities(this.config.model, this.config.provider),
+      endpointId: config.endpointId,
+      provider: config.provider,
+      model: config.model,
+      systemPrompt: config.systemPrompt,
+      agentMode: config.agentMode,
+      thinking: config.thinking,
+      reasoningEffort: config.reasoningEffort,
+      contextWindow: config.contextWindow,
+      speed: config.speed,
+      capabilities: inferModelCapabilities(config.model, config.provider),
       /** 当前默认入口是否已配置（兼容旧语义，供 banner 等使用）。 */
-      configured: current ? endpointConfigured(this.config, current) : Boolean((this.config.apiKeys[this.config.provider] ?? '').trim()),
-      hint: hint(this.config.apiKeys[this.config.endpointId] ?? this.config.apiKeys[this.config.provider] ?? ''),
-      baseUrl: current ? effectiveBaseUrl(this.config, current) : '',
+      configured: current ? endpointConfigured(config, current) : Boolean((config.apiKeys[config.provider] ?? '').trim()),
+      hint: hint(config.apiKeys[config.endpointId] ?? config.apiKeys[config.provider] ?? ''),
+      baseUrl: current ? effectiveBaseUrl(config, current) : '',
       /** 各入口是否已配置 key + baseUrl。 */
       providers,
       endpoints: endpoints.map((ep) => ({
@@ -489,10 +510,10 @@ export class ChatService extends Service {
         group: ep.group,
         protocol: ep.protocol,
         provider: ep.provider,
-        baseUrl: effectiveBaseUrl(this.config, ep),
+        baseUrl: effectiveBaseUrl(config, ep),
         defaultBaseUrl: ep.baseUrl,
-        configured: endpointConfigured(this.config, ep),
-        hint: hint(this.config.apiKeys[ep.id] ?? ''),
+        configured: endpointConfigured(config, ep),
+        hint: hint(config.apiKeys[ep.id] ?? ''),
         placeholder: ep.placeholder ?? 'sk-…',
         note: ep.note,
         builtin: ep.builtin !== false && ep.group !== 'custom',
@@ -502,8 +523,8 @@ export class ChatService extends Service {
         capabilities: inferModelCapabilities(m.model, m.provider),
         // 方便前端按入口过滤
         endpointConfigured: (() => {
-          const ep = resolveEndpoint(this.config, m.endpointId)
-          return ep ? endpointConfigured(this.config, ep) : false
+          const ep = resolveEndpoint(config, m.endpointId)
+          return ep ? endpointConfigured(config, ep) : false
         })(),
       })),
       tools: this.ctx.tools.names(),
@@ -515,7 +536,7 @@ export class ChatService extends Service {
         },
         ...this.ctx.tools.catalog().filter((item) => item.name !== 'goal'),
       ],
-      extraTools: this.config.extraTools,
+      extraTools: config.extraTools,
     }
   }
 
@@ -565,18 +586,19 @@ export class ChatService extends Service {
   }
 
   resolverKey(provider: ChatProvider): string {
-    return this.config.apiKeys[provider] ?? ''
+    return this.accountConfig().apiKeys[provider] ?? ''
   }
 
   /** 根据有效入口取对应 apiKey + baseUrl。 */
   resolveLlm(sessionId?: string | null): LlmConfig {
+    const config = this.accountConfig()
     const { effective } = this.resolveEffective(sessionId)
-    const endpointId = (effective as { endpointId?: string }).endpointId ?? this.config.endpointId
-    const endpoint = resolveEndpoint(this.config, endpointId) ?? resolveEndpoint(this.config, effective.provider)
+    const endpointId = (effective as { endpointId?: string }).endpointId ?? config.endpointId
+    const endpoint = resolveEndpoint(config, endpointId) ?? resolveEndpoint(config, effective.provider)
     const provider: ChatProvider = endpoint?.provider ?? effective.provider
     const apiKey =
-      (endpoint ? this.config.apiKeys[endpoint.id] : undefined) ??
-      this.config.apiKeys[provider] ??
+      (endpoint ? config.apiKeys[endpoint.id] : undefined) ??
+      config.apiKeys[provider] ??
       ''
     // 本地入口允许空 Key：上游常不校验，填占位避免部分网关拒空 Authorization
     const key = apiKey.trim() || (endpoint && isLocalEndpoint(endpoint) ? 'local' : '')
@@ -610,7 +632,7 @@ export class ChatService extends Service {
       return { ok: false as const, latencyMs: 0, detail: `未知入口：${endpointId}`, endpointId }
     }
     const draftKey = typeof opts?.apiKey === 'string' ? opts.apiKey.trim() : ''
-    const storedKey = (this.config.apiKeys[endpointId] ?? '').trim()
+    const storedKey = (this.accountConfig().apiKeys[endpointId] ?? '').trim()
     const apiKey = draftKey || storedKey || (isLocalEndpoint(endpoint) ? 'local' : '')
     const baseUrl =
       typeof opts?.baseUrl === 'string' && opts.baseUrl.trim()
@@ -668,7 +690,10 @@ export class ChatService extends Service {
     if (!id) return this.publicView()
     unblockEndpoint(this.config, id)
     if (typeof opts?.apiKey === 'string' && opts.apiKey.trim()) {
-      this.config.apiKeys[id] = opts.apiKey.trim()
+      const key = opts.apiKey.trim()
+      this.updateAccountKeys((keys) => {
+        keys[id] = key
+      })
     }
     if (typeof opts?.baseUrl === 'string' && opts.baseUrl.trim()) {
       this.config.baseUrls[id] = normalizeBaseUrl(opts.baseUrl)
@@ -745,10 +770,15 @@ export class ChatService extends Service {
       for (const [id, key] of Object.entries(next.setApiKey)) {
         // 空串 / null：清除 Key（测试失败或断开时用）
         if (key === null || key === '') {
-          delete this.config.apiKeys[id]
+          this.updateAccountKeys((keys) => {
+            delete keys[id]
+          })
           blockEndpoint(this.config, id)
         } else if (typeof key === 'string' && key.trim()) {
-          this.config.apiKeys[id] = key.trim()
+          const nextKey = key.trim()
+          this.updateAccountKeys((keys) => {
+            keys[id] = nextKey
+          })
           unblockEndpoint(this.config, id)
         }
       }
@@ -764,8 +794,12 @@ export class ChatService extends Service {
     }
     // 兼容旧调用：单一 apiKey 写入当前入口
     if (typeof next.apiKey === 'string' && next.apiKey.trim()) {
-      this.config.apiKeys[this.config.endpointId] = next.apiKey.trim()
-      unblockEndpoint(this.config, this.config.endpointId)
+      const endpointId = this.config.endpointId
+      const nextKey = next.apiKey.trim()
+      this.updateAccountKeys((keys) => {
+        keys[endpointId] = nextKey
+      })
+      unblockEndpoint(this.config, endpointId)
     }
     if (next.addEndpoint && typeof next.addEndpoint === 'object') {
       const label = String(next.addEndpoint.label ?? '').trim()
@@ -857,7 +891,9 @@ export class ChatService extends Service {
       const id = next.removeCustomEndpoint.trim()
       this.config.customEndpoints = this.config.customEndpoints.filter((e) => e.id !== id)
       this.config.customModels = this.config.customModels.filter((m) => m.endpointId !== id)
-      delete this.config.apiKeys[id]
+      this.updateAccountKeys((keys) => {
+        delete keys[id]
+      })
       delete this.config.baseUrls[id]
       unblockEndpoint(this.config, id)
       if (this.config.endpointId === id) {
