@@ -371,6 +371,8 @@ export class SessionsService extends Service {
     }
     await this.persist(record)
     this.attachSession(record.id)
+    const database = this.ctx.get('database') as { touchActor?: (collection: string, recordId: string) => Promise<void> } | undefined
+    await database?.touchActor?.('/sessions', record.id)
     return record
   }
 

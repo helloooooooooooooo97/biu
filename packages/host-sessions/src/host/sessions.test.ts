@@ -13,6 +13,25 @@ import { SESSION_FORMAT_VERSION, deriveMessages, applyContextBudget, estimateTok
 import type { SessionEvent } from './index.ts'
 import type { LlmMessage } from '@biu/host-llm'
 
+test('creating a session stamps createdBy through the database service', async () => {
+  const ctx = new Context()
+  const stamped: string[] = []
+  class DatabaseTouch extends Service {
+    constructor(ctx: Context) {
+      super(ctx, 'database')
+    }
+    touchActor(collection: string, recordId: string) {
+      stamped.push(`${collection}/${recordId}`)
+      return Promise.resolve()
+    }
+  }
+  await ctx.plugin(sessionStore, { driver: 'memory' })
+  await ctx.plugin(DatabaseTouch)
+  await ctx.plugin(sessions)
+  const record = await ctx.sessions.create()
+  assert.deepEqual(stamped, [`/sessions/${record.id}`])
+})
+
 test('append-only log projects model history; version is 1', async () => {
   const ctx = new Context()
   await ctx.plugin(sessionStore, { driver: 'memory' })
