@@ -39,7 +39,6 @@ import {
   Squares2X2Icon,
   StarIcon,
   TableCellsIcon,
-  ComputerDesktopIcon,
   GlobeAltIcon,
   UserIcon,
   UsersIcon,
@@ -581,25 +580,10 @@ export function CollectionBrowser({
   )
   const [query, setQuery] = useState(initialView?.query ?? '')
   const [page, setPage] = useState(0)
-  const [localData, setLocalData] = useState(false)
-  const [createScope, setCreateScope] = useState<'local' | 'personal' | 'workspace' | 'shared'>(
+  const [createScope, setCreateScope] = useState<'personal' | 'workspace' | 'shared'>(
     routeScope === 'workspace' ? 'workspace' : routeScope === 'shared' ? 'shared' : 'personal',
   )
   const [createScopeOpen, setCreateScopeOpen] = useState(false)
-  useEffect(() => {
-    let live = true
-    void fetch('/api/profile')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((body: { localData?: boolean } | null) => {
-        if (!live || !body?.localData) return
-        setLocalData(true)
-        setCreateScope((current) => (current === 'personal' ? 'local' : current))
-      })
-      .catch(() => undefined)
-    return () => {
-      live = false
-    }
-  }, [])
   const [pageSize, setPageSize] = useState(() => normalizePageSize(initialView?.pageSize))
   const [total, setTotal] = useState(0)
   const [fetchQuery, setFetchQuery] = useState(initialView?.query ?? '')
@@ -1915,7 +1899,7 @@ export function CollectionBrowser({
       const data = await readJson<{ items?: Array<{ value?: DbRecord }> }>('/api/db/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ path: dataPath, records: [{}], scope: createScope === 'local' ? 'personal' : createScope }),
+        body: JSON.stringify({ path: dataPath, records: [{}], scope: createScope }),
       })
       quietUntil.current = 0
       await reload()
@@ -3350,19 +3334,15 @@ export function CollectionBrowser({
                     aria-label="新建归属"
                     aria-expanded={createScopeOpen}
                     title={
-                      createScope === 'local'
-                        ? '本地内容，只留在这台机器'
-                        : createScope === 'workspace'
-                          ? '空间内容，按各自的空间角色处理'
-                          : createScope === 'shared'
-                            ? '公开链接，所有人可查看'
-                            : '私人内容，仅自己可处理'
+                      createScope === 'workspace'
+                        ? '空间内容，按各自的空间角色处理'
+                        : createScope === 'shared'
+                          ? '公开链接，所有人可查看'
+                          : '私人内容，仅自己可处理'
                     }
                     onClick={() => setCreateScopeOpen((open) => !open)}
                   >
-                    {createScope === 'local' ? (
-                      <ComputerDesktopIcon aria-hidden className="size-[14px]" />
-                    ) : createScope === 'workspace' ? (
+                    {createScope === 'workspace' ? (
                       <UsersIcon aria-hidden className="size-[14px]" />
                     ) : createScope === 'shared' ? (
                       <GlobeAltIcon aria-hidden className="size-[14px]" />
@@ -3373,20 +3353,6 @@ export function CollectionBrowser({
                   </button>
                   {createScopeOpen ? (
                     <div className="fsdb-create-scope-menu" role="menu">
-                      {localData ? (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className={createScope === 'local' ? 'is-on' : ''}
-                          onClick={() => {
-                            setCreateScope('local')
-                            setCreateScopeOpen(false)
-                          }}
-                        >
-                          <ComputerDesktopIcon aria-hidden className="size-[14px]" />
-                          本地
-                        </button>
-                      ) : null}
                       <button
                         type="button"
                         role="menuitem"
