@@ -407,8 +407,7 @@ export function ActionCell({
     <button
       type="button"
       className="fsdb-action-btn"
-      title={label}
-      data-dock-tip={label}
+      aria-label={label}
       onClick={(event) => {
         event.stopPropagation()
         onRun?.()
